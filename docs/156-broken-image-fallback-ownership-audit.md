@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["images-media", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2463", "DM-2464", "DM-2465", "DM-N6XJRS"]
+tickets: ["DM-2463", "DM-2464", "DM-2465", "DM-N6XJRS", "DM-G47E97"]
 code:
   [
     "src/capture/broken-image-fallback.ts",
@@ -345,6 +345,33 @@ The native regression covers empty/nonempty alternatives, an alternative change
 after recovery, primary SVG pixels, and relapse to real fallback. Independent
 srcset-only load-state and CSS-generated owner defects are tracked as
 DM-E0KRM2 and DM-G47E97.
+
+### CSS-generated content images on img (DM-G47E97)
+
+An img's own computed `content` can own its box. `HTMLImageElement::
+CreateLayoutObject` (`html_image_element.cc:509-532`, Chromium `6b5a1b80`)
+tests the first content item: an `ImageContentData` whose image has not
+errored goes to `LayoutObject::CreateObject`, and any other value (including
+an errored image) falls through to `layout_disposition_`. `CreateObject`
+builds a generated `LayoutImage` only for exactly one image item optionally
+followed by alt text (`ShouldUseContentDataForElement`,
+`content_data.h:433-445`). Any other trailing item gives an ordinary box from
+`display`, and a retained UA shadow then paints inside it. The style image is
+not the `ImageLoader`'s (`ImageLoader::GetLayoutImageResource`,
+`image_loader.cc:860-879`), so `naturalWidth` and `complete` keep describing
+`src`.
+
+The async prime pass (`primePseudoImageIntrinsics` in `src/capture/index.ts`)
+therefore classifies each img's own `content` and loads a `url()` item through
+the decoder, recording `loaded`, `error` or `pending` with the natural size.
+`captureImageElement` paints a loaded single generated image in place of `src`
+with no UA fallback seed, and paints nothing (with a `content` warning) while
+it is pending. An errored first image marks the seed `erroredContentImage`, and
+the post-pass then gives it the same primary branch as `content: normal`. An
+image followed by other items keeps the seed path, which classifies a retained
+shadow as fallback; painting that fallback under its zero-size inline host is
+tracked as DM-GXK8X1. Non-URL generated images (gradients, `image-set()`) are
+not painted yet: capture warns and keeps `src` (DM-YF72EK).
 The same-HAR Stripe card background is restored against a byte-identical source
 frame; its remaining bitmap sampling/phase residual is tracked as DM-MJAMW0,
 without a pixel-exact claim or geometry normalization.

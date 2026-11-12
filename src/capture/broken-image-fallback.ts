@@ -54,6 +54,8 @@ interface ProbeRecord extends Partial<CapturedBrokenImageFallback> {
   selector?: string;
   effectiveZoom?: number;
   hostRect?: { x: number; y: number; width: number; height: number };
+  /** The img's own `content` image errored, so `src` layout decides. */
+  erroredContentImage?: boolean;
 }
 
 interface TextProbe {
@@ -193,15 +195,18 @@ export function classifyBrokenImageDisposition(input: {
   source: SourceFacts;
   uaShadowPresent: boolean;
   hostContent?: string;
+  erroredContentImage?: boolean;
   containerDisplay?: string;
   iconVisible?: boolean;
 }): BrokenImageFallbackDisposition {
   // Chromium 147 HTMLImageElement::SetLayoutDisposition retains the old UA
   // shadow tree when a failed image recovers. AccessNaturalSize is positive
   // only for a non-error resource; CreateLayoutObject uses that primary image
-  // for ordinary content. CSS-generated images have a separate resource owner.
+  // for ordinary content. CSS-generated images have a separate resource owner;
+  // when that image errored, CreateLayoutObject falls through to the same
+  // layout_disposition_ switch (html_image_element.cc:509-532, 6b5a1b80).
   if (
-    input.hostContent === "normal" &&
+    (input.hostContent === "normal" || input.erroredContentImage === true) &&
     input.source.complete &&
     input.source.naturalWidth > 0 &&
     input.source.naturalHeight > 0
@@ -556,6 +561,7 @@ export async function captureBrokenImageFallbackFacts(
             source,
             uaShadowPresent: shadow != null,
             hostContent,
+            erroredContentImage: target.probe.erroredContentImage === true,
           });
           if (shadow == null || hostDisposition === "primary") {
             target.element.brokenImageFallback = {

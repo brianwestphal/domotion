@@ -478,6 +478,8 @@ export const createElementCapture = () => {
       sel,
       effectiveZoomFor: d.effectiveZoomFor,
       sourceNodeIndex: d.projectiveNodeIndex.get(el),
+      contentImageKey: d.args.pseudoImageSizingKey,
+      warn: d.warn,
     });
     const listsCounters = d.captureListsCounters(el, cs, tag);
     let svgReferenceScope = undefined;

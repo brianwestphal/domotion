@@ -106,6 +106,12 @@ describe("Chromium broken-image fallback disposition (DM-2463)", () => {
       expect(image.brokenImageFallback?.captureStatus).toBe("terminal-raster");
     },
   );
+  it("returns an errored generated content image to the src disposition (DM-G47E97)", () => {
+    const loaded = source({ naturalWidth: 1, naturalHeight: 1 });
+    const retained = { source: loaded, uaShadowPresent: true, hostContent: 'url("data:image/png;base64,AAAA")' };
+    expect(classifyBrokenImageDisposition(retained)).toBe("non-replaced-fallback");
+    expect(classifyBrokenImageDisposition({ ...retained, erroredContentImage: true })).toBe("primary");
+  });
   it("separates primary, loading, and collapsed hosts without a UA shadow", () => {
     expect(
       classifyBrokenImageDisposition({

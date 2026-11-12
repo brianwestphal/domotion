@@ -1758,7 +1758,16 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
           frame,
           async (key) => {
             type PseudoImageIntrinsic = { url: string; width: number; height: number };
-            type PseudoImageRecords = Partial<Record<"::before" | "::after", PseudoImageIntrinsic>>;
+            type ElementContentImage = {
+              kind: "url" | "url-with-items" | "other-image";
+              url: string;
+              state: "loaded" | "error" | "pending";
+              width: number;
+              height: number;
+            };
+            type PseudoImageRecords = Partial<Record<"::before" | "::after", PseudoImageIntrinsic>> & {
+              element?: ElementContentImage;
+            };
             const targets = (globalThis as typeof globalThis & Record<string, Element[]>)[key];
             const cssUrl = (content: string): string | null => {
               const match = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^\s)]+))\s*\)/i.exec(content);
@@ -1778,10 +1787,83 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
               cache.set(url, pending);
               return pending;
             };
+            // An <img>'s own computed `content` replaces its src paint when the
+            // first item is an unerrored image (HTMLImageElement::
+            // CreateLayoutObject, html_image_element.cc:509-532, Chromium
+            // 6b5a1b80). LayoutObject::CreateObject builds the generated
+            // LayoutImage only for one image item plus optional alt text
+            // (ShouldUseContentDataForElement, content_data.h:433-445); any
+            // other trailing item leaves an empty ordinary box. The style
+            // image is not the ImageLoader's, so naturalWidth/complete keep
+            // describing src (ImageLoader::GetLayoutImageResource,
+            // image_loader.cc:860-879); load the URL with the decoder instead.
+            const topLevelItems = (content: string): string[] => {
+              const items: string[] = [];
+              let depth = 0;
+              let quote = "";
+              let start = -1;
+              for (let i = 0; i < content.length; i++) {
+                const ch = content[i];
+                if (quote !== "") {
+                  if (ch === "\\") i++;
+                  else if (ch === quote) quote = "";
+                } else if (ch === '"' || ch === "'") {
+                  quote = ch;
+                } else if (ch === "(") {
+                  depth++;
+                } else if (ch === ")") {
+                  depth--;
+                } else if (depth === 0 && /\s/.test(ch)) {
+                  if (start >= 0) items.push(content.slice(start, i));
+                  start = -1;
+                  continue;
+                }
+                if (start < 0) start = i;
+              }
+              if (start >= 0) items.push(content.slice(start));
+              return items;
+            };
+            const loadState = (url: string): Promise<Omit<ElementContentImage, "kind">> =>
+              new Promise((resolve) => {
+                const image = new Image();
+                const settle = (state: ElementContentImage["state"]): void =>
+                  resolve({ url, state, width: image.naturalWidth, height: image.naturalHeight });
+                const timer = setTimeout(() => settle("pending"), 3000);
+                image.src = url;
+                image.decode().then(
+                  () => {
+                    clearTimeout(timer);
+                    settle("loaded");
+                  },
+                  () => {
+                    clearTimeout(timer);
+                    settle(image.complete && image.naturalWidth > 0 ? "loaded" : "error");
+                  },
+                );
+              });
+            const elementContentImage = async (element: Element): Promise<ElementContentImage | null> => {
+              if (!(element instanceof HTMLImageElement)) return null;
+              const items = topLevelItems(getComputedStyle(element).content || "");
+              const first = items[0];
+              if (first == null) return null;
+              const rest = items.slice(1);
+              const imageOnly = rest.length === 0 || rest[0] === "/";
+              if (/^url\(/i.test(first)) {
+                const url = cssUrl(first);
+                if (url == null) return null;
+                return { kind: imageOnly ? "url" : "url-with-items", ...(await loadState(url)) };
+              }
+              if (/^(?:-webkit-)?(?:image-set|cross-fade|(?:repeating-)?(?:linear|radial|conic)-gradient|paint)\(/i.test(first)) {
+                return { kind: "other-image", url: "", state: "pending", width: 0, height: 0 };
+              }
+              return null;
+            };
             const elements = [document.documentElement, ...Array.from(document.getElementsByTagName("*"))];
             await Promise.all(
               elements.map(async (element) => {
                 const records: PseudoImageRecords = {};
+                const ownContent = await elementContentImage(element);
+                if (ownContent != null) records.element = ownContent;
                 await Promise.all(
                   (["::before", "::after"] as const).map(async (pseudo) => {
                     const content = getComputedStyle(element, pseudo).content;
@@ -1792,7 +1874,7 @@ async function primePseudoImageIntrinsics(page: Page): Promise<{
                     if (intrinsic != null) records[pseudo] = intrinsic;
                   }),
                 );
-                if (records["::before"] == null && records["::after"] == null) return;
+                if (records["::before"] == null && records["::after"] == null && records.element == null) return;
                 Object.defineProperty(element, key, { configurable: true, value: records });
                 targets.push(element);
               }),

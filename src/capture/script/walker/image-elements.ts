@@ -3,6 +3,14 @@
 // script's `captureInner`. Part of the page-`evaluate`d CAPTURE_SCRIPT bundle — self-contained, page globals
 // only; every input is an explicit parameter.
 
+interface PrimedContentImage {
+  kind: "url" | "url-with-items" | "other-image";
+  url: string;
+  state: "loaded" | "error" | "pending";
+  width: number;
+  height: number;
+}
+
 interface LayoutRect {
   left: number;
   top: number;
@@ -18,6 +26,8 @@ export const captureImageElement = ({
   sel,
   effectiveZoomFor,
   sourceNodeIndex,
+  contentImageKey,
+  warn,
 }: {
   el: HTMLElement;
   tag: string;
@@ -26,6 +36,8 @@ export const captureImageElement = ({
   sel: string;
   effectiveZoomFor: (el: Element) => number;
   sourceNodeIndex: number | undefined;
+  contentImageKey?: string | undefined;
+  warn?: (selector: string, property: string, message: string) => void;
 }) => {
   let imageSrc = undefined;
   let imageIntrinsic;
@@ -35,7 +47,33 @@ export const captureImageElement = ({
   let imageAlt;
   let brokenImageFallback;
   let imageEmbeddingColorScheme: "light" | "dark" | undefined;
-  if (tag === "img") {
+  // The img's own computed `content`, classified and loaded by the async
+  // prime pass (primePseudoImageIntrinsics). A single unerrored generated
+  // image owns the box in place of src and the UA fallback. An image followed
+  // by other items makes an ordinary box (LayoutObject::CreateObject), so any
+  // retained UA shadow still paints and the seed path below classifies it; an
+  // errored first image returns layout to the src disposition.
+  const primedContent: { element?: PrimedContentImage } | undefined =
+    tag === "img" && typeof contentImageKey === "string" && contentImageKey !== ""
+      ? Reflect.get(el, contentImageKey)
+      : undefined;
+  const ownContent = primedContent?.element;
+  if (ownContent != null && ownContent.kind === "other-image" && warn != null) {
+    warn(sel, "content", "a generated non-URL image replaces this <img>; its src is painted instead");
+  }
+  if (ownContent != null && ownContent.kind === "url" && ownContent.state !== "error") {
+    if (ownContent.state === "loaded") {
+      imageSrc = ownContent.url;
+      if (ownContent.width > 0 && ownContent.height > 0) {
+        imageIntrinsic = { w: ownContent.width, h: ownContent.height };
+        imageEffectiveZoom = effectiveZoomFor(el);
+      }
+    } else if (warn != null) {
+      warn(sel, "content", "the generated image replacing this <img> had not loaded; nothing is painted");
+    }
+    imageBroken = false;
+    imageAlt = (el as HTMLImageElement).alt || "";
+  } else if (tag === "img") {
     const img = el as HTMLImageElement;
     // currentSrc is the URL the browser actually resolved + loaded (from
     // srcset / <picture> <source>). Fall back to src when currentSrc is empty.
@@ -129,6 +167,9 @@ export const captureImageElement = ({
     var _imageHasTitle = img.hasAttribute("title");
     brokenImageFallback = {
       schemaVersion: 1,
+      // An errored generated image hands layout back to the src disposition,
+      // exactly as ordinary content does (HTMLImageElement::CreateLayoutObject).
+      ...(ownContent != null && ownContent.state === "error" ? { erroredContentImage: true } : {}),
       authority: "chromium-ua-shadow-v1",
       sourceNodeIndex: sourceNodeIndex,
       selector: sel,

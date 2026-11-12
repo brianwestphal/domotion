@@ -313,6 +313,77 @@ describeBrowser("Chromium broken-image UA-shadow capture (DM-2463)", () => {
     }
   }, 60_000);
 
+  it("paints the img's own generated content image in place of src or a retained UA shadow (DM-G47E97)", async () => {
+    // HTMLImageElement::CreateLayoutObject (html_image_element.cc:509-532,
+    // Chromium 6b5a1b80): an unerrored first content image owns the box; an
+    // errored one hands layout back to the src disposition; an image followed
+    // by a non-alt item leaves an empty ordinary box (content_data.h:433-445).
+    const svg = (fill: string) =>
+      "data:image/svg+xml," +
+      encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="${fill}"/></svg>`,
+      );
+    const magenta = svg("magenta");
+    const cases = [
+      { content: `url("${magenta}")`, expected: [255, 0, 255] },
+      { content: `url("${magenta}") / "label"`, expected: [255, 0, 255] },
+      { content: `url("${BROKEN}")`, expected: [0, 0, 0] },
+      // An ordinary box: empty when fresh, the retained UA shadow when recovered.
+      { content: `url("${magenta}") "text"`, expected: null },
+    ];
+    const page = await env!.browser.newPage({ viewport: { width: 140, height: 100 } });
+    const generated = await env!.browser.newPage({ viewport: { width: 140, height: 100 } });
+    const pixel = async (bytes: Buffer) => [
+      ...(await sharp(bytes).removeAlpha().extract({ left: 10, top: 10, width: 1, height: 1 }).raw().toBuffer()),
+    ];
+    try {
+      for (const recovered of [false, true]) {
+        for (const { content, expected } of cases) {
+          await page.setContent(
+            `<!doctype html><style>body{margin:0;background:white}</style><img alt="" src="${recovered ? BROKEN : svg("black")}">`,
+          );
+          await page.waitForFunction(() => document.images[0].complete);
+          if (recovered) {
+            // A failed image keeps its UA shadow after recovering (DM-STQYYJ).
+            await page.locator("img").evaluate(async (image: HTMLImageElement, src) => {
+              image.style.width = "40px";
+              image.style.height = "30px";
+              image.src = src;
+              await image.decode();
+            }, svg("black"));
+          }
+          await page.locator("img").evaluate((image: HTMLImageElement, value) => {
+            image.style.content = value;
+          }, content);
+          await page.waitForTimeout(100);
+          const native = await pixel(await page.screenshot());
+          if (expected != null) expect(native, `${content} recovered=${recovered}`).toEqual(expected);
+          else if (!recovered) expect(native).toEqual([255, 255, 255]);
+          else expect(native).not.toEqual([255, 255, 255]);
+          const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 140, height: 100 });
+          expect(capture.warnings.filter((w) => w.feature === "broken-image-fallback")).toEqual([]);
+          if (expected == null && recovered) {
+            // Classified as the retained shadow; painting it under a 0x0
+            // inline host is tracked separately (DM-GXK8X1).
+            const walk = (nodes: CapturedElement[]): CapturedElement[] =>
+              nodes.flatMap((n) => [n, ...walk(n.children)]);
+            expect(walk(capture.tree).find((n) => n.tag === "img")?.brokenImageFallback).toMatchObject({
+              disposition: "non-replaced-fallback",
+              icon: { visible: true },
+            });
+            continue;
+          }
+          await generated.setContent(`<style>body{margin:0}</style>${elementTreeToSvg(capture.tree, 140, 100)}`);
+          await generated.waitForTimeout(100);
+          expect(await pixel(await generated.screenshot()), `${content} recovered=${recovered}`).toEqual(native);
+        }
+      }
+    } finally {
+      await generated.close();
+      await page.close();
+    }
+  }, 60_000);
+
   for (const dpr of [1, 2]) {
     it(`captures source-owned layout/text/font/AX facts at DPR ${dpr}`, async () => {
       const context = await env!.browser.newContext({
