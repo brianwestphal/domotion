@@ -34,7 +34,9 @@ describe("local text-engine guard", () => {
     const main = checkout("main");
     const worktree = checkout("worktree", main);
     expect(resolvedTextEnginePackage(worktree)).toContain(join("main", "packages", "text-engine"));
-    expect(() => assertLocalTextEngine(worktree)).toThrow(/resolves to .*main.*not this checkout's .*worktree.*npm ci/s);
+    expect(() => assertLocalTextEngine(worktree)).toThrow(
+      /resolves to .*main.*not this checkout's .*worktree.*npm ci/s,
+    );
   });
 
   it("accepts a linked checkout whose packages resolve to the same source", () => {
