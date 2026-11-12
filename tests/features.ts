@@ -778,6 +778,18 @@ export const tests: FeatureTest[] = [
     height: 140,
   },
   {
+    // DM-GQJ8C4: Blink clamps a negative outline-offset per axis to half the
+    // pixel-snapped box (AdjustedOutlineOffset, outline_painter.cc:79-82,
+    // chromium 6b5a1b80), so an offset past the box center collapses the
+    // outline to a small square instead of inverting it and painting nothing.
+    // Square, wide (axes clamp independently) and rounded boxes, plus
+    // unclamped negative and positive controls.
+    name: "outline-negative-offset-clamp",
+    html: `<style>body{margin:0}.w{position:relative;width:290px;height:70px;background:#fff}.o{position:absolute;top:24px;width:20px;height:20px;outline:2px solid #dc2626}</style><div class="w"><div class="o" style="left:20px;outline-offset:-20px"></div><div class="o" style="left:70px;width:40px;height:10px;outline-offset:-20px"></div><div class="o" style="left:140px;border-radius:6px;outline-offset:-20px"></div><div class="o" style="left:190px;outline-offset:-4px"></div><div class="o" style="left:240px;outline-offset:3px"></div></div>`,
+    width: 290,
+    height: 70,
+  },
+  {
     // A control pseudo with a background-image LIST paints every layer over
     // its background color, last-listed first (BoxPainterBase::PaintFillLayers,
     // Chromium 7d859f27): a translucent stripe layer over a base gradient on

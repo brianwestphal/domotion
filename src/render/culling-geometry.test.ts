@@ -135,6 +135,18 @@ describe("renderer-owned viewBox-culling geometry", () => {
     });
   });
 
+  // DM-GQJ8C4: the cull mirror clamps a negative outline-offset per axis like paintOutline.
+  it("clamps a negative outline offset instead of inverting the outline boxes", () => {
+    const target = el(20, 20, 20, 20, {
+      outlineStyle: "solid",
+      outlineWidth: "2px",
+      outlineOffset: "-20px",
+      outlineColor: "rgb(255, 0, 0)",
+    });
+    const facts = buildRendererCullGeometry(target, 100, 100).get(target)!;
+    expect(facts.referenceBoxes.strokeBox).toEqual({ kind: "exact", box: { x: 28, y: 28, w: 4, h: 4 } });
+  });
+
   it("clips overflow-visible descendant paint at the emitted child clip", () => {
     const child = el(750, 20, 200, 30, { backgroundColor: "red" });
     const parent = el(

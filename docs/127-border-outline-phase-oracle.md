@@ -8,6 +8,7 @@ platforms: ["macos", "linux", "windows"]
 tickets:
   [
     "DM-2184",
+    "DM-GQJ8C4",
     "DM-2323",
     "DM-2355",
     "DM-CMKF35",
@@ -92,6 +93,17 @@ review found the remaining DSF=1 dotted-outline coverage profile byte-stable
 across runners. The later uniform-double snap correction left those maxima and
 their ceilings unchanged; doc 191 records the exact geometry, ceilings, and
 evidence fingerprints.
+
+A negative outline offset is clamped per axis before any of this geometry:
+`AdjustedOutlineOffset` (`outline_painter.cc:79-82`, chromium `6b5a1b80`)
+limits the vertical outset to `max(offset, -height / 2)` and the horizontal one
+to `max(offset, -width / 2)` of the pixel-snapped rect, with C++ integer
+division, and both `PaintSingleRectOutline` and the right-angle path receive
+those outsets. An offset past the box center therefore collapses the outline
+to a small rectangle instead of inverting it. `adjustedOutlineOffset` in
+`src/render/outline-paint.ts` transcribes it for the square and rounded paths,
+and the cull mirror in `src/render/culling-geometry.ts` uses the same values
+(DM-GQJ8C4; feature fixture `outline-negative-offset-clamp`).
 
 A square dashed or dotted single-rect outline paints through
 `BoxBorderPainter`'s outline constructor, which uses the pixel-snapped outer

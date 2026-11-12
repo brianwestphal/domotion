@@ -27,6 +27,7 @@ import {
   usedOverflowClipMargin,
 } from "./overflow-clip.js";
 import { cssTransformToSvg } from "./transforms.js";
+import { adjustedOutlineOffset } from "./outline-paint.js";
 
 export interface RendererCullBox {
   x: number;
@@ -570,18 +571,27 @@ function ownGeometry(el: CapturedElement): {
     const rounded = [corners.tl, corners.tr, corners.br, corners.bl].some((corner) => corner.h !== 0 || corner.v !== 0);
     let center: RendererCullBox;
     let outer: RendererCullBox;
+    // Mirror paintOutline's per-axis clamp of a negative offset (DM-GQJ8C4).
+    const snappedLeft = Math.round(el.x);
+    const snappedTop = Math.round(el.y);
+    const snappedRight = Math.round(el.x + el.width);
+    const snappedBottom = Math.round(el.y + el.height);
+    const snappedWidth = snappedRight - snappedLeft;
+    const snappedHeight = snappedBottom - snappedTop;
     if (!rounded) {
       const width = Math.round(outlineWidth);
-      const outset = Math.round(outlineOffset) + width;
-      const left = Math.round(el.x) - outset;
-      const top = Math.round(el.y) - outset;
-      const right = Math.round(el.x + el.width) + outset;
-      const bottom = Math.round(el.y + el.height) + outset;
+      const clamp = adjustedOutlineOffset(snappedWidth, snappedHeight, Math.round(outlineOffset));
+      const left = snappedLeft - (clamp.horizontal + width);
+      const top = snappedTop - (clamp.vertical + width);
+      const right = snappedRight + clamp.horizontal + width;
+      const bottom = snappedBottom + clamp.vertical + width;
       center = { x: left + width / 2, y: top + width / 2, w: right - left - width, h: bottom - top - width };
       outer = { x: left, y: top, w: right - left, h: bottom - top };
     } else {
-      const inflate = outlineOffset + outlineWidth / 2;
-      center = { x: el.x - inflate, y: el.y - inflate, w: el.width + inflate * 2, h: el.height + inflate * 2 };
+      const clamp = adjustedOutlineOffset(snappedWidth, snappedHeight, outlineOffset);
+      const inflateX = clamp.horizontal + outlineWidth / 2;
+      const inflateY = clamp.vertical + outlineWidth / 2;
+      center = { x: el.x - inflateX, y: el.y - inflateY, w: el.width + inflateX * 2, h: el.height + inflateY * 2 };
       outer = {
         x: center.x - outlineWidth / 2,
         y: center.y - outlineWidth / 2,

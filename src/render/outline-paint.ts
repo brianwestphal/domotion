@@ -91,6 +91,25 @@ export function paintThinDottedLine(
   return out;
 }
 
+/**
+ * Blink's `AdjustedOutlineOffset` (outline_painter.cc:79-82, chromium 6b5a1b80):
+ * a negative integer outline-offset may pull each axis of the pixel-snapped
+ * rect in by at most half that axis's extent (C++ integer division), so the
+ * outline never inverts. `PaintSingleRectOutline` and the right-angle path
+ * both receive these per-axis outsets.
+ */
+export function adjustedOutlineOffset(
+  snappedWidth: number,
+  snappedHeight: number,
+  offset: number,
+): { horizontal: number; vertical: number } {
+  // `+ 0` folds the -0 a zero extent yields into 0, as C++ integers do.
+  return {
+    horizontal: Math.max(offset, -Math.trunc(snappedWidth / 2)) + 0,
+    vertical: Math.max(offset, -Math.trunc(snappedHeight / 2)) + 0,
+  };
+}
+
 // Outline paint phase, extracted from elementTreeToSvgInner (DM-1306). Reads only
 // el + the resolved borderRadius + indent; appends to no shared state, so it
 // returns its <rect>/<line> markup for the caller to push. Behavior-identical.
@@ -102,13 +121,22 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
     const ocolor = parseColor(el.styles.outlineColor ?? el.styles.color);
     if (ocolor != null && ocolor.a > 0.01) {
       const offset = parseFloat(el.styles.outlineOffset ?? "0") || 0;
+      const snappedLeft = Math.round(el.x);
+      const snappedTop = Math.round(el.y);
+      const snappedRight = Math.round(el.x + el.width);
+      const snappedBottom = Math.round(el.y + el.height);
+      // DM-GQJ8C4: clamp a negative offset per axis, as Blink does, instead of
+      // letting it invert the outline rect.
+      const clamp = adjustedOutlineOffset(snappedRight - snappedLeft, snappedBottom - snappedTop, offset);
       // Outline rect outer edge is at border-box + offset. Stroke is
       // centered, so the rect goes at offset + ow/2 from the border-box.
-      const inflate = offset + ow / 2;
-      let ox = el.x - inflate;
-      let oy = el.y - inflate;
-      let owd = el.width + inflate * 2;
-      let oh = el.height + inflate * 2;
+      const inflateX = clamp.horizontal + ow / 2;
+      const inflateY = clamp.vertical + ow / 2;
+      const inflate = Math.min(inflateX, inflateY);
+      let ox = el.x - inflateX;
+      let oy = el.y - inflateY;
+      let owd = el.width + inflateX * 2;
+      let oh = el.height + inflateY * 2;
       // DM-2324: ComplexOutlinePainter builds its right-angle region from
       // integer gfx::Rects, outsets that region by the integer outline offset
       // and width, then derives the center path.  getBoundingClientRect() is
@@ -116,11 +144,17 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
       // dotted outlines between device pixels under CSS zoom.
       if (borderRadius === 0) {
         const width = Math.round(ow);
-        const outset = Math.round(offset) + width;
-        const outerLeft = Math.round(el.x) - outset;
-        const outerTop = Math.round(el.y) - outset;
-        const outerRight = Math.round(el.x + el.width) + outset;
-        const outerBottom = Math.round(el.y + el.height) + outset;
+        const snappedClamp = adjustedOutlineOffset(
+          snappedRight - snappedLeft,
+          snappedBottom - snappedTop,
+          Math.round(offset),
+        );
+        const outsetX = snappedClamp.horizontal + width;
+        const outsetY = snappedClamp.vertical + width;
+        const outerLeft = snappedLeft - outsetX;
+        const outerTop = snappedTop - outsetY;
+        const outerRight = snappedRight + outsetX;
+        const outerBottom = snappedBottom + outsetY;
         ox = outerLeft + width / 2;
         oy = outerTop + width / 2;
         owd = outerRight - outerLeft - width;
