@@ -363,15 +363,15 @@ describeBrowser("Chromium broken-image UA-shadow capture (DM-2463)", () => {
           const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 140, height: 100 });
           expect(capture.warnings.filter((w) => w.feature === "broken-image-fallback")).toEqual([]);
           if (expected == null && recovered) {
-            // Classified as the retained shadow; painting it under a 0x0
-            // inline host is tracked separately (DM-GXK8X1).
+            // DM-GXK8X1: classified as the retained shadow under a 0x0 inline
+            // host. The host's UA overflow: clip does not apply to an inline
+            // box, so the icon paints at the top-left like Chromium's.
             const walk = (nodes: CapturedElement[]): CapturedElement[] =>
               nodes.flatMap((n) => [n, ...walk(n.children)]);
             expect(walk(capture.tree).find((n) => n.tag === "img")?.brokenImageFallback).toMatchObject({
               disposition: "non-replaced-fallback",
               icon: { visible: true },
             });
-            continue;
           }
           await generated.setContent(`<style>body{margin:0}</style>${elementTreeToSvg(capture.tree, 140, 100)}`);
           await generated.waitForTimeout(100);

@@ -21,6 +21,7 @@ import { parseCornerRadii } from "./borders.js";
 import { parseColor } from "./colors.js";
 import {
   capturedBoxRespectsCssOverflow,
+  isNonReplacedInline,
   isOverflowReplacedElement,
   isOverflowRespectingReplacedElement,
   overflowClipMarginGeometry,
@@ -759,7 +760,7 @@ function childOverflowClip(el: CapturedElement): AxisClip | null | "unknown" {
   const overflowY = el.styles.overflowY ?? "visible";
   const containClips = hasPaintContainment(el.styles);
   const clips = overflowX !== "visible" || overflowY !== "visible" || containClips;
-  if (!clips || el.tag === "body" || el.children.length === 0) return null;
+  if (!clips || el.tag === "body" || el.children.length === 0 || isNonReplacedInline(el)) return null;
   const top = parseFinitePx(el.styles.borderTopWidth);
   const right = parseFinitePx(el.styles.borderRightWidth);
   const bottom = parseFinitePx(el.styles.borderBottomWidth);

@@ -73,6 +73,7 @@ import { parseCornerRadii, insetCornerRadii, roundedRectSvg, injectSvgSize, type
 import { parseBoxShadow } from "./box-shadow.js";
 import {
   capturedBoxRespectsCssOverflow,
+  isNonReplacedInline,
   isOverflowReplacedElement,
   isOverflowRespectingReplacedElement,
   overflowClipMarginGeometry,
@@ -2473,6 +2474,7 @@ function renderElementWithOverflowClip(
 function resolveOverflowClipId(state: RenderState, el: CapturedElement, corners: CornerRadii): string | null {
   const { paintCtx, defsParts } = state;
   let clipPathUrlId: string | null = null;
+  if (isNonReplacedInline(el)) return null;
   const oxV = el.styles.overflowX;
   const oyV = el.styles.overflowY;
   const oxClips = oxV != null && oxV !== "visible";
@@ -3716,7 +3718,7 @@ export function childOverflowClipGeometry(
   const containClips = hasPaintContainment(el.styles);
   const clipsOverflow = (ox != null && ox !== "visible") || (oy != null && oy !== "visible") || containClips;
   // Body overflow propagates to the viewport instead of clipping body itself.
-  if (!clipsOverflow || el.tag === "body" || el.children.length === 0) return null;
+  if (!clipsOverflow || el.tag === "body" || el.children.length === 0 || isNonReplacedInline(el)) return null;
 
   // CSS overflow clips descendants to the padding edge, whose inner corner
   // radii are the captured outer radii inset by the adjacent border widths.

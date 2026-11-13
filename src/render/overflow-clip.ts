@@ -1,5 +1,6 @@
 import { insetCornerRadii, outsetCornerRadiiWithCoverageCorrection, type CornerRadii } from "./borders.js";
 import type { PhysicalEdges } from "./geometry-box.js";
+import type { CapturedElement } from "../capture/types.js";
 import { hasPaintContainment } from "./containment.js";
 
 export type OverflowClipReferenceBox = "border-box" | "padding-box" | "content-box";
@@ -235,4 +236,37 @@ export function overflowClipMarginOuterExtension(
     bottom: Math.max(0, geometry.y + geometry.height - borderBox.y - borderBox.height),
     left: Math.max(0, borderBox.x - geometry.x),
   };
+}
+
+// Elements Blink lays out as atomic boxes (replaced elements and form
+// controls) even when their computed display is inline.
+const INLINE_ATOMIC_TAGS = new Set([
+  "img",
+  "button",
+  "frame",
+  "video",
+  "audio",
+  "canvas",
+  "iframe",
+  "embed",
+  "object",
+  "svg",
+  "input",
+  "select",
+  "textarea",
+  "meter",
+  "progress",
+]);
+
+/**
+ * DM-GXK8X1: overflow applies to boxes, never to a non-replaced inline box
+ * (Blink's overflow clip lives on LayoutBox; LayoutInline has none). An `<img>`
+ * whose UA shadow is laid out as a non-replaced fallback, for example because
+ * `content: url() "text"` makes it an ordinary box, is such an inline box, so
+ * its UA `overflow: clip` clips nothing.
+ */
+export function isNonReplacedInline(el: Pick<CapturedElement, "tag" | "styles" | "brokenImageFallback">): boolean {
+  if (el.styles.display !== "inline") return false;
+  if (el.tag === "img") return el.brokenImageFallback?.disposition === "non-replaced-fallback";
+  return !INLINE_ATOMIC_TAGS.has(el.tag);
 }
