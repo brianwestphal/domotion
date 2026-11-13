@@ -4455,7 +4455,7 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2458", "DM-2615", "DM-2628", "DM-2634", "DM-33FSP5"],
+        "tickets": ["DM-2458", "DM-2615", "DM-2628", "DM-2634", "DM-33FSP5", "DM-ZYANDV"],
         "code": [
           ".github/workflows/native-control-fallback-parity.yml",
           "src/capture/input-value-geometry.ts",

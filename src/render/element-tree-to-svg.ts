@@ -4468,9 +4468,12 @@ function paintAtomicElementPhase(
   }
 
   // DM-2149: native form chrome is owned by Blink's platform LayoutTheme.
+  // Theme paint belongs to the box-decoration phase. A block-level control is
+  // rendered in both the box and inline passes, so emitting the stamp in each
+  // composited its anti-aliased edges twice (DM-ZYANDV).
   const nativeControlRaster = el.nativeControlRaster;
   if (nativeControlRaster != null) {
-    if (nativeControlRaster.dataUri != null) {
+    if (nativeControlRaster.dataUri != null && phase !== "inline") {
       const image = `<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`;
       svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
       appendBoxReflection(state, el, reflectionFragmentStart, depth);

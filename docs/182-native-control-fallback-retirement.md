@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2458", "DM-2615", "DM-2628", "DM-2634", "DM-33FSP5"]
+tickets: ["DM-2458", "DM-2615", "DM-2628", "DM-2634", "DM-33FSP5", "DM-ZYANDV"]
 code:
   [
     ".github/workflows/native-control-fallback-parity.yml",
@@ -142,6 +142,15 @@ per-frame active element before decoration/control atlases read `:focus` paint.
 Without that restoration, an unrelated terminal pseudo isolation (for example
 a generated URL image overflowing its slot) can turn a focused search-cancel
 decoration into an authoritative-empty record.
+
+The renderer emits a whole-host native stamp once, in the box-decoration
+pass, because theme paint is box decoration. A block-level control is rendered
+in both the box and inline passes, and emitting the stamp in each composited
+its anti-aliased corners twice: 26 levels darker on a 40×20 button (DM-ZYANDV;
+`tests/native-control-raster-phase.e2e.test.ts`). The residual that remains
+is at most one level at four corner pixels per control. It comes from
+re-compositing a stamp isolated on a transparent background, which is the
+quantization floor of isolation rather than a geometry difference.
 
 Candidate discovery admits `::checkmark` only where Blink generates it
 (`Element::CanGeneratePseudoElement`, `core/dom/element.cc:10850-10874`,
