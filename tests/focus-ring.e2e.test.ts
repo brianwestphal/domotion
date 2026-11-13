@@ -95,8 +95,9 @@ it.each([
   }
 });
 
-// DM-9JNAVF: a wrapped inline's solid or double outline is ComplexOutlinePainter's
-// ring around the union of its line fragments, not around its bounding box.
+// DM-9JNAVF / DM-EQ1MPF: a wrapped inline's square solid, double, dashed or
+// dotted outline is ComplexOutlinePainter's ring around the union of its line
+// fragments, not around its bounding box.
 it.each([
   { name: "solid, two lines", width: 70, outline: "2px solid red", text: "bb cc dd ee" },
   {
@@ -106,7 +107,15 @@ it.each([
     text: "bb cc dd ee gg hh",
   },
   { name: "double, two lines", width: 70, outline: "6px double green", text: "bb cc dd ee" },
-])("matches native paint for a wrapped inline outline: $name", async ({ width, outline, text }) => {
+  { name: "dashed 2px, two lines", width: 70, outline: "2px dashed red", text: "bb cc dd ee" },
+  { name: "dashed 3px, three lines", width: 60, outline: "3px dashed blue", text: "bb cc dd ee gg hh" },
+  { name: "dotted 1px, two lines", width: 70, outline: "1px dotted red", text: "bb cc dd ee" },
+  { name: "dotted 2px, two lines", width: 70, outline: "2px dotted red", text: "bb cc dd ee" },
+  // Round-dot edge anti-aliasing differs by at most 4 levels.
+  { name: "dotted 5px, two lines", width: 70, outline: "5px dotted green", text: "bb cc dd ee", tolerance: 4 },
+  // The alpha layer quantizes 0.5 one level apart (126 vs 127).
+  { name: "translucent dashed", width: 70, outline: "4px dashed rgba(255,0,0,0.5)", text: "bb cc dd ee", tolerance: 1 },
+])("matches native paint for a wrapped inline outline: $name", async ({ width, outline, text, tolerance = 0 }) => {
   const page = await browser.newPage({ viewport });
   const output = await browser.newPage({ viewport });
   try {
@@ -124,8 +133,9 @@ it.each([
       .raw()
       .toBuffer();
     let differing = 0;
-    for (let i = 0; i < native.length; i++) if (native[i] !== actual[i]) differing++;
-    // The bounding-box outline differed at 292-672 pixels.
+    for (let i = 0; i < native.length; i++) if (Math.abs(native[i]! - actual[i]!) > tolerance) differing++;
+    // The bounding-box outline differed at 292-672 pixels (DM-9JNAVF), and a
+    // 2px dashed one at 298 (DM-EQ1MPF).
     expect(differing).toBe(0);
   } finally {
     await page.close();

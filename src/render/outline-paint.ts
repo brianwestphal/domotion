@@ -468,7 +468,7 @@ function paintFragmentedOutline(
   if (hasRoundedCorner(el)) return null;
   const width = Math.round(ow);
   const used = style === "double" && width <= 2 ? "solid" : style;
-  if (used !== "solid" && used !== "double") return null;
+  if (used !== "solid" && used !== "double" && used !== "dashed" && used !== "dotted") return null;
   const offset = Math.round(parseFloat(el.styles.outlineOffset ?? "0") || 0);
   const rects = (el.inlineFragments ?? [])
     .map((fragment) => ({
@@ -492,12 +492,90 @@ function paintFragmentedOutline(
   const inner = shrinkRightAngleContours(outer, width);
   const ring = `${contourPath(outer)} ${contourPath(inner)}`;
   if (used === "solid") return [`${indent}<path d="${ring}" fill="${color}" fill-rule="evenodd" />`];
+  if (used === "dashed" || used === "dotted")
+    return fragmentedDashedOrDottedOutline(outer, ring, used, width, color, indent);
   const stripe = Math.round(width / 3);
   const innerThird = contourPath(shrinkRightAngleContours(outer, width - stripe));
   const outerThird = contourPath(shrinkRightAngleContours(outer, stripe));
   return [
     `${indent}<path d="${innerThird} ${contourPath(inner)}" fill="${color}" fill-rule="evenodd" />`,
     `${indent}<path d="${contourPath(outer)} ${outerThird}" fill="${color}" fill-rule="evenodd" />`,
+  ];
+}
+
+/**
+ * DM-EQ1MPF: ComplexOutlinePainter::PaintDottedOrDashedOutline for square
+ * corners (outline_painter.cc:542-576, Chromium 6b5a1b80). The ring between
+ * the right-angle outer path and its shrunk inner path clips each edge of the
+ * center path (shrunk by width - ceil(width / 2)). Each edge is drawn alone,
+ * oriented top-down or left-right and extended by ceil(width / 2) at both ends
+ * (PaintStraightEdge), so every corner starts a fresh dash. An odd dashed
+ * width strokes 2px wider to fill the clip. DrawLineWithStyle
+ * (box_border_painter.cc) then sizes the dashes from that thickness, forces
+ * dots at the ends of thin dotted lines, insets round dots by half the
+ * thickness, and shifts odd thicknesses by 0.5. A translucent color paints
+ * opaque inside one alpha layer.
+ */
+function fragmentedDashedOrDottedOutline(
+  outer: Array<Array<[number, number]>>,
+  ring: string,
+  style: "dashed" | "dotted",
+  width: number,
+  color: string,
+  indent: string,
+): string[] {
+  const parsed = parseColor(color);
+  const layered = parsed != null && parsed.a < 1;
+  const strokeColor = layered && parsed != null ? colorStr({ ...parsed, a: 1 }) : color;
+  // StyledStrokeData::StrokeIsDashed: dashed always, dotted up to the thin-dot width.
+  const strokeIsDashed = (w: number) => style === "dashed" || isThinDotted(w);
+  const thickness = width % 2 === 1 && strokeIsDashed(width) ? width + 2 : width;
+  const joint = Math.floor((width + 1) / 2);
+  const center = shrinkRightAngleContours(outer, width - joint);
+  const lineIndent = `${indent}  `;
+  const lines: string[] = [];
+  for (const contour of center) {
+    for (let i = 0; i < contour.length; i++) {
+      let [x1, y1] = contour[i];
+      let [x2, y2] = contour[(i + 1) % contour.length];
+      if (x1 > x2 || y1 > y2) [x1, y1, x2, y2] = [x2, y2, x1, y1];
+      const vertical = x1 === x2;
+      if (vertical) {
+        y1 -= joint;
+        y2 += joint;
+      } else {
+        x1 -= joint;
+        x2 += joint;
+      }
+      const length = x2 - x1 + (y2 - y1);
+      // The odd-thickness 0.5 shift moves the line across its own axis.
+      const shift = thickness % 2 === 1 ? 0.5 : 0;
+      const [cx1, cy1, cx2, cy2] = vertical ? [x1 + shift, y1, x2 + shift, y2] : [x1, y1 + shift, x2, y2 + shift];
+      if (style === "dotted" && strokeIsDashed(thickness)) {
+        lines.push(...paintThinDottedLine(cx1, cy1, cx2, cy2, thickness, strokeColor, lineIndent));
+        continue;
+      }
+      const dash = openDashArray(style, thickness, length);
+      const roundDots = style === "dotted";
+      const inset = roundDots ? thickness / 2 : 0;
+      const [sx1, sy1, sx2, sy2] = vertical
+        ? [cx1, cy1 + inset, cx2, cy2 - inset]
+        : [cx1 + inset, cy1, cx2 - inset, cy2];
+      lines.push(
+        `${lineIndent}<line x1="${r(sx1)}" y1="${r(sy1)}" x2="${r(sx2)}" y2="${r(sy2)}" stroke="${strokeColor}" stroke-width="${r(thickness)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${roundDots ? ` stroke-linecap="round"` : ""} />`,
+      );
+    }
+  }
+  // Derived from the ring geometry so output stays deterministic and equal
+  // ids carry equal clips.
+  let hash = 0;
+  for (let i = 0; i < ring.length; i++) hash = (Math.imul(hash, 31) + ring.charCodeAt(i)) >>> 0;
+  const clipId = `outline-frag-${hash.toString(36)}`;
+  return [
+    `${indent}<clipPath id="${clipId}"><path d="${ring}" clip-rule="evenodd" /></clipPath>`,
+    `${indent}<g clip-path="url(#${clipId})"${layered && parsed != null ? ` opacity="${r(parsed.a)}"` : ""}>`,
+    ...lines,
+    `${indent}</g>`,
   ];
 }
 

@@ -27,6 +27,7 @@ tickets:
     "DM-DBGKAG",
     "DM-7NN5E6",
     "DM-9JNAVF",
+    "DM-EQ1MPF",
     "DM-2355",
     "DM-CMKF35",
     "DM-652J8C",
@@ -211,8 +212,18 @@ outer path unions the fragment rects outset by offset + width, the inner path
 shrinks it inward by the width (`ShrinkRightAnglePath`), and the ring between
 them is clipped and filled. Solid fills it whole. Double fills the `round(w/3)`
 stripes, and a double of width 2 or less paints as solid. Square solid and
-double match native exactly. Dashed, dotted, 3D and rounded fragmented outlines
-keep the single-rect path (DM-EQ1MPF).
+double match native exactly.
+
+Square dashed and dotted (DM-EQ1MPF, `PaintDottedOrDashedOutline`) clip to the
+same ring and stroke each edge of the center path, shrunk by
+`width - ceil(width/2)`, on its own. Each edge runs top-down or left-right,
+extended by `ceil(width/2)` at both ends, so every corner starts a fresh dash.
+An odd dashed width strokes 2px wider. `DrawLineWithStyle` then sizes the
+dashes from that thickness and applies its dot and odd-width rules, and a
+translucent color paints opaque inside one alpha layer. Dashed and thin dotted
+match native exactly; thick round dots differ only in edge anti-aliasing. Square
+3D styles (DM-BK59F6) and every rounded fragmented outline (DM-QKCK1K) keep the
+single-rect path.
 
 Capture records these facts as `focusRing`
 (`src/capture/script/walker/focus-ring.ts`), including the used dark scheme.

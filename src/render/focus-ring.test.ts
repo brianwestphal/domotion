@@ -197,7 +197,22 @@ describe("wrapped inline normal outlines (DM-9JNAVF)", () => {
     expect(wrapped("double", "2px")).toHaveLength(1);
   });
 
-  it("leaves dashed outlines on the single-rect path", () => {
-    expect(wrapped("dashed", "2px").join("\n")).not.toContain('fill-rule="evenodd"');
+  // DM-EQ1MPF: dashed/dotted stroke each center-path edge alone inside the ring.
+  it("strokes each center edge of a dashed outline inside the fragment ring", () => {
+    const markup = wrapped("dashed", "2px").join("\n");
+    expect(markup).toMatch(
+      /<clipPath id="outline-frag-[a-z0-9]+"><path d="M28,-2 [^"]*" clip-rule="evenodd" \/><\/clipPath>/,
+    );
+    // Eight edges of the two-line union, each extended by ceil(width / 2).
+    expect(markup.match(/<line /g)).toHaveLength(8);
+    expect(markup).toContain('<line x1="28" y1="-1" x2="62" y2="-1"');
+  });
+
+  it("strokes an odd dashed width 2px wider and shifts it half a pixel", () => {
+    expect(wrapped("dashed", "3px").join("\n")).toContain('stroke-width="5"');
+  });
+
+  it("leaves 3D outlines on the single-rect path", () => {
+    expect(wrapped("groove", "4px").join("\n")).not.toContain("outline-frag-");
   });
 });
