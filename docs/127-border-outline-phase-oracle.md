@@ -22,6 +22,7 @@ tickets:
     "DM-2323",
     "DM-C77Q41",
     "DM-KA85VS",
+    "DM-2PSXZV",
     "DM-2355",
     "DM-CMKF35",
     "DM-652J8C",
@@ -280,6 +281,18 @@ rounded rect, rather than an even-odd arc-path ring mask. At DPR 4 the old ring
 showed no dash on/off disagreement, only edge coverage on the corner arcs
 (premultiplied max 26–51 at DPR 1). The rounded-rect clips leave 8–15. A radius
 larger than half a side keeps the path ring.
+
+Double, dashed and dotted rounded outlines follow each corner's own radius,
+including elliptical radii and a square corner (DM-2PSXZV). Previously they
+used one scalar radius taken from the top-left corner. A rounded double outline
+with differing or elliptical corners is Blink's `DrawDoubleBorder`: two filled
+rings between contours of the snapped box. The outer stripe runs from the outer
+contour (offset + width) to the contour `round(width/3)` inside it. The inner
+stripe runs from the contour `round(2·width/3)` inside it to the inner contour
+(offset). Each contour grows the per-corner radii by its own outset. A uniform
+circular radius keeps the exact stroked `<rect rx>` stripes. Measured
+premultiplied max on a 36×28 box went from 255 to 3 for double, and to 23–57 for
+per-corner dashed/dotted, whose arc-path clip floor is DM-1110JP.
 
 Curved dashed/dotted borders use the same construction (DM-KA85VS), both for a
 single-color border and for the per-side strokes clipped to their rounded miter

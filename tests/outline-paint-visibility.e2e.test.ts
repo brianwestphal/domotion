@@ -322,3 +322,37 @@ describeBrowser("rounded dashed and dotted border clipping (DM-KA85VS)", () => {
     });
   }
 });
+
+// DM-2PSXZV: double, dashed and dotted outlines follow each corner's own
+// (possibly elliptical) radius, not one scalar from the top-left corner. With
+// the scalar these differed at max 255. Double stripes are contour rings and
+// match to AA; dashed/dotted per-corner rings keep the arc-path clip, whose
+// coverage floor is tracked separately.
+describeBrowser("per-corner rounded double, dashed and dotted outlines (DM-2PSXZV)", () => {
+  for (const [css, bound] of [
+    ["outline:6px double red;border-radius:8px 2px 8px 2px", 8],
+    ["outline:6px double red;border-radius:10px/4px", 8],
+    ["outline:6px double red;border-radius:6px", 0],
+    ["outline:2px dashed red;border-radius:8px 0 8px 0", 64],
+    ["outline:3px dotted blue;border-radius:10px/5px", 32],
+    ["outline:2px dashed red;border-radius:0 6px 6px 6px", 64],
+  ] as const) {
+    it(`follows per-corner radii for ${css}`, async () => {
+      const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:36px;height:28px;${css}}</style><div id="probe"></div>`;
+      const native = await rgbaMap(env!.browser, source);
+      const svg = await renderedSvg(env!.browser, source);
+      const rendered = await rgbaMap(
+        env!.browser,
+        `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
+      );
+      let worst = 0;
+      for (let i = 0; i < native.length; i += 4) {
+        const premultiplied = [0, 1, 2].map((k) =>
+          Math.abs((native[i + k]! * native[i + 3]!) / 255 - (rendered[i + k]! * rendered[i + 3]!) / 255),
+        );
+        worst = Math.max(worst, ...premultiplied, Math.abs(native[i + 3]! - rendered[i + 3]!));
+      }
+      expect(worst).toBeLessThanOrEqual(bound);
+    });
+  }
+});

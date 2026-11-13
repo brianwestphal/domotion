@@ -169,7 +169,9 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
       // Outline radius: CSS spec says rounded outlines follow the border
       // radius extended outward by the offset+width. Approximate.
       const oRadius = borderRadius > 0 ? borderRadius + inflate : 0;
-      if (ostyle === "double" && ow >= DOUBLE_MIN_WIDTH) {
+      if (ostyle === "double" && ow >= DOUBLE_MIN_WIDTH && hasRoundedCorner(el) && !hasUniformCircularCorners(el)) {
+        out.push(...paintDoubleContouredOutline(el, offset, ow, colorStr(ocolor), indent));
+      } else if (ostyle === "double" && ow >= DOUBLE_MIN_WIDTH) {
         // Chromium's PaintDoubleOutline (third_party/blink/renderer/core/
         // paint/outline_painter.cc): stroke_width = round(width / 3).
         // Outer stripe occupies the OUTER `sw` pixels of the outline rect,
@@ -194,7 +196,7 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         out.push(
           `${indent}<rect x="${r(ox + half)}" y="${r(oy + half)}" width="${r(owd - 2 * half)}" height="${r(oh - 2 * half)}" rx="${r(innerR)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(sw)}" />`,
         );
-      } else if ((ostyle === "dashed" || ostyle === "dotted") && oRadius === 0) {
+      } else if ((ostyle === "dashed" || ostyle === "dotted") && !hasRoundedCorner(el)) {
         // DM-910 / DM-911: a single `<rect stroke-dasharray>` runs the
         // dash pattern unbroken across all four corners, so the dashes
         // phase differently from Chrome's outline painter. Chrome paints
@@ -266,8 +268,8 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
           );
         }
         if (layered) out.push(`${indent}</g>`);
-      } else if ((ostyle === "dashed" || ostyle === "dotted") && borderRadius > 0) {
-        out.push(...paintCurvedDashedDottedOutline(el, borderRadius, offset, ow, ostyle, colorStr(ocolor), indent));
+      } else if (ostyle === "dashed" || ostyle === "dotted") {
+        out.push(...paintCurvedDashedDottedOutline(el, offset, ow, ostyle, colorStr(ocolor), indent));
       } else if (
         (ostyle === "groove" || ostyle === "ridge" || ostyle === "inset" || ostyle === "outset") &&
         Math.round(ow) >= 1 &&
@@ -412,6 +414,15 @@ function paintFocusRing(el: CapturedElement, indent: string): string[] {
   return out;
 }
 
+/** True when all four corners share one circular radius, which the two
+ * stroked `<rect rx>` stripes of the double branch reproduce exactly. */
+function hasUniformCircularCorners(el: CapturedElement): boolean {
+  const c = parseCornerRadii(el.styles, el.width, el.height);
+  if (c.curvature != null && Object.values(c.curvature).some((value) => value !== 2)) return false;
+  const radius = c.tl.h;
+  return [c.tl, c.tr, c.br, c.bl].every((corner) => corner.h === radius && corner.v === radius);
+}
+
 /** True when any corner is rounded. The caller's scalar radius is the
  * top-left corner only, so this reads all four. */
 function hasRoundedCorner(el: CapturedElement): boolean {
@@ -436,13 +447,24 @@ function paintSolidContouredOutline(
   indent: string,
 ): string {
   const width = Math.round(ow);
+  const { clamp, contour } = outlineContours(el, offset);
+  const outer = contour(clamp.horizontal + width, clamp.vertical + width).path;
+  const inner = contour(clamp.horizontal, clamp.vertical).path;
+  return `${indent}<path d="${outer} ${inner}" fill="${color}" fill-rule="evenodd" />`;
+}
+
+/** The pixel-snapped border box outset per axis, with the border radii
+ * resolved against the unsnapped box and each nonzero component grown by its
+ * axis outset (ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets,
+ * FloatRoundedRect::Radii::Outset, chromium 6b5a1b80). */
+function outlineContours(el: CapturedElement, offset: number) {
   const left = Math.round(el.x),
     top = Math.round(el.y);
   const right = Math.round(el.x + el.width),
     bottom = Math.round(el.y + el.height);
   const clamp = adjustedOutlineOffset(right - left, bottom - top, Math.round(offset));
   const radii = parseCornerRadii(el.styles, el.width, el.height);
-  const contour = (outsetX: number, outsetY: number): string => {
+  const contour = (outsetX: number, outsetY: number) => {
     const grow = (corner: { h: number; v: number }) => ({
       h: corner.h > 0 ? Math.max(0, corner.h + outsetX) : 0,
       v: corner.v > 0 ? Math.max(0, corner.v + outsetY) : 0,
@@ -455,17 +477,34 @@ function paintSolidContouredOutline(
       uniform: false,
       curvature: radii.curvature,
     };
-    return roundedRectPath(
-      left - outsetX,
-      top - outsetY,
-      right - left + outsetX * 2,
-      bottom - top + outsetY * 2,
-      grown,
-    );
+    const box = {
+      x: left - outsetX,
+      y: top - outsetY,
+      w: Math.max(0, right - left + outsetX * 2),
+      h: Math.max(0, bottom - top + outsetY * 2),
+    };
+    return { box, radii: grown, path: roundedRectPath(box.x, box.y, box.w, box.h, grown) };
   };
-  const outer = contour(clamp.horizontal + width, clamp.vertical + width);
-  const inner = contour(clamp.horizontal, clamp.vertical);
-  return `${indent}<path d="${outer} ${inner}" fill="${color}" fill-rule="evenodd" />`;
+  return { clamp, contour };
+}
+
+/** DM-2PSXZV: a rounded double single-rect outline is BoxBorderPainter's
+ * DrawDoubleBorder (box_border_painter.cc:1217-1252, chromium 6b5a1b80). It
+ * fills two rings between contours of the snapped box: the outer contour
+ * (offset + width) to the contour round(width/3) inside it, and the contour
+ * round(2·width/3) inside it to the inner contour (offset). Each contour grows
+ * the per-corner radii by its own outset (DoubleStripeOutsets,
+ * BorderEdge::GetDoubleBorderStripeWidth). */
+function paintDoubleContouredOutline(el: CapturedElement, offset: number, ow: number, color: string, indent: string) {
+  const width = Math.round(ow);
+  const { clamp, contour } = outlineContours(el, offset);
+  const at = (inset: number) => contour(clamp.horizontal + width - inset, clamp.vertical + width - inset).path;
+  const outerStripe = Math.round(width / 3);
+  const innerStripe = Math.round((width * 2) / 3);
+  return [
+    `${indent}<path d="${at(0)} ${at(outerStripe)}" fill="${color}" fill-rule="evenodd" />`,
+    `${indent}<path d="${at(innerStripe)} ${at(width)}" fill="${color}" fill-rule="evenodd" />`,
+  ];
 }
 
 /** A rounded dashed/dotted single-rect outline goes through the same
@@ -478,7 +517,6 @@ function paintSolidContouredOutline(
  * mask, round dots at the width itself. */
 function paintCurvedDashedDottedOutline(
   el: CapturedElement,
-  borderRadius: number,
   offset: number,
   ow: number,
   style: string,
@@ -491,10 +529,22 @@ function paintCurvedDashedDottedOutline(
     top = Math.round(el.y);
   const right = Math.round(el.x + el.width),
     bottom = Math.round(el.y + el.height);
-  const radiiAt = (o: number) => {
-    const c = { h: Math.max(0, borderRadius + o), v: Math.max(0, borderRadius + o) };
-    const radii: CornerRadii = { tl: c, tr: c, br: c, bl: c, uniform: true };
-    return radii;
+  // DM-2PSXZV: per-corner (and elliptical) radii, each nonzero component
+  // grown by the contour's outset, as the solid contour does.
+  const base = parseCornerRadii(el.styles, el.width, el.height);
+  const radiiAt = (o: number): CornerRadii => {
+    const grow = (corner: { h: number; v: number }) => ({
+      h: corner.h > 0 ? Math.max(0, corner.h + o) : 0,
+      v: corner.v > 0 ? Math.max(0, corner.v + o) : 0,
+    });
+    return {
+      tl: grow(base.tl),
+      tr: grow(base.tr),
+      br: grow(base.br),
+      bl: grow(base.bl),
+      uniform: false,
+      curvature: base.curvature,
+    };
   };
   const box = (o: number) => ({
     x: left - o,
@@ -511,10 +561,8 @@ function paintCurvedDashedDottedOutline(
   const roundDots = style === "dotted" && !isThinDotted(width);
   const strokeWidth = roundDots ? width : width * 2.2;
   // Derived from the geometry so output stays deterministic; equal ids carry equal masks.
-  const maskId = `outline-ring-${outer.x}-${outer.y}-${outer.w}-${outer.h}-${width}-${borderRadius}`.replace(
-    /\./g,
-    "_",
-  );
+  const cornerKey = [base.tl, base.tr, base.br, base.bl].map((corner) => `${corner.h}x${corner.v}`).join("-");
+  const maskId = `outline-ring-${outer.x}-${outer.y}-${outer.w}-${outer.h}-${width}-${cornerKey}`.replace(/\./g, "_");
   const stroke = `<path d="${roundedRectPath(center.x, center.y, center.w, center.h, centerRadii)}" fill="none" stroke="${color}" stroke-width="${r(strokeWidth)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${roundDots ? ` stroke-linecap="round"` : ""} mask="url(#${maskId})" />`;
   // Blink clips the doubled stroke to the outer contour and clips out the
   // inner one (ClipContouredRect / ClipOutContouredRect around
@@ -523,16 +571,20 @@ function paintCurvedDashedDottedOutline(
   // covers the curved edges differently; a rounded-rect clipPath plus an inner
   // rounded-rect cut-out matches them (DM-C77Q41). Radii that exceed half a
   // side keep the path ring, whose per-corner clamp a <rect> cannot express.
-  const outerRadius = radiiAt(outset).tl.h,
-    innerRadius = radiiAt(outset - width).tl.h;
-  if (
-    outerRadius <= Math.min(outer.w, outer.h) / 2 &&
-    innerRadius <= Math.min(inner.w, inner.h) / 2 &&
-    inner.w > 0 &&
-    inner.h > 0
-  ) {
-    const rect = (b: typeof outer, radius: number, fill?: string) =>
-      `<rect x="${r(b.x)}" y="${r(b.y)}" width="${r(b.w)}" height="${r(b.h)}" rx="${r(radius)}" ry="${r(radius)}"${fill != null ? ` fill="${fill}"` : ""}/>`;
+  // A <rect rx ry> expresses only one radius pair shared by all corners within
+  // half the sides; per-corner radii keep the path ring.
+  const uniformRadius = (b: typeof outer, c: CornerRadii): { rx: number; ry: number } | null => {
+    if (c.curvature != null && Object.values(c.curvature).some((value) => value !== 2)) return null;
+    const { h: rx, v: ry } = c.tl;
+    const same = (corner: { h: number; v: number }) => corner.h === rx && corner.v === ry;
+    if (!same(c.tr) || !same(c.br) || !same(c.bl)) return null;
+    return rx <= b.w / 2 && ry <= b.h / 2 ? { rx, ry } : null;
+  };
+  const outerRadius = uniformRadius(outer, radiiAt(outset)),
+    innerRadius = uniformRadius(inner, radiiAt(outset - width));
+  if (outerRadius != null && innerRadius != null && inner.w > 0 && inner.h > 0) {
+    const rect = (b: typeof outer, radius: { rx: number; ry: number }, fill?: string) =>
+      `<rect x="${r(b.x)}" y="${r(b.y)}" width="${r(b.w)}" height="${r(b.h)}" rx="${r(radius.rx)}" ry="${r(radius.ry)}"${fill != null ? ` fill="${fill}"` : ""}/>`;
     return [
       `${indent}<clipPath id="${maskId}-outer">${rect(outer, outerRadius)}</clipPath>`,
       `${indent}<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}"><rect x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}" fill="white"/>${rect(inner, innerRadius, "black")}</mask>`,
