@@ -339,7 +339,7 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
 }
 
 export interface FocusRingStroke {
-  /** The stroked rounded rect, centered on the ring. */
+  /** The stroked rounded rect, centered on the ring (the bounds for a path ring). */
   x: number;
   y: number;
   w: number;
@@ -347,6 +347,104 @@ export interface FocusRingStroke {
   radii: CornerRadii;
   strokeWidth: number;
   color: string;
+  /** A multi-fragment ring's corner-rounded region boundary (DM-7NN5E6). */
+  path?: string;
+}
+
+type IntRect = { left: number; top: number; right: number; bottom: number };
+
+/**
+ * Boundary contours of the union of integer rects, like SkRegion::
+ * getBoundaryPath: clockwise in y-down space, collinear runs merged. Built on
+ * the grid of all rect edges, keeping each cell side that separates a covered
+ * cell from an uncovered one.
+ */
+export function rectUnionBoundary(rects: IntRect[]): Array<Array<[number, number]>> {
+  const xs = [...new Set(rects.flatMap((rect) => [rect.left, rect.right]))].sort((a, b) => a - b);
+  const ys = [...new Set(rects.flatMap((rect) => [rect.top, rect.bottom]))].sort((a, b) => a - b);
+  const covered = (i: number, j: number): boolean =>
+    i >= 0 &&
+    j >= 0 &&
+    i < xs.length - 1 &&
+    j < ys.length - 1 &&
+    rects.some(
+      (rect) => rect.left <= xs[i] && xs[i + 1] <= rect.right && rect.top <= ys[j] && ys[j + 1] <= rect.bottom,
+    );
+  const next = new Map<string, [number, number]>();
+  const key = (x: number, y: number) => `${x},${y}`;
+  const edge = (x0: number, y0: number, x1: number, y1: number) => next.set(key(x0, y0), [x1, y1]);
+  for (let j = 0; j < ys.length; j++) {
+    for (let i = 0; i < xs.length - 1; i++) {
+      const below = covered(i, j),
+        above = covered(i, j - 1);
+      if (below && !above) edge(xs[i], ys[j], xs[i + 1], ys[j]);
+      if (above && !below) edge(xs[i + 1], ys[j], xs[i], ys[j]);
+    }
+  }
+  for (let i = 0; i < xs.length; i++) {
+    for (let j = 0; j < ys.length - 1; j++) {
+      const right = covered(i, j),
+        left = covered(i - 1, j);
+      if (right && !left) edge(xs[i], ys[j + 1], xs[i], ys[j]);
+      if (left && !right) edge(xs[i], ys[j], xs[i], ys[j + 1]);
+    }
+  }
+  const contours: Array<Array<[number, number]>> = [];
+  while (next.size > 0) {
+    const [startKey] = next.keys();
+    const start = startKey.split(",").map(Number) as [number, number];
+    const points: Array<[number, number]> = [];
+    let point: [number, number] | undefined = start;
+    while (point != null) {
+      points.push(point);
+      const following: [number, number] | undefined = next.get(key(point[0], point[1]));
+      next.delete(key(point[0], point[1]));
+      if (following == null || (following[0] === start[0] && following[1] === start[1])) break;
+      point = following;
+    }
+    // Drop collinear vertices, as the region boundary has none.
+    const simplified = points.filter((p, index) => {
+      const prev = points[(index + points.length - 1) % points.length];
+      const after = points[(index + 1) % points.length];
+      return !((prev[0] === p[0] && p[0] === after[0]) || (prev[1] === p[1] && p[1] === after[1]));
+    });
+    if (simplified.length >= 4) contours.push(simplified);
+  }
+  return contours;
+}
+
+/**
+ * SkCornerPathEffect (Skia fd139e79, src/effects/SkCornerPathEffect.cpp) on
+ * closed line contours: each segment steps `radius` in from its ends (half
+ * its length when shorter than 2·radius, with no straight part), and each
+ * corner becomes a quadratic through the original vertex.
+ */
+export function cornerRoundedContourPath(contours: Array<Array<[number, number]>>, radius: number): string {
+  const commands: string[] = [];
+  for (const points of contours) {
+    const n = points.length;
+    const steps = points.map((p, i) => {
+      const q = points[(i + 1) % n];
+      const dx = q[0] - p[0],
+        dy = q[1] - p[1];
+      const dist = Math.hypot(dx, dy);
+      const draw = dist > radius * 2;
+      const scale = draw ? radius / dist : 0.5;
+      return { x: dx * scale, y: dy * scale, draw };
+    });
+    commands.push(`M${r(points[0][0] + steps[0].x)},${r(points[0][1] + steps[0].y)}`);
+    for (let i = 0; i < n; i++) {
+      const p = points[i],
+        q = points[(i + 1) % n];
+      if (i > 0) commands.push(`Q${r(p[0])},${r(p[1])} ${r(p[0] + steps[i].x)},${r(p[1] + steps[i].y)}`);
+      if (steps[i].draw) commands.push(`L${r(q[0] - steps[i].x)},${r(q[1] - steps[i].y)}`);
+    }
+    commands.push(
+      `Q${r(points[0][0])},${r(points[0][1])} ${r(points[0][0] + steps[0].x)},${r(points[0][1] + steps[0].y)}`,
+    );
+    commands.push("Z");
+  }
+  return commands.join(" ");
 }
 
 /** SkRRect::setRectRadii: when adjacent radii overflow a side, every radius
@@ -394,6 +492,52 @@ export function focusRingStrokes(el: CapturedElement): FocusRingStroke[] {
     ? { tl: grow(base.tl), tr: grow(base.tr), br: grow(base.br), bl: grow(base.bl), uniform: false }
     : { tl: square, tr: square, br: square, bl: square, uniform: true };
   const strokeWidth = (ring.ringWidth / 3) * 2;
+  // DM-7NN5E6: a wrapped inline box has one outline rect per line fragment.
+  // PaintSingleFocusRing unions them (ComputeRightAnglePath, each rect outset
+  // by its own clamped offset) and, when the region is not one rect, strokes
+  // its boundary with SkCornerPathEffect at the uniform corner radius.
+  const fragments = (el.inlineFragments ?? [])
+    .map((fragment) => ({
+      left: Math.round(fragment.x),
+      top: Math.round(fragment.y),
+      right: Math.round(fragment.x + fragment.width),
+      bottom: Math.round(fragment.y + fragment.height),
+    }))
+    .filter((rect) => rect.right > rect.left && rect.bottom > rect.top);
+  if (fragments.length > 1) {
+    const uniform = [radii.tr, radii.br, radii.bl].every((c) => c.h === radii.tl.h && c.v === radii.tl.h)
+      ? radii.tl.h
+      : ring.ringWidth;
+    const pathAt = (offset: number, color: string): FocusRingStroke | null => {
+      const outset = fragments.map((rect) => {
+        const clamp = adjustedOutlineOffset(rect.right - rect.left, rect.bottom - rect.top, offset);
+        return {
+          left: rect.left - clamp.horizontal,
+          top: rect.top - clamp.vertical,
+          right: rect.right + clamp.horizontal,
+          bottom: rect.bottom + clamp.vertical,
+        };
+      });
+      const contours = rectUnionBoundary(outset.filter((rect) => rect.right > rect.left && rect.bottom > rect.top));
+      if (contours.length === 0) return null;
+      const xs = contours.flat().map((p) => p[0]),
+        ys = contours.flat().map((p) => p[1]);
+      const box = {
+        x: Math.min(...xs),
+        y: Math.min(...ys),
+        w: Math.max(...xs) - Math.min(...xs),
+        h: Math.max(...ys) - Math.min(...ys),
+      };
+      if (contours.length === 1 && contours[0].length === 4) {
+        return { ...box, radii: skRRectRadii(box.w, box.h, radii), strokeWidth, color };
+      }
+      return { ...box, radii, strokeWidth, color, path: cornerRoundedContourPath(contours, uniform) };
+    };
+    return [
+      pathAt(ring.ringOffset + Math.ceil(ring.ringWidth / 3), ring.outerColor),
+      pathAt(ring.ringOffset, ring.innerColor),
+    ].filter((stroke): stroke is FocusRingStroke => stroke != null);
+  }
   const at = (offset: number, color: string): FocusRingStroke => {
     const clamp = adjustedOutlineOffset(width, height, offset);
     const w = width + clamp.horizontal * 2,
@@ -434,7 +578,7 @@ function paintFocusRing(el: CapturedElement, indent: string): string[] {
     const color = parseColor(stroke.color);
     if (color == null || color.a <= 0) continue;
     out.push(
-      `${indent}<path d="${roundedRectPath(stroke.x, stroke.y, stroke.w, stroke.h, stroke.radii)}" fill="none" stroke="${colorStr(color)}" stroke-width="${r(stroke.strokeWidth)}" />`,
+      `${indent}<path d="${stroke.path ?? roundedRectPath(stroke.x, stroke.y, stroke.w, stroke.h, stroke.radii)}" fill="none" stroke="${colorStr(color)}" stroke-width="${r(stroke.strokeWidth)}" />`,
     );
   }
   return out;

@@ -238,6 +238,9 @@ export const detectInlineFragments = (
     captured.styles.textDecorationLine !== "" &&
     captured.styles.textDecorationLine !== "none";
   var _hasPaint = _hasBg || _hasBgImage || _hasBorder || _hasMaskImage;
+  // DM-7NN5E6: a focus ring outlines the union of the line fragments
+  // (ComputeRightAnglePath), so it needs them even without box paint.
+  var _hasFocusRing = captured.styles.focusRing != null;
   var _isInline = cs.display === "inline";
   var _isBlockLevel =
     !_isInline &&
@@ -250,7 +253,7 @@ export const detectInlineFragments = (
       cs.display === "inline-flex" ||
       cs.display === "inline-grid");
   var _inMultiColumn = _isBlockLevel && _hasPaint && isInsideMultiColumnContainer(el);
-  if (!((_hasPaint || _hasDecoration) && (_isInline || _inMultiColumn))) return;
+  if (!((_hasPaint || _hasDecoration || (_hasFocusRing && _isInline)) && (_isInline || _inMultiColumn))) return;
   var _cr = el.getClientRects();
   if (_cr == null || _cr.length <= 1) return;
   var _frags = collectPaintedClientRects(_cr, vp);

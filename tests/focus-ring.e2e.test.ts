@@ -61,3 +61,36 @@ it.each(cases)("matches native paint: $name", async ({ css, bg, focus, scheme })
     await output.close();
   }
 });
+
+// DM-7NN5E6: a focus ring around a wrapped inline element outlines the union
+// of its line fragments with corner-rounded right angles, not its bounding
+// box. Text is transparent so only the ring is compared.
+it.each([
+  { name: "two lines", width: 70, text: "bb cc dd ee" },
+  { name: "three lines", width: 60, text: "bb cc dd ee gg hh" },
+])("matches native paint for a wrapped inline ring: $name", async ({ width, text }) => {
+  const page = await browser.newPage({ viewport });
+  const output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      `<style>body{margin:0;background:white}</style><div style="margin:10px;width:${width}px;font:14px/20px Arial;color:transparent">a <span style="outline:2px auto red">${text}</span> f</div>`,
+    );
+    const native = await sharp(await page.screenshot())
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    const tree = await captureElementTree(page, "body", viewport);
+    await output.setContent(`<style>body{margin:0;background:white}</style>${elementTreeToSvg(tree, 100, 100)}`);
+    const actual = await sharp(await output.screenshot())
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    let differing = 0;
+    for (let i = 0; i < native.length; i++) if (native[i] !== actual[i]) differing++;
+    // The bounding-box ring differed at 380 (two lines) and 708 (three lines).
+    expect(differing).toBe(0);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});

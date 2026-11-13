@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FocusRingFacts } from "../capture/script/walker/focus-ring.js";
 import { capturedElement } from "../test-support/captured-fixtures.js";
-import { focusRingStrokes, paintOutline } from "./outline-paint.js";
+import { cornerRoundedContourPath, focusRingStrokes, paintOutline, rectUnionBoundary } from "./outline-paint.js";
 
 // DM-ZVQJYP: `outline-style: auto` paints Blink's two-ring focus ring
 // (PaintFocusRing, outline_painter.cc:853-893, chromium 6b5a1b80).
@@ -83,5 +83,66 @@ describe("paintOutline auto", () => {
     const markup = paintOutline(focused(ring({ innerColor: "rgba(0, 0, 0, 0)" })), 0, "");
     expect(markup).toHaveLength(1);
     expect(markup[0]).toContain('stroke="rgb(255,255,255)"');
+  });
+});
+
+describe("multi-fragment focus rings (DM-7NN5E6)", () => {
+  it("traces the union of line rects as one clockwise contour without collinear vertices", () => {
+    // Two stacked lines: the first starts at x=20, the second ends at x=40.
+    const contours = rectUnionBoundary([
+      { left: 20, top: 0, right: 60, bottom: 20 },
+      { left: 0, top: 20, right: 40, bottom: 40 },
+    ]);
+    expect(contours).toHaveLength(1);
+    expect(contours[0]).toHaveLength(8);
+    expect(contours[0]).toContainEqual([20, 0]);
+    expect(contours[0]).toContainEqual([60, 20]);
+    expect(contours[0]).toContainEqual([40, 40]);
+    expect(contours[0]).toContainEqual([0, 20]);
+  });
+
+  it("returns a single rect contour for overlapping rects that cover a rectangle", () => {
+    const contours = rectUnionBoundary([
+      { left: 0, top: 0, right: 40, bottom: 20 },
+      { left: 0, top: 10, right: 40, bottom: 30 },
+    ]);
+    expect(contours).toEqual([
+      [
+        [0, 0],
+        [40, 0],
+        [40, 30],
+        [0, 30],
+      ],
+    ]);
+  });
+
+  it("rounds corners like SkCornerPathEffect, halving the step on short segments", () => {
+    const path = cornerRoundedContourPath(
+      [
+        [
+          [0, 0],
+          [20, 0],
+          [20, 4],
+          [0, 4],
+        ],
+      ],
+      3,
+    );
+    expect(path.startsWith("M3,0 L17,0 Q20,0 20,2")).toBe(true);
+    // The 4px side is shorter than 2·radius: no straight part, steps of 2.
+    expect(path).toContain("Q20,4 17,4");
+    expect(path.endsWith("Q0,0 3,0 Z")).toBe(true);
+  });
+
+  it("strokes a wrapped inline ring as one corner-rounded region path", () => {
+    const el = focused(ring());
+    el.inlineFragments = [
+      { x: 30, y: 20, width: 30, height: 20 },
+      { x: 10, y: 40, width: 30, height: 20 },
+    ] as typeof el.inlineFragments;
+    const [outer, inner] = focusRingStrokes(el);
+    expect(inner.path).toMatch(/^M33,20 /);
+    expect(outer.path).toMatch(/^M32,19 /);
+    expect(paintOutline(el, 0, "").every((markup) => markup.includes(' d="M') && !markup.includes(" A"))).toBe(true);
   });
 });

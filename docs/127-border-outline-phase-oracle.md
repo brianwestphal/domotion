@@ -24,6 +24,7 @@ tickets:
     "DM-KA85VS",
     "DM-2PSXZV",
     "DM-DBGKAG",
+    "DM-7NN5E6",
     "DM-2355",
     "DM-CMKF35",
     "DM-652J8C",
@@ -192,6 +193,16 @@ rects (`DrawPlatformFocusRing`, `platform_focus_ring.cc`):
   grown by the outline-offset, with every component raised to at least `W`.
   Skia's radius scale-down then applies.
 - **Collapsing offsets.** A ring whose clamped rect is empty paints nothing.
+
+A wrapped inline element has one outline rect per line fragment (DM-7NN5E6).
+`PaintSingleFocusRing` unions them (`ComputeRightAnglePath`, each rect outset by
+its own clamped offset), and when the region is not one rect it strokes the
+boundary with `SkCornerPathEffect` at the uniform corner radius. Each corner
+becomes a quadratic through the vertex, and a segment shorter than twice the
+radius steps by half its length (Skia `fd139e79`). Capture records the inline's
+fragments whenever it has a focus ring. Wrapped two- and three-line rings
+match native exactly, where the bounding-box ring differed at 380 and 708
+pixels.
 
 Capture records these facts as `focusRing`
 (`src/capture/script/walker/focus-ring.ts`), including the used dark scheme.
