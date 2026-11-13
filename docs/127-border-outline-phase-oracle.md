@@ -23,6 +23,7 @@ tickets:
     "DM-C77Q41",
     "DM-KA85VS",
     "DM-2PSXZV",
+    "DM-DBGKAG",
     "DM-2355",
     "DM-CMKF35",
     "DM-652J8C",
@@ -293,6 +294,25 @@ stripe runs from the contour `round(2·width/3)` inside it to the inner contour
 circular radius keeps the exact stroked `<rect rx>` stripes. Measured
 premultiplied max on a 36×28 box went from 255 to 3 for double, and to 23–57 for
 per-corner dashed/dotted, whose arc-path clip floor is DM-1110JP.
+
+Rounded groove, ridge, inset and outset borders and single-rect outlines take
+Blink's curved side path (DM-DBGKAG). Square bevels keep the trapezoid bands.
+The curved path, shared by `curvedBevelRingMarkup`, works like this:
+
+- One clip covers the border ring: the outer contour, with the inner contour
+  clipped out. An outline's ring runs from the offset + width contour to the
+  offset contour.
+- Each side also clips to its rounded miter wedge.
+- Inset/outset fill the ring in the side's `CalculateInsetOutsetColor` shade.
+- Groove/ridge (`DrawCurvedRidgeGrooveBoxSide`) fill the ring in the first
+  shade, then fill the `CenterOutsets` contour (half widths, truncated) in the
+  opposite shade.
+
+Clipping the ring once, rather than filling two even-odd stripe paths,
+anti-aliases the inner contour once. Against the flat stroke or square
+trapezoids, differing pixels fall by 60–70% and the maximum from 217–255 to
+56–104. Blink's hard (non-anti-aliased) miters at the matching top-left and
+bottom-right joins are not reproduced yet (DM-F77PN8).
 
 Curved dashed/dotted borders use the same construction (DM-KA85VS), both for a
 single-color border and for the per-side strokes clipped to their rounded miter

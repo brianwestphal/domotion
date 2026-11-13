@@ -356,3 +356,36 @@ describeBrowser("per-corner rounded double, dashed and dotted outlines (DM-2PSXZ
     });
   }
 });
+
+// DM-DBGKAG: rounded groove/ridge/inset/outset outlines and borders take
+// Blink's curved side path instead of a flat stroke or square trapezoids.
+// Before: 72-529 differing pixels, max 84-255. The bound leaves the
+// anti-aliased seams at Blink's hard-miter joins, tracked separately.
+describeBrowser("rounded 3D outlines and borders (DM-DBGKAG)", () => {
+  for (const [css, maxPixels] of [
+    ["outline:6px groove red;border-radius:6px", 160],
+    ["outline:4px outset red;border-radius:6px", 140],
+    ["outline:6px ridge #3366cc;outline-offset:2px;border-radius:10px/5px", 220],
+    ["border:6px groove red;border-radius:6px", 80],
+    ["border:4px inset red;border-radius:6px", 80],
+  ] as const) {
+    it(`follows the curved bevel for ${css}`, async () => {
+      const source = `<!doctype html><style>body{margin:0;background:white}#probe{position:absolute;left:20px;top:20px;width:24px;height:20px;${css}}</style><div id="probe"></div>`;
+      const native = await rgbaMap(env!.browser, source);
+      const svg = await renderedSvg(env!.browser, source);
+      const rendered = await rgbaMap(
+        env!.browser,
+        `<!doctype html><style>body{margin:0;background:white}svg{display:block}</style>${svg}`,
+      );
+      let differing = 0;
+      let worst = 0;
+      for (let i = 0; i < native.length; i += 4) {
+        const d = Math.max(...[0, 1, 2, 3].map((k) => Math.abs(native[i + k]! - rendered[i + k]!)));
+        if (d > 8) differing++;
+        worst = Math.max(worst, d);
+      }
+      expect(differing).toBeLessThanOrEqual(maxPixels);
+      expect(worst).toBeLessThanOrEqual(120);
+    });
+  }
+});

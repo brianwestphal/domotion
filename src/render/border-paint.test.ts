@@ -308,3 +308,59 @@ describe("curved dashed/dotted border ring clip (DM-KA85VS)", () => {
     expect(paint({ ...uniform, borderLeftWidth: "4" })).toContain('fill-rule="evenodd"');
   });
 });
+
+// DM-DBGKAG: rounded 3D borders take Blink's curved side path: one ring clip,
+// a rounded miter wedge per side, the side's shade over the whole ring, and for
+// groove/ridge the opposite shade inside the CenterOutsets contour.
+describe("rounded 3D bevel borders (DM-DBGKAG)", () => {
+  const rounded = {
+    borderTopLeftRadius: "8px",
+    borderTopRightRadius: "8px",
+    borderBottomRightRadius: "8px",
+    borderBottomLeftRadius: "8px",
+  };
+  const paint = (style: string) => {
+    const ctx = context();
+    const el = element({
+      ...rounded,
+      borderTopWidth: "6",
+      borderRightWidth: "6",
+      borderBottomWidth: "6",
+      borderLeftWidth: "6",
+      borderTopStyle: style,
+      borderRightStyle: style,
+      borderBottomStyle: style,
+      borderLeftStyle: style,
+    });
+    paintBorder(
+      ctx,
+      el,
+      "",
+      parseCornerRadii(el.styles, el.width, el.height),
+      800,
+      600,
+      6,
+      parseColor("rgb(255,0,0)"),
+      false,
+      false,
+      new Set(),
+    );
+    return ctx.svgParts.join("\n");
+  };
+
+  it("clips every side to one ring and its own wedge", () => {
+    const svg = paint("inset");
+    expect(svg.match(/<clipPath id="[^"]+"><path d="[^"]+" clip-rule="evenodd"\/><\/clipPath>/g)).toHaveLength(1);
+    expect(svg.match(/<clipPath id="[^"]+"><polygon points="[^"]+"\/><\/clipPath>/g)).toHaveLength(4);
+    // Inset fills only the ring (a rect under the ring clip); no center contour.
+    expect(svg).not.toContain("  <path d=");
+  });
+
+  it("splits groove into the side shade and the opposite shade inside the center contour", () => {
+    const svg = paint("groove");
+    // Center contour: outer 10,20 100×40 radius 8 inset by trunc(6/2)=3.
+    expect(svg).toContain('<path d="M18,23 ');
+    const shades = [...svg.matchAll(/fill="(rgb\([^)]*\))"/g)].map((m) => m[1]);
+    expect(new Set(shades).size).toBe(2);
+  });
+});

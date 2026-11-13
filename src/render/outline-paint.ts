@@ -4,7 +4,7 @@ import { r } from "./format.js";
 import { renderWarn } from "./render-warn.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 import { blinkCurvedDashPathLength, parseCornerRadii, roundedRectPath, type CornerRadii } from "./borders.js";
-import { BEVEL_PAINT_ORDER, bevelShades, bevelSidePolygons } from "./border-paint.js";
+import { BEVEL_PAINT_ORDER, bevelShades, bevelSidePolygons, curvedBevelRingMarkup } from "./border-paint.js";
 
 export interface ThinDottedEndpointPlan {
   startDotGrowth: number | null;
@@ -270,6 +270,32 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         if (layered) out.push(`${indent}</g>`);
       } else if (ostyle === "dashed" || ostyle === "dotted") {
         out.push(...paintCurvedDashedDottedOutline(el, offset, ow, ostyle, colorStr(ocolor), indent));
+      } else if (
+        (ostyle === "groove" || ostyle === "ridge" || ostyle === "inset" || ostyle === "outset") &&
+        Math.round(ow) >= 1 &&
+        hasRoundedCorner(el)
+      ) {
+        // DM-DBGKAG: a rounded 3D single-rect outline takes BoxBorderPainter's
+        // curved side path on the outer contour (offset + width), like a
+        // rounded 3D border of the outline's width.
+        const width = Math.round(ow);
+        const { clamp, contour } = outlineContours(el, offset);
+        const outer = contour(clamp.horizontal + width, clamp.vertical + width);
+        const idBase = `outline-bevel-${outer.box.x}-${outer.box.y}-${outer.box.w}-${outer.box.h}-${width}`.replace(
+          /\./g,
+          "_",
+        );
+        out.push(
+          ...curvedBevelRingMarkup({
+            indent,
+            outer: outer.box,
+            corners: outer.radii,
+            widths: { top: width, right: width, bottom: width, left: width },
+            color: ocolor,
+            styles: { top: ostyle, right: ostyle, bottom: ostyle, left: ostyle },
+            nextId: (side) => `${idBase}-${side}`,
+          }),
+        );
       } else if (
         (ostyle === "groove" || ostyle === "ridge" || ostyle === "inset" || ostyle === "outset") &&
         Math.round(ow) >= 1 &&

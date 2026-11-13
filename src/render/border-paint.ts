@@ -135,6 +135,84 @@ export function paintBevelBorder(
   });
 }
 
+/**
+ * DM-DBGKAG: a rounded 3D border side is BoxBorderPainter's curved path
+ * (box_border_painter.cc, chromium 6b5a1b80). PaintOneBorderSide clips to the
+ * border ring (outer contour, clip-out inner contour) and the side's rounded
+ * miter wedge, then DrawCurvedBoxSide fills it:
+ * - inset/outset fill the ring in the side's CalculateInsetOutsetColor shade;
+ * - groove/ridge (DrawCurvedRidgeGrooveBoxSide) fill the ring in the first
+ *   shade, then, clipped to the CenterOutsets contour (each width halved and
+ *   truncated, PhysicalBoxStrut::FromInts), fill the opposite shade.
+ * The shared side shades are bevelShades (Blink's Color::Dark/Light rule).
+ * Returns markup with inline clip defs; `nextId` mints their ids.
+ */
+export function curvedBevelRingMarkup(args: {
+  indent: string;
+  outer: { x: number; y: number; w: number; h: number };
+  corners: CornerRadii;
+  widths: { top: number; right: number; bottom: number; left: number };
+  color: { r: number; g: number; b: number; a: number };
+  styles: { top: string; right: string; bottom: string; left: string };
+  nextId: (side: string) => string;
+}): string[] {
+  const { indent, outer, corners, widths, color, styles } = args;
+  const { top: tw, right: rw, bottom: bw, left: lw } = widths;
+  const ring = (inset: { top: number; right: number; bottom: number; left: number }) =>
+    roundedRectPath(
+      outer.x + inset.left,
+      outer.y + inset.top,
+      Math.max(0, outer.w - inset.left - inset.right),
+      Math.max(0, outer.h - inset.top - inset.bottom),
+      insetCornerRadii(corners, inset.top, inset.right, inset.bottom, inset.left),
+    );
+  const outerPath = roundedRectPath(outer.x, outer.y, outer.w, outer.h, corners);
+  const innerPath = ring(widths);
+  const half = (width: number) => Math.floor(Math.round(width) / 2);
+  const centerPath = ring({ top: half(tw), right: half(rw), bottom: half(bw), left: half(lw) });
+  const out: string[] = [];
+  // One ring clip shared by every side, applied once like Blink's border
+  // clip, so the inner contour is anti-aliased once rather than per fill.
+  const ringId = args.nextId("ring");
+  out.push(`${indent}<clipPath id="${ringId}"><path d="${outerPath} ${innerPath}" clip-rule="evenodd"/></clipPath>`);
+  for (const side of BEVEL_PAINT_ORDER) {
+    if (widths[side] <= 0) continue;
+    const style = styles[side];
+    const shades = bevelShades(color, style, side);
+    const id = args.nextId(side);
+    const wedge = roundBorderSideClipPolygon(
+      side,
+      outer.x,
+      outer.y,
+      outer.x + outer.w,
+      outer.y + outer.h,
+      corners,
+      tw,
+      rw,
+      bw,
+      lw,
+    );
+    // Blink's hard (non-AA) miters at the matching top-left and bottom-right
+    // joins are not reproduced: every wedge edge is anti-aliased (DM-F77PN8).
+    out.push(`${indent}<clipPath id="${id}"><polygon points="${wedge}"/></clipPath>`);
+    out.push(`${indent}<g clip-path="url(#${id})"><g clip-path="url(#${ringId})">`);
+    out.push(
+      `${indent}  <rect x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}" fill="${shades.outer}"/>`,
+    );
+    if (style === "groove" || style === "ridge") {
+      out.push(`${indent}  <path d="${centerPath}" fill="${shades.inner}"/>`);
+    }
+    out.push(`${indent}</g></g>`);
+  }
+  return out;
+}
+
+/** Any rounded corner with Blink's round curvature (the curved bevel path). */
+function hasRoundRadius(corners: CornerRadii): boolean {
+  if (corners.curvature != null && Object.values(corners.curvature).some((value) => value !== 2)) return false;
+  return [corners.tl, corners.tr, corners.br, corners.bl].some((corner) => corner.h > 0 || corner.v > 0);
+}
+
 // The four CSS border styles that paint a light/dark 3D bevel.
 function isBevelStyle(style: string): boolean {
   return style === "groove" || style === "ridge" || style === "inset" || style === "outset";
@@ -711,6 +789,22 @@ export function paintBorder(
     const style = bt.style;
     if (style === "double" && bt.w >= DOUBLE_MIN_WIDTH) {
       paintUniformDoubleBorder(ctx, el, indent, corners, bt, borderCollapseMode);
+    } else if (
+      (style === "groove" || style === "ridge" || style === "inset" || style === "outset") &&
+      bt.w >= 1 &&
+      hasRoundRadius(corners)
+    ) {
+      ctx.svgParts.push(
+        ...curvedBevelRingMarkup({
+          indent,
+          outer: { x: el.x, y: el.y, w: el.width, h: el.height },
+          corners,
+          widths: { top: bt.w, right: bt.w, bottom: bt.w, left: bt.w },
+          color: bt.color,
+          styles: { top: style, right: style, bottom: style, left: style },
+          nextId: () => ctx.nextClipId("bv"),
+        }),
+      );
     } else if ((style === "groove" || style === "ridge" || style === "inset" || style === "outset") && bt.w >= 1) {
       paintBevelBorder(ctx, el, indent, bt);
     } else if ((style === "dashed" || style === "dotted") && corners.uniform && corners.tl.h === 0) {
