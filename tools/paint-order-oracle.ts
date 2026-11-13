@@ -131,9 +131,11 @@ export async function collectPaintOrderEvidence(): Promise<PaintOrderEvidence> {
       { stacking: false, fixed: false, overflowOnly: true },
     ],
     [
+      // A non-replaced inline box (LayoutInline) is never a scroll container,
+      // so its overflow forms no stacking context to pass through (DM-SFY5S7).
       "static-inline-perspective",
       { display: "inline", perspective: "420px", transformRelatedBox: false },
-      { stacking: false, fixed: false, overflowOnly: true },
+      { stacking: false, fixed: false, overflowOnly: false },
     ],
     [
       "positioned-inline-perspective",
