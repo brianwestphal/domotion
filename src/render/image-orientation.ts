@@ -15,7 +15,11 @@
 // (`ImageDecoder::ApplyExifMetadata`, `platform/image-decoders/
 // image_decoder.cc:1006-1012`) and PNG `eXIf` (`SkPngRustCodec`'s
 // `GetEncodedOrigin`, Skia fd139e79 `src/codec/SkPngRustCodec.cpp:356-365`).
-// Blink's WebP decoder ignores EXIF, and AVIF orients through `irot`/`imir`.
+// Blink's WebP decoder ignores EXIF. AVIF orients through its `irot`/`imir`
+// item properties instead (`AVIFImageDecoder`, `platform/image-decoders/avif/
+// avif_image_decoder.cc:919-956`); see `avifTransforms` below.
+
+import { renderWarn } from "./render-warn.js";
 
 const ORIENTATION_TAG = 0x0112;
 
@@ -144,6 +148,49 @@ export function withoutEncodedOrientation(bytes: Uint8Array): Uint8Array {
   return out;
 }
 
+interface AvifTransforms {
+  /** Offsets of every `irot` angle byte. */
+  irotAngleAt: number[];
+  /** Quarter turns anticlockwise (0-3) of the first `irot`. */
+  angle: number;
+  mirrored: boolean;
+}
+
+/**
+ * DM-4G5NX9: the `irot` / `imir` item properties of an AVIF (HEIF) file. They
+ * live in `meta` > `iprp` > `ipco` (ISO/IEC 23008-12). Blink maps them to the
+ * same decoder orientation as EXIF, so `image-orientation: none` suppresses
+ * them too. Returns null when the bytes are not an AVIF with either property.
+ */
+function avifTransforms(bytes: Uint8Array): AvifTransforms | null {
+  const u32 = (at: number) => ((bytes[at] << 24) | (bytes[at + 1] << 16) | (bytes[at + 2] << 8) | bytes[at + 3]) >>> 0;
+  const type = (at: number) => String.fromCharCode(bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]);
+  if (bytes.length < 12 || type(4) !== "ftyp") return null;
+  const brands = Buffer.from(bytes.subarray(8, Math.min(bytes.length, 8 + u32(0)))).toString("latin1");
+  if (!/avif|avis/.test(brands)) return null;
+  const found: AvifTransforms = { irotAngleAt: [], angle: 0, mirrored: false };
+  const walk = (start: number, end: number, depth: number): void => {
+    let at = start;
+    while (at + 8 <= end) {
+      const size = u32(at);
+      const boxType = type(at + 4);
+      const boxEnd = size === 0 ? end : at + size;
+      if (size < 8 && size !== 0) return;
+      if (boxEnd > end) return;
+      if (boxType === "meta" && depth === 0) walk(at + 12, boxEnd, 1);
+      else if (boxType === "iprp" && depth === 1) walk(at + 8, boxEnd, 2);
+      else if (boxType === "ipco" && depth === 2) walk(at + 8, boxEnd, 3);
+      else if (boxType === "irot" && depth === 3 && at + 8 < boxEnd) {
+        if (found.irotAngleAt.length === 0) found.angle = bytes[at + 8] & 3;
+        found.irotAngleAt.push(at + 8);
+      } else if (boxType === "imir" && depth === 3) found.mirrored = true;
+      at = boxEnd;
+    }
+  };
+  walk(0, bytes.length, 0);
+  return found.irotAngleAt.length > 0 || found.mirrored ? found : null;
+}
+
 /**
  * Apply a used `image-orientation: none` to a base64 data URI: the stored
  * pixel grid's bytes, and whether the natural axes swap (orientations 5-8).
@@ -153,6 +200,22 @@ export function unorientedImageSource(src: string): { src: string; transposed: b
   const match = /^data:([^,;]*)((?:;[^,;]*)*);base64,/i.exec(src);
   if (match == null) return { src, transposed: false };
   const bytes = Buffer.from(src.slice(match[0].length), "base64");
+  const avif = avifTransforms(bytes);
+  if (avif != null) {
+    // `imir` has no identity value and is an essential property, so a mirrored
+    // AVIF cannot be neutralized in place; it keeps its orientation.
+    if (avif.mirrored) {
+      renderWarn(
+        "image-orientation",
+        "image-orientation: none on a mirrored (imir) AVIF is painted with its orientation applied",
+      );
+      return { src, transposed: false };
+    }
+    if (avif.angle === 0) return { src, transposed: false };
+    const patched = Buffer.from(bytes);
+    for (const at of avif.irotAngleAt) patched[at] = patched[at] & ~3;
+    return { src: match[0] + patched.toString("base64"), transposed: avif.angle % 2 === 1 };
+  }
   const orientation = encodedImageOrientation(bytes);
   if (orientation === 1) return { src, transposed: false };
   const patched = Buffer.from(withoutEncodedOrientation(bytes));

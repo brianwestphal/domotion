@@ -95,7 +95,7 @@ in place and swaps the natural axes for orientations 5-8, so consumers that
 honor EXIF paint the stored grid as Chromium does. Only the containers Chromium
 orients from EXIF are patched: JPEG APP1 (`ImageDecoder::ApplyExifMetadata`)
 and PNG `eXIf` (`SkPngRustCodec`, Skia `fd139e79`). Blink's WebP decoder ignores
-EXIF. AVIF orients through `irot`/`imir`, which is not patched yet (DM-4G5NX9). DM-FRF6A8 owns complete fractional natural-size authority for none
+EXIF. AVIF orients through its `irot`/`imir` item properties; the renderer zeroes the `irot` angle in place and swaps axes for quarter turns (DM-4G5NX9), while a mirrored `imir` image keeps its orientation and warns (DM-FPTFZB). DM-FRF6A8 owns complete fractional natural-size authority for none
 and scale-down: physical decoded dimensions alone cannot recover density. A
 native396w/sizes390px auto-size control lays out389.984375×572.1875 while API
 getters report389×572. Do not infer density from those separately truncated

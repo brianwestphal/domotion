@@ -98,3 +98,37 @@ describe("embedded image orientation (DM-JPDMRD)", () => {
     });
   });
 });
+
+describe("AVIF irot/imir under image-orientation:none (DM-4G5NX9)", () => {
+  const avif = (orientation: number) => grid().avif({ lossless: true }).withMetadata({ orientation }).toBuffer();
+  const uri = (bytes: Buffer) => `data:image/avif;base64,${bytes.toString("base64")}`;
+  const irotAngle = (bytes: Buffer) => bytes[bytes.indexOf(Buffer.from("irot")) + 4] & 3;
+
+  it("zeroes the irot angle in place and reports quarter-turn transposition", async () => {
+    for (const [orientation, transposed] of [
+      [6, true],
+      [3, false],
+      [8, true],
+    ] as const) {
+      const bytes = await avif(orientation);
+      expect(irotAngle(bytes)).not.toBe(0);
+      const out = unorientedImageSource(uri(bytes));
+      const patched = Buffer.from(out.src.split(",")[1], "base64");
+      expect(out.transposed).toBe(transposed);
+      expect(patched.length).toBe(bytes.length);
+      expect(irotAngle(patched)).toBe(0);
+      expect(Array.from(patched).filter((b, i) => b !== bytes[i]).length).toBe(1);
+    }
+  });
+
+  it("leaves a mirrored (imir) AVIF unchanged, since imir has no identity value", async () => {
+    const bytes = await avif(2);
+    expect(bytes.includes(Buffer.from("imir"))).toBe(true);
+    expect(unorientedImageSource(uri(bytes))).toEqual({ src: uri(bytes), transposed: false });
+  });
+
+  it("leaves an unrotated AVIF unchanged", async () => {
+    const bytes = await grid().avif({ lossless: true }).toBuffer();
+    expect(unorientedImageSource(uri(bytes))).toEqual({ src: uri(bytes), transposed: false });
+  });
+});

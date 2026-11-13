@@ -90,9 +90,11 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
     const page = await browser.newPage({ viewport: { width: 100, height: 100 } });
     const generated = await browser.newPage({ viewport: { width: 100, height: 100 } });
     try {
-      for (const format of ["jpeg", "png"] as const) {
+      // DM-4G5NX9: sharp writes the AVIF orientation as an `irot` property,
+      // which Blink maps to the same decoder orientation as EXIF.
+      for (const format of ["jpeg", "png", "avif"] as const) {
         const bytes = await sharp(stored)
-          .toFormat(format, { quality: 100 })
+          .toFormat(format, format === "avif" ? { lossless: true } : { quality: 100 })
           .withMetadata({ orientation: 6 })
           .toBuffer();
         for (const orientation of ["none", "from-image"]) {
