@@ -1592,7 +1592,7 @@ type CornerQuad = Pick<CornerRadii, "tl" | "tr" | "br" | "bl">;
 const SK_MAX_T_VALUE = 0x3fffffff;
 const SK_CONIC_TOLERANCE = 0.5;
 const SK_MAX_RECURSION_DEPTH = 8;
-const SK_ROOT2_OVER_2 = Math.fround(Math.SQRT1_2);
+export const SK_ROOT2_OVER_2 = Math.fround(Math.SQRT1_2);
 
 type Pt = { x: number; y: number };
 
@@ -1608,7 +1608,7 @@ function conicEvalAt(p0: Pt, p1: Pt, p2: Pt, w: number, t: number): Pt {
   };
 }
 
-function conicMeasuredLength(p0: Pt, p1: Pt, p2: Pt, w: number): number {
+export function conicMeasuredLength(p0: Pt, p1: Pt, p2: Pt, w: number): number {
   const segment = (distance: number, mint: number, minPt: Pt, maxt: number, maxPt: Pt, depth: number): number => {
     const halft = (mint + maxt) >> 1;
     const halfPt = conicEvalAt(p0, p1, p2, w, Math.fround(halft / SK_MAX_T_VALUE));

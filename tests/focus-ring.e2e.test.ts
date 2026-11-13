@@ -120,6 +120,46 @@ it.each([
   { name: "ridge 5px", width: 70, outline: "5px ridge green", text: "bb cc dd ee" },
   { name: "groove 1px paints solid", width: 70, outline: "1px groove red", text: "bb cc dd ee" },
   { name: "translucent ridge", width: 70, outline: "4px ridge rgba(255,0,0,0.5)", text: "bb cc dd ee", tolerance: 1 },
+  // DM-QKCK1K: rounded contours (AddCornerRadiiToPath). Curved edges differ
+  // only in anti-aliasing; round dots drift sub-pixel along the arcs, where
+  // Skia measures the conic and SVG its arc.
+  { name: "rounded solid", width: 70, outline: "3px solid red;border-radius:6px", text: "bb cc dd ee", tolerance: 8 },
+  {
+    name: "rounded solid with offset",
+    width: 70,
+    outline: "2px solid blue;border-radius:4px;outline-offset:2px",
+    text: "bb cc dd ee",
+    tolerance: 8,
+  },
+  {
+    name: "rounded double",
+    width: 70,
+    outline: "6px double green;border-radius:5px",
+    text: "bb cc dd ee",
+    tolerance: 10,
+  },
+  {
+    name: "rounded per-corner",
+    width: 70,
+    outline: "4px solid red;border-radius:8px 2px",
+    text: "bb cc dd ee",
+    tolerance: 12,
+  },
+  { name: "rounded dashed", width: 70, outline: "2px dashed red;border-radius:6px", text: "bb cc dd ee", tolerance: 4 },
+  {
+    name: "rounded thin dotted",
+    width: 70,
+    outline: "3px dotted blue;border-radius:5px",
+    text: "bb cc dd ee",
+    tolerance: 4,
+  },
+  {
+    name: "rounded round dots",
+    width: 70,
+    outline: "5px dotted green;border-radius:7px",
+    text: "bb cc dd ee",
+    tolerance: 80,
+  },
   // The alpha layer quantizes 0.5 one level apart (126 vs 127).
   { name: "translucent dashed", width: 70, outline: "4px dashed rgba(255,0,0,0.5)", text: "bb cc dd ee", tolerance: 1 },
 ])("matches native paint for a wrapped inline outline: $name", async ({ width, outline, text, tolerance = 0 }) => {

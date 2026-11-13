@@ -6,7 +6,9 @@ import {
   focusRingStrokes,
   paintOutline,
   rectUnionBoundary,
+  roundRightAngleContours,
   shrinkRightAngleContours,
+  skiaBoundaryStart,
 } from "./outline-paint.js";
 
 // DM-ZVQJYP: `outline-style: auto` paints Blink's two-ring focus ring
@@ -232,5 +234,49 @@ describe("wrapped inline normal outlines (DM-9JNAVF)", () => {
     const markup = wrapped("groove", "1px");
     expect(markup).toHaveLength(1);
     expect(markup[0]).toContain('fill="rgb(213,0,0)"');
+  });
+});
+
+describe("rounded wrapped inline outlines (DM-QKCK1K)", () => {
+  const lShape = rectUnionBoundary([
+    { left: 20, top: 0, right: 60, bottom: 20 },
+    { left: 0, top: 20, right: 40, bottom: 40 },
+  ])[0];
+
+  it("starts a contour where SkRegion::getBoundaryPath does", () => {
+    // The leftmost vertical edge, from its bottom, running up.
+    const start = skiaBoundaryStart(lShape);
+    expect(start[0]).toEqual([0, 40]);
+    expect(start[1]).toEqual([0, 20]);
+  });
+
+  it("rounds convex corners with their own radii and concave ones with the facing radii", () => {
+    const convex = { tl: { h: 4, v: 4 }, tr: { h: 4, v: 4 }, br: { h: 4, v: 4 }, bl: { h: 4, v: 4 } };
+    const concave = { tl: { h: 2, v: 2 }, tr: { h: 2, v: 2 }, br: { h: 2, v: 2 }, bl: { h: 2, v: 2 } };
+    const { d, length } = roundRightAngleContours([skiaBoundaryStart(lShape)], convex, concave);
+    // Starts at the end of the closing bottom line, then arcs up the bottom-left corner.
+    expect(d.startsWith("M4,40 A4,4 0 0 1 0,36 L0,24")).toBe(true);
+    // The concave corner at (20,20) takes the 2px facing radius, sweeping the other way.
+    expect(d).toContain("A2,2 0 0 0 20,18");
+    const straight = 2 * (40 - 8) + (20 - 6) + (20 - 6) + (40 - 6) + (40 - 6) + 2 * (20 - 8);
+    expect(length).toBeGreaterThan(straight);
+    expect(length).toBeLessThan(straight + 6 * 2 * Math.PI);
+  });
+
+  it("scales overflowing radii down and floors them", () => {
+    const big = { tl: { h: 30, v: 30 }, tr: { h: 30, v: 30 }, br: { h: 30, v: 30 }, bl: { h: 30, v: 30 } };
+    const { d } = roundRightAngleContours(
+      [
+        [
+          [0, 10],
+          [0, 0],
+          [10, 0],
+          [10, 10],
+        ],
+      ],
+      big,
+      big,
+    );
+    expect(d.startsWith("M5,10 A5,5 0 0 1 0,5")).toBe(true);
   });
 });

@@ -29,6 +29,7 @@ tickets:
     "DM-9JNAVF",
     "DM-EQ1MPF",
     "DM-BK59F6",
+    "DM-QKCK1K",
     "DM-2355",
     "DM-CMKF35",
     "DM-652J8C",
@@ -234,8 +235,21 @@ differently. A `<clipPath>` would anti-alias that diagonal, so the renderer uses
 a `crispEdges` mask. Groove/ridge then repaint the inner half, inside the center
 path, with the opposite shades; for odd widths the light half keeps to the
 outer-preferring center path. A 1px groove/ridge paints solid in the 50% mix of
-the color and its dark shade. Opaque cases match native exactly. Every rounded
-fragmented outline keeps the single-rect path (DM-QKCK1K).
+the color and its dark shade. Opaque cases match native exactly.
+
+A rounded wrapped outline (DM-QKCK1K) rounds each right-angle contour with
+`AddCornerRadiiToPath`. Radii resolve against the first fragment rect and grow
+each nonzero component by outline-offset plus the contour's outset. Convex
+corners take the contour's own radii, and concave corners the facing contour's.
+Each line shortens between its corners, scaled down and floored on overflow,
+and each corner becomes an exact quarter ellipse (a conic of weight 1/√2).
+Solid fills the ring and double the two stripes. Dashed/dotted stroke the whole
+rounded center path with a closed dash pattern sized from its truncated length
+and the outline width. The dash phase starts where Skia's region boundary does
+(`skiaBoundaryStart`): at the bottom of the leftmost vertical edge, with the
+path opening at the end of the last line. Curved edges match native to
+anti-aliasing (at most 10 levels), and round dots drift sub-pixel along the arcs.
+Rounded 3D styles keep the single-rect path (DM-J6CYTC).
 
 Capture records these facts as `focusRing`
 (`src/capture/script/walker/focus-ring.ts`), including the used dark scheme.

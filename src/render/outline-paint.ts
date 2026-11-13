@@ -3,7 +3,14 @@ import { colorStr, parseColor } from "./colors.js";
 import { r } from "./format.js";
 import { renderWarn } from "./render-warn.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
-import { blinkCurvedDashPathLength, parseCornerRadii, roundedRectPath, type CornerRadii } from "./borders.js";
+import {
+  SK_ROOT2_OVER_2,
+  blinkCurvedDashPathLength,
+  conicMeasuredLength,
+  parseCornerRadii,
+  roundedRectPath,
+  type CornerRadii,
+} from "./borders.js";
 import {
   BEVEL_PAINT_ORDER,
   blinkDark,
@@ -466,9 +473,10 @@ function paintFragmentedOutline(
   color: string,
   indent: string,
 ): string[] | null {
-  if (hasRoundedCorner(el)) return null;
   const width = Math.round(ow);
   const used = style === "double" && width <= 2 ? "solid" : style;
+  const rounded = hasRoundedCorner(el);
+  if (rounded && used !== "solid" && used !== "double" && used !== "dashed" && used !== "dotted") return null;
   const bevel = used === "groove" || used === "ridge" || used === "inset" || used === "outset";
   if (used !== "solid" && used !== "double" && used !== "dashed" && used !== "dotted" && !bevel) return null;
   const offset = Math.round(parseFloat(el.styles.outlineOffset ?? "0") || 0);
@@ -492,6 +500,7 @@ function paintFragmentedOutline(
   const outer = rectUnionBoundary(rects);
   if (outer.length === 0) return [];
   const inner = shrinkRightAngleContours(outer, width);
+  if (rounded) return fragmentedRoundedOutline(el, outer, used, width, offset, color, indent);
   const ring = `${contourPath(outer)} ${contourPath(inner)}`;
   if (bevel) return fragmented3DOutline(outer, ring, used, width, color, indent);
   if (used === "solid") return [`${indent}<path d="${ring}" fill="${color}" fill-rule="evenodd" />`];
@@ -503,6 +512,190 @@ function paintFragmentedOutline(
   return [
     `${indent}<path d="${innerThird} ${contourPath(inner)}" fill="${color}" fill-rule="evenodd" />`,
     `${indent}<path d="${contourPath(outer)} ${outerThird}" fill="${color}" fill-rule="evenodd" />`,
+  ];
+}
+
+type RadiiQuad = Pick<CornerRadii, "tl" | "tr" | "br" | "bl">;
+type Point = [number, number];
+
+/** GetRadiiCorner (outline_painter.cc:213-236, Chromium 6b5a1b80): the convex
+ * or concave radius for the right-angle corner p1 -> p2 -> p3. */
+function radiiCorner(convex: RadiiQuad, concave: RadiiQuad, p1: Point, p2: Point, p3: Point): { h: number; v: number } {
+  const none = { h: 0, v: 0 };
+  if (p1[0] === p2[0]) {
+    if (p1[1] === p2[1] || p2[0] === p3[0]) return none;
+    if (p1[1] < p2[1]) return p2[0] < p3[0] ? concave.bl : convex.br;
+    return p2[0] < p3[0] ? convex.tl : concave.tr;
+  }
+  if (p2[0] !== p3[0] || p2[1] === p3[1]) return none;
+  if (p1[0] < p2[0]) return p2[1] < p3[1] ? convex.tr : concave.br;
+  return p2[1] < p3[1] ? concave.tl : convex.bl;
+}
+
+/**
+ * DM-QKCK1K: AddCornerRadiiToPath (outline_painter.cc:238-327). Each line of a
+ * right-angle contour is shortened by its corners' radii (scaled down and
+ * floored when they overflow it), and each corner becomes a 90-degree conic of
+ * weight 1/sqrt(2), i.e. an exact quarter ellipse. The contour starts at the
+ * end of its last line. Returns the SVG path and Skia's measured length.
+ */
+export function roundRightAngleContours(
+  contours: Point[][],
+  convex: RadiiQuad,
+  concave: RadiiQuad,
+): { d: string; length: number } {
+  const commands: string[] = [];
+  let length = 0;
+  for (const points of contours) {
+    const n = points.length;
+    const lines = points.map((start, i) => {
+      const end = points[(i + 1) % n];
+      const corner1 = radiiCorner(convex, concave, points[(i - 1 + n) % n], start, end);
+      const corner2 = radiiCorner(convex, concave, start, end, points[(i + 2) % n]);
+      const vertical = start[0] === end[0];
+      const axis = vertical ? 1 : 0;
+      const span = Math.abs(end[axis] - start[axis]);
+      let c1 = vertical ? corner1.v : corner1.h;
+      let c2 = vertical ? corner2.v : corner2.h;
+      if (c1 + c2 > span) {
+        const scale = span / (c1 + c2);
+        c1 = Math.floor(c1 * scale);
+        c2 = Math.floor(c2 * scale);
+      }
+      const dir = start[axis] < end[axis] ? 1 : -1;
+      const s: Point = [...start];
+      const e: Point = [...end];
+      s[axis] += dir * c1;
+      e[axis] -= dir * c2;
+      return { s, e };
+    });
+    let current = lines[n - 1].e;
+    commands.push(`M${r(current[0])},${r(current[1])}`);
+    for (let i = 0; i < n; i++) {
+      const corner = points[i];
+      const target = lines[i].s;
+      const rx = Math.abs(target[0] - current[0]),
+        ry = Math.abs(target[1] - current[1]);
+      if (rx > 0 && ry > 0) {
+        const cross =
+          (corner[0] - current[0]) * (target[1] - corner[1]) - (corner[1] - current[1]) * (target[0] - corner[0]);
+        commands.push(`A${r(rx)},${r(ry)} 0 0 ${cross > 0 ? 1 : 0} ${r(target[0])},${r(target[1])}`);
+        length += conicMeasuredLength(
+          { x: current[0], y: current[1] },
+          { x: corner[0], y: corner[1] },
+          { x: target[0], y: target[1] },
+          SK_ROOT2_OVER_2,
+        );
+      } else if (rx > 0 || ry > 0) {
+        commands.push(`L${r(target[0])},${r(target[1])}`);
+        length += rx + ry;
+      }
+      commands.push(`L${r(lines[i].e[0])},${r(lines[i].e[1])}`);
+      length += Math.abs(lines[i].e[0] - target[0]) + Math.abs(lines[i].e[1] - target[1]);
+      current = lines[i].e;
+    }
+    commands.push("Z");
+  }
+  return { d: commands.join(" "), length };
+}
+
+/**
+ * Rotate a clockwise right-angle contour to start where Skia's
+ * SkRegion::getBoundaryPath does (SkRegion_path.cpp, Skia fd139e79): edges sort
+ * by x then top, so a contour begins on its leftmost, topmost vertical edge,
+ * running up from that edge's bottom. Blink's IterateRightAnglePath merges the
+ * collinear closing segment into it, so the first line starts at the bottom
+ * of the whole straight edge. A dash pattern's phase starts there.
+ */
+export function skiaBoundaryStart(points: Point[]): Point[] {
+  const n = points.length;
+  let best = -1;
+  for (let i = 0; i < n; i++) {
+    const [x, y] = points[i];
+    const [nx, ny] = points[(i + 1) % n];
+    if (x !== nx || ny >= y) continue;
+    if (best < 0) {
+      best = i;
+      continue;
+    }
+    const [bx] = points[best];
+    const by = points[(best + 1) % n][1];
+    if (x < bx || (x === bx && ny < by)) best = i;
+  }
+  return best <= 0 ? points : [...points.slice(best), ...points.slice(0, best)];
+}
+
+/**
+ * DM-QKCK1K: ComplexOutlinePainter's rounded solid, double, dashed and dotted
+ * outline around a wrapped inline (outline_painter.cc:459-576). Radii resolve
+ * against the first fragment rect (ComputeCornerRadii on outline_rects[0]) and
+ * grow each nonzero component by outline-offset plus the contour's outset; a
+ * contour takes its own radii on convex corners and the facing contour's on
+ * concave ones. Dashed/dotted stroke the whole rounded center path with a
+ * closed dash pattern sized from its truncated length.
+ */
+function fragmentedRoundedOutline(
+  el: CapturedElement,
+  outer: Point[][],
+  style: string,
+  width: number,
+  offset: number,
+  color: string,
+  indent: string,
+): string[] {
+  const first = el.inlineFragments![0];
+  const base = parseCornerRadii(
+    el.styles,
+    Math.round(first.x + first.width) - Math.round(first.x),
+    Math.round(first.y + first.height) - Math.round(first.y),
+  );
+  const radiiAt = (outset: number): RadiiQuad => {
+    const grow = (c: { h: number; v: number }) => ({
+      h: c.h > 0 ? Math.max(0, c.h + offset + outset) : 0,
+      v: c.v > 0 ? Math.max(0, c.v + offset + outset) : 0,
+    });
+    return { tl: grow(base.tl), tr: grow(base.tr), br: grow(base.br), bl: grow(base.bl) };
+  };
+  const skiaOuter = outer.map(skiaBoundaryStart);
+  const contour = (inset: number, own: number, facing: number) =>
+    roundRightAngleContours(shrinkRightAngleContours(skiaOuter, inset), radiiAt(own), radiiAt(facing));
+  const outerPath = contour(0, width, 0);
+  const innerPath = contour(width, 0, width);
+  const ring = `${outerPath.d} ${innerPath.d}`;
+  if (style === "solid") return [`${indent}<path d="${ring}" fill="${color}" fill-rule="evenodd" />`];
+  const ringClip = geometryClipId("outline-frag", ring);
+  const parsed = parseColor(color);
+  const layered = style !== "double" && parsed != null && parsed.a < 1;
+  const paint = layered && parsed != null ? colorStr({ ...parsed, a: 1 }) : color;
+  const body: string[] = [];
+  if (style === "double") {
+    const stripe = Math.round(width / 3);
+    const innerThird = contour(width - stripe, stripe, width - stripe);
+    const outerThird = contour(stripe, width - stripe, stripe);
+    const xs = outer.flat().map((p) => p[0]);
+    const ys = outer.flat().map((p) => p[1]);
+    const box = `M${Math.min(...xs)},${Math.min(...ys)} H${Math.max(...xs)} V${Math.max(...ys)} H${Math.min(...xs)} Z`;
+    body.push(
+      `${indent}  <path d="${innerThird.d}" fill="${paint}" />`,
+      `${indent}  <path d="${box} ${outerThird.d}" fill="${paint}" fill-rule="evenodd" />`,
+    );
+  } else {
+    const joint = Math.floor((width + 1) / 2);
+    const center = contour(width - joint, joint, joint);
+    const thickness = width % 2 === 1 && (style === "dashed" || isThinDotted(width)) ? width + 2 : width;
+    const dash = closedDashArray(style, width, Math.trunc(center.length));
+    // DashEffectFromStrokeStyle sizes the pattern from dash_thickness (the
+    // outline width), not the widened stroke.
+    const roundDots = style === "dotted" && !isThinDotted(width);
+    body.push(
+      `${indent}  <path d="${center.d}" fill="none" stroke="${paint}" stroke-width="${r(thickness)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${roundDots ? ` stroke-linecap="round"` : ""} />`,
+    );
+  }
+  return [
+    `${indent}<clipPath id="${ringClip}"><path d="${ring}" clip-rule="evenodd" /></clipPath>`,
+    `${indent}<g clip-path="url(#${ringClip})"${layered && parsed != null ? ` opacity="${r(parsed.a)}"` : ""}>`,
+    ...body,
+    `${indent}</g>`,
   ];
 }
 
