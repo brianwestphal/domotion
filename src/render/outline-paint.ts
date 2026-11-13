@@ -476,7 +476,6 @@ function paintFragmentedOutline(
   const width = Math.round(ow);
   const used = style === "double" && width <= 2 ? "solid" : style;
   const rounded = hasRoundedCorner(el);
-  if (rounded && used !== "solid" && used !== "double" && used !== "dashed" && used !== "dotted") return null;
   const bevel = used === "groove" || used === "ridge" || used === "inset" || used === "outset";
   if (used !== "solid" && used !== "double" && used !== "dashed" && used !== "dotted" && !bevel) return null;
   const offset = Math.round(parseFloat(el.styles.outlineOffset ?? "0") || 0);
@@ -532,6 +531,97 @@ function radiiCorner(convex: RadiiQuad, concave: RadiiQuad, p1: Point, p2: Point
   return p2[1] < p3[1] ? concave.tl : convex.bl;
 }
 
+/** AdjustLineBetweenCorners for every line of a right-angle contour: each
+ * line shortened by its corners' radii, scaled down and floored on overflow. */
+function adjustRoundedLines(points: Point[], convex: RadiiQuad, concave: RadiiQuad): Array<{ s: Point; e: Point }> {
+  const n = points.length;
+  return points.map((start, i) => {
+    const end = points[(i + 1) % n];
+    const corner1 = radiiCorner(convex, concave, points[(i - 1 + n) % n], start, end);
+    const corner2 = radiiCorner(convex, concave, start, end, points[(i + 2) % n]);
+    const vertical = start[0] === end[0];
+    const axis = vertical ? 1 : 0;
+    const span = Math.abs(end[axis] - start[axis]);
+    let c1 = vertical ? corner1.v : corner1.h;
+    let c2 = vertical ? corner2.v : corner2.h;
+    if (c1 + c2 > span) {
+      const scale = span / (c1 + c2);
+      c1 = Math.floor(c1 * scale);
+      c2 = Math.floor(c2 * scale);
+    }
+    const dir = start[axis] < end[axis] ? 1 : -1;
+    const s: Point = [...start];
+    const e: Point = [...end];
+    s[axis] += dir * c1;
+    e[axis] -= dir * c2;
+    return { s, e };
+  });
+}
+
+/** The SVG segment for a weight-1/sqrt(2) conic from `from` through the
+ * right-angle `corner` to `to`: a quarter ellipse, a line, or nothing. */
+function quarterArc(from: Point, corner: Point, to: Point): string {
+  const rx = Math.abs(to[0] - from[0]),
+    ry = Math.abs(to[1] - from[1]);
+  if (rx > 0 && ry > 0) {
+    const cross = (corner[0] - from[0]) * (to[1] - corner[1]) - (corner[1] - from[1]) * (to[0] - corner[0]);
+    return `A${r(rx)},${r(ry)} 0 0 ${cross > 0 ? 1 : 0} ${r(to[0])},${r(to[1])}`;
+  }
+  return rx > 0 || ry > 0 ? `L${r(to[0])},${r(to[1])}` : "";
+}
+
+/** ExtendLineAtEndpoint: move `point` away from `other` along their shared axis. */
+function extendAway(point: Point, other: Point, offset: number): Point {
+  if (point[0] === other[0]) return [point[0], point[1] + (point[1] < other[1] ? -offset : offset)];
+  return [point[0] + (point[0] < other[0] ? -offset : offset), point[1]];
+}
+
+/**
+ * DM-J6CYTC: RoundedEdgePathIterator::GenerateEdgeStrokePath
+ * (outline_painter.cc:339-428, Chromium 6b5a1b80) for line `i` of a rounded
+ * center contour: the second half of its starting arc, the line, and the first
+ * half of its ending arc, each end extended by `inset` so a short arc still
+ * fills the miter. An empty arc extends the line itself.
+ */
+function roundedEdgeStrokePath(
+  points: Point[],
+  lines: Array<{ s: Point; e: Point }>,
+  i: number,
+  inset: number,
+): string {
+  const n = points.length;
+  const prevEnd = lines[(i - 1 + n) % n].e;
+  const corner = points[i];
+  const nextCorner = points[(i + 1) % n];
+  const nextStart = lines[(i + 1) % n].s;
+  const { s: lineStart, e: lineEnd } = lines[i];
+  const same = (a: Point, b: Point) => a[0] === b[0] && a[1] === b[1];
+  const commands: string[] = [];
+  if (same(prevEnd, lineStart)) {
+    const start = extendAway(lineStart, nextCorner, inset);
+    commands.push(`M${r(start[0])},${r(start[1])}`);
+  } else {
+    const start = extendAway(prevEnd, corner, inset);
+    commands.push(
+      `M${r(start[0])},${r(start[1])}`,
+      `L${r(prevEnd[0])},${r(prevEnd[1])}`,
+      quarterArc(prevEnd, corner, lineStart),
+    );
+  }
+  if (same(lineEnd, nextStart)) {
+    const end = extendAway(lineEnd, corner, inset);
+    commands.push(`L${r(end[0])},${r(end[1])}`);
+  } else {
+    const end = extendAway(nextStart, nextCorner, inset);
+    commands.push(
+      `L${r(lineEnd[0])},${r(lineEnd[1])}`,
+      quarterArc(lineEnd, nextCorner, nextStart),
+      `L${r(end[0])},${r(end[1])}`,
+    );
+  }
+  return commands.filter((c) => c !== "").join(" ");
+}
+
 /**
  * DM-QKCK1K: AddCornerRadiiToPath (outline_painter.cc:238-327). Each line of a
  * right-angle contour is shortened by its corners' radii (scaled down and
@@ -548,27 +638,7 @@ export function roundRightAngleContours(
   let length = 0;
   for (const points of contours) {
     const n = points.length;
-    const lines = points.map((start, i) => {
-      const end = points[(i + 1) % n];
-      const corner1 = radiiCorner(convex, concave, points[(i - 1 + n) % n], start, end);
-      const corner2 = radiiCorner(convex, concave, start, end, points[(i + 2) % n]);
-      const vertical = start[0] === end[0];
-      const axis = vertical ? 1 : 0;
-      const span = Math.abs(end[axis] - start[axis]);
-      let c1 = vertical ? corner1.v : corner1.h;
-      let c2 = vertical ? corner2.v : corner2.h;
-      if (c1 + c2 > span) {
-        const scale = span / (c1 + c2);
-        c1 = Math.floor(c1 * scale);
-        c2 = Math.floor(c2 * scale);
-      }
-      const dir = start[axis] < end[axis] ? 1 : -1;
-      const s: Point = [...start];
-      const e: Point = [...end];
-      s[axis] += dir * c1;
-      e[axis] -= dir * c2;
-      return { s, e };
-    });
+    const lines = adjustRoundedLines(points, convex, concave);
     let current = lines[n - 1].e;
     commands.push(`M${r(current[0])},${r(current[1])}`);
     for (let i = 0; i < n; i++) {
@@ -642,7 +712,7 @@ function fragmentedRoundedOutline(
   offset: number,
   color: string,
   indent: string,
-): string[] {
+): string[] | null {
   const first = el.inlineFragments![0];
   const base = parseCornerRadii(
     el.styles,
@@ -663,6 +733,9 @@ function fragmentedRoundedOutline(
   const innerPath = contour(width, 0, width);
   const ring = `${outerPath.d} ${innerPath.d}`;
   if (style === "solid") return [`${indent}<path d="${ring}" fill="${color}" fill-rule="evenodd" />`];
+  if (style === "groove" || style === "ridge" || style === "inset" || style === "outset") {
+    return fragmented3DOutline(skiaOuter, ring, style, width, color, indent, { radiiAt, contour });
+  }
   const ringClip = geometryClipId("outline-frag", ring);
   const parsed = parseColor(color);
   const layered = style !== "double" && parsed != null && parsed.a < 1;
@@ -727,7 +800,11 @@ function fragmented3DOutline(
   width: number,
   color: string,
   indent: string,
-): string[] {
+  rounded?: {
+    radiiAt: (outset: number) => RadiiQuad;
+    contour: (inset: number, own: number, facing: number) => { d: string };
+  },
+): string[] | null {
   const parsed = parseColor(color);
   if (parsed == null) return [];
   const opaque = { ...parsed, a: 1 };
@@ -744,13 +821,22 @@ function fragmented3DOutline(
   const joint = Math.floor((width + 1) / 2);
   const shift = thickness % 2 === 1 ? 0.5 : 0;
   const center = shrinkRightAngleContours(outer, width - joint);
+  // Rounded: PaintTopLeftOrBottomRight iterates the right-angle outer path for
+  // the miters and strokes the matching RoundedEdgePathIterator edge, so line
+  // k of the outer contour pairs with line k of the rounded center contour.
+  if (rounded != null && center.some((contour, c) => contour.length !== outer[c]?.length)) return null;
+  const roundedLines =
+    rounded == null
+      ? null
+      : center.map((points) => adjustRoundedLines(points, rounded.radiiAt(joint), rounded.radiiAt(joint)));
   const defs: string[] = [];
   const miterSlope = (p1: [number, number], p2: [number, number], p3: [number, number]) =>
     p1[0] === p2[0] ? (p3[0] > p2[0] === p2[1] > p1[1] ? 1 : -1) : p3[1] > p2[1] === p2[0] > p1[0] ? 1 : -1;
   // PaintTopLeftOrBottomRight: one shade on the top/left or bottom/right edges.
   const edges = (topLeft: boolean, shade: string): string[] => {
     const out: string[] = [];
-    for (const contour of center) {
+    for (const [c, centerContour] of center.entries()) {
+      const contour = rounded == null ? centerContour : outer[c];
       const n = contour.length;
       for (let i = 0; i < n; i++) {
         const start = contour[i];
@@ -781,6 +867,12 @@ function fragmented3DOutline(
         defs.push(
           `${indent}<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(bounds.left - thickness - 2)}" y="${r(bounds.top - thickness - 2)}" width="${r(bounds.right - bounds.left + 2 * thickness + 4)}" height="${r(bounds.bottom - bounds.top + 2 * thickness + 4)}"><path d="${d}" fill="white" fill-rule="evenodd" shape-rendering="crispEdges" /></mask>`,
         );
+        if (roundedLines != null) {
+          out.push(
+            `${indent}  <path d="${roundedEdgeStrokePath(centerContour, roundedLines[c], i, joint)}" fill="none" stroke="${shade}" stroke-width="${r(thickness)}" mask="url(#${clipId})" />`,
+          );
+          continue;
+        }
         let [x1, y1] = start;
         let [x2, y2] = end;
         if (x1 > x2 || y1 > y2) [x1, y1, x2, y2] = [x2, y2, x1, y1];
@@ -801,14 +893,19 @@ function fragmented3DOutline(
   const body = [...edges(!isInset, light), ...edges(isInset, shadow)];
   if (style === "groove" || style === "ridge") {
     // The inner half: inside the center path, opposite shades.
-    const centerClip = geometryClipId("outline-center", contourPath(center));
-    defs.push(`${indent}<clipPath id="${centerClip}"><path d="${contourPath(center)}" /></clipPath>`);
+    const centerD = rounded == null ? contourPath(center) : rounded.contour(width - joint, joint, joint).d;
+    const centerClip = geometryClipId("outline-center", centerD);
+    defs.push(`${indent}<clipPath id="${centerClip}"><path d="${centerD}" /></clipPath>`);
     body.push(`${indent}  <g clip-path="url(#${centerClip})">`, ...edges(style === "ridge", shadow));
     let close = "</g>";
     if (width % 2 === 1) {
-      const preferOuter = shrinkRightAngleContours(outer, width - Math.floor(width / 2));
-      const outerClip = geometryClipId("outline-center", contourPath(preferOuter));
-      defs.push(`${indent}<clipPath id="${outerClip}"><path d="${contourPath(preferOuter)}" /></clipPath>`);
+      const half = Math.floor(width / 2);
+      const preferD =
+        rounded == null
+          ? contourPath(shrinkRightAngleContours(outer, width - half))
+          : rounded.contour(width - half, half, half).d;
+      const outerClip = geometryClipId("outline-center", preferD);
+      defs.push(`${indent}<clipPath id="${outerClip}"><path d="${preferD}" /></clipPath>`);
       body.push(`${indent}  <g clip-path="url(#${outerClip})">`);
       close += "</g>";
     }

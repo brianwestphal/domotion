@@ -160,6 +160,24 @@ it.each([
     text: "bb cc dd ee",
     tolerance: 80,
   },
+  // DM-J6CYTC: rounded 3D styles stroke RoundedEdgePathIterator edges inside
+  // the crisp miters; arc edges differ in anti-aliasing at the miter boundary.
+  { name: "rounded inset", width: 70, outline: "4px inset red;border-radius:6px", text: "bb cc dd ee", tolerance: 28 },
+  {
+    name: "rounded groove",
+    width: 70,
+    outline: "6px groove blue;border-radius:8px",
+    text: "bb cc dd ee",
+    tolerance: 28,
+  },
+  { name: "rounded ridge", width: 70, outline: "5px ridge green;border-radius:5px", text: "bb cc dd ee", tolerance: 8 },
+  {
+    name: "rounded per-corner outset",
+    width: 70,
+    outline: "4px outset red;border-radius:10px 2px",
+    text: "bb cc dd ee",
+    tolerance: 64,
+  },
   // The alpha layer quantizes 0.5 one level apart (126 vs 127).
   { name: "translucent dashed", width: 70, outline: "4px dashed rgba(255,0,0,0.5)", text: "bb cc dd ee", tolerance: 1 },
 ])("matches native paint for a wrapped inline outline: $name", async ({ width, outline, text, tolerance = 0 }) => {

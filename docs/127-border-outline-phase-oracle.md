@@ -31,6 +31,7 @@ tickets:
     "DM-EQ1MPF",
     "DM-BK59F6",
     "DM-QKCK1K",
+    "DM-J6CYTC",
     "DM-2355",
     "DM-CMKF35",
     "DM-652J8C",
@@ -250,7 +251,13 @@ and the outline width. The dash phase starts where Skia's region boundary does
 (`skiaBoundaryStart`): at the bottom of the leftmost vertical edge, with the
 path opening at the end of the last line. Curved edges match native to
 anti-aliasing (at most 10 levels), and round dots drift sub-pixel along the arcs.
-Rounded 3D styles keep the single-rect path (DM-J6CYTC).
+Rounded groove, ridge, inset and outset (DM-J6CYTC) keep the square case's
+crisp miter masks, computed from the right-angle outer contour's line k. Each
+mask strokes `RoundedEdgePathIterator`'s edge k of the rounded center contour:
+the second half of its starting arc, the line, and the first half of its ending
+arc, each end extended by `ceil(width/2)`. The groove/ridge inner-half clips use
+the rounded center contours. These match native to anti-aliasing at the miter
+boundary (at most 25 levels; 59 on an elliptical per-corner case).
 
 Capture records these facts as `focusRing`
 (`src/capture/script/walker/focus-ring.ts`), including the used dark scheme.

@@ -280,3 +280,36 @@ describe("rounded wrapped inline outlines (DM-QKCK1K)", () => {
     expect(d.startsWith("M5,10 A5,5 0 0 1 0,5")).toBe(true);
   });
 });
+
+describe("rounded wrapped inline 3D outlines (DM-J6CYTC)", () => {
+  it("strokes RoundedEdgePathIterator edges inside crisp miter masks", () => {
+    const el = capturedElement({
+      tag: "span",
+      x: 10,
+      y: 0,
+      width: 50,
+      height: 40,
+      styles: {
+        outlineStyle: "inset",
+        outlineWidth: "4px",
+        outlineColor: "rgb(255, 0, 0)",
+        outlineOffset: "0px",
+        borderTopLeftRadius: "6px",
+        borderTopRightRadius: "6px",
+        borderBottomRightRadius: "6px",
+        borderBottomLeftRadius: "6px",
+      },
+    });
+    el.inlineFragments = [
+      { x: 30, y: 0, width: 30, height: 20 },
+      { x: 10, y: 20, width: 30, height: 20 },
+    ] as typeof el.inlineFragments;
+    const markup = paintOutline(el, 6, "").join("\n");
+    const edges = markup.match(
+      /<path d="M[^"]*" fill="none" stroke="rgb\([^)]*\)" stroke-width="4" mask="url\(#outline-miter-/g,
+    );
+    expect(edges).toHaveLength(8);
+    // Each edge carries its arc halves.
+    expect(markup).toMatch(/<path d="M[^"]* A[^"]*" fill="none"/);
+  });
+});
