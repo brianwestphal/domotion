@@ -6,6 +6,7 @@
 
 import type { CapturedElement } from "../capture/types.js";
 import { containmentCreatesFixedContainer, containmentCreatesStackingContext } from "./containment.js";
+import { isNonReplacedInline } from "./overflow-clip.js";
 
 /**
  * Live captures set this false when Blink declines to make this layout object
@@ -181,9 +182,11 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
   // wrapper into the implicit root SC, leaking out of the scroller's
   // viewport (observable on `13-deep-sticky-edges`: scroller 1's deep
   // sticky headers painted into scroller 2's area).
+  // DM-SFY5S7: a non-replaced inline box is never a scroll container, so
+  // its computed overflow neither clips nor contains anything.
   const ox = s.overflowX;
   const oy = s.overflowY;
-  if ((ox != null && ox !== "visible") || (oy != null && oy !== "visible")) return true;
+  if (((ox != null && ox !== "visible") || (oy != null && oy !== "visible")) && !isNonReplacedInline(el)) return true;
   return false;
 }
 
@@ -464,7 +467,8 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
   // Must actually create an SC via overflow
   const ox = s.overflowX;
   const oy = s.overflowY;
-  const overflowIsSC = (ox != null && ox !== "visible") || (oy != null && oy !== "visible");
+  const overflowIsSC =
+    ((ox != null && ox !== "visible") || (oy != null && oy !== "visible")) && !isNonReplacedInline(el);
   if (!overflowIsSC) return false;
   // Must have NO other SC-creating property
   // Positioned + z-index:auto is not a Blink stacking-context boundary.  The

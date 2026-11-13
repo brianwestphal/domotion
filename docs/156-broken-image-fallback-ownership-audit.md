@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["images-media", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2463", "DM-2464", "DM-2465", "DM-N6XJRS", "DM-G47E97", "DM-YF72EK", "DM-GXK8X1"]
+tickets: ["DM-2463", "DM-2464", "DM-2465", "DM-N6XJRS", "DM-G47E97", "DM-YF72EK", "DM-GXK8X1", "DM-SFY5S7"]
 code:
   [
     "src/capture/broken-image-fallback.ts",
@@ -372,8 +372,9 @@ image followed by other items keeps the seed path, which classifies a retained
 shadow as fallback. That fallback paints under a zero-size inline host
 (DM-GXK8X1): the img is now a non-replaced inline box, and Blink keeps the
 overflow clip on LayoutBox, never on LayoutInline. So the img's UA `overflow:
-clip` clips nothing, and the renderer and culling skip the overflow clip for
-any non-replaced inline box (`isNonReplacedInline`). A non-URL generated image (gradient, `image-set()`,
+clip` clips nothing. The renderer, culling, stacking-context and hit-testing
+code all skip overflow for any non-replaced inline box (`isNonReplacedInline`;
+DM-SFY5S7 for the last two). A non-URL generated image (gradient, `image-set()`,
 `cross-fade()`, `paint()`) also owns the box in place of `src`, and has no URL
 to embed, so its content box takes the replaced-element Chromium snapshot
 (`generatedContentImage`; raster fallback E4, DM-YF72EK).

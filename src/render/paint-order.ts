@@ -44,6 +44,7 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
+import { isNonReplacedInline } from "./overflow-clip.js";
 import {
   establishesStackingContext,
   gatherStackingContextChildren,
@@ -67,6 +68,8 @@ interface HitEntry {
 
 function overflowClips(el: CapturedElement): boolean {
   const s = el.styles;
+  // DM-SFY5S7: overflow never clips a non-replaced inline box.
+  if (isNonReplacedInline(el)) return false;
   return (s.overflowX != null && s.overflowX !== "visible") || (s.overflowY != null && s.overflowY !== "visible");
 }
 

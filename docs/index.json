@@ -3888,7 +3888,7 @@
         "status": "current",
         "owners": ["images-media", "platform-release"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2463", "DM-2464", "DM-2465", "DM-N6XJRS", "DM-G47E97", "DM-YF72EK", "DM-GXK8X1"],
+        "tickets": ["DM-2463", "DM-2464", "DM-2465", "DM-N6XJRS", "DM-G47E97", "DM-YF72EK", "DM-GXK8X1", "DM-SFY5S7"],
         "code": [
           "src/capture/broken-image-fallback.ts",
           "src/capture/broken-image-icon-raster.ts",

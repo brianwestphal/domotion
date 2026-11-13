@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { CapturedElement } from "../capture/types.js";
 import { capturedElement } from "../test-support/captured-fixtures.js";
 import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
+import { paintOrderHitSequence } from "./paint-order.js";
+import { establishesStackingContext, isOverflowOnlySC } from "./stacking.js";
 
 // DM-GXK8X1: Blink's overflow clip lives on LayoutBox; a non-replaced inline
 // box (LayoutInline) never clips, whatever its computed overflow. An <img>
@@ -51,5 +53,22 @@ describe("overflow clip on inline boxes (DM-GXK8X1)", () => {
       brokenImageFallback: { disposition: "non-replaced-fallback" } as CapturedElement["brokenImageFallback"],
     });
     expect(clips(fallback)).toBe(false);
+  });
+});
+
+// DM-SFY5S7: stacking and hit-testing read the same rule.
+describe("overflow on inline boxes in stacking and hit-testing (DM-SFY5S7)", () => {
+  it("does not make a non-replaced inline box a scroll-container stacking context", () => {
+    expect(establishesStackingContext(host("span", "inline"))).toBe(false);
+    expect(isOverflowOnlySC(host("span", "inline"))).toBe(false);
+    expect(establishesStackingContext(host("span", "inline-block"))).toBe(true);
+    expect(isOverflowOnlySC(host("span", "inline-block"))).toBe(true);
+  });
+
+  it("does not clip descendants' hit boxes to a non-replaced inline box", () => {
+    const clipsOf = (el: CapturedElement) =>
+      paintOrderHitSequence([el]).find((entry) => entry.el.tag === "div")?.clips.length;
+    expect(clipsOf(host("span", "inline"))).toBe(0);
+    expect(clipsOf(host("span", "inline-block"))).toBe(1);
   });
 });
