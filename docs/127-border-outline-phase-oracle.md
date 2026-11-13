@@ -25,6 +25,7 @@ tickets:
     "DM-1110JP",
     "DM-2PSXZV",
     "DM-DBGKAG",
+    "DM-F77PN8",
     "DM-7NN5E6",
     "DM-9JNAVF",
     "DM-EQ1MPF",
@@ -370,8 +371,17 @@ The curved path, shared by `curvedBevelRingMarkup`, works like this:
 Clipping the ring once, rather than filling two even-odd stripe paths,
 anti-aliases the inner contour once. Against the flat stroke or square
 trapezoids, differing pixels fall by 60–70% and the maximum from 217–255 to
-56–104. Blink's hard (non-anti-aliased) miters at the matching top-left and
-bottom-right joins are not reproduced yet (DM-F77PN8).
+56–104.
+
+Where adjacent sides paint the same shades (the top-left and bottom-right joins
+of a uniform 3D style), Blink's `ClipBorderSidePolygonCloseToEdges` splits them
+with a hard, non-anti-aliased miter from the outer corner to the inner rect
+corner (DM-F77PN8). Each such side clips to the anti-aliased union of both
+wedges, which has no diagonal edge, and to a `crispEdges` half-plane mask on its
+side of the miter. Complementary crisp halves own each pixel once, and paint
+order is unchanged. The anti-aliased seam is gone: pixels differing by more than
+8 levels fall from 50–160 to 11–23 per case, and the remaining maximum is single
+pixels at arc ends and the miter's inner end.
 
 Curved dashed/dotted borders use the same construction (DM-KA85VS), both for a
 single-color border and for the per-side strokes clipped to their rounded miter

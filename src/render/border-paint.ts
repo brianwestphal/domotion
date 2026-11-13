@@ -175,25 +175,76 @@ export function curvedBevelRingMarkup(args: {
   // clip, so the inner contour is anti-aliased once rather than per fill.
   const ringId = args.nextId("ring");
   out.push(`${indent}<clipPath id="${ringId}"><path d="${outerPath} ${innerPath}" clip-rule="evenodd"/></clipPath>`);
+  const wedges = Object.fromEntries(
+    BEVEL_PAINT_ORDER.map((side) => [
+      side,
+      roundBorderSideClipPolygon(side, outer.x, outer.y, outer.x + outer.w, outer.y + outer.h, corners, tw, rw, bw, lw),
+    ]),
+  ) as Record<BevelSide, string>;
+  // DM-F77PN8: where adjacent sides paint the same shades (the top-left and
+  // bottom-right joins of a 3D style), Blink's ClipBorderSidePolygonCloseToEdges
+  // splits them with a hard, non-anti-aliased miter from the outer corner to
+  // the inner rect corner. Each side clips to the anti-aliased union of both
+  // wedges, so no diagonal edge is anti-aliased, and to a crisp half-plane mask
+  // on its side of the miter; complementary crisp halves own each pixel once.
+  const span = 4 * (outer.w + outer.h);
+  const hardMiter = (side: BevelSide): { union: string; mask: string } | null => {
+    const partner: Partial<Record<BevelSide, BevelSide>> = {
+      top: "left",
+      left: "top",
+      bottom: "right",
+      right: "bottom",
+    };
+    const other = partner[side]!;
+    if (widths[other] <= 0 || styles[other] !== styles[side]) return null;
+    const a = bevelShades(color, styles[side], side);
+    const b = bevelShades(color, styles[other], other);
+    if (a.outer !== b.outer || a.inner !== b.inner) return null;
+    const topLeft = side === "top" || side === "left";
+    const corner = topLeft ? { x: outer.x, y: outer.y } : { x: outer.x + outer.w, y: outer.y + outer.h };
+    const inner = topLeft ? { x: outer.x + lw, y: outer.y + tw } : { x: corner.x - rw, y: corner.y - bw };
+    const length = Math.hypot(inner.x - corner.x, inner.y - corner.y) || 1;
+    const d = { x: (inner.x - corner.x) / length, y: (inner.y - corner.y) / length };
+    // The normal toward this side's band.
+    const toward =
+      side === "top" || side === "bottom"
+        ? { x: outer.x + outer.w / 2 - corner.x, y: 0 }
+        : { x: 0, y: outer.y + outer.h / 2 - corner.y };
+    let n = { x: -d.y, y: d.x };
+    if (n.x * toward.x + n.y * toward.y < 0) n = { x: d.y, y: -d.x };
+    const p1 = { x: corner.x - span * d.x, y: corner.y - span * d.y };
+    const p2 = { x: corner.x + span * d.x, y: corner.y + span * d.y };
+    const half = [
+      p1,
+      p2,
+      { x: p2.x + span * n.x, y: p2.y + span * n.y },
+      { x: p1.x + span * n.x, y: p1.y + span * n.y },
+    ];
+    const maskId = args.nextId(`${side}-miter`);
+    out.push(
+      `${indent}<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(outer.x - 1)}" y="${r(outer.y - 1)}" width="${r(outer.w + 2)}" height="${r(outer.h + 2)}"><polygon points="${half.map((p) => `${r(p.x)},${r(p.y)}`).join(" ")}" fill="white" shape-rendering="crispEdges"/></mask>`,
+    );
+    return { union: `M${wedges[side].replace(/ /g, " L")} Z M${wedges[other].replace(/ /g, " L")} Z`, mask: maskId };
+  };
   for (const side of BEVEL_PAINT_ORDER) {
     if (widths[side] <= 0) continue;
     const style = styles[side];
     const shades = bevelShades(color, style, side);
     const id = args.nextId(side);
-    const wedge = roundBorderSideClipPolygon(
-      side,
-      outer.x,
-      outer.y,
-      outer.x + outer.w,
-      outer.y + outer.h,
-      corners,
-      tw,
-      rw,
-      bw,
-      lw,
-    );
-    // Blink's hard (non-AA) miters at the matching top-left and bottom-right
-    // joins are not reproduced: every wedge edge is anti-aliased (DM-F77PN8).
+    const hard = hardMiter(side);
+    if (hard != null) {
+      out.push(`${indent}<clipPath id="${id}"><path d="${hard.union}"/></clipPath>`);
+      out.push(`${indent}<g mask="url(#${hard.mask})"><g clip-path="url(#${id})"><g clip-path="url(#${ringId})">`);
+      out.push(
+        `${indent}  <rect x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}" fill="${shades.outer}"/>`,
+      );
+      if (style === "groove" || style === "ridge") {
+        out.push(`${indent}  <path d="${centerPath}" fill="${shades.inner}"/>`);
+      }
+      out.push(`${indent}</g></g></g>`);
+      continue;
+    }
+    const wedge = wedges[side];
     out.push(`${indent}<clipPath id="${id}"><polygon points="${wedge}"/></clipPath>`);
     out.push(`${indent}<g clip-path="url(#${id})"><g clip-path="url(#${ringId})">`);
     out.push(

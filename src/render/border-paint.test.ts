@@ -4,6 +4,7 @@ import {
   bevelShades,
   BEVEL_PAINT_ORDER,
   bevelSidePolygons,
+  curvedBevelRingMarkup,
   paintBorder,
   paintCollapsedBorderRects,
   roundedRectClipLayers,
@@ -391,12 +392,33 @@ describe("rounded 3D bevel borders (DM-DBGKAG)", () => {
     return ctx.svgParts.join("\n");
   };
 
-  it("clips every side to one ring and its own wedge", () => {
+  it("clips every side to one ring and splits matching joins with crisp miters (DM-F77PN8)", () => {
     const svg = paint("inset");
     expect(svg.match(/<clipPath id="[^"]+"><path d="[^"]+" clip-rule="evenodd"\/><\/clipPath>/g)).toHaveLength(1);
-    expect(svg.match(/<clipPath id="[^"]+"><polygon points="[^"]+"\/><\/clipPath>/g)).toHaveLength(4);
+    // Top/left and bottom/right share shades: each side clips to the union of
+    // its pair's wedges and a crisp half-plane on its side of the miter.
+    expect(svg.match(/<clipPath id="[^"]+"><path d="M[^"]+ Z M[^"]+ Z"\/><\/clipPath>/g)).toHaveLength(4);
+    expect(svg.match(/<mask id="[^"]+"[^>]*><polygon [^>]*shape-rendering="crispEdges"\/><\/mask>/g)).toHaveLength(4);
+    expect(svg).not.toMatch(/<clipPath id="[^"]+"><polygon /);
     // Inset fills only the ring (a rect under the ring clip); no center contour.
     expect(svg).not.toContain("  <path d=");
+  });
+
+  it("keeps anti-aliased wedges where adjacent sides differ in style", () => {
+    let index = 0;
+    const corner = { h: 8, v: 8 };
+    const markup = curvedBevelRingMarkup({
+      indent: "",
+      outer: { x: 10, y: 20, w: 100, h: 40 },
+      corners: { tl: corner, tr: corner, br: corner, bl: corner, uniform: true },
+      widths: { top: 6, right: 6, bottom: 6, left: 6 },
+      color: { r: 255, g: 0, b: 0, a: 1 },
+      styles: { top: "inset", right: "inset", bottom: "inset", left: "outset" },
+      nextId: (side) => `c${side}${index++}`,
+    }).join("\n");
+    // Bottom/right still pair; top and left differ, so each keeps its wedge.
+    expect(markup.match(/<clipPath id="[^"]+"><polygon /g)).toHaveLength(2);
+    expect(markup.match(/shape-rendering="crispEdges"/g)).toHaveLength(2);
   });
 
   it("splits groove into the side shade and the opposite shade inside the center contour", () => {

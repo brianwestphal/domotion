@@ -396,15 +396,16 @@ describeBrowser("per-corner rounded dashed and dotted clipping (DM-1110JP)", () 
 
 // DM-DBGKAG: rounded groove/ridge/inset/outset outlines and borders take
 // Blink's curved side path instead of a flat stroke or square trapezoids.
-// Before: 72-529 differing pixels, max 84-255. The bound leaves the
-// anti-aliased seams at Blink's hard-miter joins, tracked separately.
+// Before: 72-529 differing pixels, max 84-255. DM-F77PN8 splits the matching
+// top-left and bottom-right joins with a crisp miter instead of an
+// anti-aliased seam: 11-23 differing pixels, where the seams left 50-160.
 describeBrowser("rounded 3D outlines and borders (DM-DBGKAG)", () => {
   for (const [css, maxPixels] of [
-    ["outline:6px groove red;border-radius:6px", 160],
-    ["outline:4px outset red;border-radius:6px", 140],
-    ["outline:6px ridge #3366cc;outline-offset:2px;border-radius:10px/5px", 220],
-    ["border:6px groove red;border-radius:6px", 80],
-    ["border:4px inset red;border-radius:6px", 80],
+    ["outline:6px groove red;border-radius:6px", 32],
+    ["outline:4px outset red;border-radius:6px", 24],
+    ["outline:6px ridge #3366cc;outline-offset:2px;border-radius:10px/5px", 40],
+    ["border:6px groove red;border-radius:6px", 24],
+    ["border:4px inset red;border-radius:6px", 24],
   ] as const) {
     it(`follows the curved bevel for ${css}`, async () => {
       const source = `<!doctype html><style>body{margin:0;background:white}#probe{position:absolute;left:20px;top:20px;width:24px;height:20px;${css}}</style><div id="probe"></div>`;
