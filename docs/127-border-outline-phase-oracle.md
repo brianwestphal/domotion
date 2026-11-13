@@ -22,6 +22,7 @@ tickets:
     "DM-2323",
     "DM-C77Q41",
     "DM-KA85VS",
+    "DM-1110JP",
     "DM-2PSXZV",
     "DM-DBGKAG",
     "DM-7NN5E6",
@@ -313,7 +314,8 @@ stripe runs from the contour `round(2·width/3)` inside it to the inner contour
 (offset). Each contour grows the per-corner radii by its own outset. A uniform
 circular radius keeps the exact stroked `<rect rx>` stripes. Measured
 premultiplied max on a 36×28 box went from 255 to 3 for double, and to 23–57 for
-per-corner dashed/dotted, whose arc-path clip floor is DM-1110JP.
+per-corner dashed/dotted with the arc-path clip; per-corner rounded-rect clips
+(below) leave 8.
 
 Rounded groove, ridge, inset and outset borders and single-rect outlines take
 Blink's curved side path (DM-DBGKAG). Square bevels keep the trapezoid bands.
@@ -346,8 +348,26 @@ premultiplied max on a 36×28 box at DPR 1:
 | radius 5, 2px dotted | 30        | 23                 |
 | radius 8, 3px dotted | 47        | 10                 |
 
-Per-corner radii, unequal side widths and non-round corner shapes keep the path
-ring, since one `<rect>` cannot express them (DM-1110JP).
+Per-corner radii and unequal side widths, on borders and outlines alike, also
+take rounded-rect clips (DM-1110JP). One `<rect rx ry>` per rounded corner,
+extended past the far sides by more than its radius so its other three corners
+fall outside the box, intersects to the per-corner contour: nested
+`<g clip-path>` groups for the outer contour, and nested clips around the black
+cut-out inside the inner mask. Radii that SkRRect would scale down, and
+non-round corner shapes, keep the path ring. Summed alpha error on a 36×28 box at
+DPR 1:
+
+| case                                | path ring | per-corner rects |
+| ----------------------------------- | --------- | ---------------- |
+| radius 6/3/6/3, 2px dashed border   | 145       | 130              |
+| radius 8, left 4px, dashed border   | 679       | 418              |
+| radius 12/6/12/6, 4px dashed border | 462       | 101              |
+| radius 8/0/8/0, 2px dashed outline  | 203       | 40               |
+| radius 0/6/6/6, 2px dashed outline  | 294       | 26               |
+
+Stacked SVG clips do not rasterize exactly like one SkRRect clip, so a few
+isolated corner pixels can still differ more than before (premultiplied max 58
+against 33 for the 6/3/6/3 border); DM-6FFGSY tracks that residual.
 
 The element-tree renderer remains the paint-order
 orchestrator and calls this state-independent owner at the existing outline

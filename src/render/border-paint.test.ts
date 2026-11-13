@@ -6,6 +6,7 @@ import {
   bevelSidePolygons,
   paintBorder,
   paintCollapsedBorderRects,
+  roundedRectClipLayers,
   roundedRectPerimeter,
 } from "./border-paint.js";
 import { blinkCurvedDashPathLength, parseCornerRadii, skiaRoundedRectContourLength } from "./borders.js";
@@ -298,14 +299,56 @@ describe("curved dashed/dotted border ring clip (DM-KA85VS)", () => {
 
   it("clips a uniform round ring to rounded rects", () => {
     const svg = paint(uniform);
-    expect(svg).toContain('<rect x="10" y="20" width="100" height="40" rx="6" ry="6" fill="white"/></clipPath>');
+    expect(svg).toContain('<rect x="10" y="20" width="100" height="40" rx="6" ry="6"/></clipPath>');
     expect(svg).toContain('<rect x="12" y="22" width="96" height="36" rx="4" ry="4" fill="black"/></mask>');
     expect(svg).not.toContain('fill-rule="evenodd"');
   });
 
-  it("keeps the path ring for per-corner radii or unequal widths", () => {
-    expect(paint({ ...uniform, borderTopRightRadius: "3px" })).toContain('fill-rule="evenodd"');
-    expect(paint({ ...uniform, borderLeftWidth: "4" })).toContain('fill-rule="evenodd"');
+  it("intersects one rounded rect per corner for per-corner radii (DM-1110JP)", () => {
+    const svg = paint({ ...uniform, borderTopRightRadius: "3px" });
+    // Each corner's rect extends past the far sides by more than its radius.
+    expect(svg).toContain('<rect x="10" y="20" width="107" height="47" rx="6" ry="6"/></clipPath>');
+    expect(svg).toContain('<rect x="6" y="20" width="104" height="44" rx="3" ry="3"/></clipPath>');
+    expect(svg.match(/<g clip-path=/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(svg).not.toContain('fill-rule="evenodd"');
+  });
+
+  it("cuts out an unequal-width inner contour with per-corner rects", () => {
+    const svg = paint({ ...uniform, borderLeftWidth: "4" });
+    // The inner top-left corner is 2x4 (6 - left 4, 6 - top 2).
+    expect(svg).toContain('rx="2" ry="4"');
+    expect(svg).toContain('fill="black"/></g>');
+    expect(svg).not.toContain('fill-rule="evenodd"');
+  });
+});
+
+describe("roundedRectClipLayers (DM-1110JP)", () => {
+  const box = { x: 0, y: 0, w: 40, h: 30 };
+  const corners = (tl: number, tr: number, br: number, bl: number) => ({
+    tl: { h: tl, v: tl },
+    tr: { h: tr, v: tr },
+    br: { h: br, v: br },
+    bl: { h: bl, v: bl },
+    uniform: false,
+  });
+
+  it("emits one rect for a shared radius and skips square corners otherwise", () => {
+    expect(roundedRectClipLayers(box, corners(5, 5, 5, 5))).toEqual([
+      '<rect x="0" y="0" width="40" height="30" rx="5" ry="5"/>',
+    ]);
+    expect(roundedRectClipLayers(box, corners(8, 0, 8, 0))).toEqual([
+      '<rect x="0" y="0" width="49" height="39" rx="8" ry="8"/>',
+      '<rect x="-9" y="-9" width="49" height="39" rx="8" ry="8"/>',
+    ]);
+  });
+
+  it("returns null when SkRRect would scale the radii, for an empty box, or for non-round corners", () => {
+    expect(roundedRectClipLayers(box, corners(25, 20, 0, 0))).toBeNull();
+    expect(roundedRectClipLayers(box, corners(16, 16, 16, 16))).toBeNull();
+    expect(roundedRectClipLayers({ ...box, w: 0 }, corners(2, 2, 2, 2))).toBeNull();
+    expect(
+      roundedRectClipLayers(box, { ...corners(4, 2, 4, 2), curvature: { tl: 4, tr: 2, br: 2, bl: 2 } }),
+    ).toBeNull();
   });
 });
 

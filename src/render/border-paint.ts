@@ -505,28 +505,88 @@ interface RingBox {
   h: number;
 }
 
-/** A `<rect>` for a round-cornered box whose four corners share one radius
- * pair within half its sides, or null when only a path can express it. */
-function uniformRoundedRect(box: RingBox, corners: CornerRadii, fill: string): string | null {
+/**
+ * `<rect rx ry>` shapes whose intersection is a round-cornered box, or null
+ * when only a path can express it (non-round corner-shape, or radii that
+ * Skia's SkRRect would scale down). One rect when every corner shares a radius
+ * pair; otherwise one per rounded corner, each extended past the far sides so
+ * only its own corner is curved inside the box (DM-1110JP).
+ */
+export function roundedRectClipLayers(box: RingBox, corners: CornerRadii): string[] | null {
   if (box.w <= 0 || box.h <= 0) return null;
   if (corners.curvature != null && Object.values(corners.curvature).some((value) => value !== 2)) return null;
-  const { h: rx, v: ry } = corners.tl;
-  const same = (corner: { h: number; v: number }) => Math.abs(corner.h - rx) < 1e-9 && Math.abs(corner.v - ry) < 1e-9;
-  if (!same(corners.tr) || !same(corners.br) || !same(corners.bl)) return null;
-  if (rx > box.w / 2 || ry > box.h / 2) return null;
-  return `<rect x="${r(box.x)}" y="${r(box.y)}" width="${r(box.w)}" height="${r(box.h)}" rx="${r(rx)}" ry="${r(ry)}" fill="${fill}"/>`;
+  const { tl, tr, br, bl } = corners;
+  const rect = (x: number, y: number, w: number, h: number, c: { h: number; v: number }) =>
+    `<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" rx="${r(c.h)}" ry="${r(c.v)}"/>`;
+  const same = (corner: { h: number; v: number }) =>
+    Math.abs(corner.h - tl.h) < 1e-9 && Math.abs(corner.v - tl.v) < 1e-9;
+  if (same(tr) && same(br) && same(bl)) {
+    if (tl.h > box.w / 2 || tl.v > box.h / 2) return null;
+    return [rect(box.x, box.y, box.w, box.h, tl)];
+  }
+  const fits = (a: number, b: number, side: number) => a + b <= side + 1e-9;
+  if (!fits(tl.h, tr.h, box.w) || !fits(bl.h, br.h, box.w) || !fits(tl.v, bl.v, box.h) || !fits(tr.v, br.v, box.h)) {
+    return null;
+  }
+  const layers: string[] = [];
+  for (const [corner, right, bottom] of [
+    [tl, false, false],
+    [tr, true, false],
+    [br, true, true],
+    [bl, false, true],
+  ] as const) {
+    if (corner.h <= 0 || corner.v <= 0) continue;
+    // Extend past the far sides by more than the radius, so the rect's other
+    // three rounded corners fall outside the box, and so its rx/ry stay
+    // within half its sides.
+    const ex = Math.max(corner.h, 2 * corner.h - box.w) + 1,
+      ey = Math.max(corner.v, 2 * corner.v - box.h) + 1;
+    layers.push(rect(right ? box.x - ex : box.x, bottom ? box.y - ey : box.y, box.w + ex, box.h + ey, corner));
+  }
+  return layers.length > 0 ? layers : null;
 }
 
 /**
- * DM-KA85VS: Blink clips a curved dashed/dotted border stroke with Skia's
- * anti-aliased rounded-rect clips: ClipContouredRect on the outer contour and
+ * Blink clips a curved dashed/dotted stroke with Skia's anti-aliased
+ * rounded-rect clips: ClipContouredRect on the outer contour and
  * ClipOutContouredRect on the inner one, around DrawCurvedDashedDottedBoxSide
  * (box_border_painter.cc, Chromium 6b5a1b80). An even-odd arc-path ring mask
- * covers the curved edges differently. When both contours are uniform round
- * rects, emit a rounded-rect clipPath plus an inner rounded-rect mask
- * cut-out, as outlines do (DM-C77Q41). Returns null when either contour needs
- * a path (per-corner radii, oversized radii, non-round corner-shape).
+ * covers the curved edges differently. Emit the outer contour as nested
+ * rounded-rect clipPaths and the inner one as a rounded-rect cut-out in a
+ * mask (DM-C77Q41, DM-KA85VS); per-corner radii intersect one rect per corner
+ * (DM-1110JP). Returns null when either contour needs a path.
  */
+export function roundedRectRingClipMarkup(
+  clipId: string,
+  maskId: string,
+  outer: RingBox,
+  outerCorners: CornerRadii,
+  inner: RingBox,
+  innerCorners: CornerRadii,
+): { defs: string[]; open: string; close: string } | null {
+  const outerLayers = roundedRectClipLayers(outer, outerCorners);
+  const innerLayers = roundedRectClipLayers(inner, innerCorners);
+  if (outerLayers == null || innerLayers == null) return null;
+  const outerIds = outerLayers.map((_, i) => (i === 0 ? clipId : `${clipId}-${i}`));
+  const defs = outerLayers.map((layer, i) => `<clipPath id="${outerIds[i]}">${layer}</clipPath>`);
+  let cutOut: string;
+  if (innerLayers.length === 1) {
+    cutOut = innerLayers[0].replace("/>", ' fill="black"/>');
+  } else {
+    const innerIds = innerLayers.map((_, i) => `${maskId}-i${i}`);
+    innerLayers.forEach((layer, i) => defs.push(`<clipPath id="${innerIds[i]}">${layer}</clipPath>`));
+    cutOut = `${innerIds.map((id) => `<g clip-path="url(#${id})">`).join("")}<rect x="${r(inner.x)}" y="${r(inner.y)}" width="${r(inner.w)}" height="${r(inner.h)}" fill="black"/>${"</g>".repeat(innerIds.length)}`;
+  }
+  defs.push(
+    `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}"><rect x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}" fill="white"/>${cutOut}</mask>`,
+  );
+  return {
+    defs,
+    open: outerIds.map((id) => `<g clip-path="url(#${id})">`).join(""),
+    close: "</g>".repeat(outerIds.length),
+  };
+}
+
 function roundedRectRingClip(
   ctx: PaintCtx,
   outer: RingBox,
@@ -534,16 +594,14 @@ function roundedRectRingClip(
   inner: RingBox,
   innerCorners: CornerRadii,
 ): { open: string; close: string; mask: string } | null {
-  const outerRect = uniformRoundedRect(outer, outerCorners, "white");
-  const innerRect = uniformRoundedRect(inner, innerCorners, "black");
-  if (outerRect == null || innerRect == null) return null;
+  if (roundedRectClipLayers(outer, outerCorners) == null || roundedRectClipLayers(inner, innerCorners) == null) {
+    return null;
+  }
   const clipId = ctx.nextClipId("bo");
   const maskId = ctx.nextClipId("bm");
-  ctx.defsParts.push(`<clipPath id="${clipId}">${outerRect}</clipPath>`);
-  ctx.defsParts.push(
-    `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}"><rect x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}" fill="white"/>${innerRect}</mask>`,
-  );
-  return { open: `<g clip-path="url(#${clipId})">`, close: "</g>", mask: maskId };
+  const markup = roundedRectRingClipMarkup(clipId, maskId, outer, outerCorners, inner, innerCorners)!;
+  ctx.defsParts.push(...markup.defs);
+  return { open: markup.open, close: markup.close, mask: maskId };
 }
 
 /** Blink's `DrawCurvedDashedDottedBoxSide` geometry for a round-cornered uniform

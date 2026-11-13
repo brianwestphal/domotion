@@ -42,8 +42,12 @@ describe("rounded dashed/dotted outline clipping (DM-C77Q41)", () => {
     }
   });
 
-  it("keeps the path ring for per-corner radii", () => {
-    expect(outline("dashed", 5, { borderTopRightRadius: "2px" })).toContain('fill-rule="evenodd"');
+  // DM-1110JP: per-corner radii intersect one rounded-rect clip per corner.
+  it("intersects per-corner rounded-rect clips instead of a path ring", () => {
+    const markup = outline("dashed", 5, { borderTopRightRadius: "2px" });
+    expect(markup).toContain('<rect x="13" y="18" width="29" height="29" rx="4" ry="4"/>');
+    expect(markup).toMatch(/<g clip-path="url\(#[^"]+-outer\)"><g clip-path="url\(#[^"]+-outer-1\)">/);
+    expect(markup).not.toContain('fill-rule="evenodd"');
   });
 
   // DM-2PSXZV: per-corner and elliptical radii shape the dash path and clip,

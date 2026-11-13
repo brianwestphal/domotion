@@ -4,7 +4,13 @@ import { r } from "./format.js";
 import { renderWarn } from "./render-warn.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 import { blinkCurvedDashPathLength, parseCornerRadii, roundedRectPath, type CornerRadii } from "./borders.js";
-import { BEVEL_PAINT_ORDER, bevelShades, bevelSidePolygons, curvedBevelRingMarkup } from "./border-paint.js";
+import {
+  BEVEL_PAINT_ORDER,
+  bevelShades,
+  bevelSidePolygons,
+  curvedBevelRingMarkup,
+  roundedRectRingClipMarkup,
+} from "./border-paint.js";
 
 export interface ThinDottedEndpointPlan {
   startDotGrowth: number | null;
@@ -817,31 +823,20 @@ function paintCurvedDashedDottedOutline(
   const maskId = `outline-ring-${outer.x}-${outer.y}-${outer.w}-${outer.h}-${width}-${cornerKey}`.replace(/\./g, "_");
   const stroke = `<path d="${roundedRectPath(center.x, center.y, center.w, center.h, centerRadii)}" fill="none" stroke="${color}" stroke-width="${r(strokeWidth)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${roundDots ? ` stroke-linecap="round"` : ""} mask="url(#${maskId})" />`;
   // Blink clips the doubled stroke to the outer contour and clips out the
-  // inner one (ClipContouredRect / ClipOutContouredRect around
-  // DrawCurvedDashedDottedBoxSide, box_border_painter.cc, Chromium 6b5a1b80),
-  // i.e. Skia's anti-aliased rounded-rect clips. An even-odd arc-path ring mask
-  // covers the curved edges differently; a rounded-rect clipPath plus an inner
-  // rounded-rect cut-out matches them (DM-C77Q41). Radii that exceed half a
-  // side keep the path ring, whose per-corner clamp a <rect> cannot express.
-  // A <rect rx ry> expresses only one radius pair shared by all corners within
-  // half the sides; per-corner radii keep the path ring.
-  const uniformRadius = (b: typeof outer, c: CornerRadii): { rx: number; ry: number } | null => {
-    if (c.curvature != null && Object.values(c.curvature).some((value) => value !== 2)) return null;
-    const { h: rx, v: ry } = c.tl;
-    const same = (corner: { h: number; v: number }) => corner.h === rx && corner.v === ry;
-    if (!same(c.tr) || !same(c.br) || !same(c.bl)) return null;
-    return rx <= b.w / 2 && ry <= b.h / 2 ? { rx, ry } : null;
-  };
-  const outerRadius = uniformRadius(outer, radiiAt(outset)),
-    innerRadius = uniformRadius(inner, radiiAt(outset - width));
-  if (outerRadius != null && innerRadius != null && inner.w > 0 && inner.h > 0) {
-    const rect = (b: typeof outer, radius: { rx: number; ry: number }, fill?: string) =>
-      `<rect x="${r(b.x)}" y="${r(b.y)}" width="${r(b.w)}" height="${r(b.h)}" rx="${r(radius.rx)}" ry="${r(radius.ry)}"${fill != null ? ` fill="${fill}"` : ""}/>`;
-    return [
-      `${indent}<clipPath id="${maskId}-outer">${rect(outer, outerRadius)}</clipPath>`,
-      `${indent}<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}"><rect x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}" fill="white"/>${rect(inner, innerRadius, "black")}</mask>`,
-      `${indent}<g clip-path="url(#${maskId}-outer)">${stroke}</g>`,
-    ];
+  // inner one with Skia's anti-aliased rounded-rect clips; rounded-rect
+  // clipPaths and a cut-out mask match them where an even-odd arc-path ring
+  // does not (DM-C77Q41, per-corner radii DM-1110JP). Radii that SkRRect would
+  // scale down, or a non-round corner-shape, keep the path ring.
+  const ringClip = roundedRectRingClipMarkup(
+    `${maskId}-outer`,
+    maskId,
+    outer,
+    radiiAt(outset),
+    inner,
+    radiiAt(outset - width),
+  );
+  if (ringClip != null) {
+    return [...ringClip.defs.map((def) => `${indent}${def}`), `${indent}${ringClip.open}${stroke}${ringClip.close}`];
   }
   const ring = `${roundedRectPath(outer.x, outer.y, outer.w, outer.h, radiiAt(outset))} ${roundedRectPath(inner.x, inner.y, inner.w, inner.h, radiiAt(outset - width))}`;
   return [
