@@ -1,0 +1,87 @@
+import { describe, expect, it } from "vitest";
+import type { FocusRingFacts } from "../capture/script/walker/focus-ring.js";
+import { capturedElement } from "../test-support/captured-fixtures.js";
+import { focusRingStrokes, paintOutline } from "./outline-paint.js";
+
+// DM-ZVQJYP: `outline-style: auto` paints Blink's two-ring focus ring
+// (PaintFocusRing, outline_painter.cc:853-893, chromium 6b5a1b80).
+const ring = (overrides: Partial<FocusRingFacts> = {}): FocusRingFacts => ({
+  ringWidth: 3,
+  ringOffset: 0,
+  outlineOffset: 0,
+  outerColor: "rgb(255, 255, 255)",
+  innerColor: "rgb(255, 0, 0)",
+  nativeAppearance: false,
+  ...overrides,
+});
+
+function focused(focusRing: FocusRingFacts, styles: Record<string, string> = {}, size = 20) {
+  return capturedElement({
+    tag: "div",
+    x: 20,
+    y: 20,
+    width: size,
+    height: size,
+    styles: { outlineStyle: "auto", outlineWidth: "0px", outlineColor: "rgb(255, 0, 0)", focusRing, ...styles },
+  });
+}
+
+describe("focusRingStrokes", () => {
+  it("strokes the outer ring one ring-third outside the inner ring, outer first", () => {
+    const [outer, inner] = focusRingStrokes(focused(ring()));
+    expect(outer).toMatchObject({ x: 19, y: 19, w: 22, h: 22, strokeWidth: 2, color: "rgb(255, 255, 255)" });
+    expect(inner).toMatchObject({ x: 20, y: 20, w: 20, h: 20, strokeWidth: 2, color: "rgb(255, 0, 0)" });
+    expect(inner.radii.tl).toEqual({ h: 3, v: 3 });
+  });
+
+  it("scales the ring width and offset from the captured facts", () => {
+    const [outer, inner] = focusRingStrokes(focused(ring({ ringWidth: 6, ringOffset: 2 })));
+    expect(inner).toMatchObject({ x: 18, y: 18, w: 24, strokeWidth: 4 });
+    expect(outer).toMatchObject({ x: 16, y: 16, w: 28 });
+    expect(outer.radii.br).toEqual({ h: 6, v: 6 });
+  });
+
+  it("clamps a negative ring offset per axis and skips a ring whose region collapses", () => {
+    const strokes = focusRingStrokes(focused(ring({ ringOffset: -20 })));
+    // Inner: -20 clamps to -10, an empty region. Outer: -19 clamps to -10 too.
+    expect(strokes).toEqual([]);
+    const [outer, inner] = focusRingStrokes(focused(ring({ ringOffset: -9 })));
+    expect(inner).toMatchObject({ x: 29, y: 29, w: 2, h: 2 });
+    expect(outer).toMatchObject({ x: 28, y: 28, w: 4, h: 4 });
+  });
+
+  it("grows authored radii by outline-offset and raises every component to the ring width", () => {
+    const el = focused(ring({ outlineOffset: 3, ringOffset: 2 }), {
+      borderTopLeftRadius: "6px",
+      borderTopRightRadius: "1px",
+    });
+    const [, inner] = focusRingStrokes(el);
+    expect(inner.radii.tl).toEqual({ h: 9, v: 9 });
+    expect(inner.radii.tr).toEqual({ h: 4, v: 4 });
+    expect(inner.radii.br).toEqual({ h: 3, v: 3 });
+  });
+
+  it("scales oversized radii down proportionally like SkRRect", () => {
+    const [, inner] = focusRingStrokes(focused(ring(), {}, 4));
+    expect(inner.radii.tl).toEqual({ h: 2, v: 2 });
+  });
+
+  it("paints nothing for an empty box", () => {
+    expect(focusRingStrokes(focused(ring(), {}, 0))).toEqual([]);
+  });
+});
+
+describe("paintOutline auto", () => {
+  it("paints both rings even when outline-width is zero", () => {
+    const markup = paintOutline(focused(ring()), 0, "");
+    expect(markup).toHaveLength(2);
+    expect(markup[0]).toContain('stroke="rgb(255,255,255)" stroke-width="2"');
+    expect(markup[1]).toContain('stroke="rgb(255,0,0)"');
+  });
+
+  it("drops only a transparent ring", () => {
+    const markup = paintOutline(focused(ring({ innerColor: "rgba(0, 0, 0, 0)" })), 0, "");
+    expect(markup).toHaveLength(1);
+    expect(markup[0]).toContain('stroke="rgb(255,255,255)"');
+  });
+});

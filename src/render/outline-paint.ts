@@ -1,6 +1,7 @@
 import type { CapturedElement } from "../capture/types.js";
 import { colorStr, parseColor } from "./colors.js";
 import { r } from "./format.js";
+import { renderWarn } from "./render-warn.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 import { blinkCurvedDashPathLength, parseCornerRadii, roundedRectPath, type CornerRadii } from "./borders.js";
 import { BEVEL_PAINT_ORDER, bevelShades, bevelSidePolygons } from "./border-paint.js";
@@ -118,6 +119,7 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
   const out: string[] = [];
   const ow = parseFloat(el.styles.outlineWidth ?? "0") || 0;
   const ostyle = el.styles.outlineStyle ?? "none";
+  if (ostyle === "auto" && el.styles.focusRing != null) return paintFocusRing(el, indent);
   if (ow > 0 && ostyle !== "none" && ostyle !== "hidden") {
     const ocolor = parseColor(el.styles.outlineColor ?? el.styles.color);
     // Blink paints an outline edge whenever its color is not fully transparent
@@ -304,6 +306,108 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         );
       }
     }
+  }
+  return out;
+}
+
+export interface FocusRingStroke {
+  /** The stroked rounded rect, centered on the ring. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  radii: CornerRadii;
+  strokeWidth: number;
+  color: string;
+}
+
+/** SkRRect::setRectRadii: when adjacent radii overflow a side, every radius
+ * scales by the smallest side / (sum of its radii). */
+function skRRectRadii(w: number, h: number, c: CornerRadii): CornerRadii {
+  const scale = Math.min(
+    1,
+    c.tl.h + c.tr.h > 0 ? w / (c.tl.h + c.tr.h) : 1,
+    c.bl.h + c.br.h > 0 ? w / (c.bl.h + c.br.h) : 1,
+    c.tl.v + c.bl.v > 0 ? h / (c.tl.v + c.bl.v) : 1,
+    c.tr.v + c.br.v > 0 ? h / (c.tr.v + c.br.v) : 1,
+  );
+  if (scale >= 1) return c;
+  const at = (corner: { h: number; v: number }) => ({ h: corner.h * scale, v: corner.v * scale });
+  return { tl: at(c.tl), tr: at(c.tr), br: at(c.br), bl: at(c.bl), uniform: c.uniform };
+}
+
+/**
+ * DM-ZVQJYP: the two strokes of an `outline-style: auto` focus ring, outer
+ * ring first (`PaintFocusRing`, core/paint/outline_painter.cc:853-893,
+ * chromium 6b5a1b80). Each ring strokes 2W/3 centered on the pixel-snapped
+ * border box outset by its offset, per axis clamped like any outline
+ * (`ComputeRightAnglePath` / `AdjustedOutlineOffset`). Both share one radii
+ * set (`GetFocusRingCornerRadii`, :755-803): an authored border radius grown
+ * by the integer outline-offset with every component raised to at least W,
+ * otherwise W everywhere. The ring is a single rounded rect, so Skia's
+ * radius scale-down applies (`DrawFocusRingRect` → `drawRRect`).
+ */
+export function focusRingStrokes(el: CapturedElement): FocusRingStroke[] {
+  const ring = el.styles.focusRing;
+  if (ring == null) return [];
+  const left = Math.round(el.x),
+    top = Math.round(el.y);
+  const width = Math.round(el.x + el.width) - left,
+    height = Math.round(el.y + el.height) - top;
+  if (width <= 0 || height <= 0) return [];
+  const base = parseCornerRadii(el.styles, el.width, el.height);
+  const authored = [base.tl, base.tr, base.br, base.bl].some((corner) => corner.h > 0 || corner.v > 0);
+  const grow = (corner: { h: number; v: number }) => ({
+    h: Math.max(ring.ringWidth, corner.h > 0 ? Math.max(0, corner.h + ring.outlineOffset) : 0),
+    v: Math.max(ring.ringWidth, corner.v > 0 ? Math.max(0, corner.v + ring.outlineOffset) : 0),
+  });
+  const square = { h: ring.ringWidth, v: ring.ringWidth };
+  const radii: CornerRadii = authored
+    ? { tl: grow(base.tl), tr: grow(base.tr), br: grow(base.br), bl: grow(base.bl), uniform: false }
+    : { tl: square, tr: square, br: square, bl: square, uniform: true };
+  const strokeWidth = (ring.ringWidth / 3) * 2;
+  const at = (offset: number, color: string): FocusRingStroke => {
+    const clamp = adjustedOutlineOffset(width, height, offset);
+    const w = width + clamp.horizontal * 2,
+      h = height + clamp.vertical * 2;
+    return {
+      x: left - clamp.horizontal,
+      y: top - clamp.vertical,
+      w,
+      h,
+      radii: skRRectRadii(w, h, radii),
+      strokeWidth,
+      color,
+    };
+  };
+  // An offset that collapses the region leaves ComputeRightAnglePath an
+  // empty path, so PaintSingleFocusRing paints nothing for that ring.
+  return [
+    at(ring.ringOffset + Math.ceil(ring.ringWidth / 3), ring.outerColor),
+    at(ring.ringOffset, ring.innerColor),
+  ].filter((stroke) => stroke.w > 0 && stroke.h > 0);
+}
+
+function paintFocusRing(el: CapturedElement, indent: string): string[] {
+  const ring = el.styles.focusRing;
+  if (ring == null) return [];
+  if (ring.nativeAppearance) {
+    renderWarn(
+      "focus-ring",
+      "focus ring on a native-appearance control uses the default ring radius, not the NativeTheme part radius",
+    );
+  }
+  const curvature = parseCornerRadii(el.styles, el.width, el.height).curvature;
+  if (curvature != null && Object.values(curvature).some((exponent) => exponent !== 2)) {
+    renderWarn("focus-ring", "focus ring with a non-round corner-shape is painted with round corners");
+  }
+  const out: string[] = [];
+  for (const stroke of focusRingStrokes(el)) {
+    const color = parseColor(stroke.color);
+    if (color == null || color.a <= 0) continue;
+    out.push(
+      `${indent}<path d="${roundedRectPath(stroke.x, stroke.y, stroke.w, stroke.h, stroke.radii)}" fill="none" stroke="${colorStr(color)}" stroke-width="${r(stroke.strokeWidth)}" />`,
+    );
   }
   return out;
 }

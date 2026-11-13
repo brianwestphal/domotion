@@ -1,5 +1,6 @@
 import type { LinuxFontRenderContext } from "../render/font-resolution.js";
 import type { ImageOwnFontContext } from "../render/svg-image-own-fonts.js";
+import type { FocusRingFacts } from "./script/walker/focus-ring.js";
 import type {
   PhysicalEdges as CapturedPseudoPhysicalEdges,
   PseudoBoxFragment as CapturedPseudoBoxFragment,
@@ -1277,6 +1278,8 @@ export interface CapturedStyles {
   outlineWidth?: string;
   outlineColor?: string;
   outlineOffset?: string;
+  /** `outline-style: auto` focus-ring facts (ring width, offsets, ring colors). */
+  focusRing?: FocusRingFacts;
   /** CSS box-shadow (raw value: outset/inset, x y blur spread color, comma-separated). */
   boxShadow?: string;
   /** CSS text-shadow (raw value: x y blur color, comma-separated; no inset/spread). */

@@ -5,6 +5,7 @@
 // CAPTURE_SCRIPT bundle — self-contained, page globals only; every input is an explicit parameter.
 
 import { isWholeHostNativeAppearance } from "../../effective-appearance.js";
+import { captureFocusRing } from "./focus-ring.js";
 import type { CaptureScriptArgs, CapturedElement, CapturedScrollbarSet } from "../../types.js";
 
 type ViewportOrigin = { x: number; y: number };
@@ -72,8 +73,15 @@ export const captureNativeControlRaster = ({
   // that surface in the same snapshot instead of clipping it at `rect`.
   const outlineWidth = parseFloat(cs.outlineWidth) || 0;
   const outlineOffset = parseFloat(cs.outlineOffset) || 0;
+  // A focus ring's overflow is its ring offset plus two ring thirds
+  // (OutlinePainter::OutlineOutsetExtent), not width + offset. DM-ZVQJYP.
+  const focusRing = captureFocusRing(el, cs, 1, "");
   const expand =
-    cs.outlineStyle !== "none" && cs.outlineStyle !== "hidden" ? Math.max(0, outlineWidth + outlineOffset) : 0;
+    focusRing != null
+      ? Math.max(0, focusRing.ringOffset + Math.ceil(focusRing.ringWidth / 3) * 2)
+      : cs.outlineStyle !== "none" && cs.outlineStyle !== "hidden"
+        ? Math.max(0, outlineWidth + outlineOffset)
+        : 0;
   // Skia AA coverage may extend one device-independent pixel past the
   // layout border box (notably the lower edge of rounded author borders
   // on otherwise native inputs). Preserve that visual-overflow fringe;

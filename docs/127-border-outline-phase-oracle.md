@@ -30,6 +30,7 @@ tickets:
     "DM-64RACW",
     "DM-96BH76",
     "DM-H20KAP",
+    "DM-ZVQJYP",
   ]
 code:
   [
@@ -39,6 +40,7 @@ code:
     "src/render/border-paint.ts",
     "src/render/background-inline-paint.ts",
     "src/render/thin-dotted-endpoints.test.ts",
+    "src/capture/script/walker/focus-ring.ts",
   ]
 aliases: ["docs/127-border-outline-phase-oracle.md", "doc-127"]
 ---
@@ -170,6 +172,36 @@ is a focus ring, so a `0 × 20` box with `outline: 2px solid` paints 96 pixels.
 The capture gate that drops empty childless boxes therefore keeps one whose
 non-`auto` outline has width and a nonzero alpha (DM-RGE1V9, same test file,
 with focus-ring and no-outline controls).
+
+An `outline-style: auto` outline is a focus ring, which ignores
+`outline-width` (`PaintFocusRing`, `outline_painter.cc:853-893`, chromium
+`6b5a1b80`). It is two anti-aliased strokes of `2W/3` centered on rounded
+rects (`DrawPlatformFocusRing`, `platform_focus_ring.cc`):
+
+- **Width.** `W = max(floor(3 × zoom), 1)` at zoom 1 or more, otherwise 3.
+- **Inner ring offset.** The integer outline-offset, less
+  `max(floor(zoom), 1)` when the smallest border is at least that wide. The
+  ring uses the outline color, except that it is white in a dark used color
+  scheme on non-mac builds.
+- **Outer ring.** Sits a further `ceil(W/3)` out and paints first, in white,
+  or `#101010` in a dark used color scheme.
+- **Radii.** Both rings default to `W`. An authored border radius is instead
+  grown by the outline-offset, with every component raised to at least `W`.
+  Skia's radius scale-down then applies.
+- **Collapsing offsets.** A ring whose clamped rect is empty paints nothing.
+
+Capture records these facts as `focusRing`
+(`src/capture/script/walker/focus-ring.ts`), including the used dark scheme.
+That scheme comes from the computed `color-scheme` or the page's
+`<meta name=color-scheme>`, never from the preference alone.
+
+`paintOutline` emits the two strokes, and the cull mirror uses the outer
+ring's stroke edge. Native controls already carry Chrome's ring in their
+native raster. A control that paints vector chrome warns, because its
+NativeTheme part radius is not captured. `tests/focus-ring.e2e.test.ts`
+compares native and SVG paint at zero differing pixels for these cases:
+authored, keyboard-focus, dark-scheme, bordered/offset/radius, zero-width,
+transparent, collapsing, elliptical and zoomed rings.
 
 A solid rounded single-rect outline fills between two contours of the
 pixel-snapped border box (`ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets`,

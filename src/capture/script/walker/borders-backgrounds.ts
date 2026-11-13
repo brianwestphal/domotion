@@ -41,6 +41,7 @@
 
 import { TRANSPARENT_BLACK } from "../../../utils/transparent-background.js";
 import { extractCssUrl } from "../utils.js";
+import { captureFocusRing } from "./focus-ring.js";
 import {
   collapsedBorderStyle,
   collapsedBorderFragmentLogicalRects,
@@ -1209,6 +1210,7 @@ export const createBordersBackgroundsHandler = ({
       outlineWidth: physicalComputedPaintLength(cs.outlineWidth, effectiveZoom),
       outlineColor: normColor(cs.outlineColor),
       outlineOffset: physicalComputedPaintLength(cs.outlineOffset, effectiveZoom),
+      focusRing: captureFocusRing(el, cs, effectiveZoom, normColor(cs.outlineColor)),
       boxShadow: cs.boxShadow,
       // box-decoration-break: 'slice' (default) vs 'clone'. Drives per-fragment
       // paint of wrapped inline elements; see CapturedElement.inlineFragments.

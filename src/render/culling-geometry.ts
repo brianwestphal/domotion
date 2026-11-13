@@ -27,7 +27,7 @@ import {
   usedOverflowClipMargin,
 } from "./overflow-clip.js";
 import { cssTransformToSvg } from "./transforms.js";
-import { adjustedOutlineOffset } from "./outline-paint.js";
+import { adjustedOutlineOffset, focusRingStrokes } from "./outline-paint.js";
 
 export interface RendererCullBox {
   x: number;
@@ -559,7 +559,25 @@ function ownGeometry(el: CapturedElement): {
   const outlineOffset = parseFinitePx(el.styles.outlineOffset);
   const outlineStyle = el.styles.outlineStyle ?? "none";
   const outlineColor = parseOptionalColor(el.styles.outlineColor ?? el.styles.color);
-  if (outlineWidth == null || outlineOffset == null) {
+  const focusRing = outlineStyle === "auto" ? focusRingStrokes(el) : [];
+  if (focusRing.length > 0) {
+    // DM-ZVQJYP: a focus ring paints regardless of outline-width and color;
+    // its visual overflow is the outer ring's outer stroke edge.
+    const [outerRing, innerRing] = focusRing;
+    const half = outerRing.strokeWidth / 2;
+    const ringBox = {
+      x: outerRing.x - half,
+      y: outerRing.y - half,
+      w: outerRing.w + half * 2,
+      h: outerRing.h + half * 2,
+    };
+    fill = unionReference(fill, {
+      kind: "exact",
+      box: { x: innerRing.x, y: innerRing.y, w: innerRing.w, h: innerRing.h },
+    });
+    stroke = unionReference(stroke, { kind: "exact", box: ringBox });
+    visual = unionVisual(visual, { kind: "bounded", box: ringBox });
+  } else if (outlineWidth == null || outlineOffset == null) {
     visual = { kind: "unknown", reason: "outline-geometry-unavailable" };
   } else if (
     outlineWidth > 0 &&
