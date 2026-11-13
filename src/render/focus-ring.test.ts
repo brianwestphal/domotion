@@ -212,7 +212,25 @@ describe("wrapped inline normal outlines (DM-9JNAVF)", () => {
     expect(wrapped("dashed", "3px").join("\n")).toContain('stroke-width="5"');
   });
 
-  it("leaves 3D outlines on the single-rect path", () => {
-    expect(wrapped("groove", "4px").join("\n")).not.toContain("outline-frag-");
+  // DM-BK59F6: 3D styles shade each center edge inside a crisp miter mask.
+  it("shades inset edges per side inside crisp miter masks", () => {
+    const markup = wrapped("inset", "4px").join("\n");
+    expect(markup.match(/<mask id="outline-miter-/g)).toHaveLength(8);
+    expect(markup).toContain('shape-rendering="crispEdges"');
+    // Inset: Color::Dark on top/left, the color on bottom/right.
+    expect(markup.match(/stroke="rgb\(171,0,0\)"/g)).toHaveLength(4);
+    expect(markup.match(/stroke="rgb\(255,0,0\)"/g)).toHaveLength(4);
+  });
+
+  it("repaints the inner half of a groove inside the center path", () => {
+    const markup = wrapped("groove", "4px").join("\n");
+    expect(markup).toMatch(/<clipPath id="outline-center-[a-z0-9]+">/);
+    expect(markup.match(/<line /g)).toHaveLength(16);
+  });
+
+  it("paints a 1px groove solid in the mix of the color and its dark shade", () => {
+    const markup = wrapped("groove", "1px");
+    expect(markup).toHaveLength(1);
+    expect(markup[0]).toContain('fill="rgb(213,0,0)"');
   });
 });

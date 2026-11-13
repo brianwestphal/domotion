@@ -95,8 +95,8 @@ it.each([
   }
 });
 
-// DM-9JNAVF / DM-EQ1MPF: a wrapped inline's square solid, double, dashed or
-// dotted outline is ComplexOutlinePainter's ring around the union of its line
+// DM-9JNAVF / DM-EQ1MPF / DM-BK59F6: a wrapped inline's square outline, in
+// any style, is ComplexOutlinePainter's ring around the union of its line
 // fragments, not around its bounding box.
 it.each([
   { name: "solid, two lines", width: 70, outline: "2px solid red", text: "bb cc dd ee" },
@@ -113,6 +113,13 @@ it.each([
   { name: "dotted 2px, two lines", width: 70, outline: "2px dotted red", text: "bb cc dd ee" },
   // Round-dot edge anti-aliasing differs by at most 4 levels.
   { name: "dotted 5px, two lines", width: 70, outline: "5px dotted green", text: "bb cc dd ee", tolerance: 4 },
+  // DM-BK59F6: 3D styles stroke per-edge shades in non-AA miter clips.
+  { name: "inset 4px", width: 70, outline: "4px inset red", text: "bb cc dd ee" },
+  { name: "outset 7px", width: 70, outline: "7px outset rgb(10,200,90)", text: "bb cc dd ee" },
+  { name: "groove 6px, three lines", width: 60, outline: "6px groove blue", text: "bb cc dd ee gg hh" },
+  { name: "ridge 5px", width: 70, outline: "5px ridge green", text: "bb cc dd ee" },
+  { name: "groove 1px paints solid", width: 70, outline: "1px groove red", text: "bb cc dd ee" },
+  { name: "translucent ridge", width: 70, outline: "4px ridge rgba(255,0,0,0.5)", text: "bb cc dd ee", tolerance: 1 },
   // The alpha layer quantizes 0.5 one level apart (126 vs 127).
   { name: "translucent dashed", width: 70, outline: "4px dashed rgba(255,0,0,0.5)", text: "bb cc dd ee", tolerance: 1 },
 ])("matches native paint for a wrapped inline outline: $name", async ({ width, outline, text, tolerance = 0 }) => {

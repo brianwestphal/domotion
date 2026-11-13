@@ -30,7 +30,7 @@ const quantizeTo8Bit = (unit: number): number => Math.floor(unit * 255.99998);
 
 /** Color::Dark (color.cc:1165): scale every channel by (v - 0.33) / v, where v
  * is the largest sRGB channel; white is hardcoded to 171. */
-function blinkDark(color: BevelColor): BevelColor {
+export function blinkDark(color: BevelColor): BevelColor {
   if (color.r === 255 && color.g === 255 && color.b === 255 && color.a === 1) return { r: 171, g: 171, b: 171, a: 1 };
   const v = Math.max(color.r, color.g, color.b) / 255;
   const multiplier = v === 0 ? 0 : Math.max(0, (v - 0.33) / v);

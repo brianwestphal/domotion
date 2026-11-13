@@ -6,6 +6,7 @@ import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "
 import { blinkCurvedDashPathLength, parseCornerRadii, roundedRectPath, type CornerRadii } from "./borders.js";
 import {
   BEVEL_PAINT_ORDER,
+  blinkDark,
   bevelShades,
   bevelSidePolygons,
   curvedBevelRingMarkup,
@@ -468,7 +469,8 @@ function paintFragmentedOutline(
   if (hasRoundedCorner(el)) return null;
   const width = Math.round(ow);
   const used = style === "double" && width <= 2 ? "solid" : style;
-  if (used !== "solid" && used !== "double" && used !== "dashed" && used !== "dotted") return null;
+  const bevel = used === "groove" || used === "ridge" || used === "inset" || used === "outset";
+  if (used !== "solid" && used !== "double" && used !== "dashed" && used !== "dotted" && !bevel) return null;
   const offset = Math.round(parseFloat(el.styles.outlineOffset ?? "0") || 0);
   const rects = (el.inlineFragments ?? [])
     .map((fragment) => ({
@@ -491,6 +493,7 @@ function paintFragmentedOutline(
   if (outer.length === 0) return [];
   const inner = shrinkRightAngleContours(outer, width);
   const ring = `${contourPath(outer)} ${contourPath(inner)}`;
+  if (bevel) return fragmented3DOutline(outer, ring, used, width, color, indent);
   if (used === "solid") return [`${indent}<path d="${ring}" fill="${color}" fill-rule="evenodd" />`];
   if (used === "dashed" || used === "dotted")
     return fragmentedDashedOrDottedOutline(outer, ring, used, width, color, indent);
@@ -500,6 +503,131 @@ function paintFragmentedOutline(
   return [
     `${indent}<path d="${innerThird} ${contourPath(inner)}" fill="${color}" fill-rule="evenodd" />`,
     `${indent}<path d="${contourPath(outer)} ${outerThird}" fill="${color}" fill-rule="evenodd" />`,
+  ];
+}
+
+/** A deterministic clip id derived from the markup it clips with. */
+function geometryClipId(prefix: string, geometry: string): string {
+  let hash = 0;
+  for (let i = 0; i < geometry.length; i++) hash = (Math.imul(hash, 31) + geometry.charCodeAt(i)) >>> 0;
+  return `${prefix}-${hash.toString(36)}`;
+}
+
+/**
+ * DM-BK59F6: ComplexOutlinePainter's square groove/ridge/inset/outset
+ * (outline_painter.cc:431-457, 578-643, 691-718, Chromium 6b5a1b80). Inside
+ * the fragment ring, PaintTopLeftOrBottomRight strokes each center-path edge
+ * (a top or left edge runs rightward or upward) in its shade, clipped without
+ * anti-aliasing to the miter quadrilateral spanning the union's bounds
+ * (MiterClipPath, inverse-filled for a vertical edge whose miters slope
+ * differently). Inset paints the color on bottom/right and Color::Dark on
+ * top/left, outset the reverse. Groove/ridge paint as inset/outset, then
+ * repaint the inner half (inside the center path) with the opposite shades,
+ * keeping the light half to the outer-preferring center path for odd widths.
+ * A 1px groove/ridge paints solid in the 50% mix of the color and its dark
+ * shade.
+ */
+function fragmented3DOutline(
+  outer: Array<Array<[number, number]>>,
+  ring: string,
+  style: "groove" | "ridge" | "inset" | "outset",
+  width: number,
+  color: string,
+  indent: string,
+): string[] {
+  const parsed = parseColor(color);
+  if (parsed == null) return [];
+  const opaque = { ...parsed, a: 1 };
+  const dark = blinkDark(opaque);
+  if (width === 1 && (style === "groove" || style === "ridge")) {
+    const mix = (a: number, b: number) => Math.round((a + b) / 2);
+    const mixed = { r: mix(opaque.r, dark.r), g: mix(opaque.g, dark.g), b: mix(opaque.b, dark.b), a: parsed.a };
+    return [`${indent}<path d="${ring}" fill="${colorStr(mixed)}" fill-rule="evenodd" />`];
+  }
+  const xs = outer.flat().map((p) => p[0]);
+  const ys = outer.flat().map((p) => p[1]);
+  const bounds = { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
+  const thickness = width % 2 === 1 ? width + 2 : width;
+  const joint = Math.floor((width + 1) / 2);
+  const shift = thickness % 2 === 1 ? 0.5 : 0;
+  const center = shrinkRightAngleContours(outer, width - joint);
+  const defs: string[] = [];
+  const miterSlope = (p1: [number, number], p2: [number, number], p3: [number, number]) =>
+    p1[0] === p2[0] ? (p3[0] > p2[0] === p2[1] > p1[1] ? 1 : -1) : p3[1] > p2[1] === p2[0] > p1[0] ? 1 : -1;
+  // PaintTopLeftOrBottomRight: one shade on the top/left or bottom/right edges.
+  const edges = (topLeft: boolean, shade: string): string[] => {
+    const out: string[] = [];
+    for (const contour of center) {
+      const n = contour.length;
+      for (let i = 0; i < n; i++) {
+        const start = contour[i];
+        const end = contour[(i + 1) % n];
+        const isTopOrLeft = start[0] < end[0] || start[1] > end[1];
+        if (isTopOrLeft !== topLeft) continue;
+        const prev = contour[(i - 1 + n) % n];
+        const next = contour[(i + 2) % n];
+        const s = miterSlope(prev, start, end);
+        const e = miterSlope(start, end, next);
+        const quad = [
+          [start[0] + s * (start[1] - bounds.top), bounds.top],
+          [end[0] + e * (end[1] - bounds.top), bounds.top],
+          [end[0] - e * (bounds.bottom - end[1]), bounds.bottom],
+          [start[0] - s * (bounds.bottom - start[1]), bounds.bottom],
+        ];
+        let d = `M${quad.map(([x, y]) => `${r(x)},${r(y)}`).join(" L")} Z`;
+        if (s !== e && start[0] === end[0]) {
+          // Inverse fill: the region outside the quadrilateral, within reach.
+          const pad = thickness + 2;
+          const l = Math.min(bounds.left, ...quad.map((q) => q[0])) - pad;
+          const rt = Math.max(bounds.right, ...quad.map((q) => q[0])) + pad;
+          d = `M${r(l)},${r(bounds.top - pad)} L${r(rt)},${r(bounds.top - pad)} L${r(rt)},${r(bounds.bottom + pad)} L${r(l)},${r(bounds.bottom + pad)} Z ${d}`;
+        }
+        // A mask paints its content as ordinary geometry, so crispEdges gives
+        // the non-anti-aliased clip Blink uses; a path clipPath anti-aliases.
+        const clipId = geometryClipId("outline-miter", `${d}|${shade}`);
+        defs.push(
+          `${indent}<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(bounds.left - thickness - 2)}" y="${r(bounds.top - thickness - 2)}" width="${r(bounds.right - bounds.left + 2 * thickness + 4)}" height="${r(bounds.bottom - bounds.top + 2 * thickness + 4)}"><path d="${d}" fill="white" fill-rule="evenodd" shape-rendering="crispEdges" /></mask>`,
+        );
+        let [x1, y1] = start;
+        let [x2, y2] = end;
+        if (x1 > x2 || y1 > y2) [x1, y1, x2, y2] = [x2, y2, x1, y1];
+        const vertical = x1 === x2;
+        const [lx1, ly1, lx2, ly2] = vertical
+          ? [x1 + shift, y1 - joint, x2 + shift, y2 + joint]
+          : [x1 - joint, y1 + shift, x2 + joint, y2 + shift];
+        out.push(
+          `${indent}  <line x1="${r(lx1)}" y1="${r(ly1)}" x2="${r(lx2)}" y2="${r(ly2)}" stroke="${shade}" stroke-width="${r(thickness)}" mask="url(#${clipId})" />`,
+        );
+      }
+    }
+    return out;
+  };
+  const light = colorStr(opaque);
+  const shadow = colorStr(dark);
+  const isInset = style === "inset" || style === "groove";
+  const body = [...edges(!isInset, light), ...edges(isInset, shadow)];
+  if (style === "groove" || style === "ridge") {
+    // The inner half: inside the center path, opposite shades.
+    const centerClip = geometryClipId("outline-center", contourPath(center));
+    defs.push(`${indent}<clipPath id="${centerClip}"><path d="${contourPath(center)}" /></clipPath>`);
+    body.push(`${indent}  <g clip-path="url(#${centerClip})">`, ...edges(style === "ridge", shadow));
+    let close = "</g>";
+    if (width % 2 === 1) {
+      const preferOuter = shrinkRightAngleContours(outer, width - Math.floor(width / 2));
+      const outerClip = geometryClipId("outline-center", contourPath(preferOuter));
+      defs.push(`${indent}<clipPath id="${outerClip}"><path d="${contourPath(preferOuter)}" /></clipPath>`);
+      body.push(`${indent}  <g clip-path="url(#${outerClip})">`);
+      close += "</g>";
+    }
+    body.push(...edges(style === "groove", light), `${indent}  ${close}`);
+  }
+  const ringClip = geometryClipId("outline-frag", ring);
+  return [
+    ...defs,
+    `${indent}<clipPath id="${ringClip}"><path d="${ring}" clip-rule="evenodd" /></clipPath>`,
+    `${indent}<g clip-path="url(#${ringClip})"${parsed.a < 1 ? ` opacity="${r(parsed.a)}"` : ""}>`,
+    ...body,
+    `${indent}</g>`,
   ];
 }
 

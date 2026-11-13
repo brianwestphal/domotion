@@ -28,6 +28,7 @@ tickets:
     "DM-7NN5E6",
     "DM-9JNAVF",
     "DM-EQ1MPF",
+    "DM-BK59F6",
     "DM-2355",
     "DM-CMKF35",
     "DM-652J8C",
@@ -221,9 +222,20 @@ extended by `ceil(width/2)` at both ends, so every corner starts a fresh dash.
 An odd dashed width strokes 2px wider. `DrawLineWithStyle` then sizes the
 dashes from that thickness and applies its dot and odd-width rules, and a
 translucent color paints opaque inside one alpha layer. Dashed and thin dotted
-match native exactly; thick round dots differ only in edge anti-aliasing. Square
-3D styles (DM-BK59F6) and every rounded fragmented outline (DM-QKCK1K) keep the
-single-rect path.
+match native exactly; thick round dots differ only in edge anti-aliasing.
+
+Square groove, ridge, inset and outset (DM-BK59F6, `PaintInsetOrOutsetOutline` /
+`PaintGrooveOrRidgeOutline`) stroke each center-path edge in the same ring. Edges
+running rightward or upward count as top or left. Inset paints them in
+`Color::Dark` and the bottom/right edges in the color; outset reverses that.
+Each edge is clipped without anti-aliasing to its `MiterClipPath` quadrilateral
+across the union's bounds, inverse-filled for a vertical edge whose miters slope
+differently. A `<clipPath>` would anti-alias that diagonal, so the renderer uses
+a `crispEdges` mask. Groove/ridge then repaint the inner half, inside the center
+path, with the opposite shades; for odd widths the light half keeps to the
+outer-preferring center path. A 1px groove/ridge paints solid in the 50% mix of
+the color and its dark shade. Opaque cases match native exactly. Every rounded
+fragmented outline keeps the single-rect path (DM-QKCK1K).
 
 Capture records these facts as `focusRing`
 (`src/capture/script/walker/focus-ring.ts`), including the used dark scheme.
