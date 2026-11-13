@@ -94,3 +94,41 @@ it.each([
     await output.close();
   }
 });
+
+// DM-9JNAVF: a wrapped inline's solid or double outline is ComplexOutlinePainter's
+// ring around the union of its line fragments, not around its bounding box.
+it.each([
+  { name: "solid, two lines", width: 70, outline: "2px solid red", text: "bb cc dd ee" },
+  {
+    name: "solid with offset, three lines",
+    width: 60,
+    outline: "3px solid blue;outline-offset:1px",
+    text: "bb cc dd ee gg hh",
+  },
+  { name: "double, two lines", width: 70, outline: "6px double green", text: "bb cc dd ee" },
+])("matches native paint for a wrapped inline outline: $name", async ({ width, outline, text }) => {
+  const page = await browser.newPage({ viewport });
+  const output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      `<style>body{margin:0;background:white}</style><div style="margin:10px;width:${width}px;font:14px/20px Arial;color:transparent">a <span style="outline:${outline}">${text}</span> f</div>`,
+    );
+    const native = await sharp(await page.screenshot())
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    const tree = await captureElementTree(page, "body", viewport);
+    await output.setContent(`<style>body{margin:0;background:white}</style>${elementTreeToSvg(tree, 100, 100)}`);
+    const actual = await sharp(await output.screenshot())
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    let differing = 0;
+    for (let i = 0; i < native.length; i++) if (native[i] !== actual[i]) differing++;
+    // The bounding-box outline differed at 292-672 pixels.
+    expect(differing).toBe(0);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});

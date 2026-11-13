@@ -25,6 +25,7 @@ tickets:
     "DM-2PSXZV",
     "DM-DBGKAG",
     "DM-7NN5E6",
+    "DM-9JNAVF",
     "DM-2355",
     "DM-CMKF35",
     "DM-652J8C",
@@ -203,6 +204,14 @@ radius steps by half its length (Skia `fd139e79`). Capture records the inline's
 fragments whenever it has a focus ring. Wrapped two- and three-line rings
 match native exactly, where the bounding-box ring differed at 380 and 708
 pixels.
+
+A wrapped inline's normal outline is `ComplexOutlinePainter` (DM-9JNAVF). The
+outer path unions the fragment rects outset by offset + width, the inner path
+shrinks it inward by the width (`ShrinkRightAnglePath`), and the ring between
+them is clipped and filled. Solid fills it whole. Double fills the `round(w/3)`
+stripes, and a double of width 2 or less paints as solid. Square solid and
+double match native exactly. Dashed, dotted, 3D and rounded fragmented outlines
+keep the single-rect path (DM-EQ1MPF).
 
 Capture records these facts as `focusRing`
 (`src/capture/script/walker/focus-ring.ts`), including the used dark scheme.

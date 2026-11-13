@@ -238,9 +238,15 @@ export const detectInlineFragments = (
     captured.styles.textDecorationLine !== "" &&
     captured.styles.textDecorationLine !== "none";
   var _hasPaint = _hasBg || _hasBgImage || _hasBorder || _hasMaskImage;
-  // DM-7NN5E6: a focus ring outlines the union of the line fragments
-  // (ComputeRightAnglePath), so it needs them even without box paint.
-  var _hasFocusRing = captured.styles.focusRing != null;
+  // DM-7NN5E6 / DM-9JNAVF: a focus ring and a normal outline both outline the
+  // union of the line fragments (ComputeRightAnglePath), so they need them
+  // even without box paint.
+  var _outlineStyle = captured.styles.outlineStyle || "none";
+  var _hasFocusRing =
+    captured.styles.focusRing != null ||
+    (_outlineStyle !== "none" &&
+      _outlineStyle !== "hidden" &&
+      (parseFloat(captured.styles.outlineWidth || "0") || 0) > 0);
   var _isInline = cs.display === "inline";
   var _isBlockLevel =
     !_isInline &&

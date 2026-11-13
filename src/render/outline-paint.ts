@@ -120,6 +120,12 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
   const ow = parseFloat(el.styles.outlineWidth ?? "0") || 0;
   const ostyle = el.styles.outlineStyle ?? "none";
   if (ostyle === "auto" && el.styles.focusRing != null) return paintFocusRing(el, indent);
+  if ((el.inlineFragments?.length ?? 0) > 1 && ow > 0 && ostyle !== "none" && ostyle !== "hidden") {
+    const ocolor = parseColor(el.styles.outlineColor ?? el.styles.color);
+    if (ocolor == null || ocolor.a <= 0) return out;
+    const fragmented = paintFragmentedOutline(el, ostyle, ow, colorStr(ocolor), indent);
+    if (fragmented != null) return fragmented;
+  }
   if (ow > 0 && ostyle !== "none" && ostyle !== "hidden") {
     const ocolor = parseColor(el.styles.outlineColor ?? el.styles.color);
     // Blink paints an outline edge whenever its color is not fully transparent
@@ -411,6 +417,82 @@ export function rectUnionBoundary(rects: IntRect[]): Array<Array<[number, number
     if (simplified.length >= 4) contours.push(simplified);
   }
   return contours;
+}
+
+/** ShrinkCorner / ShrinkRightAnglePath (outline_painter.cc:164-202,
+ * chromium 6b5a1b80): move each right-angle vertex inward by `inset`. */
+export function shrinkRightAngleContours(
+  contours: Array<Array<[number, number]>>,
+  inset: number,
+): Array<Array<[number, number]>> {
+  return contours.map((points) =>
+    points.map((p2, i) => {
+      const p1 = points[(i + points.length - 1) % points.length];
+      const p3 = points[(i + 1) % points.length];
+      let dx: number, dy: number;
+      if (p1[0] === p2[0]) {
+        if (p1[1] < p2[1]) [dx, dy] = p2[0] < p3[0] ? [-inset, inset] : [-inset, -inset];
+        else [dx, dy] = p2[0] < p3[0] ? [inset, inset] : [inset, -inset];
+      } else if (p1[0] < p2[0]) [dx, dy] = p2[1] < p3[1] ? [-inset, inset] : [inset, inset];
+      else [dx, dy] = p2[1] < p3[1] ? [-inset, -inset] : [inset, -inset];
+      return [p2[0] + dx, p2[1] + dy] as [number, number];
+    }),
+  );
+}
+
+const contourPath = (contours: Array<Array<[number, number]>>) =>
+  contours.map((points) => `M${points.map((p) => `${r(p[0])},${r(p[1])}`).join(" L")} Z`).join(" ");
+
+/**
+ * DM-9JNAVF: a wrapped inline's normal outline is ComplexOutlinePainter
+ * (outline_painter.cc:430-500, chromium 6b5a1b80). The outer path unions the
+ * fragment rects outset by offset + width (ComputeRightAnglePath), the inner
+ * path shrinks it by the width, and the ring between them is clipped and
+ * filled. Solid fills it whole; double fills the inner third-path and the ring
+ * outside the outer third-path. Rounded radii and the stroked styles keep the
+ * single-rect path (null).
+ */
+function paintFragmentedOutline(
+  el: CapturedElement,
+  style: string,
+  ow: number,
+  color: string,
+  indent: string,
+): string[] | null {
+  if (hasRoundedCorner(el)) return null;
+  const width = Math.round(ow);
+  const used = style === "double" && width <= 2 ? "solid" : style;
+  if (used !== "solid" && used !== "double") return null;
+  const offset = Math.round(parseFloat(el.styles.outlineOffset ?? "0") || 0);
+  const rects = (el.inlineFragments ?? [])
+    .map((fragment) => ({
+      left: Math.round(fragment.x),
+      top: Math.round(fragment.y),
+      right: Math.round(fragment.x + fragment.width),
+      bottom: Math.round(fragment.y + fragment.height),
+    }))
+    .map((rect) => {
+      const clamp = adjustedOutlineOffset(rect.right - rect.left, rect.bottom - rect.top, offset);
+      return {
+        left: rect.left - clamp.horizontal - width,
+        top: rect.top - clamp.vertical - width,
+        right: rect.right + clamp.horizontal + width,
+        bottom: rect.bottom + clamp.vertical + width,
+      };
+    })
+    .filter((rect) => rect.right > rect.left && rect.bottom > rect.top);
+  const outer = rectUnionBoundary(rects);
+  if (outer.length === 0) return [];
+  const inner = shrinkRightAngleContours(outer, width);
+  const ring = `${contourPath(outer)} ${contourPath(inner)}`;
+  if (used === "solid") return [`${indent}<path d="${ring}" fill="${color}" fill-rule="evenodd" />`];
+  const stripe = Math.round(width / 3);
+  const innerThird = contourPath(shrinkRightAngleContours(outer, width - stripe));
+  const outerThird = contourPath(shrinkRightAngleContours(outer, stripe));
+  return [
+    `${indent}<path d="${innerThird} ${contourPath(inner)}" fill="${color}" fill-rule="evenodd" />`,
+    `${indent}<path d="${contourPath(outer)} ${outerThird}" fill="${color}" fill-rule="evenodd" />`,
+  ];
 }
 
 /**

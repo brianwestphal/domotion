@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { FocusRingFacts } from "../capture/script/walker/focus-ring.js";
 import { capturedElement } from "../test-support/captured-fixtures.js";
-import { cornerRoundedContourPath, focusRingStrokes, paintOutline, rectUnionBoundary } from "./outline-paint.js";
+import {
+  cornerRoundedContourPath,
+  focusRingStrokes,
+  paintOutline,
+  rectUnionBoundary,
+  shrinkRightAngleContours,
+} from "./outline-paint.js";
 
 // DM-ZVQJYP: `outline-style: auto` paints Blink's two-ring focus ring
 // (PaintFocusRing, outline_painter.cc:853-893, chromium 6b5a1b80).
@@ -144,5 +150,54 @@ describe("multi-fragment focus rings (DM-7NN5E6)", () => {
     expect(inner.path).toMatch(/^M33,20 /);
     expect(outer.path).toMatch(/^M32,19 /);
     expect(paintOutline(el, 0, "").every((markup) => markup.includes(' d="M') && !markup.includes(" A"))).toBe(true);
+  });
+});
+
+describe("wrapped inline normal outlines (DM-9JNAVF)", () => {
+  it("shrinks a right-angle contour inward by the width (ShrinkCorner)", () => {
+    const outer = rectUnionBoundary([
+      { left: 20, top: 0, right: 60, bottom: 20 },
+      { left: 0, top: 20, right: 40, bottom: 40 },
+    ]);
+    const inner = shrinkRightAngleContours(outer, 2)[0];
+    expect(inner).toContainEqual([22, 2]);
+    expect(inner).toContainEqual([58, 18]);
+    expect(inner).toContainEqual([38, 38]);
+    expect(inner).toContainEqual([2, 22]);
+    // Concave corners move outward from the region's notch.
+    expect(inner).toContainEqual([22, 22]);
+    expect(inner).toContainEqual([38, 18]);
+  });
+
+  const wrapped = (style: string, width: string) => {
+    const el = capturedElement({
+      tag: "span",
+      x: 10,
+      y: 0,
+      width: 50,
+      height: 40,
+      styles: { outlineStyle: style, outlineWidth: width, outlineColor: "rgb(255, 0, 0)", outlineOffset: "0px" },
+    });
+    el.inlineFragments = [
+      { x: 30, y: 0, width: 30, height: 20 },
+      { x: 10, y: 20, width: 30, height: 20 },
+    ] as typeof el.inlineFragments;
+    return paintOutline(el, 0, "");
+  };
+
+  it("fills a solid outline as one even-odd ring around the fragment union", () => {
+    const markup = wrapped("solid", "2px");
+    expect(markup).toHaveLength(1);
+    expect(markup[0]).toContain('fill-rule="evenodd"');
+    expect(markup[0]).toContain("M28,-2");
+  });
+
+  it("fills a double outline as two stripes, and treats width <= 2 as solid", () => {
+    expect(wrapped("double", "6px")).toHaveLength(2);
+    expect(wrapped("double", "2px")).toHaveLength(1);
+  });
+
+  it("leaves dashed outlines on the single-rect path", () => {
+    expect(wrapped("dashed", "2px").join("\n")).not.toContain('fill-rule="evenodd"');
   });
 });
