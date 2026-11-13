@@ -226,6 +226,9 @@ async function saveStartupFailure(
         controlFacts,
         bootstrapCounters,
         workerDiagnostic,
+        // DM-3C3NFV: bootstrap-side attach/resume events for this script,
+        // independent of the page CDP session the diagnostic may lack.
+        bootstrapStartup: sharedWorkerBootstrapFor(owner.browser)?.startupEvents(scriptPath) ?? null,
         requests,
         consoleErrors: pageErrors.get(page) ?? [],
       },

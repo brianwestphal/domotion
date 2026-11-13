@@ -21,6 +21,17 @@ interface Worker {
   tail: Promise<void>;
 }
 
+/** DM-3C3NFV: what the bootstrap observed for one SharedWorker startup, so a
+ * startup that never reports can be classified as a lost resume (attached
+ * waiting, resume never acknowledged) or a lost error dispatch (resumed). */
+export interface WorkerStartupEvent {
+  at: number;
+  targetId: string;
+  url?: string;
+  event: "attached" | "duplicate-attach" | "resume-sent" | "resume-ok" | "resume-failed" | "detached";
+  waiting?: boolean;
+}
+
 const succeeded = (value: unknown): boolean => {
   const response = cdpObject(value);
   return response?.exceptionDetails == null && cdpObject(response?.result)?.value === true;
@@ -40,6 +51,7 @@ export class SharedWorkerBootstrap {
   private readonly leases = new Map<string, Set<Lease>>();
   private readonly workers = new Map<string, Worker>();
   private readonly tasks = new Set<Promise<void>>();
+  private readonly startupLog: WorkerStartupEvent[] = [];
   private enabled: Promise<void> | undefined;
   private closed = false;
   private failed = false;
@@ -102,6 +114,14 @@ export class SharedWorkerBootstrap {
   private live(worker: Worker): boolean {
     return this.workers.get(worker.targetId) === worker;
   }
+  private log(entry: Omit<WorkerStartupEvent, "at">): void {
+    if (this.startupLog.length >= 256) this.startupLog.shift();
+    this.startupLog.push({ at: Date.now(), ...entry });
+  }
+  /** Startup events for workers whose script URL ends with `path`. */
+  startupEvents(path: string): WorkerStartupEvent[] {
+    return this.startupLog.filter((entry) => entry.url?.split("?")[0].endsWith(path) === true).slice(-16);
+  }
   private track(task: Promise<void>): Promise<void> {
     this.tasks.add(task);
     void task.finally(() => this.tasks.delete(task)).catch(() => undefined);
@@ -116,7 +136,9 @@ export class SharedWorkerBootstrap {
     const info = cdpObject(event.targetInfo);
     if (info?.type !== "shared_worker" || typeof info.targetId !== "string" || typeof event.sessionId !== "string")
       return;
+    const url = typeof info.url === "string" ? info.url : undefined;
     if (this.workers.has(info.targetId)) {
+      this.log({ targetId: info.targetId, url, event: "duplicate-attach" });
       // A duplicate manual attachment does not own the original startup pause.
       // Runtime.runIfWaitingForDebugger here would release it prematurely.
       this.track(
@@ -139,6 +161,7 @@ export class SharedWorkerBootstrap {
       tail: Promise.resolve(),
     };
     this.workers.set(worker.targetId, worker);
+    this.log({ targetId: worker.targetId, url, event: "attached", waiting: worker.waiting });
     void this.enqueue(worker, async () => {
       try {
         const leases = worker.contextId == null ? [] : [...(this.leases.get(worker.contextId) ?? [])];
@@ -146,9 +169,12 @@ export class SharedWorkerBootstrap {
       } finally {
         if (this.live(worker) && worker.waiting) {
           try {
+            this.log({ targetId: worker.targetId, url: worker.url, event: "resume-sent" });
             await this.connection.command("Runtime.runIfWaitingForDebugger", {}, worker.sessionId);
             worker.waiting = false;
+            this.log({ targetId: worker.targetId, url: worker.url, event: "resume-ok" });
           } catch {
+            this.log({ targetId: worker.targetId, url: worker.url, event: "resume-failed" });
             // The last client detaching releases Chromium's startup pause.
             // Restore first so a failed resume cannot strand an owned no-op.
             for (const lease of worker.owners) {
@@ -171,6 +197,7 @@ export class SharedWorkerBootstrap {
     for (const worker of this.workers.values()) {
       if (worker.sessionId !== sessionId) continue;
       this.workers.delete(worker.targetId);
+      this.log({ targetId: worker.targetId, url: worker.url, event: "detached", waiting: worker.waiting });
       this.connection.cancelSession(sessionId);
       // A terminated SharedWorker host can be reused. Keep no client attached
       // that would impose a startup pause on its next incarnation.
