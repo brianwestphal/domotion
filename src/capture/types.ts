@@ -2281,6 +2281,12 @@ export interface CapturedElement {
    */
   imageOrientationNone?: true;
   /**
+   * The `<img>`'s computed `content` is a generated non-URL image (gradient,
+   * `image-set()`, `cross-fade()`, `paint()`) that owns the box in place of
+   * src. Its content box is painted from a Chromium replaced snapshot.
+   */
+  generatedContentImage?: true;
+  /**
    * Legacy CSS `clip: rect(...)` of an out-of-flow positioned box, in viewport
    * coordinates and pixel-snapped (`LayoutBox::ClipRect`, Blink CssClip node).
    * It clips the box's own paint and every descendant, fixed ones included.

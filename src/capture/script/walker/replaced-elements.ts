@@ -65,7 +65,8 @@ export const createReplacedElementsHandler = ({ vp }: { vp: { x: number; y: numb
       tag === "video" ||
       tag === "object" ||
       tag === "embed" ||
-      customElNeedsSnapshot
+      customElNeedsSnapshot ||
+      (tag === "img" && captured.generatedContentImage === true)
     ) {
       const { left: bl, right: br, top: bt, bottom: bb } = sideWidths(cs, "border", "Width");
       const pl = parseFloat(cs.paddingLeft) || 0;

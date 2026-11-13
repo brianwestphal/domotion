@@ -59,10 +59,17 @@ export const captureImageElement = ({
       ? Reflect.get(el, contentImageKey)
       : undefined;
   const ownContent = primedContent?.element;
-  if (ownContent != null && ownContent.kind === "other-image" && warn != null) {
-    warn(sel, "content", "a generated non-URL image replaces this <img>; its src is painted instead");
-  }
-  if (ownContent != null && ownContent.kind === "url" && ownContent.state !== "error") {
+  // DM-YF72EK: any unerrored generated image owns the box
+  // (HTMLImageElement::CreateLayoutObject, html_image_element.cc:509-532,
+  // Chromium 6b5a1b80), not only url(). A gradient, image-set(), cross-fade()
+  // or paint() has no URL to embed, so the content box takes Chromium's own
+  // paint through the replaced-element snapshot instead of src.
+  let generatedContentImage: true | undefined;
+  if (ownContent != null && ownContent.kind === "other-image") {
+    generatedContentImage = true;
+    imageBroken = false;
+    imageAlt = (el as HTMLImageElement).alt || "";
+  } else if (ownContent != null && ownContent.kind === "url" && ownContent.state !== "error") {
     if (ownContent.state === "loaded") {
       imageSrc = ownContent.url;
       if (ownContent.width > 0 && ownContent.height > 0) {
@@ -234,5 +241,6 @@ export const captureImageElement = ({
     brokenImageFallback,
     imageEmbeddingColorScheme,
     imageOrientationNone,
+    generatedContentImage,
   };
 };

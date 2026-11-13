@@ -384,6 +384,53 @@ describeBrowser("Chromium broken-image UA-shadow capture (DM-2463)", () => {
     }
   }, 60_000);
 
+  // DM-YF72EK: a non-URL generated image (gradient, image-set(), cross-fade(),
+  // paint()) owns the img box too, and has no URL to embed, so its content box
+  // takes Chromium's replaced-element snapshot instead of painting src.
+  it("paints a generated gradient or image-set() content image instead of src (DM-YF72EK)", async () => {
+    const yellow =
+      "data:image/svg+xml," +
+      encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><rect width="4" height="4" fill="yellow"/></svg>',
+      );
+    const page = await env!.browser.newPage({ viewport: { width: 140, height: 100 } });
+    const output = await env!.browser.newPage({ viewport: { width: 140, height: 100 } });
+    try {
+      for (const style of [
+        "content:linear-gradient(90deg, red, blue);width:60px;height:40px",
+        "content:repeating-radial-gradient(circle, red 0 4px, blue 4px 8px);width:50px;height:50px;border:3px solid green;padding:2px",
+        "content:image-set(linear-gradient(red, lime) 1x);width:40px;height:30px",
+      ]) {
+        await page.setContent(
+          `<style>body{margin:0;background:white}</style><img src="${yellow}" style="margin:10px;${style}">`,
+        );
+        const native = await sharp(await page.screenshot())
+          .removeAlpha()
+          .raw()
+          .toBuffer();
+        const result = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 140, height: 100 });
+        expect(
+          result.warnings.filter((warning) => warning.feature === "content"),
+          style,
+        ).toEqual([]);
+        await output.setContent(
+          `<style>body{margin:0;background:white}</style>${elementTreeToSvg(result.tree, 140, 100)}`,
+        );
+        const actual = await sharp(await output.screenshot())
+          .removeAlpha()
+          .raw()
+          .toBuffer();
+        let worst = 0;
+        for (let i = 0; i < native.length; i++) worst = Math.max(worst, Math.abs(native[i]! - actual[i]!));
+        // Before, src painted in place of the generated image (max 251-255).
+        expect(worst, style).toBeLessThanOrEqual(2);
+      }
+    } finally {
+      await page.close();
+      await output.close();
+    }
+  }, 60_000);
+
   for (const dpr of [1, 2]) {
     it(`captures source-owned layout/text/font/AX facts at DPR ${dpr}`, async () => {
       const context = await env!.browser.newContext({

@@ -5,7 +5,7 @@ kind: "evidence"
 status: "current"
 owners: ["images-media", "platform-release"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2463", "DM-2464", "DM-2465", "DM-N6XJRS", "DM-G47E97"]
+tickets: ["DM-2463", "DM-2464", "DM-2465", "DM-N6XJRS", "DM-G47E97", "DM-YF72EK"]
 code:
   [
     "src/capture/broken-image-fallback.ts",
@@ -370,8 +370,10 @@ it is pending. An errored first image marks the seed `erroredContentImage`, and
 the post-pass then gives it the same primary branch as `content: normal`. An
 image followed by other items keeps the seed path, which classifies a retained
 shadow as fallback; painting that fallback under its zero-size inline host is
-tracked as DM-GXK8X1. Non-URL generated images (gradients, `image-set()`) are
-not painted yet: capture warns and keeps `src` (DM-YF72EK).
+tracked as DM-GXK8X1. A non-URL generated image (gradient, `image-set()`,
+`cross-fade()`, `paint()`) also owns the box in place of `src`, and has no URL
+to embed, so its content box takes the replaced-element Chromium snapshot
+(`generatedContentImage`; raster fallback E4, DM-YF72EK).
 The same-HAR Stripe card background is restored against a byte-identical source
 frame; its remaining bitmap sampling/phase residual is tracked as DM-MJAMW0,
 without a pixel-exact claim or geometry normalization.

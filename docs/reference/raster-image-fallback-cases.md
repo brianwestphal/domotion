@@ -70,9 +70,9 @@ Letters E1–E3 are intentionally unused: they named vertical writing-mode text,
 retired when those paths became native SVG. The remaining letters are kept so
 existing cross-references (for example "§E4") stay stable.
 
-### E4. Replaced elements — `<iframe>` / `<canvas>` / `<video>` / `<object>` / `<embed>` and custom elements with open shadow DOM
+### E4. Replaced elements — `<iframe>` / `<canvas>` / `<video>` / `<object>` / `<embed>`, custom elements with open shadow DOM, and `<img>` with a generated non-URL `content` image
 
-Trigger: tag is one of those five, OR a custom element (hyphenated tag with `shadowRoot != null`). **Exception (DM-1441):** a same-origin `<iframe>` is NOT rastered — its document is recursed into native SVG instead (see below).
+Trigger: tag is one of those five, OR a custom element (hyphenated tag with `shadowRoot != null`), OR an `<img>` whose computed `content` is a generated non-URL image: a gradient, `image-set()`, `cross-fade()` or `paint()` (DM-YF72EK). Blink lets any unerrored generated image own an `<img>` in place of `src` (`HTMLImageElement::CreateLayoutObject`). Such an image has no URL to embed, so its content box takes Chromium's paint (`captured.generatedContentImage`). A `url()` content image is embedded as an ordinary image instead. **Exception (DM-1441):** a same-origin `<iframe>` is NOT rastered — its document is recursed into native SVG instead (see below).
 
 Why: nothing here is reachable through the DOM walk. `<canvas>` is a pixel surface. `<video>` is decoded native pixels. Custom elements' shadow DOM is opaque to the light-DOM walker. Snapshotting gives a faithful single-frame raster; live playback / interaction are explicitly out of scope. When exact `animationTimeMs` and a pre-navigation capture-rAF handle are paired, the finite-video/origin-clean-canvas path additionally preflights, freezes, hashes, and reverifies that single presented frame; ordinary captures remain observational.
 

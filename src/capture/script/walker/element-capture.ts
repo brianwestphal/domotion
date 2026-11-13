@@ -250,6 +250,7 @@ const buildCapturedContent = (d: ElementCaptureDeps, f: ElementFacts) => {
     imageEffectiveZoom: f.image.imageEffectiveZoom,
     imageEmbeddingColorScheme: f.image.imageEmbeddingColorScheme,
     imageOrientationNone: f.image.imageOrientationNone,
+    generatedContentImage: f.image.generatedContentImage,
     imageBroken: f.image.imageBroken,
     imageAlt: f.image.imageAlt,
     brokenImageFallback: f.image.brokenImageFallback,
