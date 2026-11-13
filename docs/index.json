@@ -6290,7 +6290,7 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD"],
+        "tickets": ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB"],
         "code": [
           "src/capture/replaced-media-frame.ts",
           "src/capture/background-image-sizing.ts",

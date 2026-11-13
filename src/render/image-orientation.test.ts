@@ -121,10 +121,24 @@ describe("AVIF irot/imir under image-orientation:none (DM-4G5NX9)", () => {
     }
   });
 
-  it("leaves a mirrored (imir) AVIF unchanged, since imir has no identity value", async () => {
-    const bytes = await avif(2);
-    expect(bytes.includes(Buffer.from("imir"))).toBe(true);
-    expect(unorientedImageSource(uri(bytes))).toEqual({ src: uri(bytes), transposed: false });
+  // DM-FPTFZB: imir has no identity value, so it stays in the bytes and is
+  // reported as the flip the painter applies to undo it.
+  it("reports the imir axis as a compensating flip and still zeroes irot", async () => {
+    for (const [orientation, mirror, transposed] of [
+      [2, "horizontal", false],
+      [4, "vertical", false],
+      [5, null, true],
+      [7, null, true],
+    ] as const) {
+      const bytes = await avif(orientation);
+      expect(bytes.includes(Buffer.from("imir"))).toBe(true);
+      const out = unorientedImageSource(uri(bytes));
+      expect(out.transposed).toBe(transposed);
+      if (mirror != null) expect(out.mirror).toBe(mirror);
+      else expect(["horizontal", "vertical"]).toContain(out.mirror);
+      const patched = Buffer.from(out.src.split(",")[1], "base64");
+      if (patched.includes(Buffer.from("irot"))) expect(irotAngle(patched)).toBe(0);
+    }
   });
 
   it("leaves an unrotated AVIF unchanged", async () => {

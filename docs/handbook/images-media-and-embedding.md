@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD"]
+tickets: ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB"]
 code:
   [
     "src/capture/replaced-media-frame.ts",
@@ -95,7 +95,7 @@ in place and swaps the natural axes for orientations 5-8, so consumers that
 honor EXIF paint the stored grid as Chromium does. Only the containers Chromium
 orients from EXIF are patched: JPEG APP1 (`ImageDecoder::ApplyExifMetadata`)
 and PNG `eXIf` (`SkPngRustCodec`, Skia `fd139e79`). Blink's WebP decoder ignores
-EXIF. AVIF orients through its `irot`/`imir` item properties; the renderer zeroes the `irot` angle in place and swaps axes for quarter turns (DM-4G5NX9), while a mirrored `imir` image keeps its orientation and warns (DM-FPTFZB). DM-FRF6A8 owns complete fractional natural-size authority for none
+EXIF. AVIF orients through its `irot`/`imir` item properties; the renderer zeroes the `irot` angle in place and swaps axes for quarter turns (DM-4G5NX9), and, because `imir` cannot be neutralized in the bytes, flips the painted image about the `imir` axis (axis 0 top/bottom, axis 1 left/right) to restore the stored grid (DM-FPTFZB). DM-FRF6A8 owns complete fractional natural-size authority for none
 and scale-down: physical decoded dimensions alone cannot recover density. A
 native396w/sizes390px auto-size control lays out389.984375×572.1875 while API
 getters report389×572. Do not infer density from those separately truncated

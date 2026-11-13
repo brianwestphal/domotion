@@ -118,6 +118,49 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
         }
       }
 
+      // DM-FPTFZB: a mirrored AVIF (EXIF orientations 2, 4, 5 and 7 become an
+      // `imir`, plus `irot` for 5 and 7) keeps its mirror in the bytes and is
+      // flipped back by the painter. Quadrants differ on both axes.
+      const quadrant = (background: string) =>
+        sharp({ create: { width: 20, height: 10, channels: 3, background } })
+          .png()
+          .toBuffer();
+      const asymmetric = await sharp({ create: { width: 40, height: 20, channels: 3, background: "red" } })
+        .composite([
+          { input: await quadrant("blue"), left: 20, top: 0 },
+          { input: await quadrant("lime"), left: 0, top: 10 },
+          { input: await quadrant("white"), left: 20, top: 10 },
+        ])
+        .png()
+        .toBuffer();
+      const grid = async (bytes: Buffer) => {
+        const data = await sharp(bytes).removeAlpha().raw().toBuffer();
+        const cells: string[] = [];
+        for (let y = 2; y < 80; y += 5)
+          for (let x = 2; x < 80; x += 5)
+            cells.push(
+              [...data.subarray((y * 100 + x) * 3, (y * 100 + x) * 3 + 3)].map((v) => (v > 128 ? 1 : 0)).join(""),
+            );
+        return cells.join(" ");
+      };
+      for (const exif of [2, 4, 5, 7]) {
+        const bytes = await sharp(asymmetric).avif({ lossless: true }).withMetadata({ orientation: exif }).toBuffer();
+        for (const orientation of ["none", "from-image"]) {
+          for (const style of ["", "width:80px;height:80px;object-fit:contain;object-position:left top"]) {
+            await page.setContent(
+              `<style>body{margin:0;background:white}</style><div id=r style="width:100px;height:100px"><img src="data:image/avif;base64,${bytes.toString("base64")}" style="image-orientation:${orientation};${style}"></div>`,
+            );
+            await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
+            const tree = await captureElementTree(page, "#r", { x: 0, y: 0, width: 100, height: 100 });
+            await generated.setContent(`<style>body{margin:0}</style>${elementTreeToSvg(tree, 100, 100)}`);
+            await generated.waitForTimeout(50);
+            expect(await grid(await generated.screenshot()), `avif ${exif} ${orientation} ${style}`).toEqual(
+              await grid(await page.screenshot()),
+            );
+          }
+        }
+      }
+
       // A CORS-tainted bitmap keeps its EXIF orientation in Chromium
       // (ImageResourceContent::ForceOrientationIfNecessary).
       const jpeg = await sharp(stored).jpeg().withMetadata({ orientation: 6 }).toBuffer();

@@ -19,8 +19,6 @@
 // item properties instead (`AVIFImageDecoder`, `platform/image-decoders/avif/
 // avif_image_decoder.cc:919-956`); see `avifTransforms` below.
 
-import { renderWarn } from "./render-warn.js";
-
 const ORIENTATION_TAG = 0x0112;
 
 // PNG chunk CRC (ISO 3309 / ITU-T V.42), as specified for PNG.
@@ -153,7 +151,8 @@ interface AvifTransforms {
   irotAngleAt: number[];
   /** Quarter turns anticlockwise (0-3) of the first `irot`. */
   angle: number;
-  mirrored: boolean;
+  /** The first `imir` axis: 0 exchanges top and bottom, 1 left and right. */
+  mirrorAxis: 0 | 1 | null;
 }
 
 /**
@@ -168,7 +167,7 @@ function avifTransforms(bytes: Uint8Array): AvifTransforms | null {
   if (bytes.length < 12 || type(4) !== "ftyp") return null;
   const brands = Buffer.from(bytes.subarray(8, Math.min(bytes.length, 8 + u32(0)))).toString("latin1");
   if (!/avif|avis/.test(brands)) return null;
-  const found: AvifTransforms = { irotAngleAt: [], angle: 0, mirrored: false };
+  const found: AvifTransforms = { irotAngleAt: [], angle: 0, mirrorAxis: null };
   const walk = (start: number, end: number, depth: number): void => {
     let at = start;
     while (at + 8 <= end) {
@@ -183,38 +182,44 @@ function avifTransforms(bytes: Uint8Array): AvifTransforms | null {
       else if (boxType === "irot" && depth === 3 && at + 8 < boxEnd) {
         if (found.irotAngleAt.length === 0) found.angle = bytes[at + 8] & 3;
         found.irotAngleAt.push(at + 8);
-      } else if (boxType === "imir" && depth === 3) found.mirrored = true;
+      } else if (boxType === "imir" && depth === 3 && at + 8 < boxEnd && found.mirrorAxis == null) {
+        found.mirrorAxis = (bytes[at + 8] & 1) as 0 | 1;
+      }
       at = boxEnd;
     }
   };
   walk(0, bytes.length, 0);
-  return found.irotAngleAt.length > 0 || found.mirrored ? found : null;
+  return found.irotAngleAt.length > 0 || found.mirrorAxis != null ? found : null;
 }
 
 /**
  * Apply a used `image-orientation: none` to a base64 data URI: the stored
  * pixel grid's bytes, and whether the natural axes swap (orientations 5-8).
  * Other sources are returned unchanged.
+ *
+ * An AVIF `imir` has no identity value and is an essential property, so it
+ * cannot be neutralized in place (DM-FPTFZB). With `irot` zeroed, a decoder
+ * applies only the mirror (MIAF 7.3.6.7 orders rotation before mirror, and
+ * Blink's avif_image_decoder.cc:922-956 at 6b5a1b80 maps axis 0 to a
+ * top/bottom and axis 1 to a left/right exchange), so `mirror` names the flip
+ * the painter applies again to restore the stored grid.
  */
-export function unorientedImageSource(src: string): { src: string; transposed: boolean } {
+export function unorientedImageSource(src: string): {
+  src: string;
+  transposed: boolean;
+  mirror?: "vertical" | "horizontal";
+} {
   const match = /^data:([^,;]*)((?:;[^,;]*)*);base64,/i.exec(src);
   if (match == null) return { src, transposed: false };
   const bytes = Buffer.from(src.slice(match[0].length), "base64");
   const avif = avifTransforms(bytes);
   if (avif != null) {
-    // `imir` has no identity value and is an essential property, so a mirrored
-    // AVIF cannot be neutralized in place; it keeps its orientation.
-    if (avif.mirrored) {
-      renderWarn(
-        "image-orientation",
-        "image-orientation: none on a mirrored (imir) AVIF is painted with its orientation applied",
-      );
-      return { src, transposed: false };
-    }
-    if (avif.angle === 0) return { src, transposed: false };
+    const mirror =
+      avif.mirrorAxis == null ? {} : ({ mirror: avif.mirrorAxis === 0 ? "vertical" : "horizontal" } as const);
+    if (avif.angle === 0) return { src, transposed: false, ...mirror };
     const patched = Buffer.from(bytes);
     for (const at of avif.irotAngleAt) patched[at] = patched[at] & ~3;
-    return { src: match[0] + patched.toString("base64"), transposed: avif.angle % 2 === 1 };
+    return { src: match[0] + patched.toString("base64"), transposed: avif.angle % 2 === 1, ...mirror };
   }
   const orientation = encodedImageOrientation(bytes);
   if (orientation === 1) return { src, transposed: false };

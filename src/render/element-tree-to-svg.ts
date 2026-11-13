@@ -441,19 +441,42 @@ interface ChildPaintPlan {
   flat3d: CapturedElement[] | null;
 }
 
+type ImageMirror = "vertical" | "horizontal";
+
 // A used `image-orientation: none` paints the stored pixel grid: neutralize the
-// embedded EXIF orientation and swap the natural axes it transposed.
-function withUsedImageOrientationNone(el: CapturedElement): CapturedElement {
-  const { src, transposed } = unorientedImageSource(el.imageSrc ?? "");
-  if (src === el.imageSrc) return el;
+// embedded EXIF orientation and swap the natural axes it transposed. An AVIF
+// mirror cannot be removed from the bytes, so it is returned for the painter
+// to undo with a flip (DM-FPTFZB).
+function withUsedImageOrientationNone(el: CapturedElement): { el: CapturedElement; mirror?: ImageMirror } {
+  const { src, transposed, mirror } = unorientedImageSource(el.imageSrc ?? "");
+  if (src === el.imageSrc) return { el, mirror };
   const swap = (size: { w: number; h: number } | undefined) =>
     size != null && transposed ? { w: size.h, h: size.w } : size;
   return {
-    ...el,
-    imageSrc: src,
-    imageIntrinsic: swap(el.imageIntrinsic),
-    imageDecodedIntrinsic: swap(el.imageDecodedIntrinsic),
+    el: {
+      ...el,
+      imageSrc: src,
+      imageIntrinsic: swap(el.imageIntrinsic),
+      imageDecodedIntrinsic: swap(el.imageDecodedIntrinsic),
+    },
+    mirror,
   };
+}
+
+/** A transform attribute that flips a box about its center line. */
+function mirrorTransform(mirror: ImageMirror | undefined, x: number, y: number, w: number, h: number): string {
+  if (mirror == null) return "";
+  return mirror === "horizontal"
+    ? ` transform="matrix(-1 0 0 1 ${r(2 * x + w)} 0)"`
+    : ` transform="matrix(1 0 0 -1 0 ${r(2 * y + h)})"`;
+}
+
+/** preserveAspectRatio alignment as seen through a flip of its viewport. */
+function mirrorPreserveAspectRatio(par: string, mirror: ImageMirror | undefined): string {
+  if (mirror === "horizontal")
+    return par.replace(/^x(Min|Max)/, (_, side: string) => (side === "Min" ? "xMax" : "xMin"));
+  if (mirror === "vertical") return par.replace(/Y(Min|Max)/, (_, side: string) => (side === "Min" ? "YMax" : "YMin"));
+  return par;
 }
 
 // Image (<img> / <input type=image>) paint, extracted from renderElement (DM-1306,
@@ -470,7 +493,10 @@ function paintImage(
   // Caller guards `el.imageSrc != null`; restate it here to narrow the type
   // (the original block was nested inside that guard in renderElement).
   if (captured.imageSrc == null) return;
-  const el = captured.imageOrientationNone === true ? withUsedImageOrientationNone(captured) : captured;
+  const { el, mirror } =
+    captured.imageOrientationNone === true
+      ? withUsedImageOrientationNone(captured)
+      : { el: captured, mirror: undefined };
   if (el.imageSrc == null) return;
   const fit = el.styles.objectFit ?? "fill";
   // CSS object-fit operates on the CONTENT BOX (inside borders + padding),
@@ -626,8 +652,11 @@ function paintImage(
     if (inlinedNone != null) {
       ctx.svgParts.push(`${indent}<g clip-path="url(#${clipId})">${inlinedNone}</g>`);
     } else {
+      const image = `<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none"`;
       ctx.svgParts.push(
-        `${indent}<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none" clip-path="url(#${clipId})" />`,
+        mirror == null
+          ? `${indent}${image} clip-path="url(#${clipId})" />`
+          : `${indent}<g clip-path="url(#${clipId})">${image}${mirrorTransform(mirror, ix, iy, iw, ih)} /></g>`,
       );
     }
   } else {
@@ -680,8 +709,11 @@ function paintImage(
     const finalSrc = embedResizedDataUri(el.imageSrc, contentW, contentH);
     const reHomedSrc = rewriteSvgDataUriPreserveAspectRatio(finalSrc, contentW, contentH, par);
     const outerPar = reHomedSrc !== finalSrc ? "none" : par;
+    const image = `<image href="${esc(reHomedSrc)}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${mirrorPreserveAspectRatio(outerPar, mirror)}"`;
     ctx.svgParts.push(
-      `${indent}<image href="${esc(reHomedSrc)}" x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" preserveAspectRatio="${outerPar}"${clipAttr} />`,
+      mirror == null
+        ? `${indent}${image}${clipAttr} />`
+        : `${indent}<g${clipAttr}>${image}${mirrorTransform(mirror, contentX, contentY, contentW, contentH)} /></g>`,
     );
   }
   return;
