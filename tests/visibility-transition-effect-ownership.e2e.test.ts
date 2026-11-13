@@ -140,6 +140,24 @@ async function rgba(png: Buffer): Promise<Buffer> {
   return sharp(png).ensureAlpha().raw().toBuffer();
 }
 
+/** DM-DQGEDM: three CI recurrences retained an all-white SOURCE screenshot,
+ * taken before isolation, as well as white isolated and retake frames, always
+ * in the file's first case (the first page of a freshly launched browser). The
+ * page had not presented its first frame, so the isolation assertions had no
+ * valid input. Wait, bounded, for the fixture's dark body before isolating;
+ * a page that never paints fails here with that cause. */
+async function presentedSource(page: Page): Promise<Buffer> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const png = await page.screenshot();
+    const corner = [...(await rgba(png)).subarray(0, 3)];
+    // The navy body (under the translucent overlay when it is visible), not
+    // Chromium's default white.
+    if (corner.some((channel) => channel < 128)) return png;
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  }
+  throw new Error("fixture page never presented its first painted frame");
+}
+
 /** DM-DQGEDM: when an isolated `omitBackground` screenshot comes back with an
  * opaque corner (Chromium's default white), keep the PNGs, the root paint
  * state and a second transparent screenshot one frame later, so a recurrence
@@ -199,7 +217,7 @@ describe("visibility-transition paint ownership browser contract (DM-FTRBES)", (
           const state = await fixture(page, role, direction, paused);
           try {
             const before = await state.evaluate((value) => value.snapshot());
-            const source = await page.screenshot();
+            const source = await presentedSource(page);
             let isolated: Buffer;
             try {
               await state.evaluate((value, css) => value.install(css), SNAPSHOT_HIDE_CSS);
