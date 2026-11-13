@@ -290,3 +290,35 @@ describeBrowser("rounded dashed and dotted outline clipping (DM-C77Q41)", () => 
     });
   }
 });
+
+// DM-KA85VS: curved dashed/dotted borders take the same Blink clip
+// construction as outlines (ClipContouredRect / ClipOutContouredRect around
+// DrawCurvedDashedDottedBoxSide). With the even-odd arc-path ring mask these
+// cases measured premultiplied max 25, 30 and 47; rounded-rect clips leave
+// 10-23. Per-corner radii and unequal widths keep the path ring.
+describeBrowser("rounded dashed and dotted border clipping (DM-KA85VS)", () => {
+  for (const css of [
+    "border-radius:5px;border:2px dashed red",
+    "border-radius:5px;border:2px dotted red",
+    "border-radius:8px;border:3px dotted blue",
+  ]) {
+    it(`keeps curved-edge coverage close to native for ${css}`, async () => {
+      const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:36px;height:28px;${css}}</style><div id="probe"></div>`;
+      const native = await rgbaMap(env!.browser, source);
+      const svg = await renderedSvg(env!.browser, source);
+      const rendered = await rgbaMap(
+        env!.browser,
+        `<!doctype html><style>body{margin:0}svg{display:block}</style>${svg}`,
+      );
+      let worst = 0;
+      for (let i = 0; i < native.length; i += 4) {
+        const premultiplied = [0, 1, 2].map((k) =>
+          Math.abs((native[i + k]! * native[i + 3]!) / 255 - (rendered[i + k]! * rendered[i + 3]!) / 255),
+        );
+        worst = Math.max(worst, ...premultiplied, Math.abs(native[i + 3]! - rendered[i + 3]!));
+      }
+      expect(svg).not.toContain('fill-rule="evenodd"');
+      expect(worst).toBeLessThanOrEqual(24);
+    });
+  }
+});

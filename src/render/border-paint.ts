@@ -420,6 +420,54 @@ function paintUniformSolidBorder(
   );
 }
 
+interface RingBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** A `<rect>` for a round-cornered box whose four corners share one radius
+ * pair within half its sides, or null when only a path can express it. */
+function uniformRoundedRect(box: RingBox, corners: CornerRadii, fill: string): string | null {
+  if (box.w <= 0 || box.h <= 0) return null;
+  if (corners.curvature != null && Object.values(corners.curvature).some((value) => value !== 2)) return null;
+  const { h: rx, v: ry } = corners.tl;
+  const same = (corner: { h: number; v: number }) => Math.abs(corner.h - rx) < 1e-9 && Math.abs(corner.v - ry) < 1e-9;
+  if (!same(corners.tr) || !same(corners.br) || !same(corners.bl)) return null;
+  if (rx > box.w / 2 || ry > box.h / 2) return null;
+  return `<rect x="${r(box.x)}" y="${r(box.y)}" width="${r(box.w)}" height="${r(box.h)}" rx="${r(rx)}" ry="${r(ry)}" fill="${fill}"/>`;
+}
+
+/**
+ * DM-KA85VS: Blink clips a curved dashed/dotted border stroke with Skia's
+ * anti-aliased rounded-rect clips: ClipContouredRect on the outer contour and
+ * ClipOutContouredRect on the inner one, around DrawCurvedDashedDottedBoxSide
+ * (box_border_painter.cc, Chromium 6b5a1b80). An even-odd arc-path ring mask
+ * covers the curved edges differently. When both contours are uniform round
+ * rects, emit a rounded-rect clipPath plus an inner rounded-rect mask
+ * cut-out, as outlines do (DM-C77Q41). Returns null when either contour needs
+ * a path (per-corner radii, oversized radii, non-round corner-shape).
+ */
+function roundedRectRingClip(
+  ctx: PaintCtx,
+  outer: RingBox,
+  outerCorners: CornerRadii,
+  inner: RingBox,
+  innerCorners: CornerRadii,
+): { open: string; close: string; mask: string } | null {
+  const outerRect = uniformRoundedRect(outer, outerCorners, "white");
+  const innerRect = uniformRoundedRect(inner, innerCorners, "black");
+  if (outerRect == null || innerRect == null) return null;
+  const clipId = ctx.nextClipId("bo");
+  const maskId = ctx.nextClipId("bm");
+  ctx.defsParts.push(`<clipPath id="${clipId}">${outerRect}</clipPath>`);
+  ctx.defsParts.push(
+    `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}"><rect x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}" fill="white"/>${innerRect}</mask>`,
+  );
+  return { open: `<g clip-path="url(#${clipId})">`, close: "</g>", mask: maskId };
+}
+
 /** Blink's `DrawCurvedDashedDottedBoxSide` geometry for a round-cornered uniform
  * border (box_border_painter.cc:1827-1860, 2477-2483, chromium 7d859f27). The
  * stroked "centerline" is the snapped border rect inset by
@@ -454,13 +502,24 @@ export function paintBlinkCurvedDashedDottedBorder(
     Math.max(0, boxBottom - boxTop - 2 * w),
     insetCornerRadii(corners, w, w, w, w),
   );
-  const maskId = ctx.nextClipId("bm");
-  ctx.defsParts.push(`<mask id="${maskId}"><path d="${outer} ${inner}" fill="white" fill-rule="evenodd"/></mask>`);
   const dashAttr = dash !== "" ? ` stroke-dasharray="${dash}"` : "";
   const linecap = roundDots ? ` stroke-linecap="round"` : "";
-  ctx.svgParts.push(
-    `${indent}<path d="${roundedRectPath(boxLeft + k, boxTop + k, centerW, centerH, centerCorners)}" fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeWidth)}"${dashAttr}${linecap} mask="url(#${maskId})" />`,
+  const stroke = (maskId: string) =>
+    `<path d="${roundedRectPath(boxLeft + k, boxTop + k, centerW, centerH, centerCorners)}" fill="none" stroke="${colorStr(bt.color)}" stroke-width="${r(strokeWidth)}"${dashAttr}${linecap} mask="url(#${maskId})" />`;
+  const ringClip = roundedRectRingClip(
+    ctx,
+    { x: boxLeft, y: boxTop, w: boxRight - boxLeft, h: boxBottom - boxTop },
+    corners,
+    { x: boxLeft + w, y: boxTop + w, w: boxRight - boxLeft - 2 * w, h: boxBottom - boxTop - 2 * w },
+    insetCornerRadii(corners, w, w, w, w),
   );
+  if (ringClip != null) {
+    ctx.svgParts.push(`${indent}${ringClip.open}${stroke(ringClip.mask)}${ringClip.close}`);
+    return;
+  }
+  const maskId = ctx.nextClipId("bm");
+  ctx.defsParts.push(`<mask id="${maskId}"><path d="${outer} ${inner}" fill="white" fill-rule="evenodd"/></mask>`);
+  ctx.svgParts.push(`${indent}${stroke(maskId)}`);
 }
 
 // Border paint phase — border-image 9-slice composition plus the plain per-side
@@ -1020,8 +1079,18 @@ export function paintPerSideBorder(
     const centerH = Math.max(0, bxB - bxT - half(tw) - half(bw));
     const centerPath = roundedRectPath(centerX, centerY, centerW, centerH, centerCorners);
     const centerLength = blinkCurvedDashPathLength(centerW, centerH, centerCorners);
-    const ringMaskId = ctx.nextClipId("bm");
-    ctx.defsParts.push(`<mask id="${ringMaskId}"><path d="${annularPath}" fill="white" fill-rule="evenodd"/></mask>`);
+    const ringClip = roundedRectRingClip(
+      ctx,
+      { x: bxL, y: bxT, w: bxR - bxL, h: bxB - bxT },
+      corners,
+      { x: bxL + lw, y: bxT + tw, w: bxR - bxL - lw - rw, h: bxB - bxT - tw - bw },
+      innerCornersForAnnular,
+    );
+    let ringMaskId = ringClip?.mask;
+    if (ringMaskId == null) {
+      ringMaskId = ctx.nextClipId("bm");
+      ctx.defsParts.push(`<mask id="${ringMaskId}"><path d="${annularPath}" fill="white" fill-rule="evenodd"/></mask>`);
+    }
     for (let i = 0; i < sides.length; i++) {
       const side = sides[i].side;
       if (side == null || side.w <= 0 || side.color.a < 0.01) continue;
@@ -1039,9 +1108,8 @@ export function paintPerSideBorder(
       ctx.defsParts.push(`<clipPath id="${cid}"><polygon points="${annularWedges[i]}"/></clipPath>`);
       const linecap = side.style === "dotted" && !thinDotted ? ` stroke-linecap="round"` : "";
       const dashAttr = dash === "" ? "" : ` stroke-dasharray="${dash}"`;
-      ctx.svgParts.push(
-        `${indent}<path d="${centerPath}" fill="none" stroke="${colorStr(side.color)}" stroke-width="${r(strokeWidth)}"${dashAttr}${linecap} clip-path="url(#${cid})" mask="url(#${ringMaskId})" />`,
-      );
+      const sidePath = `<path d="${centerPath}" fill="none" stroke="${colorStr(side.color)}" stroke-width="${r(strokeWidth)}"${dashAttr}${linecap} clip-path="url(#${cid})" mask="url(#${ringMaskId})" />`;
+      ctx.svgParts.push(`${indent}${ringClip == null ? sidePath : `${ringClip.open}${sidePath}${ringClip.close}`}`);
     }
   }
   // The outer-outline group still wraps the remaining non-solid branches

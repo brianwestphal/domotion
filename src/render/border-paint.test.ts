@@ -253,6 +253,58 @@ describe("SVG border paint owner", () => {
     const length = blinkCurvedDashPathLength(100, 40, { tl: corner, tr: corner, br: corner, bl: corner });
     expect(stroke).toContain(`stroke-dasharray="${closedDashArray("dashed", 1, length)}"`);
     expect(stroke).toMatch(/mask="url\(#[^)]+\)"/);
-    expect(ctx.defsParts.some((part) => part.startsWith("<mask") && part.includes("evenodd"))).toBe(true);
+    // A uniform round ring clips with rounded rects, not an even-odd ring (DM-KA85VS).
+    expect(ctx.defsParts.some((part) => part.startsWith("<clipPath") && part.includes('rx="8"'))).toBe(true);
+    expect(ctx.defsParts.some((part) => part.includes("evenodd"))).toBe(false);
+  });
+});
+
+// DM-KA85VS: Blink clips curved dashed/dotted border strokes with anti-aliased
+// rounded-rect clips (ClipContouredRect outer, ClipOutContouredRect inner), so
+// a uniform round ring emits a rounded-rect clipPath plus an inner rounded-rect
+// cut-out instead of an even-odd arc-path ring.
+describe("curved dashed/dotted border ring clip (DM-KA85VS)", () => {
+  const dashed = (styles: Record<string, string>) => ({
+    borderTopStyle: "dashed",
+    borderRightStyle: "dashed",
+    borderBottomStyle: "dashed",
+    borderLeftStyle: "dashed",
+    ...styles,
+  });
+  const paint = (styles: Record<string, string>) => {
+    const ctx = context();
+    const el = element(dashed(styles));
+    paintBorder(
+      ctx,
+      el,
+      "",
+      parseCornerRadii(el.styles, el.width, el.height),
+      800,
+      600,
+      2,
+      parseColor("rgb(255,0,0)"),
+      false,
+      false,
+      new Set(),
+    );
+    return ctx.defsParts.join("\n") + ctx.svgParts.join("\n");
+  };
+  const uniform = {
+    borderTopLeftRadius: "6px",
+    borderTopRightRadius: "6px",
+    borderBottomRightRadius: "6px",
+    borderBottomLeftRadius: "6px",
+  };
+
+  it("clips a uniform round ring to rounded rects", () => {
+    const svg = paint(uniform);
+    expect(svg).toContain('<rect x="10" y="20" width="100" height="40" rx="6" ry="6" fill="white"/></clipPath>');
+    expect(svg).toContain('<rect x="12" y="22" width="96" height="36" rx="4" ry="4" fill="black"/></mask>');
+    expect(svg).not.toContain('fill-rule="evenodd"');
+  });
+
+  it("keeps the path ring for per-corner radii or unequal widths", () => {
+    expect(paint({ ...uniform, borderTopRightRadius: "3px" })).toContain('fill-rule="evenodd"');
+    expect(paint({ ...uniform, borderLeftWidth: "4" })).toContain('fill-rule="evenodd"');
   });
 });

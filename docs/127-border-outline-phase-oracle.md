@@ -21,6 +21,7 @@ tickets:
     "DM-XYZ4SD",
     "DM-2323",
     "DM-C77Q41",
+    "DM-KA85VS",
     "DM-2355",
     "DM-CMKF35",
     "DM-652J8C",
@@ -278,8 +279,22 @@ rounded-rect clip-out (`ClipContouredRect` / `ClipOutContouredRect` around
 rounded rect, rather than an even-odd arc-path ring mask. At DPR 4 the old ring
 showed no dash on/off disagreement, only edge coverage on the corner arcs
 (premultiplied max 26–51 at DPR 1). The rounded-rect clips leave 8–15. A radius
-larger than half a side keeps the path ring. Curved dashed/dotted borders still
-use the path ring (DM-KA85VS).
+larger than half a side keeps the path ring.
+
+Curved dashed/dotted borders use the same construction (DM-KA85VS), both for a
+single-color border and for the per-side strokes clipped to their rounded miter
+wedges. It applies when the outer contour and the inner contour (inset by the
+side widths) are each one round radius pair within half their sides. Measured
+premultiplied max on a 36×28 box at DPR 1:
+
+| case                 | path ring | rounded-rect clips |
+| -------------------- | --------- | ------------------ |
+| radius 5, 2px dashed | 25        | 11                 |
+| radius 5, 2px dotted | 30        | 23                 |
+| radius 8, 3px dotted | 47        | 10                 |
+
+Per-corner radii, unequal side widths and non-round corner shapes keep the path
+ring, since one `<rect>` cannot express them (DM-1110JP).
 
 The element-tree renderer remains the paint-order
 orchestrator and calls this state-independent owner at the existing outline
