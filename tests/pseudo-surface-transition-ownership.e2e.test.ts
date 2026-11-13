@@ -27,7 +27,14 @@ const evidenceRuntime = () => ({
     .update(readFileSync(fileURLToPath(import.meta.url), "utf8").replace(/\r\n/g, "\n"))
     .digest("hex"),
 });
-const html = `<style>body{margin:0;background:rgb(12,20,40)}#overlay{position:absolute;inset:0;background:rgba(255,255,255,.2)}</style><div id="overlay"></div><select id="target" style="position:absolute;left:20px;top:20px;width:60px;height:30px;background:#eee;border:1px solid"><option>A</option></select>`;
+// The isolated pseudo is a generated URL image whose 40×40 intrinsic paint
+// exceeds its 20×20 slot, a pseudo Chromium really generates and Domotion
+// really routes to one isolated surface. (A legacy select option's
+// ::checkmark used to serve here, but Blink never generates it; DM-33FSP5.)
+const pseudoCss =
+  "#target::after,#t::after{content:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22%3E%3Crect width=%2240%22 height=%2240%22 fill=%22%23c0f%22/%3E%3C/svg%3E');display:block;width:20px;height:20px}";
+const pseudoDocument = `<style>${pseudoCss}</style><div id=t></div>`;
+const html = `<style>body{margin:0;background:rgb(12,20,40)}#overlay{position:absolute;inset:0;background:rgba(255,255,255,.2)}${pseudoCss}</style><div id="overlay"></div><div id="target" style="position:absolute;left:20px;top:20px;width:60px;height:30px;background:#eee;border:1px solid"></div>`;
 async function retain(frame: Frame | Page, selector: string, toHidden: boolean, paused: boolean) {
   return frame.evaluateHandle(
     async ({ selector, toHidden, paused }) => {
@@ -159,7 +166,7 @@ describe("generated-pseudo surface transition ownership (DM-T8ZTSC)", () => {
             await page.close();
           }
         });
-  it("keeps the exact original select witness while real-world timers and author rAF are parked", async () => {
+  it("keeps the exact original pseudo witness while real-world timers and author rAF are parked", async () => {
     const context = await browser.newContext({ viewport });
     const owner = await installRealWorldRafOwner(context);
     const page = await context.newPage();
@@ -337,12 +344,12 @@ describe("generated-pseudo surface transition ownership (DM-T8ZTSC)", () => {
     const page = await browser.newPage({ viewport });
     await page.setContent(
       html +
-        `<iframe style="position:absolute;left:0;top:0;width:50px;height:50px" srcdoc="<select><option>A</option></select>"></iframe>`,
+        `<iframe style="position:absolute;left:0;top:0;width:50px;height:50px" srcdoc="${pseudoDocument}"></iframe>`,
     );
     await page
       .frames()
       .find((frame) => frame !== page.mainFrame())!
-      .waitForSelector("select");
+      .waitForSelector("#t");
     const state = await retain(page, "#overlay", false, true);
     try {
       const before = await state.evaluate((value) => value.snapshot());
@@ -433,14 +440,14 @@ describe("generated-pseudo surface transition ownership (DM-T8ZTSC)", () => {
   it("refuses unqualified iframe ancestry across an author shadow root", async () => {
     const page = await browser.newPage({ viewport });
     await page.setContent(`<div id="host"></div>`);
-    await page.evaluate(() => {
+    await page.evaluate((srcdoc) => {
       const root = document.querySelector("#host")!.attachShadow({ mode: "closed" });
       const frame = document.createElement("iframe");
-      frame.srcdoc = `<select><option>A</option></select>`;
+      frame.srcdoc = srcdoc;
       root.append(frame);
-    });
+    }, pseudoDocument);
     const child = page.frames().find((frame) => frame !== page.mainFrame())!;
-    await child.waitForSelector("select");
+    await child.waitForSelector("#t");
     try {
       const before = await page.screenshot();
       const probe = await preparePseudoFragmentGeometry(page, "body", viewport);

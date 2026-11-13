@@ -58,4 +58,33 @@ describe("DM-2459 source-owned checkable indicators", () => {
       await browser.close();
     }
   }, 60_000);
+
+  // DM-33FSP5: UA style gives every option a nonempty computed
+  // ::checkmark content, but Blink never generates the pseudo for a legacy
+  // select (Element::CanGeneratePseudoElement). Capture must not isolate a
+  // terminal surface for a pseudo that does not exist.
+  it("does not treat legacy select options' computed checkmark content as a generated pseudo", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 300, height: 200 } });
+    try {
+      for (const markup of [
+        `<select size="3"><option selected>One</option><option>Two</option></select>`,
+        `<select><option selected>One</option></select>`,
+        `<select multiple><option selected>One</option><option>Two</option></select>`,
+      ]) {
+        await page.setContent(`<!doctype html><body style="margin:10px"><main id="scene">${markup}</main></body>`);
+        const result = await captureElementTreeWithWarnings(page, "#scene", { x: 0, y: 0, width: 300, height: 200 });
+        const checkmarks = flatten(result.tree).flatMap((element) =>
+          (element.pseudoFragments ?? []).filter((record) => record.pseudo === "::checkmark"),
+        );
+        expect(checkmarks, markup).toEqual([]);
+        expect(
+          result.warnings.filter((warning) => /checkmark/.test(`${warning.selector} ${warning.detail}`)),
+          markup,
+        ).toEqual([]);
+      }
+    } finally {
+      await browser.close();
+    }
+  }, 60_000);
 });

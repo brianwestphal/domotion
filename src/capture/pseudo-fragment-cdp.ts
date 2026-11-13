@@ -211,12 +211,53 @@ async function setupFrame(
           const marker = element.getAttribute("data-testid") ?? element.getAttribute("data-test");
           return marker == null ? element.localName : `${element.localName}[data-test="${marker}"]`;
         }
+        // DM-33FSP5: computed ::checkmark content is nonempty for every
+        // option (UA style), but Blink only generates the pseudo where
+        // Element::CanGeneratePseudoElement allows it (core/dom/element.cc:
+        // 10850-10874, chromium 6b5a1b80). That covers an option of a
+        // base-appearance select, a checkable menu item, and a base-appearance
+        // checkable input.
+        //
+        // An option's select is its nearest ancestor select. It uses a menu
+        // list unless it is `multiple` without size=1, or has size > 1
+        // (HTMLSelectElement::UpdateUsesMenuList). A menu list generates only
+        // when its picker is a popover: a base-select picker, or `multiple`
+        // off Android (MenuListSelectType::PickerIsPopover). A list box
+        // generates only for a base-select select.
+        function canGenerateCheckmark(element: Element): boolean {
+          if (element.localName === "option") {
+            const select = element.closest("select");
+            if (select == null) return false;
+            const base = getComputedStyle(select).appearance === "base-select";
+            const usesMenuList = select.multiple ? select.hasAttribute("size") && select.size === 1 : select.size <= 1;
+            if (!usesMenuList) return base;
+            const basePicker = base && getComputedStyle(select, "::picker(select)").appearance === "base-select";
+            return basePicker || select.multiple;
+          }
+          if (element.localName === "input") {
+            const input = element as HTMLInputElement;
+            return (
+              (input.type === "checkbox" || input.type === "radio") &&
+              CSS.supports("appearance", "base") &&
+              getComputedStyle(input).appearance === "base"
+            );
+          }
+          // HTMLMenuItemElement::IsCheckable: an owned menu item in a
+          // checkable fieldset. Without that element interface the tag is an
+          // unknown element and cannot be checkable.
+          return (
+            element.localName === "menuitem" &&
+            "HTMLMenuItemElement" in globalThis &&
+            element.closest("fieldset[checkable]") != null
+          );
+        }
         for (let elementIndex = 0; elementIndex < elements.length; elementIndex++) {
           const element = elements[elementIndex];
           // Blink attaches kPseudoIdCheckMark before kPseudoIdBefore. Preserve
           // that order so appearance:base checkbox/radio indicators enter the
           // same generated-child paint slot ahead of an authored ::before.
           for (const pseudo of ["checkmark", "before", "after"] as const) {
+            if (pseudo === "checkmark" && !canGenerateCheckmark(element)) continue;
             const style = getComputedStyle(element, `::${pseudo}`);
             if (style.content === "none" || style.content === "normal" || style.display === "none") continue;
             let zoom = 1;

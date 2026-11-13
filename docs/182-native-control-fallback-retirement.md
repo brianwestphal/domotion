@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2458", "DM-2615", "DM-2628", "DM-2634"]
+tickets: ["DM-2458", "DM-2615", "DM-2628", "DM-2634", "DM-33FSP5"]
 code:
   [
     ".github/workflows/native-control-fallback-parity.yml",
@@ -139,8 +139,22 @@ That interaction matrix also guards the ordering boundary with generated
 pseudos: a terminal pseudo-surface isolation temporarily hides unrelated page
 content, so `preparePseudoFragmentGeometry` retains and restores the original
 per-frame active element before decoration/control atlases read `:focus` paint.
-Without that restoration, an unrelated `option::checkmark` fallback can turn a
-focused search-cancel decoration into an authoritative-empty record.
+Without that restoration, an unrelated terminal pseudo isolation (for example
+a generated URL image overflowing its slot) can turn a focused search-cancel
+decoration into an authoritative-empty record.
+
+Candidate discovery admits `::checkmark` only where Blink generates it
+(`Element::CanGeneratePseudoElement`, `core/dom/element.cc:10850-10874`,
+Chromium `6b5a1b80`; DM-33FSP5). That means:
+
+- an option whose nearest select is a base-select list box, or a menu list
+  whose picker is a popover (a base-select picker, or `multiple` off Android);
+- a base-appearance checkable input;
+- a checkable menu item.
+
+UA style gives every option nonempty computed `::checkmark` content. Before
+this rule, legacy select options became terminal-isolation candidates for a
+pseudo that does not exist.
 
 `.github/workflows/native-control-fallback-parity.yml` runs that matrix plus
 the existing EffectiveAppearance, native-source-frame, decoration, checkable,
