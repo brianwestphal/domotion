@@ -28,7 +28,16 @@ export interface WorkerStartupEvent {
   at: number;
   targetId: string;
   url?: string;
-  event: "attached" | "duplicate-attach" | "resume-sent" | "resume-ok" | "resume-failed" | "detached";
+  event:
+    | "attached"
+    | "duplicate-attach"
+    | "resume-sent"
+    | "resume-ok"
+    | "resume-failed"
+    | "detach-sent"
+    | "detach-ok"
+    | "detach-failed"
+    | "detached";
   waiting?: boolean;
 }
 
@@ -215,7 +224,14 @@ export class SharedWorkerBootstrap {
     if (!this.live(worker)) return;
     this.workers.delete(worker.targetId);
     this.connection.cancelSession(worker.sessionId);
-    await this.connection.command("Target.detachFromTarget", { sessionId: worker.sessionId }).catch(() => undefined);
+    // Logged here because removing the worker above suppresses its later
+    // `detached` entry, and a failed resume relies on this detach to release
+    // Chromium's startup pause.
+    this.log({ targetId: worker.targetId, url: worker.url, event: "detach-sent", waiting: worker.waiting });
+    await this.connection.command("Target.detachFromTarget", { sessionId: worker.sessionId }).then(
+      () => this.log({ targetId: worker.targetId, url: worker.url, event: "detach-ok" }),
+      () => this.log({ targetId: worker.targetId, url: worker.url, event: "detach-failed" }),
+    );
   }
   private async patch(worker: Worker, lease: Lease): Promise<void> {
     if (lease.closed || !this.live(worker) || worker.owners.has(lease)) return;
