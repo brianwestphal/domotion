@@ -147,7 +147,9 @@ async function startWorker(page: Page, kind: "worker" | "shared", name: string):
 const latest = (page: Page, name: string): Promise<Report | undefined> =>
   page.evaluate((name) => (globalThis as ProbeScope).workerProbes[name].events.at(-1), name);
 
-function delaySecondaryAttachment() {
+/** `until`, when given, replaces the fixed delay: the attachment waits for it
+ * (bounded) so a test can order an escaped worker's work before the late patch. */
+function delaySecondaryAttachment(until?: () => Promise<void>) {
   const original = browser.newBrowserCDPSession.bind(browser);
   const spy = vi.spyOn(browser, "newBrowserCDPSession").mockImplementation(async () => {
     const session = await original();
@@ -155,7 +157,13 @@ function delaySecondaryAttachment() {
     // Exercise slow command attachment while Playwright resumes independently.
     // Dedicated startup stays paused; SharedWorker startup can escape.
     vi.spyOn(session, "send").mockImplementation((async (method: string, params?: unknown) => {
-      if (method === "Target.attachToTarget") await new Promise((resolve) => setTimeout(resolve, 100));
+      if (method === "Target.attachToTarget") {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          until?.() ?? new Promise((resolve) => setTimeout(resolve, 100)),
+          new Promise((resolve) => (timer = setTimeout(resolve, 10_000))),
+        ]).finally(() => clearTimeout(timer));
+      }
       return forward(method, params);
     }) as CDPSession["send"]);
     return session;
@@ -296,9 +304,18 @@ describe("real-world worker WebGL lifecycle (DM-S9S3WG)", () => {
   );
 
   it("reports late SharedWorker bootstrap escape rather than counting it fully frozen", async () => {
-    const spy = delaySecondaryAttachment();
+    // DM-XKR366: the frozen no-op clear keeps whatever the preserved buffer
+    // already holds, so red is only observable if the escaped worker drew
+    // natively before the late patch landed. A fixed 100 ms attach delay let
+    // a loaded host patch first and read back [0,0,0,0]; hold the attachment
+    // until the worker has reported a frame instead.
+    let opened: Page | undefined;
+    const spy = delaySecondaryAttachment(async () => {
+      while (opened == null || (await latest(opened, "escape").catch(() => undefined)) == null)
+        await new Promise((resolve) => setTimeout(resolve, 10));
+    });
     const context = await routedContext();
-    const page = await openPage(context);
+    const page = (opened = await openPage(context));
     try {
       const freeze = await freezeWebGlOutput(page);
       await startWorker(page, "shared", "escape");
