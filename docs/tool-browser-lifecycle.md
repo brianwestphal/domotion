@@ -90,10 +90,20 @@ establish successful cleanup; the process/test result remains authoritative.
 
 The earlier isolated startup returning null was not causally attributed. These
 changes address source-proven shared-port, port-reporting and ownership gaps.
-Legacy `tests/review-server-e2e.test.ts` still uses fixed ports and detached
-wrapper groups for fixtures with held `gh` descendants; its separate
-cross-platform port/process-tree audit (DM-W4BR21) must preserve those children
-until their release and cleanup are proved.
+`tests/review-server-e2e.test.ts` (DM-W4BR21) now uses the same owned Node
+service with `--port 0` instead of fixed ports 4396/4397 and a detached
+npx→tsx group killed by negative PID. Its fake `gh` is an owned Node script
+(`tests/review-server-fake-gh.mjs`) behind a POSIX shim that records each pid
+before `exec`, so the server's child is the recorded fake itself. The fake
+exits when its parent is gone, and a held download gives up after 60 s. Every
+`afterAll` first releases any held download, then requires a clean owned
+shutdown, then requires every recorded fake pid to be gone within 3 s.
+Disproof controls: an assertion failing mid-download still left no fake
+running; a fake that ignored parent death failed that final check, naming its
+pid. The 35 s / 90 s startup bounds and the non-blocking, dedup and
+loopback/Host/Origin assertions are unchanged. The shim keeps these fixtures
+POSIX-only; a Windows `gh` stand-in would need a `.cmd` launcher and is not
+provided.
 
 Node 22's official documentation specifies both
 [process/stdio closure ordering](https://github.com/nodejs/node/blob/v22.21.0/doc/api/child_process.md#event-close)

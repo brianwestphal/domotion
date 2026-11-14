@@ -5,17 +5,20 @@
 // behind a loading overlay via /api/refresh-source. This test spawns the server
 // with a deliberately SLOW, failing `gh` on PATH and asserts the `/` route stays
 // fast (would be ≥5s if someone re-introduced the blocking fetch).
-import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, rmSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { networkInterfaces, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { startOwnedUiServer, type OwnedUiServer } from "./owned-ui-server.js";
 
 const SERVER = resolve(fileURLToPath(import.meta.url), "..", "review-server.tsx");
-const PORT = 4396;
-const BASE = `http://127.0.0.1:${PORT}`;
+const FAKE_GH = resolve(fileURLToPath(import.meta.url), "..", "review-server-fake-gh.mjs");
+// DM-W4BR21: OS-assigned ports and the owned Node service, not fixed ports and
+// a detached npx→tsx chain killed by process group.
+let PORT = 0;
+let BASE = "";
 const LINUX_CJK_FIXTURE = "4E00-9FFF-cjk-unified-ideographs.30";
 
 function linuxCjkResult(diffPct = 0.595): Record<string, unknown> {
@@ -91,23 +94,56 @@ function linuxCjkResult(diffPct = 0.595): Record<string, unknown> {
   };
 }
 
-async function waitForServer(timeoutMs: number, base = BASE): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const r = await fetch(`${base}/`);
-      if (r.ok) return;
-    } catch {
-      /* not up yet */
-    }
-    await new Promise((r) => setTimeout(r, 300));
+/** Put a `gh` on PATH that records its pid and `exec`s the owned Node fake, so
+ * each server child is the recorded fake itself. Recording in the shim, before
+ * Node starts, leaves no window in which a just-spawned fake is unrecorded.
+ * Unix shim: the fixtures stay POSIX-only. */
+function installFakeGh(tmp: string): { binDir: string; pids: string } {
+  const binDir = join(tmp, "bin");
+  mkdirSync(binDir);
+  const gh = join(binDir, "gh");
+  writeFileSync(
+    gh,
+    `#!/bin/sh\necho $$ >> "$FAKE_GH_PIDS"\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(FAKE_GH)} "$@"\n`,
+  );
+  chmodSync(gh, 0o755);
+  return { binDir, pids: join(tmp, "gh-pids.log") };
+}
+
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
   }
-  throw new Error("review server did not start in time");
+};
+
+/** Every fake `gh` the server started must be gone shortly after the server
+ * closed, on passing and failing paths alike. */
+async function expectFakeGhReleased(pids: string, timeoutMs = 3_000): Promise<void> {
+  const started = existsSync(pids) ? readFileSync(pids, "utf8").split("\n").filter(Boolean).map(Number) : [];
+  const deadline = Date.now() + timeoutMs;
+  let running = started.filter(alive);
+  while (running.length > 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+    running = running.filter(alive);
+  }
+  expect(running, `fake gh processes still running after server close (of ${started.length})`).toEqual([]);
+}
+
+async function startReviewServer(env: NodeJS.ProcessEnv, binDir: string, startupTimeoutMs: number) {
+  const server = await startOwnedUiServer(SERVER, ["--port", "0"], {
+    env: { ...env, PATH: `${binDir}${delimiter}${process.env.PATH}`, REVIEW_NO_OPEN: "1" },
+    startupTimeoutMs,
+  });
+  return { server, base: server.url, port: Number(new URL(server.url).port) };
 }
 
 describe("review-server async loading (DM-1665)", () => {
-  let proc: ChildProcess;
+  let server: OwnedUiServer | undefined;
   let tmp: string;
+  let pids = "";
 
   beforeAll(async () => {
     tmp = mkdtempSync(join(tmpdir(), "review-e2e-"));
@@ -157,39 +193,31 @@ describe("review-server async loading (DM-1665)", () => {
       }),
     );
     // Fake `gh`: sleeps 5s then fails. If `/` blocked on it, the request would be ≥5s.
-    const ghDir = join(tmp, "bin");
-    mkdirSync(ghDir);
-    const gh = join(ghDir, "gh");
-    writeFileSync(gh, "#!/usr/bin/env bash\nsleep 5\nexit 1\n");
-    chmodSync(gh, 0o755);
-
-    proc = spawn("npx", ["tsx", SERVER, "--port", String(PORT)], {
-      env: {
-        ...process.env,
-        PATH: `${ghDir}:${process.env.PATH}`,
+    const fake = installFakeGh(tmp);
+    pids = fake.pids;
+    ({
+      server,
+      base: BASE,
+      port: PORT,
+    } = await startReviewServer(
+      {
+        FAKE_GH_MODE: "slow-fail",
+        FAKE_GH_PIDS: pids,
         REVIEW_CI_BASE: ciBase,
         DOMOTION_OUTPUT_DIR: localOut,
         REVIEW_OUTPUT_DIR: "",
-        REVIEW_NO_OPEN: "1",
       },
-      stdio: ["ignore", "pipe", "pipe"],
-      detached: true, // own process group — afterAll kills the WHOLE npx→tsx chain
-    });
-    await waitForServer(35_000);
+      fake.binDir,
+      35_000,
+    ));
   }, 45_000);
 
-  afterAll(() => {
-    if (proc?.pid != null) {
-      try {
-        process.kill(-proc.pid, "SIGKILL");
-      } catch {
-        proc.kill("SIGKILL");
-      }
-    }
+  afterAll(async () => {
     try {
+      await server?.close();
+      if (pids !== "") await expectFakeGhReleased(pids);
+    } finally {
       rmSync(tmp, { recursive: true, force: true });
-    } catch {
-      /* best effort */
     }
   });
 
@@ -273,6 +301,8 @@ describe("review-server async loading (DM-1665)", () => {
     expect(j.ok).toBe(true); // gh failure is caught, not thrown
     expect(j.fixtures).toBe(0); // no run resolved → empty, no crash
     expect(ms).toBeGreaterThan(3500); // it DID invoke the slow gh (unlike `/`)
+    // The fake recorded itself, so the afterAll release check is not vacuous.
+    expect(readFileSync(pids, "utf8").trim()).not.toBe("");
   }, 25_000);
 
   // The harness's POST routes file Hot Sheet tickets and run `gh`; it must bind loopback only
@@ -341,12 +371,12 @@ describe("review-server async loading (DM-1665)", () => {
 // the async fix: concurrent same-shard requests collapse to ONE `gh` download,
 // and the server keeps serving other requests during it.
 describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
-  let proc: ChildProcess;
+  let server: OwnedUiServer | undefined;
   let tmp: string;
   let counter: string;
-  let release: string;
-  const PORT2 = 4397;
-  const B2 = `http://127.0.0.1:${PORT2}`;
+  let release = "";
+  let pids = "";
+  let B2 = "";
 
   beforeAll(async () => {
     tmp = mkdtempSync(join(tmpdir(), "review-dedup-"));
@@ -367,51 +397,31 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
     // into --dir; `run list` returns a matching run. Holding it on a file
     // instead of a fixed sleep makes "the server answers during a download"
     // a fact of the test rather than a race against machine load.
-    const ghDir = join(tmp, "bin");
-    mkdirSync(ghDir);
-    const gh = join(ghDir, "gh");
-    writeFileSync(
-      gh,
-      [
-        "#!/usr/bin/env bash",
-        `if [ "$2" = "list" ]; then echo '[{"databaseId":123,"displayTitle":"Visual tests · unicode · os=all"}]'; exit 0; fi`,
-        'd=""; p=""; while [ $# -gt 0 ]; do case "$1" in --dir) d="$2"; shift 2;; --pattern) p="$2"; shift 2;; *) shift;; esac; done',
-        `echo "$p" >> "${counter}"`,
-        `while [ ! -f "${release}" ]; do sleep 0.05; done`,
-        'mkdir -p "$d/$p"',
-        'for f in fxA fxB fxC; do for k in expected actual diff; do printf PNG > "$d/$p/$f-$k.png"; done; done',
-        "exit 0",
-        "",
-      ].join("\n"),
-    );
-    chmodSync(gh, 0o755);
-
-    proc = spawn("npx", ["tsx", SERVER, "--port", String(PORT2)], {
-      env: {
-        ...process.env,
-        PATH: `${ghDir}:${process.env.PATH}`,
+    const fake = installFakeGh(tmp);
+    pids = fake.pids;
+    ({ server, base: B2 } = await startReviewServer(
+      {
+        FAKE_GH_MODE: "held-download",
+        FAKE_GH_PIDS: pids,
+        FAKE_GH_COUNTER: counter,
+        FAKE_GH_RELEASE: release,
         REVIEW_CI_BASE: ciBase,
         REVIEW_OUTPUT_DIR: join(tmp, "local"),
-        REVIEW_NO_OPEN: "1",
       },
-      stdio: ["ignore", "pipe", "pipe"],
-      detached: true, // own process group — afterAll kills the WHOLE npx→tsx chain
-    });
-    await waitForServer(90_000, B2);
+      fake.binDir,
+      90_000,
+    ));
   }, 120_000);
 
-  afterAll(() => {
-    if (proc?.pid != null) {
-      try {
-        process.kill(-proc.pid, "SIGKILL");
-      } catch {
-        proc.kill("SIGKILL");
-      }
-    }
+  afterAll(async () => {
     try {
+      // Release any download still held by a failed assertion before closing,
+      // so the server's in-flight request and its fake gh both finish.
+      if (release !== "" && existsSync(tmp)) writeFileSync(release, "");
+      await server?.close();
+      if (pids !== "") await expectFakeGhReleased(pids);
+    } finally {
       rmSync(tmp, { recursive: true, force: true });
-    } catch {
-      /* best effort */
     }
   });
 
@@ -453,5 +463,6 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
     expect(served.every((status) => status === 200)).toBe(true); // all 9 images served
     const downloads = readFileSync(counter, "utf8").trim().split("\n").filter(Boolean).length;
     expect(downloads).toBe(1); // deduped: one download, not nine
+    expect(readFileSync(pids, "utf8").trim()).not.toBe("");
   }, 60_000);
 });
