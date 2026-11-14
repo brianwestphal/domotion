@@ -144,22 +144,28 @@ async function rgba(png: Buffer): Promise<Buffer> {
  * taken before isolation, as well as white isolated and retake frames, always
  * in the file's first case (the first page of a freshly launched browser). The
  * page had not presented its first frame, so the isolation assertions had no
- * valid input. Wait, bounded, for the fixture's dark body before isolating;
+ * valid input. A later recurrence presented the body but not yet the canvas.
+ * Wait, bounded, for the fixture's dark body and blue canvas before isolating;
  * a page that never paints fails here with that cause. */
+const CENTER = (50 * 100 + 50) * 4;
+
 async function presentedSource(page: Page): Promise<Buffer> {
   for (let attempt = 0; attempt < 20; attempt++) {
     const png = await page.screenshot();
-    const corner = [...(await rgba(png)).subarray(0, 3)];
+    const pixels = await rgba(png);
+    const corner = [...pixels.subarray(0, 3)];
+    const center = [...pixels.subarray(CENTER, CENTER + 3)];
     // The navy body (under the translucent overlay when it is visible), not
-    // Chromium's default white.
-    if (corner.some((channel) => channel < 128)) return png;
+    // Chromium's default white, and the canvas's blue square: a later
+    // recurrence presented the body while the canvas was still blank.
+    if (corner.some((channel) => channel < 128) && center[0]! < 128 && center[2]! > 200) return png;
     await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   }
   throw new Error("fixture page never presented its first painted frame");
 }
 
 /** DM-DQGEDM: when an isolated `omitBackground` screenshot comes back with an
- * opaque corner (Chromium's default white), keep the PNGs, the root paint
+ * opaque corner (Chromium's default white) or without the canvas, keep the PNGs, the root paint
  * state and a second transparent screenshot one frame later, so a recurrence
  * tells a background-override frame race from an override that never applied.
  * Diagnostic only: the original assertion still fails. */
@@ -236,14 +242,14 @@ describe("visibility-transition paint ownership browser contract (DM-FTRBES)", (
               else expect(during.startTime).toBe(before.startTime);
               isolated = await page.screenshot({ omitBackground: true, timeout: 5_000 });
               const pixels = await rgba(isolated);
-              if (pixels[3] !== 0) {
+              if (pixels[3] !== 0 || pixels[CENTER + 3] !== 255) {
                 await retainIsolationFailure(page, `${role}-${direction}-${paused ? "paused" : "running"}`, {
                   source,
                   isolated,
                 });
               }
               expect([...pixels.subarray(0, 4)]).toEqual([0, 0, 0, 0]);
-              expect([...pixels.subarray((50 * 100 + 50) * 4, (50 * 100 + 50) * 4 + 4)]).toEqual([0, 80, 240, 255]);
+              expect([...pixels.subarray(CENTER, CENTER + 4)]).toEqual([0, 80, 240, 255]);
             } finally {
               await state.evaluate((value) => value.restore());
             }
