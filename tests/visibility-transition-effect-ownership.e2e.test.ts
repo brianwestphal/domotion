@@ -150,18 +150,32 @@ async function rgba(png: Buffer): Promise<Buffer> {
 const CENTER = (50 * 100 + 50) * 4;
 
 async function presentedSource(page: Page): Promise<Buffer> {
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const png = await page.screenshot();
+  // Bounded in time, not frames: 20 animation frames was not enough on CI.
+  const deadline = Date.now() + 5_000;
+  let corner: number[] = [];
+  let center: number[] = [];
+  let last: Buffer | undefined;
+  for (let attempt = 0; attempt === 0 || Date.now() < deadline; attempt++) {
+    const png = (last = await page.screenshot());
     const pixels = await rgba(png);
-    const corner = [...pixels.subarray(0, 3)];
-    const center = [...pixels.subarray(CENTER, CENTER + 3)];
+    corner = [...pixels.subarray(0, 4)];
+    center = [...pixels.subarray(CENTER, CENTER + 4)];
     // The navy body (under the translucent overlay when it is visible), not
     // Chromium's default white, and the canvas's blue square: a later
     // recurrence presented the body while the canvas was still blank.
-    if (corner.some((channel) => channel < 128) && center[0]! < 128 && center[2]! > 200) return png;
+    if (corner.slice(0, 3).some((channel) => channel < 128) && center[0]! < 128 && center[2]! > 200) return png;
     await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   }
-  throw new Error("fixture page never presented its first painted frame");
+  try {
+    const directory = join(process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output", "visibility-isolation");
+    mkdirSync(directory, { recursive: true });
+    if (last != null) writeFileSync(join(directory, `unpresented-${process.pid}-${Date.now()}.png`), last);
+  } catch {
+    console.warn("Unpresented source frame could not be retained.");
+  }
+  throw new Error(
+    `fixture page never presented its first painted frame (last corner ${JSON.stringify(corner)}, center ${JSON.stringify(center)})`,
+  );
 }
 
 /** DM-DQGEDM: when an isolated `omitBackground` screenshot comes back with an
