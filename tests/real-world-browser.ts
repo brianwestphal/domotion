@@ -122,6 +122,8 @@ export async function openRealWorldBrowser(
     scoutEvidence.dispose();
   } catch (error) {
     scoutEvidence.expired();
+    // Bounded and failure-only: where the stuck scout is, before it is killed.
+    await scoutEvidence.sample();
     let killError: unknown;
     const killed = await scout.kill().then(
       () => "resolved" as const,

@@ -4,8 +4,14 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Readable } from "node:stream";
-import { afterEach, expect, it } from "vitest";
-import { captureOwnedBrowserDiagnostics, observeScoutClose } from "./real-world-browser-diagnostics.js";
+import { afterEach, expect, it, vi } from "vitest";
+import {
+  captureOwnedBrowserDiagnostics,
+  type NativeSampler,
+  nativeSampler,
+  observeScoutClose,
+  sampleCallGraph,
+} from "./real-world-browser-diagnostics.js";
 
 const directories: string[] = [];
 afterEach(() => {
@@ -200,7 +206,7 @@ it("retains filtered output, close request, deadline, exit and post-kill outcome
   const { log, metadata } = scoutMetadata(directory);
   expect(log).toBe("scout ready\nstill closing\n");
   expect(metadata).toMatchObject({
-    schema: "domotion-scout-close-v2",
+    schema: "domotion-scout-close-v3",
     sourceCommit: source,
     diagnosticCase: "suite > stalled case",
     processId: child.pid,
@@ -273,4 +279,123 @@ it("reports evidence storage failure to the caller without retaining listeners",
   await exited(child);
   await expect(evidence.fail("resolved")).rejects.toThrow();
   expect(child.listenerCount("close")).toBe(0);
+});
+
+// DM-Q1CW1H: a bounded native sample of a stalled scout, taken before the kill.
+const SAMPLE_REPORT = [
+  "Analysis of sampling Chromium (pid 42) every 1 millisecond",
+  "Process:         Chromium [42]",
+  "Path:            /Users/someone/Library/Caches/ms-playwright/chromium/Chromium.app/Contents/MacOS/Chromium",
+  "Parent Process:  node [41]",
+  "",
+  "Call graph:",
+  "    883 Thread_1   DispatchQueue_1: com.apple.main-thread  (serial)",
+  "      883 ChromeMain  (in Chromium Framework) + 12  [0x1]",
+  "        883 base::WaitableEvent::Wait  /private/var/folders/xy/T/build/waitable_event.cc:42  [0x2]",
+  "      SECRET_TOKEN=ENV_SECRET",
+  "",
+  "Sort by top of stack, same collapsed (when >= 5):",
+  "        __psynch_cvwait  (in libsystem_kernel.dylib)        883",
+  "",
+  "Binary Images:",
+  "       0x1 -        0x2 +Chromium (1) <UUID> /Users/someone/Chromium.app/Contents/MacOS/Chromium",
+  "",
+].join("\n");
+
+const sampledScout = (directory: string) => {
+  const files = readdirSync(directory).sort();
+  const metadataFile = files.find((file) => file.endsWith(".log.json"))!;
+  const sampleFile = files.find((file) => file.endsWith(".sample.txt"));
+  return {
+    files,
+    metadata: JSON.parse(readFileSync(join(directory, metadataFile), "utf8")),
+    sample: sampleFile == null ? undefined : readFileSync(join(directory, sampleFile), "utf8"),
+  };
+};
+
+async function stalledScoutWith(sampler: NativeSampler, sampleTimeoutMs = 1_000) {
+  const directory = temporary();
+  const child = scoutChild(STALLED);
+  const evidence = observeScoutClose(child, directory, source, "case", undefined, sampler, sampleTimeoutMs);
+  evidence.requested();
+  evidence.expired();
+  const started = Date.now();
+  await evidence.sample();
+  const sampleMs = Date.now() - started;
+  child.kill("SIGKILL");
+  await exited(child);
+  await evidence.fail("resolved");
+  return { directory, child, sampleMs, ...sampledScout(directory) };
+}
+
+it("keeps only the scrubbed call graph of a sample report", () => {
+  const graph = sampleCallGraph(SAMPLE_REPORT);
+  expect(graph.startsWith("Call graph:\n")).toBe(true);
+  expect(graph).toContain("base::WaitableEvent::Wait  <path>  [0x2]");
+  expect(graph).toContain("__psynch_cvwait");
+  expect(graph).not.toMatch(/Binary Images|Parent Process|Path:|someone|\/private/);
+  expect(sampleCallGraph("no graph here")).toBe("");
+});
+
+it("retains a filtered, bounded call graph from the sampler before the kill", async () => {
+  const pids: number[] = [];
+  const { child, files, metadata, sample } = await stalledScoutWith(async (pid) => {
+    pids.push(pid);
+    return SAMPLE_REPORT;
+  });
+  expect(pids).toEqual([child.pid]);
+  expect(files).toHaveLength(3);
+  expect(sample).toContain("ChromeMain  (in Chromium Framework)");
+  expect(sample).not.toMatch(/SECRET|Binary Images|someone/);
+  expect(metadata.schema).toBe("domotion-scout-close-v3");
+  expect(metadata.sample).toMatchObject({
+    status: "captured",
+    sensitiveLines: 1,
+    truncated: false,
+    file: expect.stringMatching(/^scout-.*\.log\.sample\.txt$/),
+  });
+  expect(metadata.sample.retainedBytes).toBe(Buffer.byteLength(sample!));
+});
+
+it("records a sampler that outlives its bound as a timeout without delaying the kill further", async () => {
+  const { sampleMs, metadata, sample } = await stalledScoutWith(() => new Promise<string>(() => undefined), 200);
+  expect(sampleMs).toBeLessThan(1_500);
+  expect(metadata.sample).toMatchObject({ status: "timeout", timeoutMs: 200, file: null, retainedBytes: 0 });
+  expect(sample).toBeUndefined();
+});
+
+it("records sampler failure and an unsupported platform without throwing", async () => {
+  const failed = await stalledScoutWith(() => Promise.reject(new Error("controlled sampler failure /Users/x")));
+  expect(failed.metadata.sample).toMatchObject({ status: "failed", file: null });
+  expect(JSON.stringify(failed.metadata)).not.toContain("controlled sampler failure");
+  const unsupported = await stalledScoutWith(() => Promise.resolve(null));
+  expect(unsupported.metadata.sample).toMatchObject({ status: "unsupported", file: null });
+});
+
+it("does not sample a scout that closed in time, nor record one never asked for", async () => {
+  const directory = temporary();
+  const sampler = vi.fn<NativeSampler>(() => Promise.resolve(SAMPLE_REPORT));
+  const child = scoutChild("process.stderr.write('bye\\n')");
+  const evidence = observeScoutClose(child, directory, source, "case", undefined, sampler);
+  evidence.requested();
+  await exited(child);
+  evidence.dispose();
+  await evidence.sample();
+  expect(sampler).not.toHaveBeenCalled();
+  expect(readdirSync(directory)).toEqual([]);
+
+  const stalled = scoutChild(STALLED);
+  const unsampled = observeScoutClose(stalled, directory, source, "case", undefined, sampler);
+  stalled.kill("SIGKILL");
+  await exited(stalled);
+  await unsampled.fail("resolved");
+  expect(sampledScout(directory).metadata.sample).toEqual({ status: "not-requested" });
+});
+
+it.runIf(process.platform === "darwin")("samples a real stalled process with macOS sample", async () => {
+  const { metadata, sample } = await stalledScoutWith(nativeSampler, 10_000);
+  expect(metadata.sample.status).toBe("captured");
+  expect(sample).toMatch(/^Call graph:\n/);
+  expect(sample).toMatch(/Thread_\d+/);
+  expect(sample).not.toMatch(/Binary Images|\/Users\//);
 });

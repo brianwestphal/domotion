@@ -18,7 +18,9 @@ it("retains diagnostics from the owned default headless browser, independently o
     await owner.close();
     const files = await readdir(directory);
     // DM-3NDNF2: the real default scout closed in time, so its failure-only
-    // observer must have disposed without any disk output.
+    // observer must have disposed without any disk output, including the
+    // DM-Q1CW1H native sample (`scout-*.sample.txt`), which only a stalled
+    // close takes.
     expect(files.filter((file) => file.startsWith("scout-"))).toEqual([]);
     expect(files.filter((file) => file.endsWith(".log"))).toHaveLength(1);
     const metadataPath = files.find((file) => file.endsWith(".log.json"))!;

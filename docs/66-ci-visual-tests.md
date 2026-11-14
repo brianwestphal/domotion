@@ -26,6 +26,7 @@ tickets:
     "DM-34WC46",
     "DM-J5HGKV",
     "DM-3NDNF2",
+    "DM-Q1CW1H",
     "DM-MBRZBH",
     "DM-4GF2A0",
     "DM-6TJDZ5",
@@ -321,9 +322,21 @@ credential line counted but omitted. Its metadata records the case label,
 PIDs, validated source commit, millisecond offsets (from observer attachment)
 for the close request, the deadline (stamped before the fallback kill), exit,
 process close, each stream end and kill settlement, status/signal and whether
-the kill resolved (schema `domotion-scout-close-v2`; v1 stamped its deadline
-only after the kill settled). A failed evidence write never
-replaces the original error. Output emitted before attachment is not observed,
+the kill resolved (schema `domotion-scout-close-v3`; v1 stamped its deadline
+only after the kill settled). Because the stalled scout's output is silent,
+DM-Q1CW1H also takes one native sample of the stuck process after the deadline
+and before the fallback kill: on macOS `sample <pid> 1 -mayDie` into a private
+temporary file, bounded at 5000 ms (the sampler is SIGKILLed and the wait
+abandoned at that bound, so the kill is never delayed longer); other platforms
+record `unsupported` without spawning anything. Only the report's call-graph
+sections are kept — the header (executable path, parent process, dates) and the
+binary-image table are dropped, remaining absolute paths become `<path>`, and the
+text passes the same line filter and a 64 KiB bound — as
+`scout-*.log.sample.txt`. The metadata's `sample` object records
+`captured`/`timeout`/`failed`/`unsupported` (or `not-requested`), duration,
+filtered-line count and byte totals; a sampler failure is recorded, never
+thrown. The sample covers the browser's main process only. A failed evidence
+write never replaces the original error. Output emitted before attachment is not observed,
 and a missing exit or close offset means "not observed within the bound", not
 proof that the process never exited.
 Worker startup failure JSON under `worker-bootstrap/` records the corresponding

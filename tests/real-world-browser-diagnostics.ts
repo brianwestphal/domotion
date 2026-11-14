@@ -1,7 +1,9 @@
-import type { ChildProcess } from "node:child_process";
+import { type ChildProcess, execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, join, resolve } from "node:path";
 import { createBoundedCapture, createNativeLogFilter } from "../scripts/e2e-native-logs.mjs";
 
 export const OWNED_BROWSER_LOG_MAX_BYTES = 256 * 1024;
@@ -135,6 +137,54 @@ export function captureOwnedBrowserDiagnostics(
 }
 
 export const SCOUT_CLOSE_LOG_MAX_BYTES = 64 * 1024;
+export const SCOUT_SAMPLE_MAX_BYTES = 64 * 1024;
+/** Upper bound on how long a stalled-close sample may delay the fallback kill. */
+export const SCOUT_SAMPLE_TIMEOUT_MS = 5_000;
+
+/** Returns a native sampler report for `pid`, or `null` when the platform has
+ * no sampler. Must give up within `timeoutMs`. */
+export type NativeSampler = (pid: number, timeoutMs: number) => Promise<string | null>;
+
+/** macOS `sample <pid> 1 -mayDie`, written to a private temporary file. */
+export const nativeSampler: NativeSampler = async (pid, timeoutMs) => {
+  if (process.platform !== "darwin") return null;
+  const directory = await mkdtemp(join(tmpdir(), "dm-scout-sample-"));
+  try {
+    const file = join(directory, "sample.txt");
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        "/usr/bin/sample",
+        [String(pid), "1", "-mayDie", "-file", file],
+        { timeout: timeoutMs, killSignal: "SIGKILL" },
+        (error) => (error == null ? resolve() : reject(error)),
+      );
+    });
+    return await readFile(file, "utf8");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+};
+
+/** The call-graph sections of a `sample` report: everything from `Call graph:`
+ * up to `Binary Images:`. The header (executable path, parent process, dates)
+ * and the binary-image table are dropped, and any remaining absolute path is
+ * replaced with `<path>`. */
+export function sampleCallGraph(report: string): string {
+  const start = report.indexOf("Call graph:");
+  if (start === -1) return "";
+  const end = report.indexOf("\nBinary Images:", start);
+  const section = report.slice(start, end === -1 ? undefined : end + 1);
+  return section.replace(
+    /(?:~|\/(?:Users|home|private|var|tmp|Volumes|opt|Applications|System|Library))\/[^\s)\]>]*/g,
+    "<path>",
+  );
+}
+
+type ScoutSample = {
+  status: "captured" | "unsupported" | "failed" | "timeout";
+  durationMs: number;
+  text: string;
+};
 
 /** Failure-only evidence for Playwright's short-lived launch scout. Observers
  * attach to the public BrowserServer.process() before the unchanged close
@@ -148,9 +198,12 @@ export function observeScoutClose(
   sourceCommit: string | undefined,
   diagnosticCase?: string,
   maxBytes = SCOUT_CLOSE_LOG_MAX_BYTES,
+  sampler: NativeSampler = nativeSampler,
+  sampleTimeoutMs = SCOUT_SAMPLE_TIMEOUT_MS,
 ): {
   requested(): void;
   expired(): void;
+  sample(): Promise<void>;
   dispose(): void;
   fail(killOutcome: "resolved" | "rejected"): Promise<void>;
 } {
@@ -173,6 +226,8 @@ export function observeScoutClose(
   let closeAtMs: number | null = null;
   let disposed = false;
   let failure: Promise<void> | undefined;
+  let sampling: Promise<void> | undefined;
+  let sampled: ScoutSample | undefined;
   let notifyClose: (() => void) | undefined;
   const data = (chunk: Buffer): void => filter.append(chunk);
   const endHandlers = streams.map(([name]) => () => {
@@ -195,7 +250,14 @@ export function observeScoutClose(
     child.off("exit", exit);
     child.off("close", close);
   };
-  if (directory == null) return { requested() {}, expired() {}, dispose() {}, fail: () => Promise.resolve() };
+  if (directory == null)
+    return {
+      requested() {},
+      expired() {},
+      sample: () => Promise.resolve(),
+      dispose() {},
+      fail: () => Promise.resolve(),
+    };
   streams.forEach(([, stream], index) => {
     stream?.on("data", data);
     stream?.once("end", endHandlers[index]!);
@@ -211,6 +273,30 @@ export function observeScoutClose(
     expired() {
       deadlineAtMs ??= at();
     },
+    // Called after `expired()` and before the fallback kill. Resolves within
+    // `sampleTimeoutMs` (plus bookkeeping) and never rejects: a sampler
+    // failure or timeout is recorded, so it can neither replace the original
+    // close error nor hold the kill past that bound.
+    sample: () =>
+      disposed || child.pid == null
+        ? Promise.resolve()
+        : (sampling ??= (async () => {
+            const startedAt = Date.now();
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const outcome = await Promise.race([
+              sampler(child.pid!, sampleTimeoutMs).then(
+                (report) =>
+                  report == null
+                    ? ({ status: "unsupported", text: "" } as const)
+                    : ({ status: "captured", text: sampleCallGraph(report) } as const),
+                () => ({ status: "failed", text: "" }) as const,
+              ),
+              new Promise<{ status: "timeout"; text: string }>((resolve) => {
+                timer = setTimeout(() => resolve({ status: "timeout", text: "" }), sampleTimeoutMs);
+              }),
+            ]).finally(() => clearTimeout(timer));
+            sampled = { ...outcome, durationMs: Date.now() - startedAt };
+          })()),
     dispose,
     // A healthy close disposes first; only an undisposed observer may write.
     fail: (killOutcome) =>
@@ -218,6 +304,7 @@ export function observeScoutClose(
         ? Promise.resolve()
         : (failure ??= (async () => {
             const killSettledAtMs = at();
+            await sampling;
             if (closeAtMs == null) {
               let timer: ReturnType<typeof setTimeout> | undefined;
               try {
@@ -238,11 +325,35 @@ export function observeScoutClose(
               `scout-${process.pid}-${child.pid ?? "unspawned"}-${randomUUID()}.log`,
             );
             writeFileSync(logPath, retained.data, { flag: "wx", mode: 0o600 });
+            // The sample's call graph passes the same line filter and byte
+            // bound as the scout's own output.
+            let sample: Record<string, unknown> = { status: "not-requested" };
+            if (sampled != null) {
+              const sampleCapture = createBoundedCapture(SCOUT_SAMPLE_MAX_BYTES);
+              const sampleFilter = createNativeLogFilter((chunk) => sampleCapture.append(chunk));
+              sampleFilter.append(Buffer.from(sampled.text, "utf8"));
+              const sampleCounts = sampleFilter.finish();
+              const sampleRetained = sampleCapture.finish();
+              const samplePath = sampleRetained.retainedBytes > 0 ? `${logPath}.sample.txt` : null;
+              if (samplePath != null) writeFileSync(samplePath, sampleRetained.data, { flag: "wx", mode: 0o600 });
+              sample = {
+                status: sampled.status,
+                tool: process.platform === "darwin" ? "sample <pid> 1 -mayDie" : null,
+                durationMs: sampled.durationMs,
+                timeoutMs: sampleTimeoutMs,
+                file: samplePath == null ? null : basename(samplePath),
+                sensitiveLines: sampleCounts.sensitiveLines,
+                maxBytes: SCOUT_SAMPLE_MAX_BYTES,
+                retainedBytes: sampleRetained.retainedBytes,
+                omittedBytes: sampleRetained.omittedBytes,
+                truncated: sampleRetained.truncated,
+              };
+            }
             writeFileSync(
               `${logPath}.json`,
               JSON.stringify(
                 {
-                  schema: "domotion-scout-close-v2",
+                  schema: "domotion-scout-close-v3",
                   writtenAt: new Date().toISOString(),
                   sourceCommit: /^[0-9a-f]{40}$/i.test(sourceCommit ?? "") ? sourceCommit : null,
                   diagnosticCase: diagnosticCase?.slice(0, 512) ?? null,
@@ -274,6 +385,7 @@ export function observeScoutClose(
                   omittedBytes: retained.omittedBytes,
                   truncated: retained.truncated,
                   filteredStreamSha256: retained.sha256,
+                  sample,
                 },
                 null,
                 2,
