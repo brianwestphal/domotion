@@ -392,10 +392,15 @@ it("does not sample a scout that closed in time, nor record one never asked for"
   expect(sampledScout(directory).metadata.sample).toEqual({ status: "not-requested" });
 });
 
-it.runIf(process.platform === "darwin")("samples a real stalled process with macOS sample", async () => {
-  const { metadata, sample } = await stalledScoutWith(nativeSampler, 10_000);
-  expect(metadata.sample.status).toBe("captured");
-  expect(sample).toMatch(/^Call graph:\n/);
-  expect(sample).toMatch(/Thread_\d+/);
-  expect(sample).not.toMatch(/Binary Images|\/Users\//);
-});
+it.runIf(process.platform === "darwin")(
+  "samples a real stalled process with macOS sample",
+  async () => {
+    const { metadata, sample } = await stalledScoutWith(nativeSampler, 10_000);
+    expect(metadata.sample.status).toBe("captured");
+    expect(sample).toMatch(/^Call graph:\n/);
+    expect(sample).toMatch(/Thread_\d+/);
+    expect(sample).not.toMatch(/Binary Images|\/Users\//);
+    // `sample` itself takes seconds on a loaded CI runner; its own bound is 10 s.
+  },
+  30_000,
+);
