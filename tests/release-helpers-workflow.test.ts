@@ -1,10 +1,10 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 
 const WORKFLOW = resolve(__dirname, "..", ".github", "workflows", "release-helpers.yml");
 const source = readFileSync(WORKFLOW, "utf8");
@@ -43,6 +43,25 @@ const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
+// DM-GBCJV8: each fixture used to `git init`/`add`/`commit`/`rev-parse` its own
+// repository, so one test made ~40 serial spawns and timed out at 30 s under a
+// loaded full unit run. Commit each package version once and copy the checkout.
+const templates = new Map<string, { cwd: string; commit: string }>();
+const templateRoot = mkdtempSync(join(tmpdir(), "domotion-helper-release-template-"));
+afterAll(() => rmSync(templateRoot, { recursive: true, force: true }));
+function template(version: string): { cwd: string; commit: string } {
+  const cached = templates.get(version);
+  if (cached != null) return cached;
+  const cwd = join(templateRoot, String(templates.size));
+  mkdirSync(cwd);
+  writeFileSync(join(cwd, "package.json"), JSON.stringify({ version }));
+  git(cwd, "init", "-q", "--template=");
+  git(cwd, "add", "package.json");
+  git(cwd, "commit", "-qm", "source");
+  const created = { cwd, commit: git(cwd, "rev-parse", "HEAD") };
+  templates.set(version, created);
+  return created;
+}
 
 function script(job: string, name: string): string {
   const run = workflow.jobs[job].steps.find((step) => step.name === name)?.run;
@@ -73,14 +92,11 @@ function fixture(version = "0.35.0") {
   const root = mkdtempSync(join(tmpdir(), "domotion-helper-release-"));
   roots.push(root);
   const cwd = join(root, "source");
-  mkdirSync(cwd);
-  writeFileSync(join(cwd, "package.json"), JSON.stringify({ version }));
-  git(cwd, "init", "-q");
-  git(cwd, "add", "package.json");
-  git(cwd, "commit", "-qm", "source");
+  const seed = template(version);
+  cpSync(seed.cwd, cwd, { recursive: true });
   const provenance = join(root, "domotion-helper-provenance.json");
   const output = join(root, "output");
-  const commit = git(cwd, "rev-parse", "HEAD");
+  const commit = seed.commit;
   const env = {
     ...process.env,
     TAG: "v0.35.0",
@@ -98,13 +114,19 @@ function fixture(version = "0.35.0") {
 function execute(code: string, cwd: string, env: NodeJS.ProcessEnv) {
   return spawnSync(process.execPath, ["-e", code], { cwd, env, encoding: "utf8" });
 }
+let resolvedProvenance: Buffer | undefined;
 function stagedFixture() {
   const f = fixture();
-  const resolved = execute(resolveScript, f.cwd, f.env);
-  expect(resolved.status, resolved.stderr).toBe(0);
+  // Every 0.35.0 fixture shares one template commit, so one resolution's
+  // provenance is valid for all of them (DM-GBCJV8).
+  if (resolvedProvenance == null) {
+    const resolved = execute(resolveScript, f.cwd, f.env);
+    expect(resolved.status, resolved.stderr).toBe(0);
+    resolvedProvenance = readFileSync(f.provenance);
+  }
   const dir = join(f.root, "assets");
   mkdirSync(dir);
-  copyFileSync(f.provenance, join(dir, "domotion-helper-provenance.json"));
+  writeFileSync(join(dir, "domotion-helper-provenance.json"), resolvedProvenance);
   for (const [index, asset] of assets.entries()) {
     const binary = Buffer.from(`native helper ${asset}`);
     writeFileSync(join(dir, asset), binary);
