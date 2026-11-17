@@ -8,6 +8,17 @@ import { privateCaptureKey } from "./private-key.js";
 const worlds = new WeakMap<Frame, string>();
 export type ExternalSvgResponse = { text: string; hrefs: string[] } | { failure: string };
 
+/**
+ * Bound for one cleanup confirmation: token removal, an owned abort and its
+ * settled reply, and session detach. Each is a full Node -> Playwright -> CDP
+ * -> renderer round trip, so the bound must exceed scheduling and GC jitter on
+ * a loaded host. At 100 ms, token removal timed out on a hosted macOS runner
+ * right after a successful setup and failed the whole transport (DM-WMQ792).
+ * It stays well under the five-second request deadline, so a hung renderer
+ * still fails cleanup promptly.
+ */
+const CONFIRMATION_TIMEOUT_MS = 1000;
+
 async function within<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -62,14 +73,14 @@ export async function openExternalSvgTransport(
         returnByValue: true,
         silent: true,
       }),
-      100,
+      CONFIRMATION_TIMEOUT_MS,
     );
-    await within(request.done, 100);
+    await within(request.done, CONFIRMATION_TIMEOUT_MS);
     if (!request.confirmed) throw new Error("external SVG owned request cancellation was not confirmed");
   };
   const detach = async (owned: CDPSession | undefined = session): Promise<void> => {
     try {
-      if (owned != null) await within(owned.detach(), 100);
+      if (owned != null) await within(owned.detach(), CONFIRMATION_TIMEOUT_MS);
     } catch (error) {
       if (!frame.isDetached() && !frame.page().isClosed())
         throw new Error("external SVG session detach unconfirmed", { cause: error });
@@ -147,7 +158,7 @@ export async function openExternalSvgTransport(
           },
           token,
         ),
-        100,
+        CONFIRMATION_TIMEOUT_MS,
       );
       if (!removed) throw new Error("external SVG source token removal unconfirmed");
     } catch (error) {

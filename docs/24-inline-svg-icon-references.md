@@ -85,7 +85,10 @@ a fresh acquisition can bind to the new stable document.
 
 Request timeout/disposal aborts only its private controller. Temporary frame tokens
 and confirmed-complete request controllers are removed, CDP sessions detach (including late setup
-results), and concurrent loads share one session. A refused/unconfirmed cancellation
+results), and concurrent loads share one session. Each cleanup confirmation (token
+removal, owned abort, detach) is bounded at one second: a full protocol round trip
+exceeded the earlier 100 ms bound on a loaded hosted runner (DM-WMQ792). A
+refused/unconfirmed cancellation
 remains a cleanup error on repeated disposal and retains its controller rather than
 silently declaring success. All frame work settles before a
 failed prepass disposes its registries. The isolated realm itself is reused until

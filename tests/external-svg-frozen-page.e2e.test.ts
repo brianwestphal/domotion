@@ -270,6 +270,34 @@ describe("external SVG transport under frozen author globals (DM-4H5MC1)", () =>
     }
   });
 
+  it("tolerates a slow token-removal round trip after setup", async () => {
+    // DM-WMQ792: a hosted macOS runner took longer than the old 100 ms bound
+    // to confirm token removal, failing the transport after a good setup.
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      await page.goto(origin);
+      const frame = page.mainFrame();
+      const evaluate = frame.evaluate.bind(frame);
+      let calls = 0;
+      const slow = vi.spyOn(frame, "evaluate").mockImplementation((async (expression: string) => {
+        // The second main-world evaluate removes the identity token.
+        if (++calls === 2) await new Promise((resolve) => setTimeout(resolve, 250));
+        return evaluate(expression);
+      }) as typeof frame.evaluate);
+      const transport = await openExternalSvgTransport(frame, 5000);
+      slow.mockRestore();
+      expect(calls).toBe(2);
+      try {
+        expect(await transport.fetch(`${origin}/redirect-ok.svg`)).toEqual({ text: sprite("blue"), hrefs: [] });
+      } finally {
+        await transport.dispose();
+      }
+    } finally {
+      await context.close();
+    }
+  });
+
   it("bounds a stalled response body with Node time and aborts only the owned fetch", async () => {
     const context = await browser.newContext();
     try {
