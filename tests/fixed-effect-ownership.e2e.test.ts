@@ -48,6 +48,29 @@ const cases = [
     name: "overflow-only scroller is escaped",
     body: `<div style="${BOX};overflow:hidden"><div style="${FIXED}"></div></div>`,
   },
+  // DM-X4W03B: the clipping context's overflow clip moves inside nested
+  // opacity / z-index contexts, so the fixed box still escapes it. Each case
+  // kept the clip before (max channel difference 49-200).
+  {
+    name: "escapes a clip outside a nested opacity context",
+    body: `<div style="${BOX};opacity:.5;overflow:hidden"><div style="opacity:.5"><div style="${FIXED}"></div></div></div>`,
+  },
+  {
+    name: "escapes a clip outside two nested opacity contexts",
+    body: `<div style="${BOX};opacity:.5;overflow:hidden"><div style="opacity:.8"><div style="opacity:.7"><div style="${FIXED}"></div></div></div></div>`,
+  },
+  {
+    name: "escapes a clip re-applied around a hoisted z-index context",
+    body: `<div style="${BOX};overflow:hidden;background:rgb(0,160,0)"><div style="position:relative;z-index:1"><div style="${FIXED}"></div></div></div>`,
+  },
+  {
+    name: "nested context siblings stay clipped",
+    body: `<div style="${BOX};opacity:.5;overflow:hidden"><div style="opacity:.5"><div style="width:90px;height:10px;background:red"></div><div style="${FIXED}"></div><div style="width:90px;height:10px;background:lime"></div></div></div>`,
+  },
+  {
+    name: "escapes both the nested context's clip and its ancestor's",
+    body: `<div style="${BOX};opacity:.5;overflow:hidden"><div style="opacity:.5;overflow:hidden;width:30px;height:30px"><div style="width:90px;height:10px;background:red"></div><div style="${FIXED}"></div></div></div>`,
+  },
 ];
 
 it.each(cases)("matches native paint: $name", async ({ body }) => {

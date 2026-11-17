@@ -2972,6 +2972,10 @@ function paintWithAncestorWrappers(
     }
   }
   let wrappers = 0;
+  // DM-X4W03B: overflow clips opened since the last other wrapper group. Only
+  // that innermost run is registered, so a fixed descendant of the hoisted
+  // context can close exactly those groups to escape them.
+  let innermostClips: Array<{ owner: CapturedElement; id: string; indent: string }> = [];
   for (let index = 0; index < ancestors.length; index++) {
     const ancestor = ancestors[index];
     const attrs = [
@@ -2981,12 +2985,14 @@ function paintWithAncestorWrappers(
     if (attrs.length > 0) {
       svgParts.push(`${indent}<g ${attrs.join(" ")}>`);
       wrappers++;
+      innermostClips = [];
     }
     // Separate animation owners: combining cull/animation classes on one
     // element lets their animation shorthands overwrite one another.
     if (ancestor.animId != null && ancestor.animId !== "") {
       svgParts.push(`${indent}<g class="anim-${esc(ancestor.animId)}">`);
       wrappers++;
+      innermostClips = [];
     }
     // A legacy CSS clip applies to every descendant, fixed ones included
     // (Blink UpdateOutOfFlowContext's CssClipFixedPosition, DM-1C56DE).
@@ -2994,6 +3000,7 @@ function paintWithAncestorWrappers(
     if (legacyClip != null) {
       svgParts.push(`${indent}<g clip-path="url(#${legacyClip})">`);
       wrappers++;
+      innermostClips = [];
     }
     // Absolute/fixed descendants escape an overflow owner when their actual
     // containing block is outside that owner (CSS2.1 11.1.1).
@@ -3006,10 +3013,16 @@ function paintWithAncestorWrappers(
       if (clip != null) {
         svgParts.push(`${indent}<g clip-path="url(#${clip})">`);
         wrappers++;
+        innermostClips.push({ owner: ancestor, id: clip, indent });
       }
     }
   }
-  paint();
+  state.openChildClips.push(...innermostClips);
+  try {
+    paint();
+  } finally {
+    state.openChildClips.length -= innermostClips.length;
+  }
   while (wrappers-- > 0) svgParts.push(`${indent}</g>`);
 }
 
@@ -3681,7 +3694,33 @@ function escapedChildClips(
   return run;
 }
 
-/** Whether `el`'s own stacking-context plan paints a fixed box that escapes its overflow clip. */
+/**
+ * Whether a nested stacking context's own groups commute with an ancestor's
+ * overflow clip, so that clip can move inside them (DM-X4W03B). A clip
+ * distributes over opacity and isolation: clipping the group's content and
+ * clipping its composite give the same pixels. Blend, mask and clip-path do
+ * not, and transform or filter make the context a fixed containing block.
+ */
+function clipCommutesWithContext(el: CapturedElement): boolean {
+  const s = el.styles;
+  const set = (value: string | undefined): boolean => value != null && value !== "" && value !== "none";
+  return (
+    !isFixedContainingBlock(el) &&
+    (s.mixBlendMode == null || s.mixBlendMode === "" || s.mixBlendMode === "normal") &&
+    !set(s.clipPath) &&
+    !set(s.maskImage) &&
+    !set(s.backdropFilter) &&
+    el.legacyClipRect == null &&
+    // An animation class may drive transform or other non-commuting effects.
+    (el.animId == null || el.animId === "")
+  );
+}
+
+/**
+ * Whether `el` paints a fixed box that escapes its overflow clip: directly in
+ * its own stacking-context plan, or inside nested contexts whose groups the
+ * clip can move into (`clipCommutesWithContext`).
+ */
 function paintsEscapingFixedDescendant(el: CapturedElement): boolean {
   if (isFixedContainingBlock(el)) return false;
   const visit = (parent: CapturedElement): boolean =>
@@ -3689,10 +3728,39 @@ function paintsEscapingFixedDescendant(el: CapturedElement): boolean {
       (child) =>
         child.styles.position === "fixed" ||
         (!isFixedContainingBlock(child) &&
-          !(establishesStackingContext(child, parent.styles.display) && !isOverflowOnlySC(child)) &&
+          (!(establishesStackingContext(child, parent.styles.display) && !isOverflowOnlySC(child)) ||
+            clipCommutesWithContext(child)) &&
           visit(child)),
     );
   return visit(el);
+}
+
+/**
+ * DM-X4W03B: the open overflow clips a nested stacking context moves inside
+ * its own groups. A fixed box can close only innermost clips; when it paints
+ * inside a context opened within an ancestor's clip, that context reopens the
+ * clip within its groups so the box can still escape it. Returns the innermost
+ * run of open clips owned by ancestors that are not fixed containing blocks.
+ */
+function clipsMovedInsideContext(
+  state: RenderState,
+  el: CapturedElement,
+  parentDisplay: string | undefined,
+): Array<{ owner: CapturedElement; id: string; indent: string }> {
+  if (state.openChildClips.length === 0) return [];
+  if (!establishesStackingContext(el, parentDisplay) || isOverflowOnlySC(el)) return [];
+  if (!clipCommutesWithContext(el) || !paintsEscapingFixedDescendant(el)) return [];
+  const escapable = new Set<CapturedElement>();
+  let ancestor = state.parentElements.get(el);
+  while (ancestor != null && !isFixedContainingBlock(ancestor)) {
+    escapable.add(ancestor);
+    ancestor = state.parentElements.get(ancestor);
+  }
+  const run: Array<{ owner: CapturedElement; id: string; indent: string }> = [];
+  for (let i = state.openChildClips.length - 1; i >= 0 && escapable.has(state.openChildClips[i].owner); i--) {
+    run.push(state.openChildClips[i]);
+  }
+  return run;
 }
 
 export interface ChildOverflowClipGeometry {
@@ -4659,7 +4727,14 @@ function renderElement(
   // Blink's general Effect/blend node is outside its Filter node. Keep a
   // localized reference filter inside the blending group so it samples the
   // source backdrop rather than creating an isolated outer source.
-  const wrapperStart = openElementWrappers(svgParts, indent, el, filterCss, wrappers);
+  // DM-X4W03B: close ancestor clips this context moves inside its groups.
+  const movedClips = clipsMovedInsideContext(state, el, parentDisplayForEl);
+  const movedClipsStart = svgParts.length;
+  for (const clip of movedClips) {
+    state.openChildClips.pop();
+    svgParts.push(`${clip.indent}</g>`);
+  }
+  openElementWrappers(svgParts, indent, el, filterCss, wrappers);
   // Everything painted until `closeWrappers()` (this element's own text AND its
   // whole subtree) is transformed content, where the baseline pixel-grid snap
   // must not apply — Skia rounds glyph y BEFORE the transform (in the local /
@@ -4699,6 +4774,11 @@ function renderElement(
   if (innerOverflowClipId != null) {
     svgParts.push(`${indent}<g clip-path="url(#${innerOverflowClipId})">`);
     state.openChildClips.push({ owner: el, id: innerOverflowClipId, indent });
+  }
+  const movedInside = [...movedClips].reverse().map((clip) => ({ ...clip, indent }));
+  for (const clip of movedInside) {
+    svgParts.push(`${indent}<g clip-path="url(#${clip.id})">`);
+    state.openChildClips.push(clip);
   }
   const wrapperContentStart = svgParts.length;
 
@@ -4740,11 +4820,17 @@ function renderElement(
    */
   const closeWrappers = (): void => {
     releaseBaselineSnapSuppression?.();
+    for (let i = 0; i < movedInside.length; i++) state.openChildClips.pop();
     if (innerOverflowClipId != null) state.openChildClips.pop();
+    const reopenMovedClips = (): void => {
+      for (const clip of [...movedClips].reverse()) state.openChildClips.push(clip);
+    };
     if (phase !== "all" && svgParts.length === wrapperContentStart) {
-      svgParts.length = wrapperStart;
+      svgParts.length = movedClipsStart;
+      reopenMovedClips();
       return;
     }
+    for (let i = 0; i < movedInside.length; i++) svgParts.push(`${indent}</g>`);
     if (innerOverflowClipId != null) svgParts.push(`${indent}</g>`);
     if (legacyClipId != null) svgParts.push(`${indent}</g>`);
     if (animClass !== "") svgParts.push(`${indent}</g>`);
@@ -4752,6 +4838,8 @@ function renderElement(
     if (localizeReferenceFilter) svgParts.push(`${indent}</g>`);
     if (needsFilterOuter) svgParts.push(`${indent}</g>`);
     if (outerBlendStyle !== "") svgParts.push(`${indent}</g>`);
+    for (const clip of [...movedClips].reverse()) svgParts.push(`${clip.indent}<g clip-path="url(#${clip.id})">`);
+    reopenMovedClips();
   };
 
   const finish = (): void => {

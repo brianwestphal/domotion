@@ -53,10 +53,20 @@ innermost open clip groups around the box. When a fixed box in the context's
 plan escapes it, the context's border-box overflow clip moves to its own
 innermost group so it can be closed the same way, while the context's own text
 stays clipped. The cursor hit-test (`src/render/paint-order.ts`) mirrors this:
-a fixed box keeps only its containing block's clips. One limitation remains
-(DM-X4W03B): a clip cannot be escaped when a nested stacking context's effect
-group is open inside it. `tests/fixed-effect-ownership.e2e.test.ts` holds the
-native pixel controls.
+a fixed box keeps only its containing block's clips.
+
+A nested stacking context that opens its own group inside such a clip would
+leave the clip non-innermost. When that context paints an escaping fixed box
+and its group commutes with a clip, it closes the ancestor clips before its
+group and reopens them inside it, mirroring that on exit (DM-X4W03B,
+`clipsMovedInsideContext` in `src/render/element-tree-to-svg.ts`). Opacity,
+isolation and `z-index` groups commute: clipping a group's content or its
+composite gives the same pixels. Clips re-applied around a context hoisted out
+of its clipping ancestor (`paintWithAncestorWrappers`) are registered the same
+way when they are the innermost wrappers. A nested `mix-blend-mode`, mask or
+`clip-path` context does not commute, so its fixed box still keeps the
+ancestor clip (DM-V1PPTQ). `tests/fixed-effect-ownership.e2e.test.ts` holds
+the native pixel controls.
 
 ## Evidence
 
