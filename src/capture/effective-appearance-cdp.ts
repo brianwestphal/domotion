@@ -183,6 +183,7 @@ export async function captureEffectiveAppearanceFacts(
               available: false,
               hasAuthorBackground: false,
               hasAuthorBorder: false,
+              hasAuthorBorderRadius: false,
               reason: `matched styles unavailable: ${errorText(error)}`,
             };
           }

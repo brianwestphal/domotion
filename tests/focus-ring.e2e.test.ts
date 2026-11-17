@@ -207,3 +207,59 @@ it.each([
     await output.close();
   }
 });
+
+// DM-7FBK91: an unstyled native control's ring copies its NativeTheme part
+// radius (GetFocusRingCornerRadii, outline_painter.cc:767-800, chromium
+// 6b5a1b80). These controls are normally whole-host rasters that already
+// carry Chrome's ring, so the raster is dropped to exercise the vector path,
+// and only the ring band outside the border box is compared. The default
+// ring-width radius differed at 28 (checkbox, text field) and 74 (radio)
+// ring pixels.
+it.each([
+  { name: "checkbox", html: `<input type=checkbox style="margin:30px;outline:2px auto red">` },
+  { name: "radio", html: `<input type=radio style="margin:30px;outline:2px auto red">` },
+  {
+    name: "sized checkbox",
+    html: `<input type=checkbox style="margin:30px;outline:2px auto red;width:30px;height:30px">`,
+  },
+  { name: "text field", html: `<input style="margin:20px;width:40px;outline:2px auto red">` },
+  {
+    name: "author radius wins",
+    html: `<input type=checkbox style="margin:30px;outline:2px auto red;border-radius:6px">`,
+  },
+])("matches the native ring radius of an unstyled control: $name", async ({ html }) => {
+  const page = await browser.newPage({ viewport });
+  const output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(`<style>body{margin:0;background:white}</style>${html}`);
+    const native = await sharp(await page.screenshot())
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    const tree = await captureElementTree(page, "body", viewport);
+    const control = tree.flatMap((el) => [el, ...(el.children ?? [])]).find((el) => el.styles.focusRing != null);
+    expect(control?.styles.focusRing?.corners.unresolved).toBeUndefined();
+    delete control!.nativeControlRaster;
+    await output.setContent(`<style>body{margin:0;background:white}</style>${elementTreeToSvg(tree, 100, 100)}`);
+    const actual = await sharp(await output.screenshot())
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+    const left = Math.round(control!.x),
+      top = Math.round(control!.y);
+    const right = Math.round(control!.x + control!.width),
+      bottom = Math.round(control!.y + control!.height);
+    let differing = 0;
+    for (let y = top - 6; y < bottom + 6; y++) {
+      for (let x = left - 6; x < right + 6; x++) {
+        if (x > left && x < right - 1 && y > top && y < bottom - 1) continue;
+        const i = (y * viewport.width + x) * 3;
+        if (native[i] !== actual[i] || native[i + 1] !== actual[i + 1] || native[i + 2] !== actual[i + 2]) differing++;
+      }
+    }
+    expect(differing).toBe(0);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});

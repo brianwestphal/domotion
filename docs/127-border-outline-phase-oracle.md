@@ -266,11 +266,31 @@ That scheme comes from the computed `color-scheme` or the page's
 
 `paintOutline` emits the two strokes, and the cull mirror uses the outer
 ring's stroke edge. Native controls already carry Chrome's ring in their
-native raster. A control that paints vector chrome warns, because its
-NativeTheme part radius is not captured. `tests/focus-ring.e2e.test.ts`
-compares native and SVG paint at zero differing pixels for these cases:
-authored, keyboard-focus, dark-scheme, bordered/offset/radius, zero-width,
-transparent, collapsing, elliptical and zoomed rings.
+native raster. For a control painted as vector chrome, the ring radii follow
+`GetFocusRingCornerRadii` (`outline_painter.cc:755-803`, chromium `6b5a1b80`),
+which reads cascade origin (DM-7FBK91):
+
+1. A nonzero border radius grows by the outline offset only with
+   `HasAuthorBorderRadius()` (or a base effective appearance).
+2. Otherwise, with no `HasAuthorBorder()` and an effective appearance, the
+   ring copies `NativeThemeBase::GetBorderRadiusForPart`
+   (`native_theme_base.cc:115-129`, chromium `7d859f27`; the web theme on
+   macOS, Linux and Windows inherits it). Checkbox, push button and text field
+   use 2, floored by zoom like a border width. Radio uses half the larger side
+   of the unsnapped border box.
+3. Otherwise every corner is the ring width.
+
+The Chromium matched-style pre-pass (`src/capture/effective-appearance*.ts`)
+supplies both author flags. `kBorderRadius` covers only the four physical
+radius longhands (`css_properties.json5`). A control without those facts
+warns and keeps the authored-radius rule. Elements outside the control
+pre-pass treat any radius as authored, because the UA sheet gives them none.
+`tests/focus-ring.e2e.test.ts` compares native and SVG paint at zero differing
+pixels for these cases: authored, keyboard-focus, dark-scheme,
+bordered/offset/radius, zero-width, transparent, collapsing, elliptical and
+zoomed rings. It also compares the ring band of unstyled checkbox, radio,
+sized checkbox, text field and author-radius checkbox controls with their
+native raster removed.
 
 A solid rounded single-rect outline fills between two contours of the
 pixel-snapped border box (`ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets`,

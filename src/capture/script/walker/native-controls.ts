@@ -289,6 +289,7 @@ export const createNativeControlsHandler = (ctx: {
       }
     }
     return {
+      _appearanceFacts,
       _effectiveAppearance,
       _fileSelectorCapture,
       _missingNativeDecorationKinds,

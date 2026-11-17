@@ -7,10 +7,11 @@ import {
   type CdpCssPropertyLike,
 } from "./effective-appearance.js";
 
-const available = (background = false, border = false) => ({
+const available = (background = false, border = false, borderRadius = false) => ({
   available: true,
   hasAuthorBackground: background,
   hasAuthorBorder: border,
+  hasAuthorBorderRadius: borderRadius,
 });
 
 function style(...cssProperties: CdpCssPropertyLike[]) {
@@ -218,7 +219,37 @@ describe("Blink author background/border cascade flags", () => {
       },
       { direction: "rtl", writingMode: "vertical-rl" },
     );
-    expect(facts).toEqual(available(false, true));
+    expect(facts).toEqual(available(false, true, true));
+  });
+
+  it("collects Blink's separate kBorderRadius author flag only for winning radius longhands", () => {
+    const radius = authorControlStyleFactsFromMatchedStyles({
+      matchedCSSRules: [
+        rule("regular", [
+          {
+            name: "border-radius",
+            value: "4px",
+            longhandProperties: [
+              { name: "border-top-left-radius", value: "4px" },
+              { name: "border-bottom-right-radius", value: "4px" },
+            ],
+          },
+        ]),
+      ],
+    });
+    // Radius longhands carry both kBorder and kBorderRadius.
+    expect(radius).toEqual(available(false, true, true));
+
+    const reverted = authorControlStyleFactsFromMatchedStyles({
+      matchedCSSRules: [
+        rule("regular", [
+          { name: "border-top-left-radius", value: "4px" },
+          { name: "border-top-left-radius", value: "revert" },
+          { name: "border-top-color", value: "red" },
+        ]),
+      ],
+    });
+    expect(reverted).toEqual(available(false, true, false));
   });
 
   it("lets active animation/transition origins suppress only the longhand they win", () => {

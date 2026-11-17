@@ -26,6 +26,10 @@ export interface AuthorControlStyleFacts {
   available: boolean;
   hasAuthorBackground: boolean;
   hasAuthorBorder: boolean;
+  /** Blink's kBorderRadius author flag: the four physical radius longhands
+   * (css_properties.json5 `is_border_radius`, chromium 7d859f27), which also
+   * carry kBorder. GetFocusRingCornerRadii reads it. */
+  hasAuthorBorderRadius: boolean;
   reason?: string;
 }
 
@@ -104,8 +108,16 @@ const PHYSICAL_BORDER_LONGHANDS = [
   "border-image-repeat",
 ] as const;
 
+const BORDER_RADIUS_LONGHANDS = [
+  "border-top-left-radius",
+  "border-top-right-radius",
+  "border-bottom-right-radius",
+  "border-bottom-left-radius",
+] as const;
+
 const BACKGROUND_SET = new Set<string>(BACKGROUND_LONGHANDS);
 const BORDER_SET = new Set<string>(PHYSICAL_BORDER_LONGHANDS);
+const BORDER_RADIUS_SET = new Set<string>(BORDER_RADIUS_LONGHANDS);
 
 type CascadeOrigin = "ua" | "user" | "author" | "animation" | "transition";
 
@@ -524,6 +536,7 @@ export function authorControlStyleFactsFromMatchedStyles(
       available: false,
       hasAuthorBackground: false,
       hasAuthorBorder: false,
+      hasAuthorBorderRadius: false,
       reason: "Chromium did not expose matched CSS rules",
     };
   }
@@ -535,6 +548,7 @@ export function authorControlStyleFactsFromMatchedStyles(
         available: false,
         hasAuthorBackground: false,
         hasAuthorBorder: false,
+        hasAuthorBorderRadius: false,
         reason: "Chromium returned a partial matched-rule payload",
       };
     }
@@ -589,17 +603,20 @@ export function authorControlStyleFactsFromMatchedStyles(
       available: false,
       hasAuthorBackground: false,
       hasAuthorBorder: false,
+      hasAuthorBorderRadius: false,
       reason: unavailable,
     };
   }
 
   let hasAuthorBackground = false;
   let hasAuthorBorder = false;
+  let hasAuthorBorderRadius = false;
   for (const [property, candidates] of byProperty) {
     const winner = winningCandidate(candidates, layerIndexes.size);
     if (winner?.origin !== "author") continue;
     if (BACKGROUND_SET.has(property)) hasAuthorBackground = true;
     if (BORDER_SET.has(property)) hasAuthorBorder = true;
+    if (BORDER_RADIUS_SET.has(property)) hasAuthorBorderRadius = true;
   }
-  return { available: true, hasAuthorBackground, hasAuthorBorder };
+  return { available: true, hasAuthorBackground, hasAuthorBorder, hasAuthorBorderRadius };
 }

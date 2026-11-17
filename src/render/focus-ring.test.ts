@@ -19,7 +19,7 @@ const ring = (overrides: Partial<FocusRingFacts> = {}): FocusRingFacts => ({
   outlineOffset: 0,
   outerColor: "rgb(255, 255, 255)",
   innerColor: "rgb(255, 0, 0)",
-  nativeAppearance: false,
+  corners: { borderRadiusEligible: true },
   ...overrides,
 });
 
@@ -76,6 +76,51 @@ describe("focusRingStrokes", () => {
 
   it("paints nothing for an empty box", () => {
     expect(focusRingStrokes(focused(ring(), {}, 0))).toEqual([]);
+  });
+});
+
+// DM-7FBK91: GetFocusRingCornerRadii (outline_painter.cc:755-803, chromium
+// 6b5a1b80) gives an unstyled native control its NativeTheme part radius.
+describe("focus ring corner source", () => {
+  const native = (corners: FocusRingFacts["corners"]) => ring({ corners });
+
+  it("uses the fixed part radius without raising it to the ring width", () => {
+    const [outer, inner] = focusRingStrokes(
+      focused(native({ borderRadiusEligible: false, nativePart: "checkbox", nativePartRadius: 2 }), {}, 13),
+    );
+    expect(inner.radii.tl).toEqual({ h: 2, v: 2 });
+    expect(outer.radii.br).toEqual({ h: 2, v: 2 });
+  });
+
+  it("gives a radio half its larger reference-box side", () => {
+    const el = focused(native({ borderRadiusEligible: false, nativePart: "radio" }), {}, 13);
+    const [outer, inner] = focusRingStrokes({ ...el, width: 13, height: 12.5 });
+    expect(inner.radii.tl).toEqual({ h: 6.5, v: 6.5 });
+    // The outer ring's 15 px rect leaves the radius unscaled.
+    expect(outer.radii.tl).toEqual({ h: 6.5, v: 6.5 });
+  });
+
+  it("ignores a border radius without the author-radius flag", () => {
+    const [, inner] = focusRingStrokes(
+      focused(native({ borderRadiusEligible: false, nativePart: "text-field", nativePartRadius: 2 }), {
+        borderTopLeftRadius: "8px",
+      }),
+    );
+    expect(inner.radii.tl).toEqual({ h: 2, v: 2 });
+  });
+
+  it("prefers an authored nonzero radius, and falls through a zero one", () => {
+    const corners = { borderRadiusEligible: true, nativePart: "push-button" as const, nativePartRadius: 2 };
+    const [, rounded] = focusRingStrokes(focused(native(corners), { borderTopLeftRadius: "8px" }));
+    expect(rounded.radii.tl).toEqual({ h: 8, v: 8 });
+    expect(rounded.radii.tr).toEqual({ h: 3, v: 3 });
+    const [, zero] = focusRingStrokes(focused(native(corners)));
+    expect(zero.radii.tl).toEqual({ h: 2, v: 2 });
+  });
+
+  it("uses the ring width when no part applies", () => {
+    const [, inner] = focusRingStrokes(focused(native({ borderRadiusEligible: false })));
+    expect(inner.radii.tl).toEqual({ h: 3, v: 3 });
   });
 });
 

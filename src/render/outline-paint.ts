@@ -1053,8 +1053,9 @@ function skRRectRadii(w: number, h: number, c: CornerRadii): CornerRadii {
  * border box outset by its offset, per axis clamped like any outline
  * (`ComputeRightAnglePath` / `AdjustedOutlineOffset`). Both share one radii
  * set (`GetFocusRingCornerRadii`, :755-803): an authored border radius grown
- * by the integer outline-offset with every component raised to at least W,
- * otherwise W everywhere. The ring is a single rounded rect, so Skia's
+ * by the integer outline-offset with every component raised to at least W;
+ * otherwise, for an unstyled native control, its NativeTheme part radius
+ * (DM-7FBK91); otherwise W everywhere. The ring is a single rounded rect, so Skia's
  * radius scale-down applies (`DrawFocusRingRect` → `drawRRect`).
  */
 export function focusRingStrokes(el: CapturedElement): FocusRingStroke[] {
@@ -1066,12 +1067,24 @@ export function focusRingStrokes(el: CapturedElement): FocusRingStroke[] {
     height = Math.round(el.y + el.height) - top;
   if (width <= 0 || height <= 0) return [];
   const base = parseCornerRadii(el.styles, el.width, el.height);
-  const authored = [base.tl, base.tr, base.br, base.bl].some((corner) => corner.h > 0 || corner.v > 0);
+  // ComputedStyle::HasBorderRadius, gated by the origin facts of step 1.
+  const authored =
+    ring.corners.borderRadiusEligible &&
+    [base.tl, base.tr, base.br, base.bl].some((corner) => corner.h > 0 || corner.v > 0);
   const grow = (corner: { h: number; v: number }) => ({
     h: Math.max(ring.ringWidth, corner.h > 0 ? Math.max(0, corner.h + ring.outlineOffset) : 0),
     v: Math.max(ring.ringWidth, corner.v > 0 ? Math.max(0, corner.v + ring.outlineOffset) : 0),
   });
-  const square = { h: ring.ringWidth, v: ring.ringWidth };
+  // Step 2: the NativeTheme part radius against the reference border rect
+  // (outline_rects[0], the unsnapped border box), not raised to W.
+  const { nativePart, nativePartRadius } = ring.corners;
+  const fallback =
+    nativePart == null
+      ? ring.ringWidth
+      : nativePart === "radio"
+        ? Math.max(el.width, el.height) * 0.5
+        : (nativePartRadius ?? ring.ringWidth);
+  const square = { h: fallback, v: fallback };
   const radii: CornerRadii = authored
     ? { tl: grow(base.tl), tr: grow(base.tr), br: grow(base.br), bl: grow(base.bl), uniform: false }
     : { tl: square, tr: square, br: square, bl: square, uniform: true };
@@ -1147,10 +1160,10 @@ export function focusRingStrokes(el: CapturedElement): FocusRingStroke[] {
 function paintFocusRing(el: CapturedElement, indent: string): string[] {
   const ring = el.styles.focusRing;
   if (ring == null) return [];
-  if (ring.nativeAppearance) {
+  if (ring.corners.unresolved === true) {
     renderWarn(
       "focus-ring",
-      "focus ring on a native-appearance control uses the default ring radius, not the NativeTheme part radius",
+      "focus ring on a native control without cascade-origin facts cannot choose between authored and NativeTheme part radii",
     );
   }
   const curvature = parseCornerRadii(el.styles, el.width, el.height).curvature;

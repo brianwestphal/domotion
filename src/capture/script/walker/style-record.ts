@@ -8,7 +8,9 @@ import {
   physicalComputedGradientImage,
   physicalComputedTileSize as physicalComputedCssPixelTerms,
 } from "./borders-backgrounds.js";
+import { focusRingCornerSource } from "./focus-ring.js";
 import { extractCssUrl } from "../utils.js";
+import type { AuthorControlStyleFacts } from "../../effective-appearance.js";
 import type { CapturedStyles } from "../../types.js";
 import type { FontFeatureValueTables } from "../../../font-feature-values-cascade.js";
 
@@ -40,6 +42,8 @@ type StyleRecordScope = {
   frozenTransformOrigin?: string | null;
   isPlaceholderCapture?: boolean;
   _effectiveAppearance?: string | null;
+  _nativeControlTag?: boolean;
+  _appearanceFacts?: AuthorControlStyleFacts;
   _selectDisplayTextGeometry?: CapturedStyles["selectDisplayTextGeometry"];
   _capturedFontFamilyStack: NonNullable<CapturedStyles["fontFamilyStack"]>;
   _fileSelectorCapture?: Partial<CapturedStyles>;
@@ -105,6 +109,8 @@ export const createStyleRecordBuilder = (ctx: {
       frozenTransformOrigin,
       isPlaceholderCapture,
       _effectiveAppearance,
+      _nativeControlTag,
+      _appearanceFacts,
       _selectDisplayTextGeometry,
       _capturedFontFamilyStack,
       _fileSelectorCapture,
@@ -118,7 +124,19 @@ export const createStyleRecordBuilder = (ctx: {
       // workaround (DM-434), frosted-bg fallback (DM-476), per-layer
       // background-image intrinsic dims (DM-308), and border-image
       // intrinsic dims.
-      ...captureBordersBackgrounds(el, cs, tag, rect, isPlaceholderCapture, _effectiveZoomFor(el)),
+      ...(function () {
+        const _zoom = _effectiveZoomFor(el);
+        const _bordersBackgrounds = captureBordersBackgrounds(el, cs, tag, rect, isPlaceholderCapture, _zoom);
+        const _ring = _bordersBackgrounds.focusRing;
+        if (_ring == null) return _bordersBackgrounds;
+        return {
+          ..._bordersBackgrounds,
+          focusRing: {
+            ..._ring,
+            corners: focusRingCornerSource(!!_nativeControlTag, _effectiveAppearance, _appearanceFacts, _zoom),
+          },
+        };
+      })(),
       backgroundAttachmentGeometry: (function () {
         const _scale = _backgroundAttachmentPaintScaleFor(el);
         return captureBackgroundAttachment(el, cs, rect, _scale[0], _scale[1]);

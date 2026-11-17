@@ -26,9 +26,96 @@ export interface FocusRingFacts {
   outlineOffset: number;
   outerColor: string;
   innerColor: string;
-  /** The element keeps native appearance, whose ring radii come from NativeTheme parts. */
-  nativeAppearance: boolean;
+  /** Inputs of Blink's corner-radius branch choice. */
+  corners: FocusRingCornerSource;
 }
+
+/** NativeThemeBase parts whose radius a focus ring copies. */
+export type FocusRingNativePart = "checkbox" | "radio" | "push-button" | "text-field";
+
+/**
+ * `GetFocusRingCornerRadii` (core/paint/outline_painter.cc:755-803, chromium
+ * 6b5a1b80) reads cascade origin, which getComputedStyle does not expose:
+ *
+ * 1. A nonzero border radius with `HasAuthorBorderRadius()` (or a base
+ *    effective appearance) grows those radii by the outline offset.
+ * 2. Otherwise, without `HasAuthorBorder()`, an effective appearance takes
+ *    the NativeTheme part radius.
+ * 3. Otherwise every corner is the ring width W.
+ *
+ * Capture records the origin-dependent inputs; the renderer applies the
+ * nonzero-radius test of step 1 to the radii it already parses.
+ */
+export interface FocusRingCornerSource {
+  /** Step 1 applies when the border radius is nonzero. */
+  borderRadiusEligible: boolean;
+  /** Step 2's part, when the box has no author border. */
+  nativePart?: FocusRingNativePart;
+  /** The zoom-adjusted part radius (`AdjustBorderRadiusByZoom`). Radio has
+   * none: its radius is half the larger reference-box side. */
+  nativePartRadius?: number;
+  /** A native control whose cascade origin was unavailable. Step 1 is
+   * assumed and step 2 cannot be decided. */
+  unresolved?: boolean;
+}
+
+/** Cascade-origin facts from the Chromium matched-style pre-pass. */
+interface FocusRingOriginFacts {
+  available: boolean;
+  hasAuthorBorder: boolean;
+  hasAuthorBorderRadius: boolean;
+}
+
+/**
+ * Resolve the corner source for a native control from its effective
+ * appearance and author-origin facts. Elements outside the pre-pass have no
+ * effective appearance; Blink's UA sheet gives them no border radius, so any
+ * radius is authored.
+ */
+export const focusRingCornerSource = (
+  nativeControl: boolean,
+  effectiveAppearance: string | null | undefined,
+  facts: FocusRingOriginFacts | undefined,
+  effectiveZoom: number,
+): FocusRingCornerSource => {
+  if (!nativeControl) return { borderRadiusEligible: true };
+  if (effectiveAppearance == null || facts == null || !facts.available) {
+    return { borderRadiusEligible: true, unresolved: true };
+  }
+  const hasAppearance = effectiveAppearance !== "none";
+  const baseAppearance = effectiveAppearance === "base" || effectiveAppearance === "base-select";
+  const source: FocusRingCornerSource = {
+    borderRadiusEligible: (hasAppearance && baseAppearance) || facts.hasAuthorBorderRadius,
+  };
+  if (facts.hasAuthorBorder || !hasAppearance) return source;
+  let part: FocusRingNativePart | undefined;
+  switch (effectiveAppearance) {
+    case "checkbox":
+      part = "checkbox";
+      break;
+    case "radio":
+      part = "radio";
+      break;
+    case "push-button":
+    case "square-button":
+    case "button":
+      part = "push-button";
+      break;
+    case "textfield":
+    case "textarea":
+    case "searchfield":
+      part = "text-field";
+      break;
+  }
+  if (part == null) return source;
+  source.nativePart = part;
+  // NativeThemeBase::GetBorderRadiusForPart is 2 for checkbox, push button
+  // and text field (ui/native_theme/native_theme_base.cc:115-129, chromium
+  // 7d859f27); the web theme on macOS, Linux and Windows inherits it.
+  // AdjustBorderRadiusByZoom zooms those three as a border width.
+  if (part !== "radio") source.nativePartRadius = adjustBorderWidthByZoom(2, effectiveZoom);
+  return source;
+};
 
 /** Used dark color scheme for an ordinary element (`ComputedStyleBuilder::
  * SetUsedColorScheme`, core/style/computed_style.cc:3232-3256). A computed
@@ -87,6 +174,7 @@ export const captureFocusRing = (
     outlineOffset,
     outerColor: dark ? "rgb(16, 16, 16)" : "rgb(255, 255, 255)",
     innerColor: dark && !mac ? "rgb(255, 255, 255)" : outlineColor,
-    nativeAppearance: (cs.appearance || "none") !== "none",
+    // Refined from cascade-origin facts by the style record.
+    corners: { borderRadiusEligible: true },
   };
 };
