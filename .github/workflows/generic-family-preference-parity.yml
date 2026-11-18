@@ -61,6 +61,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      - name: Restore pinned source authorities
+        # DM-JMZAA4 / DM-9408N3: exact-key cache of the pinned external/ set.
+        uses: actions/cache@v4
+        with:
+          path: external
+          key: source-authorities-v1-${{ hashFiles('scripts/materialize-source-authorities.mjs', 'tools/semantic-coverage.json', 'tools/parity-program.json') }}
       - run: npm run sources:materialize
       - name: Install pinned Chromium, full Chrome, and Linux display dependencies
         if: runner.os == 'Linux'

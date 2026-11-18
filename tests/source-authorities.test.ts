@@ -81,6 +81,25 @@ describe("source authority fetch retries and CI cache", () => {
     expect(step).not.toContain("restore-keys");
   });
 
+  it.each(["release.yml", "generic-family-preference-parity.yml", "text-transform-parity.yml"])(
+    "restores the same exact-key cache before %s materializes (DM-9408N3)",
+    (name) => {
+      const workflow = readFileSync(resolve(__dirname, "..", ".github", "workflows", name), "utf8");
+      const restore = workflow.indexOf("name: Restore pinned source authorities");
+      const materialize = workflow.search(
+        /run: npm run sources:materialize|node scripts\/materialize-source-authorities\.mjs\n/,
+      );
+      expect(restore).toBeGreaterThan(-1);
+      expect(materialize).toBeGreaterThan(restore);
+      const step = workflow.slice(restore, materialize);
+      expect(step).toContain("uses: actions/cache@v4");
+      expect(step).toContain(
+        "key: source-authorities-v1-${{ hashFiles('scripts/materialize-source-authorities.mjs', 'tools/semantic-coverage.json', 'tools/parity-program.json') }}",
+      );
+      expect(step).not.toContain("restore-keys");
+    },
+  );
+
   it("fetches Chromium from its own Gitiles host at the pinned revision", () => {
     // The raw GitHub mirror intermittently answered 429; all 143 pinned
     // Chromium files were byte-identical from Gitiles when switched.
