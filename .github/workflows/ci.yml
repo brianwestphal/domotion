@@ -42,6 +42,15 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
       - run: npm ci
+      # DM-JMZAA4: every run re-downloaded the pinned set and a GitHub
+      # raw-content 429 failed the job. The files are content-addressed by
+      # the pins, so cache them on an exact key only: the materializer refuses
+      # existing files unless its manifest matches the current pins and plan.
+      - name: Restore pinned source authorities
+        uses: actions/cache@v4
+        with:
+          path: external
+          key: source-authorities-v1-${{ hashFiles('scripts/materialize-source-authorities.mjs', 'tools/semantic-coverage.json', 'tools/parity-program.json') }}
       - name: Materialize pinned source authorities
         run: npm run sources:materialize
       - run: npm run mathml:operator-dictionary:check

@@ -125,17 +125,39 @@ export function sourceUrlFor(ref) {
   throw new Error(`no source authority provider for ${ref}`);
 }
 
+/**
+ * Delay before the next fetch attempt. A rate limit (429) or unavailable (503)
+ * reply honors its Retry-After seconds, else backs off 5/10/20/40 s; a short
+ * exponential backoff covered neither the GitHub raw-content limit that failed
+ * staged CI (DM-JMZAA4). Every wait is capped at a minute.
+ */
+export function retryDelayMs(attempt, status, retryAfter) {
+  if (status === 429 || status === 503) {
+    const seconds = Number(retryAfter);
+    if (retryAfter != null && retryAfter !== "" && Number.isFinite(seconds) && seconds >= 0)
+      return Math.min(seconds * 1_000, 60_000);
+    return Math.min(5_000 * 2 ** (attempt - 1), 60_000);
+  }
+  return 1_000 * 2 ** (attempt - 1);
+}
+
 async function fetchWithRetry(url, attempts = 5) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    let status;
+    let retryAfter;
     try {
       const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(30_000) });
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        status = response.status;
+        retryAfter = response.headers.get("retry-after");
+        throw new Error(`${response.status} ${response.statusText}`);
+      }
       return Buffer.from(await response.arrayBuffer());
     } catch (error) {
       lastError = error;
       if (attempt < attempts) {
-        await new Promise((done) => setTimeout(done, 1_000 * 2 ** (attempt - 1)));
+        await new Promise((done) => setTimeout(done, retryDelayMs(attempt, status, retryAfter)));
       }
     }
   }
