@@ -80,5 +80,11 @@ export const createColorNorm = () => {
     return out;
   };
 
-  return { normColor, normGradientColors };
+  // DM-AK8DWV: the probe is capture-local. Remove it when the capture ends so
+  // repeated captures leave no hidden nodes in the source document.
+  const dispose = (): void => {
+    probe.remove();
+  };
+
+  return { normColor, normGradientColors, dispose };
 };

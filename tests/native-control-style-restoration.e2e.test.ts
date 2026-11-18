@@ -215,3 +215,24 @@ describe("native control source style restoration (DM-D8Y3WJ)", () => {
     }
   });
 });
+
+// DM-AK8DWV: the capture script's color-normalization probe was appended to
+// <body> and never removed, leaving one hidden <div> per capture.
+describe("capture-local probes leave no source residue (DM-AK8DWV)", () => {
+  it("removes the color probe after each capture, including an absent root", async () => {
+    const page = await browser.newPage({ viewport });
+    try {
+      await page.setContent(
+        `<style>html,body{margin:0}span{display:block;width:40px;height:20px;color:oklch(0.6 0.2 30)}</style><span></span>`,
+      );
+      const markup = () => page.evaluate(() => document.body.outerHTML);
+      const before = await markup();
+      await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+      await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+      await captureElementTreeWithWarnings(page, "#absent", { x: 0, y: 0, ...viewport });
+      expect(await markup()).toBe(before);
+    } finally {
+      await page.close();
+    }
+  });
+});

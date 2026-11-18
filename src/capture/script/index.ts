@@ -78,7 +78,7 @@ import {
   probeContainmentEligibility,
 } from "./walker/document-prepass.js";
 
-const captureDocumentTree = (args: CaptureScriptArgs) => {
+const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void>) => {
   const sel = args.selector;
   const vp = args.viewport;
   // DM-1442: cross-origin <iframe> recursion allowlist (the parsed
@@ -97,7 +97,12 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
 
   // Wire up per-concern helpers. Each factory closes over its own state and
   // returns the handles the element walk / the orchestration tail call.
-  const { normColor: normalizeColor, normGradientColors: normalizeGradientColors } = createColorNorm();
+  const {
+    normColor: normalizeColor,
+    normGradientColors: normalizeGradientColors,
+    dispose: disposeColorNorm,
+  } = createColorNorm();
+  cleanups.push(disposeColorNorm);
   const normColor = normalizeColor as (color: string, elementColor?: string) => string;
   const normGradientColors = normalizeGradientColors as (image: string, elementColor?: string) => string;
   const { rasterCandidates, textNeedsRaster } = createEmojiDetect();
@@ -387,4 +392,13 @@ const captureDocumentTree = (args: CaptureScriptArgs) => {
 };
 
 /** Serializable in-page capture entry point; orchestration lives above. */
-export const captureScript = (args: CaptureScriptArgs) => captureDocumentTree(args);
+export const captureScript = (args: CaptureScriptArgs) => {
+  // Capture-local page probes are removed on every exit, including an absent
+  // root and a thrown walk.
+  const cleanups: Array<() => void> = [];
+  try {
+    return captureDocumentTree(args, cleanups);
+  } finally {
+    for (const cleanup of cleanups.reverse()) cleanup();
+  }
+};
