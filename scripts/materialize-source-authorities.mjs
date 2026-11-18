@@ -92,10 +92,13 @@ export function sourceUrlFor(ref) {
   }
   if (path.startsWith(chromiumPrefix)) {
     const sourcePath = path.slice(chromiumPrefix.length);
+    // DM-JMZAA4: Chromium's own Gitiles host, at the same pinned revision.
+    // raw.githubusercontent.com intermittently answers 429 for the
+    // chromium/chromium mirror, which failed CI before any test ran.
     return {
-      encoding: "raw",
+      encoding: "gitiles-base64",
       pin: SOURCE_AUTHORITY_PINS.chromium,
-      url: `https://raw.githubusercontent.com/chromium/chromium/${SOURCE_AUTHORITY_PINS.chromium}/${sourcePath}`,
+      url: `https://chromium.googlesource.com/chromium/src/+/${SOURCE_AUTHORITY_PINS.chromium}/${sourcePath}?format=TEXT`,
     };
   }
   if (path.startsWith(skiaPrefix)) {

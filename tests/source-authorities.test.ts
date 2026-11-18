@@ -80,4 +80,14 @@ describe("source authority fetch retries and CI cache", () => {
     // A partial restore would trip the materializer's unowned-file refusal.
     expect(step).not.toContain("restore-keys");
   });
+
+  it("fetches Chromium from its own Gitiles host at the pinned revision", () => {
+    // The raw GitHub mirror intermittently answered 429; all 143 pinned
+    // Chromium files were byte-identical from Gitiles when switched.
+    expect(sourceUrlFor("external/chromium/cc/paint/paint_image.cc")).toEqual({
+      encoding: "gitiles-base64",
+      pin: SOURCE_AUTHORITY_PINS.chromium,
+      url: `https://chromium.googlesource.com/chromium/src/+/${SOURCE_AUTHORITY_PINS.chromium}/cc/paint/paint_image.cc?format=TEXT`,
+    });
+  });
 });
