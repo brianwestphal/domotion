@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,6 +12,7 @@ import {
   NATIVE_LOG_MAX_BYTES,
   runWithNativeLog,
 } from "../scripts/e2e-native-logs.mjs";
+import { budgetForCpuWork, describeChild, runBoundedChild, testTimeoutFor } from "./bounded-child.js";
 
 const directories: string[] = [];
 afterEach(() => {
@@ -219,6 +220,8 @@ it.each([0, 17])("keeps actual child status %i when artifact persistence fails",
 });
 
 const runner = fileURLToPath(new URL("../scripts/run-e2e-tests.mjs", import.meta.url));
+/** The runner plus its fake Vitest lanes measured 0.28 s of CPU, idle or loaded. */
+const RUNNER_BUDGET_MS = budgetForCpuWork(300);
 function fakeVitest(directory: string) {
   const modules = join(directory, "node_modules", "vitest");
   mkdirSync(modules, { recursive: true });
@@ -228,36 +231,49 @@ function fakeVitest(directory: string) {
   );
 }
 
-it.each([false, true])("preserves lane sequencing and failure status (logs %s)", (enabled) => {
-  const directory = temporary();
-  fakeVitest(directory);
-  const calls = join(directory, "calls.txt");
-  const env: NodeJS.ProcessEnv = { ...process.env, CALLS: calls };
-  delete env.DEBUG;
-  if (enabled) env.DOMOTION_E2E_NATIVE_LOG_DIR = join(directory, "logs");
-  else delete env.DOMOTION_E2E_NATIVE_LOG_DIR;
-  const result = spawnSync(process.execPath, [runner], { cwd: directory, env, encoding: "utf8", timeout: 10_000 });
-  expect(result.status, result.stderr).toBe(17);
-  expect(readFileSync(calls, "utf8")).toBe("regular\nheavy\n");
-  if (enabled) {
-    expect(result.stderr).not.toContain("ARG_SECRET");
-    expect(readFileSync(join(directory, "logs", "heavy-native.log.json"), "utf8")).toContain('"status": 17');
-  }
-});
+it.each([false, true])(
+  "preserves lane sequencing and failure status (logs %s)",
+  async (enabled) => {
+    const directory = temporary();
+    fakeVitest(directory);
+    const calls = join(directory, "calls.txt");
+    const env: NodeJS.ProcessEnv = { ...process.env, CALLS: calls };
+    delete env.DEBUG;
+    if (enabled) env.DOMOTION_E2E_NATIVE_LOG_DIR = join(directory, "logs");
+    else delete env.DOMOTION_E2E_NATIVE_LOG_DIR;
+    const result = await runBoundedChild(process.execPath, [runner], {
+      cwd: directory,
+      env,
+      budgetMs: RUNNER_BUDGET_MS,
+    });
+    expect(result.error, describeChild(result)).toBeNull();
+    expect(result.status, describeChild(result)).toBe(17);
+    expect(readFileSync(calls, "utf8")).toBe("regular\nheavy\n");
+    if (enabled) {
+      expect(result.stderr).not.toContain("ARG_SECRET");
+      expect(readFileSync(join(directory, "logs", "heavy-native.log.json"), "utf8")).toContain('"status": 17');
+    }
+  },
+  testTimeoutFor(RUNNER_BUDGET_MS),
+);
 
-it("uses one serial filtered lane with diagnostics", () => {
-  const directory = temporary();
-  fakeVitest(directory);
-  const calls = join(directory, "calls.txt");
-  const result = spawnSync(process.execPath, [runner, "tests/only.e2e.test.ts"], {
-    cwd: directory,
-    env: { ...process.env, CALLS: calls, DOMOTION_E2E_NATIVE_LOG_DIR: join(directory, "logs") },
-    encoding: "utf8",
-    timeout: 10_000,
-  });
-  expect(result.status, result.stderr).toBe(0);
-  expect(readFileSync(calls, "utf8")).toBe("all\n");
-});
+it(
+  "uses one serial filtered lane with diagnostics",
+  async () => {
+    const directory = temporary();
+    fakeVitest(directory);
+    const calls = join(directory, "calls.txt");
+    const result = await runBoundedChild(process.execPath, [runner, "tests/only.e2e.test.ts"], {
+      cwd: directory,
+      env: { ...process.env, CALLS: calls, DOMOTION_E2E_NATIVE_LOG_DIR: join(directory, "logs") },
+      budgetMs: RUNNER_BUDGET_MS,
+    });
+    expect(result.error, describeChild(result)).toBeNull();
+    expect(result.status, describeChild(result)).toBe(0);
+    expect(readFileSync(calls, "utf8")).toBe("all\n");
+  },
+  testTimeoutFor(RUNNER_BUDGET_MS),
+);
 
 // Node emulates kill(SIGTERM) on Windows as unconditional termination, so no
 // parent callback can finalize there (nodejs.org/api/process.html#signal-events).
@@ -276,8 +292,8 @@ it.skipIf(process.platform === "win32")(
     const outcome = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
       const timer = setTimeout(() => {
         child.kill("SIGKILL");
-        reject(new Error("signal fixture exceeded 8s"));
-      }, 8_000);
+        reject(new Error(`signal fixture exceeded ${RUNNER_BUDGET_MS} ms`));
+      }, RUNNER_BUDGET_MS);
       child.stderr.on("data", (chunk: Buffer) => {
         if (chunk.toString().includes("NATIVE_READY")) child.kill("SIGTERM");
       });
@@ -295,4 +311,5 @@ it.skipIf(process.platform === "win32")(
       interruptedBy: "SIGTERM",
     });
   },
+  testTimeoutFor(RUNNER_BUDGET_MS),
 );

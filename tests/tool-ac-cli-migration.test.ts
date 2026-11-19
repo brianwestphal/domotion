@@ -1,12 +1,14 @@
-import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseCli as parseTruthCollectorCli } from "../tools/animated-image-owner-resource-truth-collector.js";
 import { parseArgs as parseCropArgs } from "../tools/crop-regions.js";
+import { budgetForCpuWork, describeChild, runBoundedChild, testTimeoutFor } from "./bounded-child.js";
 
 const binary = join(process.cwd(), "node_modules/.bin/tsx");
+/** A tsx tool startup measured at most 1.26 s of CPU, idle or loaded. */
+const TOOL_BUDGET_MS = budgetForCpuWork(1_300);
 function run(command: string, ...argv: string[]) {
-  return spawnSync(binary, [`tools/${command}`, ...argv], { cwd: process.cwd(), encoding: "utf8" });
+  return runBoundedChild(binary, [`tools/${command}`, ...argv], { cwd: process.cwd(), budgetMs: TOOL_BUDGET_MS });
 }
 
 describe("migrated A–C commands", () => {
@@ -37,10 +39,15 @@ describe("migrated A–C commands", () => {
     "capture-nytimes-snapshot.ts",
     "check-feature-coverage.ts",
   ]) {
-    it(`${command} rejects unknown options before doing work`, () => {
-      const child = run(command, "--unknown-option");
-      expect(child.status).not.toBe(0);
-      expect(child.stderr).toMatch(/unknown|Unknown|invalid/i);
-    });
+    it(
+      `${command} rejects unknown options before doing work`,
+      async () => {
+        const child = await run(command, "--unknown-option");
+        expect(child.error, describeChild(child)).toBeNull();
+        expect(child.status, describeChild(child)).not.toBe(0);
+        expect(child.stderr).toMatch(/unknown|Unknown|invalid/i);
+      },
+      testTimeoutFor(TOOL_BUDGET_MS),
+    );
   }
 });

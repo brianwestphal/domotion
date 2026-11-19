@@ -1,7 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { helperAvailabilityContract } from "@domotion/text-engine/testing";
 import {
@@ -9,6 +8,7 @@ import {
   readHelperAvailabilityReport,
   runHelperAvailabilityContract,
 } from "../tools/helper-availability-contract.js";
+import { budgetForCpuWork, describeChild, runBoundedChild, testTimeoutFor } from "./bounded-child.js";
 
 const tool = "helper-availability-contract";
 const present = helperAvailabilityContract({
@@ -23,6 +23,8 @@ const absent = helperAvailabilityContract({
   explicitlyDisabled: true,
   implementationIdentity: "test-helper-v1",
 });
+/** A `node --import tsx` start of this CLI measured at most 0.49 s of CPU, idle or loaded. */
+const CLI_BUDGET_MS = budgetForCpuWork(500);
 const wrap = <T extends object>(data: T) => ({
   schemaVersion: 1,
   tool,
@@ -98,54 +100,69 @@ describe("helper availability report migration", () => {
     }
   });
 
-  it("runs the real CLI producer and compare reader with stable exits", () => {
-    const directory = mkdtempSync(join(tmpdir(), "helper-contract-cli-"));
-    try {
-      const presentPath = join(directory, "present.json");
-      const absentPath = join(directory, "absent.json");
-      writeFileSync(presentPath, JSON.stringify(present));
-      const base = ["--import", "tsx", "tools/helper-availability-contract.ts"];
-      const produced = spawnSync(process.execPath, [...base, "--out", absentPath], {
-        cwd: process.cwd(),
-        encoding: "utf8",
-        env: { ...process.env, DOMOTION_DISABLE_HELPER: "1", DOMOTION_HELPER_PATH: process.execPath },
-      });
-      expect(produced.status).toBe(0);
-      const expectedAbsent = helperAvailabilityContract({
-        platform: process.platform as "darwin" | "linux" | "win32",
-        helperObserved: false,
-        explicitlyDisabled: true,
-        implementationIdentity: "ignored",
-      });
-      expect(JSON.parse(produced.stdout)).toEqual(expectedAbsent);
-      const stored = JSON.parse(readFileSync(absentPath, "utf8"));
-      expect(stored).toMatchObject({ schemaVersion: 1, tool, data: { outcome: "pass", mode: "helper-absent" } });
-      const platformPresent = helperAvailabilityContract({
-        platform: process.platform as "darwin" | "linux" | "win32",
-        helperObserved: true,
-        explicitlyDisabled: false,
-        implementationIdentity: "test-helper-v1",
-      });
-      writeFileSync(presentPath, JSON.stringify(platformPresent));
-      const compared = spawnSync(process.execPath, [...base, "--compare", `${presentPath},${absentPath}`], {
-        cwd: process.cwd(),
-        encoding: "utf8",
-      });
-      expect(compared.status).toBe(0);
-      expect(JSON.parse(compared.stdout)).toEqual({
-        pass: true,
-        platform: process.platform,
-        present: platformPresent,
-        absent: expectedAbsent,
-      });
-      writeFileSync(absentPath, JSON.stringify({ ...stored, schemaVersion: 2 }));
-      const invalid = spawnSync(process.execPath, [...base, "--compare", `${presentPath},${absentPath}`], {
-        cwd: process.cwd(),
-        encoding: "utf8",
-      });
-      expect(invalid.status).toBe(2);
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
-    }
-  });
+  it(
+    "runs the real CLI producer and compare reader with stable exits",
+    async () => {
+      const directory = mkdtempSync(join(tmpdir(), "helper-contract-cli-"));
+      try {
+        const presentPath = join(directory, "present.json");
+        const absentPath = join(directory, "absent.json");
+        writeFileSync(presentPath, JSON.stringify(present));
+        const base = ["--import", "tsx", "tools/helper-availability-contract.ts"];
+        const produced = await runBoundedChild(process.execPath, [...base, "--out", absentPath], {
+          cwd: process.cwd(),
+          env: { ...process.env, DOMOTION_DISABLE_HELPER: "1", DOMOTION_HELPER_PATH: process.execPath },
+          budgetMs: CLI_BUDGET_MS,
+        });
+        expect(produced.error, describeChild(produced)).toBeNull();
+        expect(produced.status, describeChild(produced)).toBe(0);
+        const expectedAbsent = helperAvailabilityContract({
+          platform: process.platform as "darwin" | "linux" | "win32",
+          helperObserved: false,
+          explicitlyDisabled: true,
+          implementationIdentity: "ignored",
+        });
+        expect(JSON.parse(produced.stdout)).toEqual(expectedAbsent);
+        const stored = JSON.parse(readFileSync(absentPath, "utf8"));
+        expect(stored).toMatchObject({ schemaVersion: 1, tool, data: { outcome: "pass", mode: "helper-absent" } });
+        const platformPresent = helperAvailabilityContract({
+          platform: process.platform as "darwin" | "linux" | "win32",
+          helperObserved: true,
+          explicitlyDisabled: false,
+          implementationIdentity: "test-helper-v1",
+        });
+        writeFileSync(presentPath, JSON.stringify(platformPresent));
+        const compared = await runBoundedChild(
+          process.execPath,
+          [...base, "--compare", `${presentPath},${absentPath}`],
+          {
+            cwd: process.cwd(),
+            budgetMs: CLI_BUDGET_MS,
+          },
+        );
+        expect(compared.error, describeChild(compared)).toBeNull();
+        expect(compared.status, describeChild(compared)).toBe(0);
+        expect(JSON.parse(compared.stdout)).toEqual({
+          pass: true,
+          platform: process.platform,
+          present: platformPresent,
+          absent: expectedAbsent,
+        });
+        writeFileSync(absentPath, JSON.stringify({ ...stored, schemaVersion: 2 }));
+        const invalid = await runBoundedChild(
+          process.execPath,
+          [...base, "--compare", `${presentPath},${absentPath}`],
+          {
+            cwd: process.cwd(),
+            budgetMs: CLI_BUDGET_MS,
+          },
+        );
+        expect(invalid.error, describeChild(invalid)).toBeNull();
+        expect(invalid.status, describeChild(invalid)).toBe(2);
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    },
+    testTimeoutFor(CLI_BUDGET_MS, CLI_BUDGET_MS, CLI_BUDGET_MS),
+  );
 });

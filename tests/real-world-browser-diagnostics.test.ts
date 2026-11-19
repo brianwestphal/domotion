@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -23,6 +23,19 @@ const temporary = (): string => {
   return directory;
 };
 const source = "a".repeat(40);
+/** Production finalizes only after the owned browser has exited:
+ * `real-world-browser.ts` stops the child before `finalize()`, so finalize's
+ * 2 s bound is a post-exit stream-drain bound. Finalizing right after spawn
+ * made that bound also time the fixture child's whole Node startup and write,
+ * which took up to 4.4 s of wall time (for 0.08 s of CPU) in a loaded suite.
+ * The drain bound itself is pinned by the never-closing-stream test below.
+ * This waits for `exit`, not `close`, so stderr may still be draining when
+ * `finalize()` starts, as in production. */
+const processExited = (child: ChildProcess): Promise<void> =>
+  new Promise((resolve) => {
+    if (child.exitCode != null || child.signalCode != null) resolve();
+    else child.once("exit", () => resolve());
+  });
 
 it("captures only the actual child's filtered stderr with complete exit and source provenance", async () => {
   const directory = temporary();
@@ -35,6 +48,7 @@ it("captures only the actual child's filtered stderr with complete exit and sour
     { stdio: ["ignore", "ignore", "pipe"] },
   );
   const diagnostics = captureOwnedBrowserDiagnostics(child, directory, source);
+  await processExited(child);
   await diagnostics.finalize();
   const log = readFileSync(diagnostics.logPath, "utf8");
   expect(log).toBe("native startup\nnative end\n");
@@ -67,6 +81,7 @@ it("bounds the actual stream while retaining prefix, suffix and whole filtered-s
     stdio: ["ignore", "ignore", "pipe"],
   });
   const diagnostics = captureOwnedBrowserDiagnostics(child, directory, "untrusted value", 32);
+  await processExited(child);
   await diagnostics.finalize();
   const log = readFileSync(diagnostics.logPath);
   expect(log.subarray(0, 16)).toEqual(Buffer.from(text).subarray(0, 16));

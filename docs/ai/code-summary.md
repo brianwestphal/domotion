@@ -254,6 +254,9 @@ plus controlled-healing browser passes.
   and JSDoc instead of as an implicit `any`.
   `tools/lib/cli.d.mts` types `parseFlags` / `flag` by the declared schema;
   `stringFlag` serves helpers that take a flag name at runtime.
+- `tests/bounded-child.ts` runs short unit-test child processes with budgets
+  derived from their measured CPU work instead of idle-sized wall deadlines.
+  See `docs/tool-child-process-test-bounds.md`.
 - `tools/lib/browser.ts` owns TypeScript tool browsers, while
   `tools/lib/browser.mjs` gives plain-Node probes the same callback and
   idempotent cleanup pattern. See `docs/tool-browser-lifecycle.md`.
