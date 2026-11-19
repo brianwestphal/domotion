@@ -66,16 +66,30 @@ async function paintedSansSerif(page: Page): Promise<string | undefined> {
 describe("generic-family Settings across captures on one Page", () => {
   it("keeps one record across repeated captures, including native-control rasters", async () => {
     const page = await newPage();
+    // Never captured. Hosted macOS runners reset every page's generic families
+    // at once, a few minutes into a job: a system appearance change reaches
+    // OnNativeThemeUpdated, which pushes WebPreferences to every WebContents
+    // (docs/198). A reset capture caused would leave this page untouched, so a
+    // change here identifies the host event, and only that round is repeated.
+    const control = await newPage();
     try {
-      const records = new Set<string>();
-      for (let i = 0; i < 6; i++) {
-        const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
-        records.add(JSON.stringify(tree[0].sessionGenericFamilies ?? null));
-      }
-      expect(records.size).toBe(1);
-      expect([...records][0]).not.toBe("null");
+      const round = async (): Promise<{ records: Set<string>; hostReset: boolean }> => {
+        const controlBefore = await paintedSansSerif(control);
+        const records = new Set<string>();
+        for (let i = 0; i < 6; i++) {
+          const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+          records.add(JSON.stringify(tree[0].sessionGenericFamilies ?? null));
+        }
+        return { records, hostReset: (await paintedSansSerif(control)) !== controlBefore };
+      };
+      let result = await round();
+      if (result.hostReset) result = await round();
+      expect(result.hostReset, "the uncaptured page's families changed in two consecutive rounds").toBe(false);
+      expect(result.records.size).toBe(1);
+      expect([...result.records][0]).not.toBe("null");
     } finally {
       await page.context().close();
+      await control.context().close();
     }
   }, 120_000);
 
