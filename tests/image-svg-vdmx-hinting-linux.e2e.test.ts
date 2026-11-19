@@ -14,6 +14,8 @@ import { forEachElement } from "../src/tree-ops/for-each-element.js";
 import { capturedElement } from "../src/test-support/captured-fixtures.js";
 import { diagnosticPhase } from "./diagnostic-phase.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { createBrowserApiTrace } from "./browser-api-trace.js";
+import { launchWithLinuxChild, settleAbandonedLinuxBrowser } from "./linux-abandoned-browser.js";
 
 it.skipIf(process.platform !== "linux")(
   "discriminates launch hinting from per-face Fontconfig with a real VDMX strike",
@@ -50,11 +52,15 @@ it.skipIf(process.platform !== "linux")(
         const phase = <T>(name: string, work: () => T | Promise<T>, timeoutMs?: number) =>
           diagnosticPhase(`${mode}/${singleProcess ? "global" : "family"}/${name}`, work, timeoutMs);
         // Explicit launch preferences; the unowned custom-launch control follows.
-        const browser = await phase("launch", () =>
-          launchChromium({
-            args: [`--font-render-hinting=${mode}`, ...(singleProcess ? ["--single-process"] : [])],
-            env: { ...process.env, FONTCONFIG_FILE: config },
-          }),
+        const trace = createBrowserApiTrace();
+        const { value: browser, child } = await phase("launch", () =>
+          launchWithLinuxChild(() =>
+            launchChromium({
+              args: [`--font-render-hinting=${mode}`, ...(singleProcess ? ["--single-process"] : [])],
+              env: { ...process.env, FONTCONFIG_FILE: config },
+              logger: trace.logger,
+            }),
+          ),
         );
         try {
           const page = await phase("newPage", () => browser.newPage({ viewport: { width: 220, height: 150 } }));
@@ -68,9 +74,18 @@ it.skipIf(process.platform !== "linux")(
             page.locator("div").evaluate((el) => parseFloat(getComputedStyle(el).width) / 100),
           );
           expect(lineSpacing).toBe(singleProcess && mode === "none" ? 16 : 23);
+          trace.mark();
           const tree = await phase("capture", () =>
             captureElementTree(page, "body", { x: 0, y: 0, width: 220, height: 150 }),
-          );
+          ).catch((error: unknown) => {
+            // Name the browser call still in flight and the capture step that issued it.
+            const calls = trace.since();
+            console.log(
+              "VDMX capture API trace:",
+              JSON.stringify({ pending: trace.pending(), completed: calls.length, last: calls.slice(-12) }),
+            );
+            throw error;
+          });
           let owner: CapturedElement | undefined;
           const routing: Array<{
             tag: string;
@@ -177,13 +192,21 @@ it.skipIf(process.platform !== "linux")(
           // Native metrics/pixels are already asserted. Chromium's close can
           // hang; use the existing bounded test teardown without raising the gate.
           await phase("browser.teardown", () => closeBrowserSafely(browser, 4_000), 5_000);
+          // A --single-process shell can outlive the abandoned close; record its
+          // state, then kill its process group so it cannot load the next arm.
+          if (child != null) {
+            const report = await phase("browser.settle", () => settleAbandonedLinuxBrowser(child));
+            console.log("VDMX browser after teardown:", JSON.stringify({ mode, singleProcess, ...report }));
+          }
         }
       }
-      const custom = await diagnosticPhase("custom/launch", () =>
-        chromium.launch({
-          args: ["--single-process", "--font-render-hinting=none"],
-          env: { ...process.env },
-        }),
+      const { value: custom, child: customChild } = await diagnosticPhase("custom/launch", () =>
+        launchWithLinuxChild(() =>
+          chromium.launch({
+            args: ["--single-process", "--font-render-hinting=none"],
+            env: { ...process.env },
+          }),
+        ),
       );
       try {
         const page = await diagnosticPhase("custom/newPage", () => custom.newPage());
@@ -192,6 +215,13 @@ it.skipIf(process.platform !== "linux")(
         expect(owner.imageDocumentFontRendering).toBeUndefined();
       } finally {
         await diagnosticPhase("custom/browser.teardown", () => closeBrowserSafely(custom, 4_000), 5_000);
+        if (customChild != null) {
+          const report = await diagnosticPhase("custom/browser.settle", () => settleAbandonedLinuxBrowser(customChild));
+          console.log(
+            "VDMX browser after teardown:",
+            JSON.stringify({ mode: "custom", singleProcess: true, ...report }),
+          );
+        }
       }
       expect(results[0]?.lineSpacing).not.toBe(results[1]?.lineSpacing);
       const output = resolve(process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output-linux");

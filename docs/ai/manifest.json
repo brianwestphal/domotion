@@ -785,6 +785,8 @@
         "src/capture/image-font-hinting.ts",
         "packages/text-engine/src/render/linux-font-render-style.ts",
         "tests/image-svg-vdmx-hinting-linux.e2e.test.ts",
+        "tests/linux-abandoned-browser.ts",
+        "tests/browser-api-trace.ts",
         ".github/workflows/release-helpers.yml",
         "packages/text-engine/src/render/glyph-helper.test.ts",
         "packages/text-engine/src/render/glyph-helper.ts",

@@ -34,6 +34,8 @@ code:
     "src/capture/image-font-hinting.ts",
     "packages/text-engine/src/render/linux-font-render-style.ts",
     "tests/image-svg-vdmx-hinting-linux.e2e.test.ts",
+    "tests/linux-abandoned-browser.ts",
+    "tests/browser-api-trace.ts",
     ".github/workflows/release-helpers.yml",
     "packages/text-engine/src/render/glyph-helper.test.ts",
     "packages/text-engine/src/render/glyph-helper.ts",
@@ -501,6 +503,19 @@ SVG geometry, and writes evidence under `DOMOTION_OUTPUT_DIR` (default
 `tests/image-svg-vdmx-hinting-linux.e2e.test.ts`; macOS skips are not Linux parity
 validation. Rebuild/publish the Linux helper asset before treating this optional
 protocol extension as available to published consumers.
+
+On the GitHub x64 runner a `--single-process` headless shell usually ignores
+`browser.close()` until the 4 s teardown deadline abandons it. The still-running
+browser coincided with a slow next arm (newPage 250–1000 ms instead of ~30 ms)
+and, in two runs, a `medium` capture that did not finish within 10 s. The test
+therefore identifies each browser as the new direct child of the worker
+(`tests/linux-abandoned-browser.ts`). After teardown it logs
+`VDMX browser after teardown:` with the process state, thread states and CPU
+ticks over 250 ms, then SIGKILLs the original process group so it cannot load
+the next arm. A capture that times out logs `VDMX capture API trace:` with every
+Playwright call still in flight and its `src/` call site
+(`tests/browser-api-trace.ts`, through the public launch `logger`). No phase
+bound changed.
 
 For an iterative native check, dispatch `test-linux.yml` with
 `image_root_metrics_only=true`. It reuses the Linux helper build/setup and runs
