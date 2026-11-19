@@ -25,7 +25,11 @@ interface ChildResult {
 function runChild(
   args: string[],
   cwd: string,
-  { stallMs = STALL_MS, overallMs = OVERALL_MS } = {},
+  {
+    stallMs = STALL_MS,
+    overallMs = OVERALL_MS,
+    startupMs = stallMs,
+  }: { stallMs?: number; overallMs?: number; startupMs?: number } = {},
 ): Promise<ChildResult> {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, args, {
@@ -35,6 +39,10 @@ function runChild(
     });
     const started = performance.now();
     let lastProgress = started;
+    // Silence before the first progress record is process startup, which
+    // scales with host load; it gets its own bound (the stall bound unless
+    // a caller widens it).
+    let progressSeen = false;
     let longestSilenceMs = 0;
     let error: string | null = null;
     let bytes = 0;
@@ -55,6 +63,7 @@ function runChild(
           const now = performance.now();
           longestSilenceMs = Math.max(longestSilenceMs, now - lastProgress);
           lastProgress = now;
+          progressSeen = true;
         }
       });
     }
@@ -64,7 +73,7 @@ function runChild(
         if (now - started > overallMs) stop("ETIMEDOUT");
         // After a reported truncation the trace goes quiet by design.
         else if (
-          now - lastProgress > stallMs &&
+          now - lastProgress > (progressSeen ? stallMs : startupMs) &&
           !`${output.stdout}${output.stderr}`.includes('"phase":"trace-truncated"')
         )
           stop("ESTALLED");
@@ -136,16 +145,20 @@ const progressThenSilence = (truncated: boolean) => [
   }setTimeout(() => console.log('[cleanup-test] {"phase":"complete"}'), 1500);`,
 ];
 
+// Child startup can take seconds on a loaded host, so these controls give it
+// a generous startup bound and time only the silence after the first record.
+const controlBounds = { stallMs: 400, startupMs: 30_000, overallMs: 60_000 };
+
 test("cleanup wrapper stops a child whose progress trace goes silent", async () => {
-  const started = performance.now();
-  const result = await runChild(progressThenSilence(false), process.cwd(), { stallMs: 400, overallMs: 10_000 });
+  const result = await runChild(progressThenSilence(false), process.cwd(), controlBounds);
   expect(result.error).toBe("ESTALLED");
   expect(result.signal).toBe("SIGTERM");
-  expect(performance.now() - started).toBeLessThan(1_400);
-});
+  // Stopped during the 1.5 s silence, before the child's own completion record.
+  expect(result.stdout).not.toContain('"phase":"complete"');
+}, 70_000);
 
 test("cleanup wrapper keeps waiting once the trace reports its own truncation", async () => {
-  const result = await runChild(progressThenSilence(true), process.cwd(), { stallMs: 400, overallMs: 10_000 });
+  const result = await runChild(progressThenSilence(true), process.cwd(), controlBounds);
   expect(result).toMatchObject({ error: null, status: 0, signal: null });
   expect(result.stdout).toContain('"phase":"complete"');
-});
+}, 70_000);
