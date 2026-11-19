@@ -5,12 +5,15 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE", "DM-KPMB5S", "DM-FTRBES", "DM-C3HJHY"]
+tickets: ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE", "DM-KPMB5S", "DM-FTRBES", "DM-C3HJHY", "DM-R4Y02H"]
 code:
   [
     "src/capture/replaced-element-raster.ts",
     "src/capture/snapshot-visibility-transitions.ts",
     "src/capture/webgl-output-freeze.ts",
+    "src/capture/gpu-startup-barrier.ts",
+    "src/capture/gpu-startup-barrier.test.ts",
+    "src/capture/gpu-startup-barrier.e2e.test.ts",
     "src/capture/webgl-output-freeze.e2e.test.ts",
     "src/capture/replaced-element-raster.test.ts",
     "src/capture/replaced-media-frame.test.ts",
@@ -131,6 +134,42 @@ paint, while source DOM styles and the existing frozen method identity survive
 capture.
 
 The hide stylesheet is injected once before the rasterize pass and removed in `finally`, even if any individual screenshot throws. The data attribute is moved between targets (cleared, then set on the next one) inside the loop.
+
+### Presentation before each screenshot
+
+No snapshot site waits for an animation frame before its screenshot, and none
+needs to. Playwright's `page.screenshot` sends CDP `Page.captureScreenshot`,
+and with its default `fromSurface: true` Chromium forces a renderer redraw
+before copying the surface (`RenderWidgetHostImpl::GetSnapshotFromBrowser` and
+`RequestForceRedraw` in `content/browser/renderer_host/render_widget_host_impl.cc`;
+`WidgetBase::ForceRedraw` requests a commit with a forced redraw, Chromium
+7d859f27). That commit applies the isolation stylesheet and the
+`omitBackground` background override. It also collects canvas content:
+`cc::TextureLayer::Update` asks a composited 2D canvas for its current resource
+on every commit (`HTMLCanvasElement::PrepareTransferableResource`), and an
+unaccelerated canvas is repainted through the invalidation recorded by
+`HTMLCanvasElement::DidDraw`. On macOS, at a load average above 50, a 2D canvas
+(100×100 and 600×400) and WebGL with `preserveDrawingBuffer` true and false,
+each drawn once at load, were present in every production raster when the page
+was not the first in its browser.
+
+The exception was a browser's first page. A page created as soon as the browser
+launched could have its canvas contexts lost a few milliseconds after Chromium's
+GPU feature info became available. This happened in 20–70% of fresh launches.
+Chromium then paints the broken-canvas placeholder, or a cleared canvas after a
+2D context is restored. The canvas backing store is empty as well
+(`getImageData` returns transparent pixels). This is not an unpresented frame:
+the screenshot shows what Chromium had painted, and the drawing is gone.
+`launchChromium` therefore waits for CDP `SystemInfo.getInfo` on the browser
+target, which responds once that feature info is initialized
+(`src/capture/gpu-startup-barrier.ts`; normally about 30 ms, bounded at 5 s).
+After the change, 72 of 72 fresh launches kept their first page's canvas, while
+unpatched launches lost it in 12 of 20. A browser launched with
+`--use-angle=swiftshader` lost nothing (0 of 20), which points at the automatic
+GPU backend's startup fallback. Browsers that callers launch themselves are not
+covered. `src/capture/gpu-startup-barrier.e2e.test.ts` launches ten fresh
+browsers and fails if any first-page canvas is lost; without the barrier it
+failed in 3 of 10 launches.
 
 ## Transform, clip, and device-pixel spaces
 

@@ -34,6 +34,7 @@ import { rasterizeConicGradients } from "../render/conic-raster.js";
 import { withRenderWarningSink } from "../render/render-warn.js";
 import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.js";
 import { captureImageFontHinting, recordBrowserFontEnvironment } from "./image-font-hinting.js";
+import { awaitGpuFeatureInfo } from "./gpu-startup-barrier.js";
 import { captureImageSvgSupports } from "./image-svg-supports.js";
 import { normalizedFontData } from "./font-data.js";
 import { registerLocalFontAlias, registerWebfont, type RegisteredFontFamily } from "../render/font-resolution.js";
@@ -264,7 +265,7 @@ export async function launchChromium(opts?: LaunchChromiumOptions): Promise<Brow
   // need a headed diagnostic must opt into `headless: false` explicitly.
   const launchOptions: LaunchOptions = { headless: true, ...playwrightOptions };
   try {
-    return recordBrowserFontEnvironment(await chromium.launch(launchOptions), launchOptions.env ?? process.env);
+    return await settleLaunchedBrowser(await chromium.launch(launchOptions), launchOptions);
   } catch (err) {
     if (!isMissingBrowserError(err)) throw err;
     if (!autoInstall) {
@@ -277,8 +278,18 @@ export async function launchChromium(opts?: LaunchChromiumOptions): Promise<Brow
 
     console.error("[domotion] Chromium binary not found — installing via 'npx playwright install chromium'…");
     await installPlaywrightChromium();
-    return recordBrowserFontEnvironment(await chromium.launch(launchOptions), launchOptions.env ?? process.env);
+    return await settleLaunchedBrowser(await chromium.launch(launchOptions), launchOptions);
   }
+}
+
+/**
+ * Hold a fresh browser until its GPU feature info exists, so the caller's
+ * first page does not create canvas contexts during GPU startup (see
+ * `awaitGpuFeatureInfo`), then record its font environment.
+ */
+async function settleLaunchedBrowser(browser: Browser, launchOptions: LaunchOptions): Promise<Browser> {
+  await awaitGpuFeatureInfo(browser);
+  return recordBrowserFontEnvironment(browser, launchOptions.env ?? process.env);
 }
 
 /** Ceiling for the first-run browser download (a slow link takes minutes; a wedged one never ends). */
