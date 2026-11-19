@@ -146,3 +146,98 @@ describe("measureBlinkPlatformResizer promise cache", () => {
     expect(resized).toEqual([{ width: 160, height: 64 }]);
   });
 });
+
+/**
+ * The fallback after a failed in-page probe, for a page whose own context refuses newPage (Playwright's
+ * Browser.newPage() implicit context). A --single-process Chromium supports one BrowserContext only, so
+ * opening the isolated page in a new context crashed or hung the whole browser; there the captured page is
+ * re-probed once with a CSP-exempt constructed sheet instead. Multi-process and unknown browsers keep the
+ * isolated page in a new context.
+ */
+describe("measureBlinkPlatformResizer isolated-page fallback by browser process model", () => {
+  async function implicitContextPage(commandLine: () => Promise<{ arguments: string[] }>, failures: number) {
+    const png = await cornerPng(15);
+    const calls = { browserNewPage: 0, cdpSessions: 0, detached: 0, probes: [] as string[] };
+    let remainingFailures = failures;
+    const isolated = {
+      evaluate: async () => ({ x: 0, y: 0, scaleFromDIP: 1, clientWidth: 320, clientHeight: 180 }),
+      screenshot: async () => png,
+      viewportSize: () => ({ width: 320, height: 180 }),
+      close: async () => {},
+    };
+    const browser = {
+      newPage: async () => {
+        calls.browserNewPage++;
+        return isolated;
+      },
+    };
+    const page = {
+      evaluate: async (expression: unknown) => {
+        const source = String(expression);
+        if (!source.includes("clientWidth")) return source.includes("devicePixelRatio") ? 1 : 2;
+        calls.probes.push(source.includes('"constructedSheet":true') ? "constructed" : "element");
+        if (remainingFailures-- > 0) throw new Error(`probe failure ${calls.probes.length}`);
+        return { x: 0, y: 0, scaleFromDIP: 2, clientWidth: 320, clientHeight: 180 };
+      },
+      screenshot: async () => png,
+      viewportSize: () => ({ width: 320, height: 180 }),
+      context: () => ({
+        newPage: async () => {
+          throw new Error("Please use browser.newContext()");
+        },
+        browser: () => browser,
+        newCDPSession: async () => {
+          calls.cdpSessions++;
+          return {
+            send: async (method: string) => {
+              expect(method).toBe("Browser.getBrowserCommandLine");
+              return commandLine();
+            },
+            detach: async () => {
+              calls.detached++;
+            },
+          };
+        },
+      }),
+    };
+    return { page: page as unknown as Page, calls };
+  }
+
+  const singleProcess = async () => ({ arguments: ["/ms-playwright/chrome-headless-shell", "--single-process"] });
+  const multiProcess = async () => ({ arguments: ["/ms-playwright/chrome-headless-shell", "--headless"] });
+
+  it("re-probes the captured page with a constructed sheet instead of opening a second BrowserContext", async () => {
+    const { page, calls } = await implicitContextPage(singleProcess, 1);
+    expect(await measureBlinkPlatformResizer(page)).toEqual({ themeThickness: 15, scaleFromDIP: 2 });
+    expect(calls).toMatchObject({ browserNewPage: 0, cdpSessions: 1, detached: 1 });
+    expect(calls.probes).toEqual(["element", "constructed"]);
+  });
+
+  it("fails explicitly, with the original failure as cause, when the single-process re-probe also fails", async () => {
+    const { page, calls } = await implicitContextPage(singleProcess, 2);
+    const error = await measureBlinkPlatformResizer(page).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toMatch(/--single-process browser.*probe failure 1.*retry:.*probe failure 2/);
+    expect((error as Error).cause).toEqual(new Error("probe failure 1"));
+    expect(calls.browserNewPage).toBe(0);
+    expect(calls.probes).toEqual(["element", "constructed"]);
+  });
+
+  it("keeps the isolated page in a new BrowserContext for a multi-process browser", async () => {
+    const { page, calls } = await implicitContextPage(multiProcess, 1);
+    expect(await measureBlinkPlatformResizer(page)).toEqual({ themeThickness: 15, scaleFromDIP: 2 });
+    expect(calls.browserNewPage).toBe(1);
+    expect(calls.probes).toEqual(["element"]);
+  });
+
+  it("treats an unavailable command line as unknown and keeps the multi-process fallback", async () => {
+    let refusals = 0;
+    const { page, calls } = await implicitContextPage(async () => {
+      refusals++;
+      throw new Error("Command line not returned because --enable-automation not set.");
+    }, 1);
+    expect(await measureBlinkPlatformResizer(page)).toEqual({ themeThickness: 15, scaleFromDIP: 2 });
+    expect(calls.browserNewPage).toBe(1);
+    expect(refusals).toBe(1);
+  });
+});

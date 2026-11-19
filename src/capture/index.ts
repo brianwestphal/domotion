@@ -35,6 +35,7 @@ import { withRenderWarningSink } from "../render/render-warn.js";
 import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.js";
 import { captureImageFontHinting, recordBrowserFontEnvironment } from "./image-font-hinting.js";
 import { awaitGpuFeatureInfo } from "./gpu-startup-barrier.js";
+import { browserRunsSingleProcess } from "./single-process-browser.js";
 import { captureImageSvgSupports } from "./image-svg-supports.js";
 import { normalizedFontData } from "./font-data.js";
 import { registerLocalFontAlias, registerWebfont, type RegisteredFontFamily } from "../render/font-resolution.js";
@@ -1527,23 +1528,36 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
   const cached = blinkPlatformResizerMetricsByPage.get(page);
   if (cached != null) return cached;
 
-  const runProbe = async (probePage: Page): Promise<BlinkPlatformResizerMetrics> => {
+  const runProbe = async (
+    probePage: Page,
+    { constructedSheet = false }: { constructedSheet?: boolean } = {},
+  ): Promise<BlinkPlatformResizerMetrics> => {
     const token = `domotion-resizer-probe-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const probeSize = RESIZER_PROBE_SIZE;
     const position = await evaluateInFrame(
       probePage,
-      ({ token, probeSize }) => {
-        const style = document.createElement("style");
-        style.dataset.domotionResizerProbe = token;
+      ({ token, probeSize, constructedSheet }) => {
         // Forced colors normally replace authored background colors, including
         // the marker on a custom scrollbar part. Keep this temporary probe's
         // colors so the same pixel discriminator works under that emulation.
-        style.textContent = `[data-domotion-resizer-probe="${token}"]::-webkit-resizer{forced-color-adjust:none!important;background:rgb(1,254,2)!important;border:0!important;box-shadow:none!important}`;
+        const rule = `[data-domotion-resizer-probe="${token}"]::-webkit-resizer{forced-color-adjust:none!important;background:rgb(1,254,2)!important;border:0!important;box-shadow:none!important}`;
         const probe = document.createElement("div");
         probe.dataset.domotionResizerProbe = token;
         probe.setAttribute("aria-hidden", "true");
         probe.style.cssText = `all:initial;forced-color-adjust:none;position:fixed;left:0;top:0;width:${probeSize}px;height:${probeSize}px;overflow:hidden;resize:both;border:0;padding:0;background:rgb(255,0,253);z-index:2147483647;pointer-events:none;`;
-        document.documentElement.append(style, probe);
+        if (constructedSheet) {
+          // A constructed sheet is script-created CSSOM, which a page CSP's
+          // style-src does not govern, unlike an inline <style> element.
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync(rule);
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+          document.documentElement.append(probe);
+        } else {
+          const style = document.createElement("style");
+          style.dataset.domotionResizerProbe = token;
+          style.textContent = rule;
+          document.documentElement.append(style, probe);
+        }
         return {
           x: window.scrollX,
           y: window.scrollY,
@@ -1555,7 +1569,7 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
           clientHeight: document.documentElement.clientHeight,
         };
       },
-      { token, probeSize },
+      { token, probeSize, constructedSheet },
     );
 
     try {
@@ -1604,10 +1618,14 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
     } finally {
       await evaluateInFrame(
         probePage,
-        (token) => {
+        ({ token, constructedSheet }) => {
           document.querySelectorAll(`[data-domotion-resizer-probe="${token}"]`).forEach((node) => node.remove());
+          if (!constructedSheet) return;
+          const owned = (sheet: CSSStyleSheet) =>
+            Array.from(sheet.cssRules).some((rule) => rule.cssText.includes(token));
+          document.adoptedStyleSheets = document.adoptedStyleSheets.filter((sheet) => !owned(sheet));
         },
-        token,
+        { token, constructedSheet },
       ).catch(() => {});
     }
   };
@@ -1630,6 +1648,20 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
         // it still samples the same platform theme and device scale.
         const browser = page.context().browser();
         if (browser == null) throw pageError;
+        if ((await browserRunsSingleProcess(page)) === true) {
+          // --single-process supports one BrowserContext only; a page in a new
+          // context crashed or hung the whole browser (single-process-browser.ts).
+          // Re-probe the captured page itself, once, with a CSP-exempt
+          // constructed sheet. A viewport smaller than the probe still fails.
+          try {
+            return await runProbe(page, { constructedSheet: true });
+          } catch (retryError) {
+            throw new Error(
+              `Chromium platform-resizer probe failed in a --single-process browser, which cannot open an isolated page in a second BrowserContext: ${String(pageError)}; retry: ${String(retryError)}`,
+              { cause: pageError },
+            );
+          }
+        }
         const deviceScaleFactor = await page.evaluate(() => window.devicePixelRatio).catch(() => 1);
         isolated = await browser.newPage({
           viewport: page.viewportSize() ?? { width: 64, height: 64 },

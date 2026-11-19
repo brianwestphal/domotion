@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { captureElementTree, elementTreeToSvgInner, launchChromium, type CapturedElement } from "../src/index.js";
 import { measureBlinkPlatformResizer } from "../src/capture/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { launchWithLinuxChild, settleAbandonedLinuxBrowser } from "./linux-abandoned-browser.js";
 
 const env = await (async () => {
   try {
@@ -187,6 +188,51 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
       await page.close();
     }
   });
+
+  it("never opens a second BrowserContext in a --single-process browser", async () => {
+    // A single-process Chromium supports one BrowserContext. Opening the isolated
+    // fallback page in a new context (Browser.newPage()) crashed that browser on
+    // macOS and in the Linux container and hung it on an x64 CI runner, so a
+    // failed in-page probe re-probes the captured page with a CSP-exempt
+    // constructed sheet instead.
+    const reference = await env!.browser.newPage({ viewport: { width: 320, height: 180 } });
+    const expected = await measureBlinkPlatformResizer(reference).finally(() => reference.close());
+    const launch = () => launchChromium({ args: ["--single-process"] });
+    const { value: single, child } =
+      process.platform === "linux" ? await launchWithLinuxChild(launch) : { value: await launch(), child: undefined };
+    try {
+      // Browser.newPage() owns an implicit context that refuses context.newPage(),
+      // and a second Browser.newPage() would itself open the unsupported second
+      // context, so one page covers both cases.
+      const page = await single.newPage({ viewport: { width: 160, height: 60 } });
+      // A viewport too small for the probe cannot be re-probed in place: the
+      // capture fails explicitly instead of crashing or hanging the browser.
+      await expect(measureBlinkPlatformResizer(page)).rejects.toThrow(
+        /--single-process browser.*needs a 64x64 viewport/,
+      );
+      expect(single.isConnected()).toBe(true);
+      expect(await page.locator("[data-domotion-resizer-probe]").count()).toBe(0);
+
+      // The rejection was evicted, so a usable viewport with a strict CSP is re-measured.
+      await page.setViewportSize({ width: 320, height: 180 });
+      await page.setContent(`<meta http-equiv="Content-Security-Policy" content="style-src 'none'">
+        <main id="sentinel">strict page</main>`);
+      const adoptedBefore = await page.evaluate(() => document.adoptedStyleSheets.length);
+      expect(await measureBlinkPlatformResizer(page)).toEqual({
+        themeThickness: expected.themeThickness,
+        scaleFromDIP: 1,
+      });
+      expect(single.isConnected()).toBe(true);
+      expect(single.contexts()).toHaveLength(1);
+      expect(single.contexts()[0]!.pages()).toEqual([page]);
+      expect(await page.locator("#sentinel").textContent()).toBe("strict page");
+      expect(await page.locator("[data-domotion-resizer-probe]").count()).toBe(0);
+      expect(await page.evaluate(() => document.adoptedStyleSheets.length)).toBe(adoptedBefore);
+    } finally {
+      await closeBrowserSafely(single, 4_000);
+      if (child != null) await settleAbandonedLinuxBrowser(child);
+    }
+  }, 30_000);
 
   it("emits source platform paths, the scrollbar-only frame, and custom paint", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 520, height: 260 }, deviceScaleFactor: 1 });

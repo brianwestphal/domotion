@@ -140,7 +140,22 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
       The 64 px probe box needs a viewport at least that large, so a smaller
       capture viewport (for example 160 x 60) re-runs the probe in an isolated
       page of the same context widened to fit, rather than cropping the corner
-      it measures (DM-4S0WYN).
+      it measures (DM-4S0WYN). A page from `Browser.newPage()` owns an implicit
+      context that refuses a second page, so that fallback otherwise opens the
+      isolated page in a new BrowserContext of the same browser. A
+      `--single-process` Chromium (detected from `Browser.getBrowserCommandLine`)
+      supports only one BrowserContext: at Chromium 7d859f27
+      `RenderProcessHost::IsProcessLimitReached()` is always true there and
+      `RenderProcessHostImpl::IsSuitableHost` DCHECKs "Single-process mode does
+      not support multiple browser contexts". With Playwright 1.59 the second
+      context crashed that browser on macOS and in the Linux container, and on
+      an x64 CI runner left `browser.newPage` pending with the browser busy. A
+      single-process capture therefore never opens it. It re-probes the captured
+      page once with a constructed (`adoptedStyleSheets`) marker sheet, which a
+      page CSP's `style-src` does not govern, and fails explicitly when the
+      viewport is still smaller than the probe (DM-Y8WE9H: a capture hang in a
+      single-process browser after a transient in-page probe screenshot failure).
+      Multi-process and unknown browsers keep the new-context fallback.
 
 ### Visual / paint
 

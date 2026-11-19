@@ -517,6 +517,17 @@ Playwright call still in flight and its `src/` call site
 (`tests/browser-api-trace.ts`, through the public launch `logger`). No phase
 bound changed.
 
+That trace identified the 10 s `medium` capture stall (run 44471893335): the
+platform-resizer probe's in-page `page.screenshot` failed after 3 ms, and its
+fallback then called `browser.newPage`, which never settled. In a
+`--single-process` browser a page in a second BrowserContext is unsupported:
+the same call crashed the browser deterministically on macOS and in the Linux
+container. The capture no longer opens that context in a single-process browser
+and re-probes the captured page instead; see the CSS resize controls entry in
+[doc 01](01-fidelity.md). The screenshot failure's message was not retained,
+so its cause on that runner is unverified; it did not reproduce in four local
+container runs.
+
 For an iterative native check, dispatch `test-linux.yml` with
 `image_root_metrics_only=true`. It reuses the Linux helper build/setup and runs
 the two image-root metric browser files, with the distinct
