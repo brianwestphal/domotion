@@ -22,6 +22,9 @@ on:
   workflow_dispatch:
 env:
   NODE_VERSION: "22.21.0"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   collect:
     strategy:

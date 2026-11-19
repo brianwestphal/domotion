@@ -12,6 +12,10 @@ on:
       - "tests/wrapped-decoration-fragment-oracle.test.ts"
       - ".github/workflows/wrapped-decoration-fragments.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   logical-ownership:
     strategy:

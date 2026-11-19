@@ -60,6 +60,10 @@ env:
   NODE_VERSION: "22.21.0"
   DOMOTION_CHROMIUM_REVISION: 7d859f271cbda744098ac69f44978d4edfa62be3
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   pixel-stage:
     name: ${{ matrix.label }} named-pixel stages

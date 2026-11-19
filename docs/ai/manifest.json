@@ -1202,7 +1202,8 @@
         "tests/worker-pool.ts",
         "tools/ab-compare-results.mjs",
         "tools/ci-run-wait.mjs",
-        "tools/run-ci-visual-tests.mjs"
+        "tools/run-ci-visual-tests.mjs",
+        "tests/ci-staging-concurrency.test.ts"
       ],
       "file": "66-ci-visual-tests.md"
     },

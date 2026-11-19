@@ -46,6 +46,10 @@ env:
   NODE_VERSION: "22.21.0"
   ICU_REVISION: "d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   exact-logical-parity:
     name: ${{ matrix.os }} exact logical parity

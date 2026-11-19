@@ -33,6 +33,7 @@ tickets:
     "DM-GQNPEN",
     "DM-PCT7GR",
     "DM-6SVH1W",
+    "DM-NTN9EK",
   ]
 code:
   [
@@ -96,6 +97,7 @@ code:
     "tools/ab-compare-results.mjs",
     "tools/ci-run-wait.mjs",
     "tools/run-ci-visual-tests.mjs",
+    "tests/ci-staging-concurrency.test.ts",
   ]
 aliases: ["docs/66-ci-visual-tests.md", "doc-66"]
 ---
@@ -149,6 +151,19 @@ one exception and stays main-only. Tickets complete once `main` holds a green st
 fast-forward also re-runs CI on `main` at the same SHA, which is what the
 green-`main` gates (the verified worktree cleanup among them) read; it is not
 a second completion gate.
+
+Every one of those staged push workflows also declares a top-level
+`concurrency` group of `${{ github.workflow }}-${{ github.ref }}` with
+`cancel-in-progress: false`. Each workflow therefore keeps at most one running
+run and one pending run per branch: a newer push replaces a superseded pending
+run, while an in-progress run is never cancelled. Only the newest green staged
+tip matters, because promoting it also promotes its ancestors, so testing each
+intermediate tip only lengthened the queue. Before this policy, six staged tips
+sat queued for more than 50 minutes. Pull-request runs and manual dispatches on
+other refs get their own groups. A manual dispatch on `main` or `integration`
+shares the branch's group, so it can replace a pending push run there (and a
+later push can replace a pending dispatch); either way the newest request for
+that branch runs. `tests/ci-staging-concurrency.test.ts` pins the policy.
 
 ## Fast integration suites on all platforms
 
