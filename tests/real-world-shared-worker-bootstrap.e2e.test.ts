@@ -60,6 +60,28 @@ interface LateObservation {
   outcome: "error" | "report" | "none";
 }
 type Scope = typeof globalThis & { dm34: Record<string, Probe> };
+/** DM-3C3NFV: startup-failure fixtures must not depend on a started worker
+ * reporting a load failure on its way out. A renderer-side module fetch or parse
+ * failure (`WebSharedWorkerImpl::DidFailToFetchModuleScript`) sends
+ * `OnScriptLoadFailed` on the SharedWorkerHost pipe and then terminates the
+ * worker, closing its separate SharedWorker pipe. Mojo does not order the two
+ * pipes, and a busy browser UI thread can run `OnWorkerConnectionLost` first;
+ * `~SharedWorkerHost` of a started worker only terminates it, so the queued
+ * error is discarded and the page never receives an `error` event
+ * (content/browser/worker_host/shared_worker_host.cc:199-209,496-497,1234-1239
+ * at Chromium 7d859f27). Tracing that loss showed the browser dispatching the
+ * SharedWorker closure before the pending OnScriptLoadFailed/OnContextClosed.
+ * These fixtures avoid that race:
+ * - UNREACHABLE_WORKER drops the connection, so the browser-side main-script
+ *   fetch fails before the worker starts, and `~SharedWorkerHost` of an
+ *   unstarted worker notifies every client (a plain `Event`).
+ * - THROWING_WORKER evaluates and throws at top level. The worker stays alive,
+ *   so its `OnReportException` (an `ErrorEvent`) has no closing pipe to race,
+ *   and it still pauses for the bootstrap's startup resume first. */
+const UNREACHABLE_WORKER = "/unreachable-worker.js";
+const LATE_UNREACHABLE_WORKER = "/late-unreachable-worker.js";
+const THROWING_WORKER = "/throwing-worker.js";
+const THROWING_WORKER_ERROR = "Worker startup failed: error (ErrorEvent): Uncaught Error: controlled top-level throw";
 const patch = `(()=>{globalThis.__dm34OriginalClear??=Object.getOwnPropertyDescriptor(WebGL2RenderingContext.prototype,'clear');Object.defineProperty(WebGL2RenderingContext.prototype,'clear',{value:function(){},writable:true,configurable:true});return true})()`;
 const restore = `(()=>{if(globalThis.__dm34OriginalClear)Object.defineProperty(WebGL2RenderingContext.prototype,'clear',globalThis.__dm34OriginalClear);delete globalThis.__dm34OriginalClear;return true})()`;
 
@@ -74,7 +96,9 @@ beforeAll(async () => {
         ? `export const cachedClear=WebGL2RenderingContext.prototype.clear;export const nativeInImport=cachedClear.toString().includes('[native code]');export const imported='relative-ok';`
         : request.url === "/worker.js" || request.url === "/dedicated.js"
           ? workerScript
-          : "<!doctype html><body>worker fixture</body>";
+          : request.url === THROWING_WORKER
+            ? "throw new Error('controlled top-level throw');"
+            : "<!doctype html><body>worker fixture</body>";
     const fact = {
       path: (request.url ?? "").split("?")[0].slice(0, 128),
       contentType,
@@ -85,10 +109,17 @@ beforeAll(async () => {
     response.once("finish", () => {
       fact.finished = true;
     });
-    // DM-98KN22: the delayed invalid module lands after the 8000ms readiness
-    // timeout but inside the late-observation window.
-    if (request.url === "/late-missing-worker.js") setTimeout(() => response.end(body), 9000);
-    else response.end(body);
+    // DM-98KN22: the delayed failure lands after the 8000ms readiness timeout
+    // but inside the late-observation window.
+    // Chromium resends a request once when its reused keep-alive connection
+    // closes without a response (each dropped fetch is recorded twice), so
+    // only the first late attempt is delayed.
+    if (request.url === UNREACHABLE_WORKER) request.socket.destroy();
+    else if (request.url === LATE_UNREACHABLE_WORKER) {
+      const attempts = requests.filter((entry) => entry.path === LATE_UNREACHABLE_WORKER).length;
+      if (attempts > 1) request.socket.destroy();
+      else setTimeout(() => request.socket.destroy(), 9000);
+    } else response.end(body);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -351,9 +382,11 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
     const p = await page();
     const freeze = await freezeWebGlOutput(p);
     leases.add(freeze);
-    // The fixture returns HTML under a JavaScript MIME type at this path.
-    // Blink dispatches a plain Event for the resulting module parse failure.
-    await expect(start(p, "invalid-module", "shared", "/missing-worker.js")).rejects.toThrow("Worker startup failed");
+    // The fixture drops this connection, so the module's main-script fetch
+    // fails before the worker starts and Chromium dispatches a plain Event.
+    await expect(start(p, "unreachable-module", "shared", UNREACHABLE_WORKER)).rejects.toThrow(
+      "Worker startup failed: error (Event)",
+    );
     const file = startupEvidence.at(-1);
     expect(file).toBeDefined();
     const evidence = JSON.parse(await readFile(file!, "utf8")) as {
@@ -364,7 +397,7 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
     expect(evidence.phase).toBe("error");
     expect(evidence.state).toMatchObject({ errorEventType: "Event", reports: 0 });
     expect(evidence.requests).toContainEqual(
-      expect.objectContaining({ path: "/missing-worker.js", contentType: "text/javascript", finished: true }),
+      expect.objectContaining({ path: UNREACHABLE_WORKER, contentType: "text/javascript", finished: false }),
     );
   });
   it.each([false, true])("persists observed resume-hook execution with bootstrap acquired=%s", async (acquired) => {
@@ -380,14 +413,17 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
     });
     const p = await page();
     if (acquired) await acquire(p);
-    await expect(start(p, "invalid-module", "shared", "/missing-worker.js")).rejects.toThrow("Worker startup failed");
+    await expect(start(p, "throwing-module", "shared", THROWING_WORKER)).rejects.toThrow(THROWING_WORKER_ERROR);
     const evidence = JSON.parse(await readFile(startupEvidence.at(-1)!, "utf8")) as {
       schemaVersion: number;
       controlFacts: StartupControlFacts;
       bootstrapCounters: WorkerFreezeCounters[];
-      workerDiagnostic: { cleanup: { page: string } };
+      workerDiagnostic: { status: string; cleanup: { page: string } };
       bootstrapStartup: Array<{ event: string }> | null;
     };
+    // The error came from a worker that is still alive, not from one whose
+    // load failure raced its own termination (see THROWING_WORKER).
+    expect(evidence.workerDiagnostic.status).toBe("complete");
     expect(evidence.schemaVersion).toBe(2);
     expect(evidence.controlFacts.resumeRejection).toEqual({ installed: true, executed: acquired });
     // A failed resume is retried while still attached; detaching alone can
@@ -405,9 +441,7 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
   it("preserves the original startup error when diagnostic session creation fails", async () => {
     const p = await page();
     vi.spyOn(p.context(), "newCDPSession").mockRejectedValue(new Error("controlled diagnostic creation rejection"));
-    await expect(start(p, "invalid-module", "shared", "/missing-worker.js")).rejects.toThrow(
-      "Worker startup failed: error (Event)",
-    );
+    await expect(start(p, "throwing-module", "shared", THROWING_WORKER)).rejects.toThrow(THROWING_WORKER_ERROR);
     const evidence = JSON.parse(await readFile(startupEvidence.at(-1)!, "utf8")) as {
       workerDiagnostic: { status: string; failureStage: string };
     };
@@ -415,7 +449,7 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
   });
   it("records a startup outcome that arrives after the readiness timeout", async () => {
     const p = await page();
-    await expect(start(p, "late-module", "shared", "/late-missing-worker.js")).rejects.toThrow(
+    await expect(start(p, "late-module", "shared", LATE_UNREACHABLE_WORKER)).rejects.toThrow(
       "page.waitForFunction: Timeout 8000ms",
     );
     const evidence = JSON.parse(await readFile(startupEvidence.at(-1)!, "utf8")) as {
@@ -437,9 +471,7 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     process.env["DOMOTION_OUTPUT_DIR"] = blocker;
     try {
-      await expect(start(p, "invalid-module", "shared", "/missing-worker.js")).rejects.toThrow(
-        "Worker startup failed: error (Event)",
-      );
+      await expect(start(p, "throwing-module", "shared", THROWING_WORKER)).rejects.toThrow(THROWING_WORKER_ERROR);
       expect(warning).toHaveBeenCalledWith("Worker startup failed; diagnostic evidence could not be written.");
     } finally {
       if (previous === undefined) delete process.env["DOMOTION_OUTPUT_DIR"];

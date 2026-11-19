@@ -228,9 +228,9 @@ export class SharedWorkerBootstrap {
    * startup pause: Chromium binds a SharedWorker's renderer DevTools channel
    * only if a client is still attached when the worker becomes ready for
    * inspection (`SharedWorkerDevToolsAgentHost::UpdateRendererChannel`).
-   * This does not explain the lost startup errors seen on CI: a later
-   * recurrence logged `resume-retry-ok` and the worker still reported nothing
-   * (DM-3C3NFV remains open). */
+   * The startup errors lost on CI (DM-3C3NFV) were a separate Chromium race
+   * between a failed worker's load error and its own termination; see
+   * THROWING_WORKER in the bootstrap e2e suite. */
   private async resumeBeforeDetach(worker: Worker): Promise<void> {
     if (!this.live(worker) || !worker.waiting) return;
     this.log({ targetId: worker.targetId, url: worker.url, event: "resume-retry-sent" });

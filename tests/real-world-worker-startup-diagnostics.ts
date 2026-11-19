@@ -7,7 +7,7 @@ const CLEANUP_STEP_MS = 250;
 const MAX_MESSAGE_BYTES = 32 * 1024;
 const MAX_EXCEPTION_BYTES = 64 * 1024;
 const MAX_EXCEPTIONS = 8;
-const SCRIPT_PATHS = new Set(["/worker.js", "/missing-worker.js"]);
+const SCRIPT_PATHS = new Set(["/worker.js", "/throwing-worker.js"]);
 const EXCEPTION_NAMES = new Set([
   "Error",
   "TypeError",

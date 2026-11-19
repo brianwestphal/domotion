@@ -241,10 +241,24 @@ cannot reuse a SharedWorker host with a stale attached client. Failed patch or
 resume attempts release their own startup wait; a rejected resume restores, then
 retries the resume while still attached, and only then detaches, because
 Chromium binds a worker's renderer DevTools channel only if a client is still
-attached when the worker becomes ready for inspection. That is not the cause of
-the SharedWorker starts that never report their module error on CI: a
-recurrence logged a successful retried resume and still received no error, so
-that loss remains unattributed (DM-3C3NFV). An unexpectedly lost primary marks active leases unhealthy and rejects
+attached when the worker becomes ready for inspection. That was not the cause of
+the SharedWorker starts that never reported their module error on CI
+(DM-3C3NFV). The loss is a Chromium race that needs no DevTools client at all.
+A renderer-side module fetch or parse failure sends `OnScriptLoadFailed` on the
+SharedWorkerHost pipe and then terminates the worker, closing its separate
+SharedWorker pipe. Mojo does not order messages across pipes, and a busy browser
+UI thread can run `SharedWorkerHost::OnWorkerConnectionLost` first. The
+destructor of a started host only terminates the worker, so the queued error is
+dropped and the page never sees an `error` event
+(`content/browser/worker_host/shared_worker_host.cc:199-209,496-497,1234-1239`
+at Chromium `7d859f27`). Browser traces of local recurrences, under several
+concurrent copies of the suite, showed the SharedWorker pipe closure dispatched
+while `OnScriptLoadFailed` and `OnContextClosed` were still queued; every
+delivered error showed the opposite order. The suite's startup-failure fixtures
+now avoid that path: one drops the main-script connection, so the
+browser-side fetch fails before the worker starts and the unstarted host's
+destructor notifies every client; the other throws at top level, so the worker
+stays alive while its `OnReportException` reaches the page. An unexpectedly lost primary marks active leases unhealthy and rejects
 future strict acquisition. A bounded recovery client resumes only target IDs
 observed waiting under that owner, rechecking type/context/URL before resume and
 detach. It neither sweeps arbitrary targets nor uses `Debugger.resume` or worker
