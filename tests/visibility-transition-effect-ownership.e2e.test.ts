@@ -146,7 +146,15 @@ async function rgba(png: Buffer): Promise<Buffer> {
  * page had not presented its first frame, so the isolation assertions had no
  * valid input. A later recurrence presented the body but not yet the canvas.
  * Wait, bounded, for the fixture's dark body and blue canvas before isolating;
- * a page that never paints fails here with that cause. */
+ * a page that never paints fails here with that cause.
+ *
+ * Two later CI recurrences presented the body and overlay for the whole 5 s
+ * bound but never the canvas square drawn once at setup. If the canvas has
+ * still not presented after one second, record its own state (context lost?
+ * does its backing store still hold the blue pixel?) and draw the square
+ * again once, which schedules a fresh canvas commit. The facts are written
+ * next to the retained frame and logged, so the recurrence is still
+ * attributed even when the redraw restores the precondition. */
 const CENTER = (50 * 100 + 50) * 4;
 
 async function presentedSource(page: Page): Promise<Buffer> {
@@ -155,6 +163,8 @@ async function presentedSource(page: Page): Promise<Buffer> {
   let corner: number[] = [];
   let center: number[] = [];
   let last: Buffer | undefined;
+  let canvasState: CanvasState | undefined;
+  const started = Date.now();
   for (let attempt = 0; attempt === 0 || Date.now() < deadline; attempt++) {
     const png = (last = await page.screenshot());
     const pixels = await rgba(png);
@@ -163,19 +173,55 @@ async function presentedSource(page: Page): Promise<Buffer> {
     // The navy body (under the translucent overlay when it is visible), not
     // Chromium's default white, and the canvas's blue square: a later
     // recurrence presented the body while the canvas was still blank.
-    if (corner.slice(0, 3).some((channel) => channel < 128) && center[0]! < 128 && center[2]! > 200) return png;
+    const bodyPresented = corner.slice(0, 3).some((channel) => channel < 128);
+    if (bodyPresented && center[0]! < 128 && center[2]! > 200) {
+      if (canvasState != null) retainUnpresented(png, { recovered: true, corner, center, canvasState });
+      return png;
+    }
+    if (bodyPresented && canvasState == null && Date.now() - started > 1_000) {
+      canvasState = await redrawCanvas(page);
+      console.warn(`Fixture canvas had not presented after 1 s; redrew it once: ${JSON.stringify(canvasState)}`);
+    }
     await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   }
+  retainUnpresented(last, { recovered: false, corner, center, canvasState });
+  throw new Error(
+    `fixture page never presented its first painted frame (last corner ${JSON.stringify(corner)}, center ${JSON.stringify(center)}, canvas ${JSON.stringify(canvasState ?? null)})`,
+  );
+}
+
+interface CanvasState {
+  contextLost: boolean;
+  /** The canvas backing store's own pixel at the square's center, read before the redraw. */
+  backingCenter: number[];
+}
+
+async function redrawCanvas(page: Page): Promise<CanvasState> {
+  return page.evaluate(() => {
+    const context = document.querySelector("canvas")!.getContext("2d")!;
+    const state = {
+      contextLost: context.isContextLost(),
+      backingCenter: [...context.getImageData(50, 50, 1, 1).data],
+    };
+    context.fillStyle = "rgb(0,80,240)";
+    context.fillRect(30, 30, 40, 40);
+    return state;
+  });
+}
+
+function retainUnpresented(png: Buffer | undefined, facts: Record<string, unknown>): void {
   try {
     const directory = join(process.env["DOMOTION_OUTPUT_DIR"] ?? "tests/output", "visibility-isolation");
     mkdirSync(directory, { recursive: true });
-    if (last != null) writeFileSync(join(directory, `unpresented-${process.pid}-${Date.now()}.png`), last);
+    const stem = join(directory, `unpresented-${process.pid}-${Date.now()}`);
+    if (png != null) writeFileSync(`${stem}.png`, png);
+    writeFileSync(
+      `${stem}.json`,
+      JSON.stringify({ schemaVersion: 1, sourceCommit: process.env["GITHUB_SHA"] ?? null, ...facts }, null, 2),
+    );
   } catch {
     console.warn("Unpresented source frame could not be retained.");
   }
-  throw new Error(
-    `fixture page never presented its first painted frame (last corner ${JSON.stringify(corner)}, center ${JSON.stringify(center)})`,
-  );
 }
 
 /** DM-DQGEDM: when an isolated `omitBackground` screenshot comes back with an
