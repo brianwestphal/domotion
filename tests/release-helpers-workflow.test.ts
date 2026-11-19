@@ -1,10 +1,10 @@
-import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { budgetForCpuWork, describeChild, runBoundedChild, testTimeoutFor } from "./bounded-child.js";
 
 const WORKFLOW = resolve(__dirname, "..", ".github", "workflows", "release-helpers.yml");
 const source = readFileSync(WORKFLOW, "utf8");
@@ -49,18 +49,35 @@ afterEach(() => {
 const templates = new Map<string, { cwd: string; commit: string }>();
 const templateRoot = mkdtempSync(join(tmpdir(), "domotion-helper-release-template-"));
 afterAll(() => rmSync(templateRoot, { recursive: true, force: true }));
-function template(version: string): { cwd: string; commit: string } {
+async function template(version: string): Promise<{ cwd: string; commit: string }> {
   const cached = templates.get(version);
   if (cached != null) return cached;
   const cwd = join(templateRoot, String(templates.size));
   mkdirSync(cwd);
   writeFileSync(join(cwd, "package.json"), JSON.stringify({ version }));
-  git(cwd, "init", "-q", "--template=");
-  git(cwd, "add", "package.json");
-  git(cwd, "commit", "-qm", "source");
-  const created = { cwd, commit: git(cwd, "rev-parse", "HEAD") };
+  await git(cwd, "init", "-q", "--template=");
+  await git(cwd, "add", "package.json");
+  await git(cwd, "commit", "-qm", "source");
+  const created = { cwd, commit: await git(cwd, "rev-parse", "HEAD") };
   templates.set(version, created);
   return created;
+}
+
+// Measured inside a loaded full suite (docs/tool-child-process-test-bounds.md):
+// a repository command used under 0.01 s of CPU and an embedded workflow script
+// 0.07-0.09 s, plus the one revision lookup the resolve script starts, while a
+// test with about 20 such children took 60 s against the 30 s timeout. Every
+// child therefore runs bounded, and each test's timeout is the sum of the
+// budgets of the children it can start, counting a new template's four
+// repository commands even though an earlier test may have cached it.
+const GIT_BUDGET_MS = budgetForCpuWork(50);
+const SCRIPT_BUDGET_MS = budgetForCpuWork(100, 2);
+const TEMPLATE_COMMANDS = 4;
+function timeoutForChildren(templatesCreated: number, gitCommands: number, scripts: number): number {
+  return testTimeoutFor(
+    ...Array<number>(templatesCreated * TEMPLATE_COMMANDS + gitCommands).fill(GIT_BUDGET_MS),
+    ...Array<number>(scripts).fill(SCRIPT_BUDGET_MS),
+  );
 }
 
 function script(job: string, name: string): string {
@@ -71,8 +88,8 @@ function script(job: string, name: string): string {
 }
 const resolveScript = script("resolve-source", "Resolve and validate the helper source");
 const verifyScript = script("attach-binaries", "Verify the complete helper set and commit provenance");
-function git(cwd: string, ...args: string[]): string {
-  return execFileSync(
+async function git(cwd: string, ...args: string[]): Promise<string> {
+  const result = await runBoundedChild(
     "git",
     [
       "-C",
@@ -85,14 +102,16 @@ function git(cwd: string, ...args: string[]): string {
       "commit.gpgSign=false",
       ...args,
     ],
-    { encoding: "utf8" },
-  ).trim();
+    { budgetMs: GIT_BUDGET_MS },
+  );
+  expect(result.status, describeChild(result)).toBe(0);
+  return result.stdout.trim();
 }
-function fixture(version = "0.35.0") {
+async function fixture(version = "0.35.0") {
   const root = mkdtempSync(join(tmpdir(), "domotion-helper-release-"));
   roots.push(root);
   const cwd = join(root, "source");
-  const seed = template(version);
+  const seed = await template(version);
   cpSync(seed.cwd, cwd, { recursive: true });
   const provenance = join(root, "domotion-helper-provenance.json");
   const output = join(root, "output");
@@ -111,17 +130,20 @@ function fixture(version = "0.35.0") {
   };
   return { root, cwd, provenance, output, commit, env };
 }
-function execute(code: string, cwd: string, env: NodeJS.ProcessEnv) {
-  return spawnSync(process.execPath, ["-e", code], { cwd, env, encoding: "utf8" });
+async function execute(code: string, cwd: string, env: NodeJS.ProcessEnv) {
+  const result = await runBoundedChild(process.execPath, ["-e", code], { budgetMs: SCRIPT_BUDGET_MS, cwd, env });
+  // A rejection must come from the script itself, not from a stopped child.
+  expect(result.error, describeChild(result)).toBeNull();
+  return result;
 }
 let resolvedProvenance: Buffer | undefined;
-function stagedFixture() {
-  const f = fixture();
+async function stagedFixture() {
+  const f = await fixture();
   // Every 0.35.0 fixture shares one template commit, so one resolution's
   // provenance is valid for all of them (DM-GBCJV8).
   if (resolvedProvenance == null) {
-    const resolved = execute(resolveScript, f.cwd, f.env);
-    expect(resolved.status, resolved.stderr).toBe(0);
+    const resolved = await execute(resolveScript, f.cwd, f.env);
+    expect(resolved.status, describeChild(resolved)).toBe(0);
     resolvedProvenance = readFileSync(f.provenance);
   }
   const dir = join(f.root, "assets");
@@ -180,114 +202,147 @@ describe("release-helpers.yml source and publication contract", () => {
         "libfontconfig-dev",
       );
   });
-  it("pins an immutable source commit even when its requested branch later moves", () => {
-    const f = fixture();
-    const result = execute(resolveScript, f.cwd, f.env);
-    expect(result.status, result.stderr).toBe(0);
-    writeFileSync(join(f.cwd, "later.txt"), "new main");
-    git(f.cwd, "add", "later.txt");
-    git(f.cwd, "commit", "-qm", "move branch");
-    const provenance = JSON.parse(readFileSync(f.provenance, "utf8")) as {
-      sourceCommit: string;
-      sourcePackageVersion: string;
-      requestedSourceRef: string;
-    };
-    expect(provenance.sourceCommit).toBe(f.commit);
-    expect(provenance.sourceCommit).not.toBe(git(f.cwd, "rev-parse", "HEAD"));
-    expect(provenance.sourcePackageVersion).toBe("0.35.0");
-    expect(provenance.requestedSourceRef).toBe("main");
-    expect(readFileSync(f.output, "utf8")).toBe(`source_sha=${f.commit}\nsource_package_version=0.35.0\n`);
-  });
-  it("rejects mismatched source versions and malformed tags before emitting build outputs", () => {
-    for (const [version, tag] of [
-      ["0.36.0", "v0.35.0"],
-      ["0.35.0", "main"],
-      ["0.35.0", "v0.35.0\nsource_sha=evil"],
-    ]) {
-      const f = fixture(version);
-      const result = execute(resolveScript, f.cwd, { ...f.env, TAG: tag });
-      expect(result.status).not.toBe(0);
-      expect(existsSync(f.output)).toBe(false);
-      expect(existsSync(f.provenance)).toBe(false);
-    }
-  });
-  it("preserves only the existing default-tag beta base-version compatibility", () => {
-    const f = fixture();
-    const tag = "v0.35.0-beta.2";
-    const result = execute(resolveScript, f.cwd, { ...f.env, TAG: tag, SOURCE_REF: tag, SOURCE_OVERRIDE: "" });
-    expect(result.status, result.stderr).toBe(0);
-    const provenance = JSON.parse(readFileSync(f.provenance, "utf8")) as {
-      sourcePackageVersion: string;
-      targetVersion: string;
-      versionPolicy: string;
-    };
-    expect(provenance).toMatchObject({
-      sourcePackageVersion: "0.35.0",
-      targetVersion: "0.35.0-beta.2",
-      versionPolicy: "default-tag-beta-base",
-    });
-    for (const [version, target, ref, override] of [
-      ["0.36.0", tag, tag, ""],
-      ["0.35.0", tag, "main", "main"],
-      ["0.35.0", tag, tag, tag],
-      ["0.35.0", "v0.35.0-rc.2", "v0.35.0-rc.2", ""],
-      ["0.35.0", "v0.35.0-beta.bad", "v0.35.0-beta.bad", ""],
-    ]) {
-      const bad = fixture(version);
+  it(
+    "pins an immutable source commit even when its requested branch later moves",
+    async () => {
+      const f = await fixture();
+      const result = await execute(resolveScript, f.cwd, f.env);
+      expect(result.status, describeChild(result)).toBe(0);
+      writeFileSync(join(f.cwd, "later.txt"), "new main");
+      await git(f.cwd, "add", "later.txt");
+      await git(f.cwd, "commit", "-qm", "move branch");
+      const provenance = JSON.parse(readFileSync(f.provenance, "utf8")) as {
+        sourceCommit: string;
+        sourcePackageVersion: string;
+        requestedSourceRef: string;
+      };
+      expect(provenance.sourceCommit).toBe(f.commit);
+      expect(provenance.sourceCommit).not.toBe(await git(f.cwd, "rev-parse", "HEAD"));
+      expect(provenance.sourcePackageVersion).toBe("0.35.0");
+      expect(provenance.requestedSourceRef).toBe("main");
+      expect(readFileSync(f.output, "utf8")).toBe(`source_sha=${f.commit}\nsource_package_version=0.35.0\n`);
+    },
+    timeoutForChildren(1, 3, 1),
+  );
+  it(
+    "rejects mismatched source versions and malformed tags before emitting build outputs",
+    async () => {
+      for (const [version, tag] of [
+        ["0.36.0", "v0.35.0"],
+        ["0.35.0", "main"],
+        ["0.35.0", "v0.35.0\nsource_sha=evil"],
+      ]) {
+        const f = await fixture(version);
+        const result = await execute(resolveScript, f.cwd, { ...f.env, TAG: tag });
+        expect(result.status).not.toBe(0);
+        expect(existsSync(f.output)).toBe(false);
+        expect(existsSync(f.provenance)).toBe(false);
+      }
+    },
+    timeoutForChildren(2, 0, 3),
+  );
+  it(
+    "preserves only the existing default-tag beta base-version compatibility",
+    async () => {
+      const f = await fixture();
+      const tag = "v0.35.0-beta.2";
+      const result = await execute(resolveScript, f.cwd, { ...f.env, TAG: tag, SOURCE_REF: tag, SOURCE_OVERRIDE: "" });
+      expect(result.status, describeChild(result)).toBe(0);
+      const provenance = JSON.parse(readFileSync(f.provenance, "utf8")) as {
+        sourcePackageVersion: string;
+        targetVersion: string;
+        versionPolicy: string;
+      };
+      expect(provenance).toMatchObject({
+        sourcePackageVersion: "0.35.0",
+        targetVersion: "0.35.0-beta.2",
+        versionPolicy: "default-tag-beta-base",
+      });
+      for (const [version, target, ref, override] of [
+        ["0.36.0", tag, tag, ""],
+        ["0.35.0", tag, "main", "main"],
+        ["0.35.0", tag, tag, tag],
+        ["0.35.0", "v0.35.0-rc.2", "v0.35.0-rc.2", ""],
+        ["0.35.0", "v0.35.0-beta.bad", "v0.35.0-beta.bad", ""],
+      ]) {
+        const bad = await fixture(version);
+        expect(
+          (
+            await execute(resolveScript, bad.cwd, {
+              ...bad.env,
+              TAG: target,
+              SOURCE_REF: ref,
+              SOURCE_OVERRIDE: override,
+            })
+          ).status,
+        ).not.toBe(0);
+        expect(existsSync(bad.output)).toBe(false);
+      }
+      const missing = await fixture();
+      writeFileSync(join(missing.cwd, "package.json"), "{}");
       expect(
-        execute(resolveScript, bad.cwd, { ...bad.env, TAG: target, SOURCE_REF: ref, SOURCE_OVERRIDE: override }).status,
+        (
+          await execute(resolveScript, missing.cwd, {
+            ...missing.env,
+            SOURCE_REF: missing.env.TAG,
+            SOURCE_OVERRIDE: "",
+          })
+        ).status,
       ).not.toBe(0);
-      expect(existsSync(bad.output)).toBe(false);
-    }
-    const missing = fixture();
-    writeFileSync(join(missing.cwd, "package.json"), "{}");
-    expect(
-      execute(resolveScript, missing.cwd, { ...missing.env, SOURCE_REF: missing.env.TAG, SOURCE_OVERRIDE: "" }).status,
-    ).not.toBe(0);
-    const exact = fixture("0.35.0-beta.2");
-    expect(execute(resolveScript, exact.cwd, { ...exact.env, TAG: tag }).status).toBe(0);
-  });
+      const exact = await fixture("0.35.0-beta.2");
+      expect((await execute(resolveScript, exact.cwd, { ...exact.env, TAG: tag })).status).toBe(0);
+    },
+    timeoutForChildren(3, 0, 8),
+  );
 
-  it("records all five verified checksums with their pinned commit before attachment", () => {
-    const f = stagedFixture();
-    const result = execute(verifyScript, f.cwd, f.verifyEnv);
-    expect(result.status, result.stderr).toBe(0);
-    const content = readFileSync(join(f.dir, "domotion-helper-provenance.json"));
-    const proof = JSON.parse(content.toString()) as {
-      sourceCommit: string;
-      assets: Record<string, { sha256: string; bytes: number }>;
-    };
-    expect(proof.sourceCommit).toBe(f.commit);
-    expect(Object.keys(proof.assets)).toEqual(assets);
-    for (const asset of assets) {
-      expect(proof.assets[asset].sha256).toBe(
-        createHash("sha256")
-          .update(readFileSync(join(f.dir, asset)))
-          .digest("hex"),
+  it(
+    "records all five verified checksums with their pinned commit before attachment",
+    async () => {
+      const f = await stagedFixture();
+      const result = await execute(verifyScript, f.cwd, f.verifyEnv);
+      expect(result.status, describeChild(result)).toBe(0);
+      const content = readFileSync(join(f.dir, "domotion-helper-provenance.json"));
+      const proof = JSON.parse(content.toString()) as {
+        sourceCommit: string;
+        assets: Record<string, { sha256: string; bytes: number }>;
+      };
+      expect(proof.sourceCommit).toBe(f.commit);
+      expect(Object.keys(proof.assets)).toEqual(assets);
+      for (const asset of assets) {
+        expect(proof.assets[asset].sha256).toBe(
+          createHash("sha256")
+            .update(readFileSync(join(f.dir, asset)))
+            .digest("hex"),
+        );
+        expect(proof.assets[asset].bytes).toBeGreaterThan(0);
+      }
+      expect(readFileSync(join(f.dir, "domotion-helper-provenance.json.sha256"), "utf8")).toBe(
+        `${createHash("sha256").update(content).digest("hex")}  domotion-helper-provenance.json\n`,
       );
-      expect(proof.assets[asset].bytes).toBeGreaterThan(0);
-    }
-    expect(readFileSync(join(f.dir, "domotion-helper-provenance.json.sha256"), "utf8")).toBe(
-      `${createHash("sha256").update(content).digest("hex")}  domotion-helper-provenance.json\n`,
-    );
-  });
-  it("rejects missing, empty, extra, corrupted and mixed-source products before publication", () => {
-    for (const mutate of [
-      (f: ReturnType<typeof stagedFixture>) => rmSync(join(f.dir, assets[4])),
-      (f: ReturnType<typeof stagedFixture>) => writeFileSync(join(f.dir, assets[0]), ""),
-      (f: ReturnType<typeof stagedFixture>) => writeFileSync(join(f.dir, "unexpected"), "asset"),
-      (f: ReturnType<typeof stagedFixture>) => writeFileSync(join(f.dir, assets[1]), "tampered"),
-      (f: ReturnType<typeof stagedFixture>) =>
-        writeFileSync(join(f.dir, assets[2] + ".sha256"), `${"a".repeat(64)}  ${assets[2]}\n`),
-      (f: ReturnType<typeof stagedFixture>) => {
-        f.verifyEnv.SOURCE_SHA = "b".repeat(40);
-      },
-    ]) {
-      const f = stagedFixture();
-      mutate(f);
-      const result = execute(verifyScript, f.cwd, f.verifyEnv);
-      expect(result.status).not.toBe(0);
-      expect(existsSync(join(f.dir, "domotion-helper-provenance.json.sha256"))).toBe(false);
-    }
-  });
+    },
+    timeoutForChildren(1, 0, 2),
+  );
+  it(
+    "rejects missing, empty, extra, corrupted and mixed-source products before publication",
+    async () => {
+      for (const mutate of [
+        (f: Awaited<ReturnType<typeof stagedFixture>>) => rmSync(join(f.dir, assets[4])),
+        (f: Awaited<ReturnType<typeof stagedFixture>>) => writeFileSync(join(f.dir, assets[0]), ""),
+        (f: Awaited<ReturnType<typeof stagedFixture>>) => writeFileSync(join(f.dir, "unexpected"), "asset"),
+        (f: Awaited<ReturnType<typeof stagedFixture>>) => writeFileSync(join(f.dir, assets[1]), "tampered"),
+        (f: Awaited<ReturnType<typeof stagedFixture>>) =>
+          writeFileSync(join(f.dir, assets[2] + ".sha256"), `${"a".repeat(64)}  ${assets[2]}\n`),
+        (f: Awaited<ReturnType<typeof stagedFixture>>) => {
+          f.verifyEnv.SOURCE_SHA = "b".repeat(40);
+        },
+      ]) {
+        const f = await stagedFixture();
+        mutate(f);
+        const result = await execute(verifyScript, f.cwd, f.verifyEnv);
+        expect(result.status).not.toBe(0);
+        expect(existsSync(join(f.dir, "domotion-helper-provenance.json.sha256"))).toBe(false);
+      }
+    },
+    timeoutForChildren(1, 0, 7),
+  );
 });

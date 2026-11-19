@@ -610,7 +610,11 @@ describe("public barrel export surface (DM-1058)", () => {
     }
   });
 
-  it("every root export, value or type, has a row in docs/api.md", () => {
+  // Building the checker program over the whole `src/` graph is in-process CPU
+  // work: 1.5 s on a cold idle worker and 1.9 s inside a loaded full suite,
+  // where it took up to 48 s. Its timeout is 100 times that work, like the
+  // child-process budgets in docs/tool-child-process-test-bounds.md (200 s).
+  it("every root export, value or type, has a row in docs/api.md", { timeout: 200_000 }, () => {
     const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
     const names = rootExportNames(repoRoot);
     // The checker really enumerated the surface, including type-only exports

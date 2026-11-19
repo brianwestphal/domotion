@@ -1,6 +1,12 @@
-import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { collectChangelog, formatChangelog } from "../scripts/changelog-analysis.mjs";
+import { budgetForCpuWork, describeChild, runBoundedChild, testTimeoutFor } from "./bounded-child.js";
+
+// The CLI over an empty range used 0.18 s of CPU idle and 0.28 s loaded, but
+// it starts about 13 processes in sequence (Node, then one per git query), and
+// each start waited to be scheduled under load
+// (docs/tool-child-process-test-bounds.md).
+const CLI_BUDGET_MS = budgetForCpuWork(300, 13);
 
 describe("changelog analysis", () => {
   it("collects git evidence and formats it without changing its source", () => {
@@ -27,15 +33,18 @@ describe("changelog analysis", () => {
     expect(calls).toContain("diff --numstat --no-renames v1.0.0..HEAD");
   });
 
-  it("runs the CLI against a real git range", () => {
-    const output = execFileSync(
-      process.execPath,
-      ["scripts/changelog-analysis.mjs", "--base", "HEAD", "--head", "HEAD"],
-      {
-        encoding: "utf8",
-      },
-    );
-    expect(output).toContain("Range:             HEAD..HEAD   (0 commits)");
-    expect(output).toContain("PRODUCT CODE ONLY:  +0 / -0");
-  });
+  it(
+    "runs the CLI against a real git range",
+    async () => {
+      const result = await runBoundedChild(
+        process.execPath,
+        ["scripts/changelog-analysis.mjs", "--base", "HEAD", "--head", "HEAD"],
+        { budgetMs: CLI_BUDGET_MS },
+      );
+      expect(result.status, describeChild(result)).toBe(0);
+      expect(result.stdout).toContain("Range:             HEAD..HEAD   (0 commits)");
+      expect(result.stdout).toContain("PRODUCT CODE ONLY:  +0 / -0");
+    },
+    testTimeoutFor(CLI_BUDGET_MS),
+  );
 });

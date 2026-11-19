@@ -60,7 +60,9 @@ instead of blocking the worker.
 
 Each budget is `LOAD_ALLOWANCE` (100) times the child's measured CPU work,
 with a 30 s floor for the smallest children, whose fixed startup costs scale
-worst:
+worst. A child that itself starts further processes in sequence also gets
+`PROCESS_START_ALLOWANCE_MS` (10 s) for each of them (see the third round
+below); the process count is shown where it applies:
 
 | caller                                               | CPU work used | budget per child |
 | ---------------------------------------------------- | ------------- | ---------------- |
@@ -72,6 +74,15 @@ worst:
 | real-world suite with no matching fixture            | 1.0 s         | 100 s            |
 | glyph-tool import or rejection                       | 0.9 s         | 90 s             |
 | real-world comparison tool (plain Node)              | 0.1 s         | 30 s (floor)     |
+| font-conformance oracle rejection (`--import tsx`)   | 1.0 s         | 100 s            |
+| changelog CLI over an empty range (13 processes)     | 0.3 s         | 150 s            |
+| nested Vitest coverage run (CLI plus one worker)     | 0.9 s         | 100 s            |
+| filtered html-test harness (`--import tsx`)          | 1.2 s         | 120 s            |
+| shard merge script (plain Node)                      | 0.1 s         | 30 s (floor)     |
+| source-drift producer (plus 3 revision lookups)      | 0.3 s         | 60 s             |
+| source-drift comparator (`--import tsx` loader)      | 0.3 s         | 30 s (floor)     |
+| fixture repository command (`git`)                   | under 0.05 s  | 30 s (floor)     |
+| embedded release-workflow script (`node -e`, 2 proc) | 0.1 s         | 30 s (floor)     |
 
 That leaves about 3.6 times headroom over the worst measured tsx ratio
 (130 s against 35.9 s) and about 2 times over the worst ratio of the
@@ -132,6 +143,81 @@ checks instead of 1.1 million assertion calls. In a second loaded full run all
 budgets, and the sweeps took 0.5-0.7 s. That run used budgets sized from the
 unloaded CPU (80-110 s); they were then raised to the loaded maxima shown in
 the budget table.
+
+## Third round: per-process start latency, and an in-process helper sweep
+
+Seven more files failed in a loaded full run: `src/index.exports.test.ts`,
+`tests/changelog-analysis.test.ts`, `tests/coverage-map.test.ts`,
+`tests/release-helpers-workflow.test.ts`, `tests/font-conformance-cli.test.ts`,
+`tests/font-conformance.test.ts`, `tests/shard-completeness.test.ts` and
+`tests/source-drift-report-cli.test.ts`. They were measured as in the second
+round (same host, 30 busy processes, pueue-launched full `vitest run`, load
+average 43-77): each child kind alone and unloaded, then three rounds inside
+the loaded suite with `/usr/bin/time -l`. In-process work was timed with
+`process.cpuUsage()`, and the compatibility-ideograph sweep as a nested
+filtered Vitest run minus the same run with no matching test.
+
+| child or work                                      | CPU unloaded | CPU in the loaded suite | wall in the loaded suite |
+| -------------------------------------------------- | ------------ | ----------------------- | ------------------------ |
+| `font-conformance.ts` argument rejection (tsx)     | 0.65-0.67 s  | 0.93-1.00 s             | up to 17.8 s (18x)       |
+| `html-test-suite.tsx --only` (empty stride, tsx)   | 0.67-0.71 s  | 0.91-1.11 s             | up to 16.7 s (15x)       |
+| nested `vitest run --coverage` fixture (via `npx`) | 0.54-0.55 s  | 0.77-0.83 s             | up to 21.4 s (26x)       |
+| `changelog-analysis.mjs` over HEAD..HEAD           | 0.18 s       | 0.27-0.28 s             | up to 16.3 s (58x)       |
+| `source-drift-evidence.ts` (tsx loader)            | 0.14-0.15 s  | 0.21-0.22 s             | up to 5.8 s (26x)        |
+| `compare-roll-evidence.ts` (tsx loader)            | 0.12-0.15 s  | 0.18-0.21 s             | up to 3.3 s (16x)        |
+| embedded release resolve script (`node -e`)        | 0.07 s       | 0.09 s                  | up to 2.6 s (29x)        |
+| `merge-shard-results.mjs`                          | 0.07 s       | 0.08-0.09 s             | up to 1.6 s (18x)        |
+| one `git commit` in a fixture repository           | under 0.01 s | under 0.01 s            | up to 1.5 s              |
+| `ts.createProgram(src/index.ts)` plus exports      | 0.74-1.47 s  | 1.00-1.93 s             | up to 47.8 s (25x)       |
+| compatibility-ideograph sweep, one-shot helper     | 1.7 s        | 2.6-2.7 s               | 158-380 s (nested run)   |
+
+Every child exited with its normal status. Two findings go beyond the second
+round's CPU model.
+
+**Process starts cost wall time independent of CPU.** In the suite itself,
+`changelog-analysis` took 52.9 s for one CLI child with 0.28 s of CPU (190
+times its CPU): the CLI starts Node and then about 12 git queries in
+sequence, and each start waited about 4 s to be scheduled. The release
+workflow test started about 20 such children and took 60 s, and the
+source-drift test, 9 repository commands plus 3 tsx tools, took 51 s. A
+budget from CPU work alone, even with the 30 s floor, under-counts these, so
+`budgetForCpuWork(cpuMs, processes)` adds `PROCESS_START_ALLOWANCE_MS` (10 s,
+about twice the worst start latency observed for a small process) for every
+process after the first. One-process budgets are unchanged.
+
+**The compatibility-ideograph sweep was dominated by helper spawns.** The
+unit config sets `DOMOTION_HELPER_NO_SERVE=1`, so each of its roughly 140
+native-helper requests was a separate process. The helpers' CPU summed to
+0.1-0.3 s, but in the loaded suite the test took 250 s against the 30 s
+timeout, about 1.8 s per spawn. The test now clears that variable for its own
+body, so its requests go through one persistent `--serve` child, and closes
+the helper again (`clearGlyphHelperCache()`) before restoring the variable,
+the same explicit lifecycle the E2E setup uses per file. The transport switch
+is answer-neutral, which `helper-serve-switch.test.ts` pins. Unloaded the test
+went from 1.6 s to 0.5-0.6 s.
+
+Changes:
+
+- `font-conformance-cli`, `changelog-analysis`, `coverage-map`,
+  `shard-completeness`, `source-drift-report-cli` and
+  `release-helpers-workflow` run every child through `runBoundedChild`
+  (budgets in the table above), and each test's timeout is the sum of its
+  children's budgets. Tests whose fixtures run git (`release-helpers-workflow`,
+  `source-drift-report-cli`) bound each repository command too. The coverage
+  test runs the Vitest CLI directly under Node rather than through `npx`, so
+  it needs no shell on Windows.
+- `index.exports`: no child. The checker program is in-process CPU work, so
+  that test's timeout is 100 times its loaded CPU (200 s).
+- `font-conformance` compatibility sweep: the persistent helper channel as
+  described above, and a timeout of 100 times its loaded CPU (270 s).
+
+In a second loaded full run all of these passed: `index.exports` took 46.9 s,
+the compatibility sweep 44.1 s, the html-test harness test 51.2 s, the
+changelog CLI 40.8 s, the source-drift test 46.9 s, the slowest release
+workflow test 35.0 s and the oracle preflight test 40.8 s, each within its
+derived bound. `tests/ci-font-conformance-shard.test.ts` and
+`tests/font-conformance-synthetic-stacks.test.ts` passed in both runs (at most
+22.8 s and 13.5 s) and were not changed.
 
 ## A bound that was timing the wrong interval
 

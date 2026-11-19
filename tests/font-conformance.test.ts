@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  clearGlyphHelperCache,
   getFontSourceInfo,
   isGlyphHelperAvailable,
   resolveFont,
@@ -63,6 +64,12 @@ import {
   type SweepOperations,
 } from "../tools/font-conformance.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
+import { budgetForCpuWork } from "./bounded-child.js";
+
+// The compatibility-ideograph sweep below used 1.7 s of CPU idle and up to
+// 2.7 s inside a loaded suite, so its timeout is derived from that work like
+// the child-process budgets in docs/tool-child-process-test-bounds.md.
+const COMPATIBILITY_SWEEP_TIMEOUT_MS = budgetForCpuWork(2_700);
 
 /** A resolved stack carrying only the fields an orchestration test reads. */
 function resolvedStackFixture(fields: Partial<ResolvedStack>): ResolvedStack {
@@ -106,63 +113,84 @@ describe("CJK canonical singleton coverage", () => {
   // The oracle's bounded walk stands in for the renderer's shape-first splitter;
   // this is what keeps the stand-in honest on the platforms where the walk is
   // enabled. Windows still needs its native splitter/Chrome comparison.
+  //
+  // The sweep makes about 140 native-helper requests. Under the unit config's
+  // one-shot transport each one is a separate process, and on a loaded host
+  // each spawn waited almost 2 s to be scheduled although the helpers' CPU
+  // time totaled 0.1-0.3 s, so the test took 250 s against the 30 s timeout. The persistent channel answers the same questions (pinned by
+  // helper-serve-switch.test.ts) from one process, which is closed again
+  // before the test returns, as the E2E setup does for each file
+  // (docs/tool-child-process-test-bounds.md).
   it.skipIf(process.platform === "win32" || !isGlyphHelperAvailable())(
     "matches the renderer's shape-first splitter for compatibility ideographs",
     () => {
-      const stacks: StackSpec[] = [
-        { fontFamily: "serif", lang: "ja" },
-        { fontFamily: "sans-serif", lang: "ja" },
-        { fontFamily: "system-ui", lang: "ja" },
-        { fontFamily: "serif", lang: "ko" },
-        { fontFamily: "sans-serif", lang: "ko" },
-        { fontFamily: "system-ui", lang: "ko" },
-        { fontFamily: "serif", lang: "zh-Hans" },
-        { fontFamily: "sans-serif", lang: "zh-Hans" },
-        { fontFamily: "system-ui", lang: "zh-Hans" },
-        { fontFamily: "serif", lang: "zh-Hant" },
-        { fontFamily: "sans-serif", lang: "zh-Hant" },
-        { fontFamily: "system-ui", lang: "zh-Hant" },
-      ].map((s) => ({
-        ...s,
-        fontSize: 16,
-        fontWeight: 400,
-        fontStyle: "normal",
-        fontStretch: "100%",
-        fixtures: 0,
-        example: "",
-      }));
-      for (const spec of stacks) {
-        const rs = prepareStack(spec);
-        expect(rs).not.toBeNull();
-        for (const cp of [0xf900, 0xfa00, 0x2f800, 0x2f900, 0x2fa00]) {
-          const oracle = cjkCanonicalRendererFace(cp, rs!, ourFaceFor(cp, rs!, spec.lang));
-          const runs = splitTextIntoFontRunsShaped(
-            String.fromCodePoint(cp),
-            rs!.primary,
-            rs!.primaryKey,
-            spec.fontWeight,
-            spec.fontSize,
-            rs!.slant,
-            undefined,
-            spec.lang,
-            rs!.chain,
-            stackPrimaryIsSystemUi(spec.fontFamily, spec.lang),
-            rs!.stretch,
-            undefined,
-            spec.fontFamily,
-          );
-          expect(runs).toHaveLength(1);
-          expect([spec.fontFamily, spec.lang, cp.toString(16), oracle.key]).toEqual([
-            spec.fontFamily,
-            spec.lang,
-            cp.toString(16),
-            runs[0].fontKey,
-          ]);
-        }
+      const noServe = process.env.DOMOTION_HELPER_NO_SERVE;
+      delete process.env.DOMOTION_HELPER_NO_SERVE;
+      clearGlyphHelperCache();
+      try {
+        expectShapeFirstSplitterAgreement();
+      } finally {
+        clearGlyphHelperCache();
+        if (noServe != null) process.env.DOMOTION_HELPER_NO_SERVE = noServe;
       }
     },
+    COMPATIBILITY_SWEEP_TIMEOUT_MS,
   );
 });
+
+function expectShapeFirstSplitterAgreement(): void {
+  const stacks: StackSpec[] = [
+    { fontFamily: "serif", lang: "ja" },
+    { fontFamily: "sans-serif", lang: "ja" },
+    { fontFamily: "system-ui", lang: "ja" },
+    { fontFamily: "serif", lang: "ko" },
+    { fontFamily: "sans-serif", lang: "ko" },
+    { fontFamily: "system-ui", lang: "ko" },
+    { fontFamily: "serif", lang: "zh-Hans" },
+    { fontFamily: "sans-serif", lang: "zh-Hans" },
+    { fontFamily: "system-ui", lang: "zh-Hans" },
+    { fontFamily: "serif", lang: "zh-Hant" },
+    { fontFamily: "sans-serif", lang: "zh-Hant" },
+    { fontFamily: "system-ui", lang: "zh-Hant" },
+  ].map((s) => ({
+    ...s,
+    fontSize: 16,
+    fontWeight: 400,
+    fontStyle: "normal",
+    fontStretch: "100%",
+    fixtures: 0,
+    example: "",
+  }));
+  for (const spec of stacks) {
+    const rs = prepareStack(spec);
+    expect(rs).not.toBeNull();
+    for (const cp of [0xf900, 0xfa00, 0x2f800, 0x2f900, 0x2fa00]) {
+      const oracle = cjkCanonicalRendererFace(cp, rs!, ourFaceFor(cp, rs!, spec.lang));
+      const runs = splitTextIntoFontRunsShaped(
+        String.fromCodePoint(cp),
+        rs!.primary,
+        rs!.primaryKey,
+        spec.fontWeight,
+        spec.fontSize,
+        rs!.slant,
+        undefined,
+        spec.lang,
+        rs!.chain,
+        stackPrimaryIsSystemUi(spec.fontFamily, spec.lang),
+        rs!.stretch,
+        undefined,
+        spec.fontFamily,
+      );
+      expect(runs).toHaveLength(1);
+      expect([spec.fontFamily, spec.lang, cp.toString(16), oracle.key]).toEqual([
+        spec.fontFamily,
+        spec.lang,
+        cp.toString(16),
+        runs[0].fontKey,
+      ]);
+    }
+  }
+}
 
 describe("OracleStabilityGuard", () => {
   it("accepts repeated settings and rejects a later face switch", () => {

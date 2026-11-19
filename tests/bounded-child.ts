@@ -22,9 +22,25 @@ export const LOAD_ALLOWANCE = 100;
 /** Floor for the smallest children, whose fixed startup costs scale worst. */
 export const MIN_BUDGET_MS = 30_000;
 
-/** Wall-clock budget for a child whose measured CPU work is `cpuMs`. */
-export function budgetForCpuWork(cpuMs: number): number {
-  return Math.max(MIN_BUDGET_MS, Math.ceil(cpuMs * LOAD_ALLOWANCE));
+/**
+ * Allowance for each further process a child starts in sequence (a CLI that
+ * runs a dozen version-control commands, or a script whose own children do
+ * almost no work). Under load each process start waited to be scheduled
+ * regardless of its CPU time: inside a loaded full `vitest run`, a changelog
+ * CLI that started 13 processes for 0.28 s of CPU took 52.9 s, about 4 s per
+ * process, and no single small process took more than 9 s
+ * (docs/tool-child-process-test-bounds.md).
+ */
+export const PROCESS_START_ALLOWANCE_MS = 10_000;
+
+/**
+ * Wall-clock budget for a child whose measured CPU work, its own children
+ * included, is `cpuMs`, and which starts `processes` processes in sequence
+ * (itself included). A single process keeps the plain CPU-derived budget.
+ */
+export function budgetForCpuWork(cpuMs: number, processes = 1): number {
+  const starts = Math.max(0, processes - 1) * PROCESS_START_ALLOWANCE_MS;
+  return Math.max(MIN_BUDGET_MS, Math.ceil(cpuMs * LOAD_ALLOWANCE) + starts);
 }
 
 /** Vitest timeout for a test that runs children with these budgets in sequence. */

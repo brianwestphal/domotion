@@ -4,6 +4,7 @@ import {
   describeChild,
   LOAD_ALLOWANCE,
   MIN_BUDGET_MS,
+  PROCESS_START_ALLOWANCE_MS,
   runBoundedChild,
   testTimeoutFor,
 } from "./bounded-child.js";
@@ -11,6 +12,11 @@ import {
 it("derives budgets from measured CPU work with a floor for the smallest children", () => {
   expect(budgetForCpuWork(1_300)).toBe(1_300 * LOAD_ALLOWANCE);
   expect(budgetForCpuWork(80)).toBe(MIN_BUDGET_MS);
+  // One process keeps the CPU-derived budget; each further sequential process
+  // start adds its allowance, and the floor still applies.
+  expect(budgetForCpuWork(1_300, 1)).toBe(1_300 * LOAD_ALLOWANCE);
+  expect(budgetForCpuWork(300, 13)).toBe(300 * LOAD_ALLOWANCE + 12 * PROCESS_START_ALLOWANCE_MS);
+  expect(budgetForCpuWork(10, 2)).toBe(MIN_BUDGET_MS);
   // Each sequential child gets its budget plus the SIGKILL grace, then a margin.
   expect(testTimeoutFor(30_000, 50_000)).toBe(30_000 + 5_000 + 50_000 + 5_000 + 5_000);
 });
