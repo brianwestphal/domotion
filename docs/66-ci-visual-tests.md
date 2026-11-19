@@ -238,8 +238,13 @@ explicitly rather than substituting full Chrome for default headless-shell.
 
 Commands are bounded. Terminated worker sessions detach immediately so Chromium
 cannot reuse a SharedWorker host with a stale attached client. Failed patch or
-resume attempts release their own startup wait; a rejected resume restores before
-detaching. An unexpectedly lost primary marks active leases unhealthy and rejects
+resume attempts release their own startup wait; a rejected resume restores, then
+retries the resume while still attached, and only then detaches. Detaching alone
+does not release the wait: Chromium latches the worker's pause at start but binds
+its renderer DevTools channel only if a client is still attached when the worker
+becomes ready for inspection (`SharedWorkerDevToolsAgentHost::UpdateRendererChannel`),
+so a worker whose waiting clients all detached first stays paused with no error
+(DM-3C3NFV: a SharedWorker startup that never reported its module error on CI). An unexpectedly lost primary marks active leases unhealthy and rejects
 future strict acquisition. A bounded recovery client resumes only target IDs
 observed waiting under that owner, rechecking type/context/URL before resume and
 detach. It neither sweeps arbitrary targets nor uses `Debugger.resume` or worker

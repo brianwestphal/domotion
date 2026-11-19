@@ -34,6 +34,9 @@ export interface WorkerStartupEvent {
     | "resume-sent"
     | "resume-ok"
     | "resume-failed"
+    | "resume-retry-sent"
+    | "resume-retry-ok"
+    | "resume-retry-failed"
     | "detach-sent"
     | "detach-ok"
     | "detach-failed"
@@ -184,7 +187,6 @@ export class SharedWorkerBootstrap {
             this.log({ targetId: worker.targetId, url: worker.url, event: "resume-ok" });
           } catch {
             this.log({ targetId: worker.targetId, url: worker.url, event: "resume-failed" });
-            // The last client detaching releases Chromium's startup pause.
             // Restore first so a failed resume cannot strand an owned no-op.
             for (const lease of worker.owners) {
               if (worker.frozenOwners.delete(lease)) lease.counters.frozenWorkers--;
@@ -195,6 +197,7 @@ export class SharedWorkerBootstrap {
               await this.restore(worker, lease);
             }
             worker.owners.clear();
+            await this.resumeBeforeDetach(worker);
             await this.detach(worker);
           }
         }
@@ -220,13 +223,34 @@ export class SharedWorkerBootstrap {
       break;
     }
   }
+  /** Detaching does not reliably release a startup pause. Chromium latches
+   * `wait_for_debugger` when the worker starts, but binds its renderer DevTools
+   * channel only if a client is still attached when the worker becomes ready
+   * for inspection (`SharedWorkerDevToolsAgentHost::UpdateRendererChannel`
+   * under `kSharedWorkerDevToolsWorkerReadyCheck`). If every waiting client has
+   * detached by then, no renderer session ever connects, so neither
+   * `Runtime.runIfWaitingForDebugger` nor the V8 debugger barrier released on
+   * session destruction can resume it, and it stays paused with no error. CI
+   * recorded exactly that: `resume-failed`, `detach-ok` 1 ms later, then no
+   * worker outcome. Resume again while still attached (the browser session
+   * queues the command until the channel binds) and detach only afterwards. */
+  private async resumeBeforeDetach(worker: Worker): Promise<void> {
+    if (!this.live(worker) || !worker.waiting) return;
+    this.log({ targetId: worker.targetId, url: worker.url, event: "resume-retry-sent" });
+    try {
+      await this.connection.command("Runtime.runIfWaitingForDebugger", {}, worker.sessionId);
+      worker.waiting = false;
+      this.log({ targetId: worker.targetId, url: worker.url, event: "resume-retry-ok" });
+    } catch {
+      this.log({ targetId: worker.targetId, url: worker.url, event: "resume-retry-failed" });
+    }
+  }
   private async detach(worker: Worker): Promise<void> {
     if (!this.live(worker)) return;
     this.workers.delete(worker.targetId);
     this.connection.cancelSession(worker.sessionId);
     // Logged here because removing the worker above suppresses its later
-    // `detached` entry, and a failed resume relies on this detach to release
-    // Chromium's startup pause.
+    // `detached` entry.
     this.log({ targetId: worker.targetId, url: worker.url, event: "detach-sent", waiting: worker.waiting });
     await this.connection.command("Target.detachFromTarget", { sessionId: worker.sessionId }).then(
       () => this.log({ targetId: worker.targetId, url: worker.url, event: "detach-ok" }),

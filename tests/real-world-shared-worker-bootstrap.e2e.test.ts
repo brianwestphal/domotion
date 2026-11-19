@@ -386,9 +386,17 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
       controlFacts: StartupControlFacts;
       bootstrapCounters: WorkerFreezeCounters[];
       workerDiagnostic: { cleanup: { page: string } };
+      bootstrapStartup: Array<{ event: string }> | null;
     };
     expect(evidence.schemaVersion).toBe(2);
     expect(evidence.controlFacts.resumeRejection).toEqual({ installed: true, executed: acquired });
+    // A failed resume is retried while still attached; detaching alone can
+    // strand the worker paused at startup (see resumeBeforeDetach).
+    if (acquired) {
+      const ordered = ["resume-failed", "resume-retry-sent", "resume-retry-ok", "detach-sent"];
+      const events = (evidence.bootstrapStartup ?? []).map(({ event }) => event);
+      expect(events.filter((event) => ordered.includes(event))).toEqual(ordered);
+    }
     expect(evidence.bootstrapCounters).toEqual(
       acquired ? [{ frozenWorkers: 0, failedWorkers: 1, failedWorkerRestorations: 0 }] : [],
     );
