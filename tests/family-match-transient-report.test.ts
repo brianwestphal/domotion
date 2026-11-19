@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +6,19 @@ import {
   readFamilyMatchTransientReport,
   writeFamilyMatchTransientReport,
 } from "../tools/family-match-transient-report.js";
+import { budgetForCpuWork, describeChild, runBoundedChild, testTimeoutFor } from "./bounded-child.js";
+
+// A rejected `--max-families` is one Node process with the tsx loader that
+// exits before any work: 0.9-1.0 s of CPU. In a loaded suite four of them in a
+// row reached the 30 s test timeout, so each gets 100 times its CPU.
+const REJECTION_BUDGET_MS = budgetForCpuWork(1_000);
+// The macOS CLI run over 40 families used 2.1 s of CPU with its children, and
+// starts about 45 processes in sequence: Node, one glyph-helper run per
+// family, and Chromium's browser, GPU, network and renderer processes. In a
+// loaded suite it passed its old 120 s spawnSync timeout (and Playwright's
+// SIGTERM handler turned the kill into exit 2 with empty stderr), so its
+// budget counts those process starts (docs/tool-child-process-test-bounds.md).
+const MACOS_CLI_BUDGET_MS = budgetForCpuWork(2_200, 45);
 
 const macReport = { scored: 2, agree: 1, skipped: 0, misses: [{ family: "A", css: 700, chrome: "A", ours: "B" }] };
 const linuxReport = {
@@ -60,25 +72,30 @@ describe("family-match transient report", () => {
     expect(() => readFamilyMatchTransientReport(path, "family-match-conformance-linux")).toThrow();
   });
 
-  it.each(["0", "-1", "2.5", "x"])("rejects --max-families %s before any work", (value) => {
-    const result = spawnSync(
-      process.execPath,
-      ["--import", "tsx", "tools/family-match-conformance.ts", `--max-families=${value}`],
-      { cwd: process.cwd(), encoding: "utf8", timeout: 60_000 },
-    );
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("--max-families requires a positive integer");
-  });
+  it.each(["0", "-1", "2.5", "x"])(
+    "rejects --max-families %s before any work",
+    async (value) => {
+      const result = await runBoundedChild(
+        process.execPath,
+        ["--import", "tsx", "tools/family-match-conformance.ts", `--max-families=${value}`],
+        { budgetMs: REJECTION_BUDGET_MS, cwd: process.cwd() },
+      );
+      expect(result.error, describeChild(result)).toBeNull();
+      expect(result.status, describeChild(result)).not.toBe(0);
+      expect(result.stderr).toContain("--max-families requires a positive integer");
+    },
+    testTimeoutFor(REJECTION_BUDGET_MS),
+  );
 
   it.skipIf(process.platform !== "darwin")(
     "preserves the macOS CLI stdout and writes a nested report",
-    () => {
+    async () => {
       const path = tempFile();
-      const result = spawnSync(
+      const result = await runBoundedChild(
         process.execPath,
         // DM-4NGYSE: this checks the CLI's stdout and nested-report contract, not
         // conformance, so it scores a small family slice. The full sweep took
-        // ~115 s against the 120 s spawn budget and failed under any load.
+        // ~115 s and failed under any load.
         [
           "--import",
           "tsx",
@@ -91,9 +108,9 @@ describe("family-match transient report", () => {
           "--max-families",
           "40",
         ],
-        { cwd: process.cwd(), encoding: "utf8", timeout: 120_000, maxBuffer: 64 * 1024 * 1024 },
+        { budgetMs: MACOS_CLI_BUDGET_MS, cwd: process.cwd() },
       );
-      expect(result.status, result.stderr.slice(-2_000)).toBe(0);
+      expect(result.status, describeChild(result)).toBe(0);
       const stdout = JSON.parse(result.stdout);
       const artifact = JSON.parse(readFileSync(path, "utf8"));
       expect(stdout).toMatchObject({
@@ -113,6 +130,6 @@ describe("family-match transient report", () => {
         },
       });
     },
-    150_000,
+    testTimeoutFor(MACOS_CLI_BUDGET_MS),
   );
 });

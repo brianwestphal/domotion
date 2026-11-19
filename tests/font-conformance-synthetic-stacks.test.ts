@@ -155,9 +155,14 @@ describe("corpus identity is a digest, not a timestamp", () => {
     // re-extracted; a rule-derived one must not, because regenerating it cannot
     // change it. A wall-clock stamp here would invalidate every baseline on
     // every CI run, since the corpus is regenerated per job.
-    expect(serializeCorpus(syntheticCorpus())).toBe(serializeCorpus(syntheticCorpus()));
-    expect(syntheticCorpus().generatedAt).toBe(syntheticCorpus().generatedAt);
-    expect(syntheticCorpus().generatedAt).toMatch(/^synthetic:v\d+:[0-9a-f]{16}$/);
+    // Two independent regenerations carry every comparison. Building the
+    // 50,544-stack corpus six times took up to 8.3 s in a loaded suite for
+    // about 0.5 s of CPU (docs/tool-child-process-test-bounds.md).
+    const first = syntheticCorpus();
+    const second = syntheticCorpus();
+    expect(serializeCorpus(first)).toBe(serializeCorpus(second));
+    expect(first.generatedAt).toBe(second.generatedAt);
+    expect(first.generatedAt).toMatch(/^synthetic:v\d+:[0-9a-f]{16}$/);
   });
 
   it("changes when the rule's output changes", () => {

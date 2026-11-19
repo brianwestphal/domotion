@@ -363,6 +363,63 @@ test timeout), and, in the third run only,
 literal NUL bytes", 50.8 s) and
 `tests/vertical-decoration-browser-oracle.test.ts` (its 60 s timeout).
 
+## Fifth round: a 45-process CLI, a browser oracle and a sequential tool
+
+Measured as before. The unloaded numbers were taken while other work held the
+host's load average near 24, so they are not truly idle. The loaded numbers
+come from a full `npx vitest run` with 30 busy processes (load average
+61-73). The last column is the real test in that loaded run, with these
+changes applied.
+
+| work                                     | CPU unloaded | wall unloaded | CPU loaded  | wall loaded | test, loaded            |
+| ---------------------------------------- | ------------ | ------------- | ----------- | ----------- | ----------------------- |
+| family-match CLI, 40 families            | 2.1 s        | 2.9-4.7 s     | 2.2-2.3 s   | 29-128.5 s  | 110.1 s                 |
+| `--max-families=0` rejection             | 0.90-0.96 s  | 0.9-1.3 s     | 0.91-0.96 s | 8.8-21.8 s  | 19.1-27.2 s each        |
+| vertical decoration oracle (browser)     | 1.5-1.7 s    | 1.6-2.1 s     | 1.5-1.6 s   | 12.2-54.8 s | 23.2 s                  |
+| NUL scan, 980 files                      | 36-71 ms     | 36-86 ms      | 38-48 ms    | 0.19-1.4 s  | 0.65 s                  |
+| synthetic corpus, built 6 times          | 0.47-0.62 s  | 0.39-0.49 s   | 0.50-0.55 s | 3.4-10.3 s  | 3.8 s (2 builds)        |
+| semantic inventory CLI, after the change | 0.36 s       | 0.54 s        | not sampled | not sampled | 7.0 s (was 23.8-35.7 s) |
+
+Findings by file:
+
+- **Family-match transient report.** The CLI starts about 45 processes (Node,
+  one one-shot glyph-helper run per family for 40 families, and Chromium's
+  processes), so its loaded wall time reached 128.5 s and crossed the old
+  120 s `spawnSync` timeout. The "exit 2 with empty stderr" was that timeout:
+  Playwright's SIGTERM handler closed the browser, and the CLI's main routine
+  then exited with its generic error status. Both tests now run through
+  `runBoundedChild`; the rejection tests also assert the child was not killed
+  by its budget. The four rejection runs took 19-27 s each loaded, which
+  explains the earlier 30 s test timeout.
+- **Vertical decoration oracle.** One tsx start plus a browser reached 54.8 s
+  for 1.6 s of CPU against a fixed 60 s timeout. Its timeout is now derived
+  from that work.
+- **Synthetic stacks, byte-identical regenerations.** The test built the
+  50,544-stack corpus six times. It now builds two independent corpora and
+  makes the same three assertions on them. The corpus builder has no
+  memoization, so the determinism check means the same thing.
+- **Semantic inventory.** `tools/semantic-coverage.ts` awaited about 900
+  `access()` calls one after another, so a loaded host spent about 40 ms
+  rescheduling after each. It now checks every in-repository path
+  concurrently before validating the rows; the validation loop and the order
+  of its errors are unchanged (pinned by a new test in
+  `tests/semantic-coverage.test.ts`), and paths that escape the repository
+  are still never checked. The per-path term in its CLI budget modeled the
+  sequential awaits and is removed. The remaining 50 s budget rests on one
+  loaded sample (7.0 s).
+- **NUL scan.** Not reproduced. In the loaded suite the scan took 0.65 s and
+  every read came from the page cache. The one 50.8 s timeout is not
+  attributed; a cold page cache with each blocking read waiting to be
+  rescheduled would fit (980 reads at about 50 ms), but that was not
+  observed. The test is unchanged.
+
+| child                                     | CPU work | processes | budget |
+| ----------------------------------------- | -------- | --------- | ------ |
+| family-match transient-report CLI         | 2.2 s    | 45        | 660 s  |
+| family-match `--max-families` rejection   | 1.0 s    | 1         | 100 s  |
+| vertical decoration oracle (test timeout) | 1.7 s    | 6         | 220 s  |
+| semantic-coverage inventory CLI           | 0.4 s    | 2         | 50 s   |
+
 ## A bound that was timing the wrong interval
 
 `captureOwnedBrowserDiagnostics().finalize()` waits up to 2 s for the owned

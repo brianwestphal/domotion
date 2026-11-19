@@ -104,27 +104,54 @@ export async function validateSemanticCoverage(
     errors.push(`could not load parity/fixture registries: ${String(error)}`);
   }
 
-  const requirePath = async (ref: string, label: string): Promise<void> => {
+  const rowRefs = (row: SemanticTransition): string[] => [
+    ...(row.upstreamSources ?? []),
+    ...(row.productionOwners ?? []),
+    ...(row.oracles ?? []),
+    ...(row.metamorphicTests ?? []),
+    ...(row.visualFixtures ?? []),
+  ];
+  // Every referenced path is checked concurrently before the rows are
+  // validated, so the errors below keep their order while the inventory's
+  // ~900 paths do not wait for ~900 thread-pool round trips one after another
+  // (35.7 s for 0.37 s of CPU on a loaded host; see
+  // docs/tool-child-process-test-bounds.md).
+  const missingPaths = new Set<string>();
+  const escapes = (path: string, resolved: string): boolean =>
+    isAbsolute(path) || relative(root, resolved).startsWith("..");
+  const referencedPaths = new Set<string>();
+  for (const ref of [inventory.contract ?? "", ...(inventory.transitions ?? []).flatMap(rowRefs)]) {
+    const path = pathPart(ref);
+    const resolved = resolve(root, path);
+    if (path !== "" && !escapes(path, resolved)) referencedPaths.add(resolved);
+  }
+  await Promise.all(
+    [...referencedPaths].map(async (resolved) => {
+      try {
+        await access(resolved);
+      } catch {
+        missingPaths.add(resolved);
+      }
+    }),
+  );
+
+  const requirePath = (ref: string, label: string): void => {
     const path = pathPart(ref);
     if (path === "") {
       errors.push(`${label}: empty path reference`);
       return;
     }
     const resolved = resolve(root, path);
-    if (isAbsolute(path) || relative(root, resolved).startsWith("..")) {
+    if (escapes(path, resolved)) {
       errors.push(`${label}: path escapes repository ${path}`);
       return;
     }
-    try {
-      await access(resolved);
-    } catch {
-      errors.push(`${label}: missing path ${path}`);
-    }
+    if (missingPaths.has(resolved)) errors.push(`${label}: missing path ${path}`);
   };
 
   if (inventory.schemaVersion !== 1) errors.push("schemaVersion must be 1");
   if (!inventory.contract?.trim()) errors.push("contract must be explicit");
-  else await requirePath(inventory.contract, "contract");
+  else requirePath(inventory.contract, "contract");
   if (!Array.isArray(inventory.transitions) || inventory.transitions.length === 0) {
     errors.push("transitions must not be empty");
   }
@@ -191,14 +218,7 @@ export async function validateSemanticCoverage(
         errors.push(`${label}: unknown tests/features.ts fixture ${fixtureId ?? "<missing>"}`);
       }
     }
-    for (const ref of [
-      ...(row.upstreamSources ?? []),
-      ...(row.productionOwners ?? []),
-      ...(row.oracles ?? []),
-      ...(row.metamorphicTests ?? []),
-      ...(row.visualFixtures ?? []),
-    ])
-      await requirePath(ref, label);
+    for (const ref of rowRefs(row)) requirePath(ref, label);
   }
 
   const claimedParityAreas = new Set((inventory.transitions ?? []).flatMap((row) => row.parityAreas ?? []));

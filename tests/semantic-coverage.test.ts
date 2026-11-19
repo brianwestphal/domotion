@@ -66,6 +66,28 @@ describe("semantic coverage inventory", () => {
     expect(result.errors).toContain(`${invalid.transitions[0]!.id}: path escapes repository ../outside.ts`);
   });
 
+  it("reports path errors in inventory order although the paths are checked concurrently", async () => {
+    const inventory = await loadSemanticCoverage(INVENTORY);
+    const invalid = structuredClone(inventory);
+    const [first, second] = invalid.transitions;
+    invalid.contract = "missing-contract#anchor";
+    first!.upstreamSources = ["missing-a", "package.json", "", "missing-b#x"];
+    first!.oracles = ["../outside.ts", "missing-a"];
+    second!.subjects = [];
+    second!.productionOwners = ["missing-c"];
+    const result = await validateSemanticCoverage(invalid, ROOT);
+    expect(result.errors).toEqual([
+      "contract: missing path missing-contract",
+      `${first!.id}: missing path missing-a`,
+      `${first!.id}: empty path reference`,
+      `${first!.id}: missing path missing-b`,
+      `${first!.id}: path escapes repository ../outside.ts`,
+      `${first!.id}: missing path missing-a`,
+      `${second!.id}: subjects must not be empty`,
+      `${second!.id}: missing path missing-c`,
+    ]);
+  });
+
   it("reports acknowledged state-level boundaries", async () => {
     const inventory = await loadSemanticCoverage(INVENTORY);
     const report = semanticCoverageReport(inventory);
