@@ -63,7 +63,12 @@ resolution logic with request-scoped child lifetimes; the focused
 `helper-serve-switch.test.ts` test removes the variable to cover and compare the
 persistent channel itself. Do not remove the Vitest override to speed up the
 unit gate—use the channel in long-lived commands, where its lifecycle matches
-the host process.
+the host process. The one scoped exception is a unit test whose many one-shot
+helper starts dominate its wall time on a loaded host: it may take the
+persistent channel through `tests/persistent-glyph-helper.ts`
+(`usePersistentGlyphHelper()` / `withPersistentGlyphHelper(fn)`), which always
+closes the channel before the scope ends. A hand-written toggle of the variable
+in root code fails `tests/persistent-glyph-helper-policy.test.ts`.
 
 The browser E2E lane intentionally differs: `tests/e2e-setup.ts` closes the
 persistent helper explicitly in `afterAll`, so each test-file worker may exercise

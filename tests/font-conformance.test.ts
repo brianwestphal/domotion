@@ -13,7 +13,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  clearGlyphHelperCache,
   getFontSourceInfo,
   isGlyphHelperAvailable,
   resolveFont,
@@ -65,6 +64,7 @@ import {
 } from "../tools/font-conformance.js";
 import { getFontInstance } from "../src/render/font-resolution.js";
 import { budgetForCpuWork } from "./bounded-child.js";
+import { withPersistentGlyphHelper } from "./persistent-glyph-helper.js";
 
 // The compatibility-ideograph sweep below used 1.7 s of CPU idle and up to
 // 2.7 s inside a loaded suite, so its timeout is derived from that work like
@@ -117,22 +117,13 @@ describe("CJK canonical singleton coverage", () => {
   // The sweep makes about 140 native-helper requests. Under the unit config's
   // one-shot transport each one is a separate process, and on a loaded host
   // each spawn waited almost 2 s to be scheduled although the helpers' CPU
-  // time totaled 0.1-0.3 s, so the test took 250 s against the 30 s timeout. The persistent channel answers the same questions (pinned by
-  // helper-serve-switch.test.ts) from one process, which is closed again
-  // before the test returns, as the E2E setup does for each file
-  // (docs/tool-child-process-test-bounds.md).
+  // time totaled 0.1-0.3 s, so the test took 250 s against the 30 s timeout.
+  // It runs on the persistent channel instead, closed before the test returns
+  // (tests/persistent-glyph-helper.ts).
   it.skipIf(process.platform === "win32" || !isGlyphHelperAvailable())(
     "matches the renderer's shape-first splitter for compatibility ideographs",
     () => {
-      const noServe = process.env.DOMOTION_HELPER_NO_SERVE;
-      delete process.env.DOMOTION_HELPER_NO_SERVE;
-      clearGlyphHelperCache();
-      try {
-        expectShapeFirstSplitterAgreement();
-      } finally {
-        clearGlyphHelperCache();
-        if (noServe != null) process.env.DOMOTION_HELPER_NO_SERVE = noServe;
-      }
+      withPersistentGlyphHelper(expectShapeFirstSplitterAgreement);
     },
     COMPATIBILITY_SWEEP_TIMEOUT_MS,
   );

@@ -262,9 +262,11 @@ Findings by file:
 
 - **Shaping rows.** The six rows made 31 one-shot glyph-helper processes (and
   four ICU helper processes), so most of their loaded wall time was process
-  starts, as in the third round's compatibility sweep. The file now clears
-  `DOMOTION_HELPER_NO_SERVE` in `beforeAll` and closes the persistent helper
-  (`clearGlyphHelperCache()`) in `afterAll`; a spawn trace of the file shows
+  starts, as in the third round's compatibility sweep. The file now takes the
+  persistent helper for its whole scope through `usePersistentGlyphHelper()`
+  (`tests/persistent-glyph-helper.ts`, which closes it when the file ends;
+  both persistent-channel tests use that module, and a policy test rejects a
+  hand-written toggle of `DOMOTION_HELPER_NO_SERVE`); a spawn trace of the file shows
   one `--serve` helper in place of the 31 one-shot runs. The remaining
   in-process work is CPU-bound, so each test's timeout is 100 times the
   loaded CPU of all six rows (170 s).
