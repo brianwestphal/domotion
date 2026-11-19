@@ -79,6 +79,18 @@ export const FEATURES: FeatureEntry[] = [
     tests: ["src/capture/warnings.test.ts"],
   },
   {
+    id: "capture.gpu-startup-wait",
+    behavior:
+      "Wait for Chromium's GPU feature info before a launched browser's first page, so a canvas drawn there keeps its context; capture warns when a captured canvas's context was lost anyway.",
+    doc: "docs/17-replaced-element-snapshots.md",
+    exports: ["awaitGpuFeatureInfo"],
+    tests: [
+      "src/capture/gpu-startup-barrier.test.ts",
+      "src/capture/lost-canvas-contexts.test.ts",
+      "src/capture/lost-canvas-contexts.e2e.test.ts",
+    ],
+  },
+  {
     id: "capture.debug-bundle",
     behavior:
       "Capture Chromium source pixels and the raw element tree from one stable frame in memory, then combine them with caller-rendered SVG and caller-owned HAR bytes without imposing CLI paths or filesystem writes.",
