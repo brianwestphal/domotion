@@ -24,7 +24,10 @@ export default defineConfig({
     pool: "forks",
     // Browser E2Es are authoritative: a missing or unlaunchable Chromium must
     // fail the lane before individual legacy suites can downgrade to skips.
-    globalSetup: ["./tests/e2e-browser-required.global.ts"],
+    // The host sampler appends load, free memory and /tmp space every 30 s in
+    // CI, beside the per-browser stderr evidence e2e-setup.ts dumps on an
+    // "Unable to capture screenshot" failure (tests/e2e-browser-evidence.ts).
+    globalSetup: ["./tests/e2e-browser-required.global.ts", "./tests/e2e-host-sampler.global.ts"],
     // Browser files are much heavier than ordinary unit-test forks: most own
     // a Chromium process tree and several also rasterize every animation
     // state. The default command runs the ordinary files with two workers,

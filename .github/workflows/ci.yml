@@ -264,6 +264,7 @@ jobs:
             tests/output/two-pane-regions-e2e/
             tests/output/native-control-decoration-e2e/
             tests/output/native-browser-logs/
+            tests/output/e2e-browser-evidence/
             tests/output/webgl-startup-e2e/
             tests/output/webgl-projective-preflight/
             tests/output/shadow-knockout/

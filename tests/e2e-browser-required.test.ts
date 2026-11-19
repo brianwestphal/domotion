@@ -41,6 +41,8 @@ describe("required Chromium E2E preflight", () => {
 
   it("is wired into the authoritative E2E config", () => {
     const config = readFileSync(resolve("vitest.e2e.config.ts"), "utf8");
-    expect(config).toContain(`globalSetup: ["./tests/e2e-browser-required.global.ts"]`);
+    expect(config).toContain(
+      `globalSetup: ["./tests/e2e-browser-required.global.ts", "./tests/e2e-host-sampler.global.ts"]`,
+    );
   });
 });

@@ -1784,9 +1784,15 @@
           "DM-4GF2A0",
           "DM-6TJDZ5",
           "DM-GQNPEN",
-          "DM-PCT7GR"
+          "DM-PCT7GR",
+          "DM-6SVH1W"
         ],
         "code": [
+          "tests/e2e-setup.ts",
+          "tests/e2e-browser-evidence.ts",
+          "tests/e2e-browser-evidence.test.ts",
+          "tests/e2e-browser-evidence.e2e.test.ts",
+          "tests/e2e-host-sampler.global.ts",
           "tests/real-world-browser.ts",
           "tests/real-world-browser-diagnostics.ts",
           "tests/real-world-browser-diagnostics.test.ts",
@@ -6467,7 +6473,8 @@
           "DM-6TJDZ5",
           "DM-GQNPEN",
           "DM-PCT7GR",
-          "DM-K85TST"
+          "DM-K85TST",
+          "DM-6SVH1W"
         ],
         "code": [
           ".github/workflows/",
@@ -6481,6 +6488,7 @@
           "tests/animate-debug.e2e.test.ts",
           "tests/capture-debug-api.e2e.test.ts",
           "tests/e2e-lanes.ts",
+          "tests/e2e-browser-evidence.ts",
           "tests/output-directory.mjs",
           "tests/output-directory.test.ts",
           "tests/real-world.tsx",

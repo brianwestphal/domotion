@@ -88,6 +88,11 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
+    env:
+      # Every browser E2E step in this job writes its per-browser stderr dump on
+      # an "Unable to capture screenshot" failure, plus 30 s host samples, here;
+      # the diffs upload below keeps it (tests/e2e-browser-evidence.ts).
+      DOMOTION_E2E_EVIDENCE_DIR: tests/output-linux/e2e-browser-evidence
     steps:
       - uses: actions/checkout@v4
       # DM-1972: this gate measures the HELPER-PRESENT configuration — the
@@ -450,6 +455,7 @@ jobs:
             tests/output-linux/svg-font-identity/
             tests/output-linux/snapshot-visibility/
             tests/output-linux/native-control-decoration-e2e/
+            tests/output-linux/e2e-browser-evidence/
           if-no-files-found: error
 
   # Declared-family match conformance oracle (doc 110): scores the transcribed

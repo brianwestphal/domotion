@@ -22,6 +22,7 @@ tickets:
     "DM-GQNPEN",
     "DM-PCT7GR",
     "DM-K85TST",
+    "DM-6SVH1W",
   ]
 code:
   [
@@ -36,6 +37,7 @@ code:
     "tests/animate-debug.e2e.test.ts",
     "tests/capture-debug-api.e2e.test.ts",
     "tests/e2e-lanes.ts",
+    "tests/e2e-browser-evidence.ts",
     "tests/output-directory.mjs",
     "tests/output-directory.test.ts",
     "tests/real-world.tsx",
@@ -207,6 +209,14 @@ neighboring files without exposing launch lines; it did not reproduce the
 intermittent reset or establish a driver/backend cause. C3 remains unattributed
 until a real loss witness can be correlated with native messages. Linux and
 Windows artifact paths and launch behavior are unchanged.
+
+## Screenshot-capture failure evidence (DM-6SVH1W)
+
+Every browser E2E run keeps a stamped 200-line stderr ring per Playwright-launched
+Chromium and dumps it, with a host sample, when a failure names
+`Unable to capture screenshot`; CI also samples host load, memory and temporary
+disk every 30 s. [The CI record](../66-ci-visual-tests.md#screenshot-capture-failure-evidence)
+defines the files, artifact paths, how to read them and the coverage limits.
 
 ## Published helper consumer validation
 

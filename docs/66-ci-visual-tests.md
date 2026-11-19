@@ -32,9 +32,15 @@ tickets:
     "DM-6TJDZ5",
     "DM-GQNPEN",
     "DM-PCT7GR",
+    "DM-6SVH1W",
   ]
 code:
   [
+    "tests/e2e-setup.ts",
+    "tests/e2e-browser-evidence.ts",
+    "tests/e2e-browser-evidence.test.ts",
+    "tests/e2e-browser-evidence.e2e.test.ts",
+    "tests/e2e-host-sampler.global.ts",
     "tests/real-world-browser.ts",
     "tests/real-world-browser-diagnostics.ts",
     "tests/real-world-browser-diagnostics.test.ts",
@@ -421,6 +427,68 @@ candidate baseline JSON files into each platform artifact. Snapshot isolation
 is an exact pixel-content assertion, and animate examples use their committed
 SVG goldens plus cross-platform structural assertions, so those two suites
 already carry stronger purpose-built baselines instead of a scalar diff file.
+
+### Screenshot-capture failure evidence
+
+Browser E2E lanes occasionally fail with `Page.captureScreenshot: Unable to
+capture screenshot`, and the lane retries that test once
+(`E2E_HOST_TRANSIENT_RETRY` in `tests/e2e-lanes.ts`). Chromium sends the error
+after six consecutive empty browser-side surface copies
+(`content/browser/devtools/protocol/page_handler.cc:1831` and the retry loop in
+`render_widget_host_impl.cc:3853-3882`, Chromium `7d859f27`). Either an invalid
+or evicted local surface id or an empty viz `CopyOutputResult` can cause it.
+Attributing one occurrence needs the browser's own stderr and the host's state
+at that time, so every E2E run keeps both in bounded form:
+
+- **Per-browser stderr ring.** `tests/e2e-setup.ts` wraps the CommonJS
+  `child_process.spawn` that Playwright's process launcher calls. Each Chromium
+  that launcher starts inside a Vitest worker gets a ring of its last 200 stderr
+  lines (2,000 characters per line), and each line is stamped with the
+  wall-clock time the worker received it. This covers bare `chromium.launch`,
+  `launchPersistentContext`, `launchServer` and `launchChromium` in a test
+  process. The tap reads the pipe Playwright already consumes. It adds no
+  Chromium flags and changes no launch option. While tests pass it prints
+  nothing.
+- **Dump on match.** When a test attempt fails, or a suite hook fails, with a
+  message that contains `Unable to capture screenshot`, the worker writes
+  `screenshot-failure-<time>-pid<worker>-<test>-a<attempt>.log` and prints one
+  `[e2e-evidence]` line naming it. A retried test therefore writes one file per
+  failed attempt. The header gives the test, file, attempt, lane, error and a
+  host sample. Then comes one section per browser: live browsers first, then up
+  to eight most recently exited ones, each with its pid, executable, start and
+  exit time, exit code or signal, and its stamped lines. Lines marked
+  `[evidence]` are this module's own spawn and exit markers.
+- **Host sampler.** The `tests/e2e-host-sampler.global.ts` global setup appends
+  `host-samples-<lane>.log`. It writes one line at start, one every 30 s and one
+  at teardown, recording the 1/5/15-minute load average, CPU count, free and
+  total memory, and free and total space in the OS temporary directory. It runs
+  when `CI` is set, and `DOMOTION_E2E_HOST_SAMPLES=1|0` forces it on or off.
+  `DOMOTION_E2E_HOST_SAMPLE_MS` sets the interval, with a minimum of 1 s.
+
+Files land in `DOMOTION_E2E_EVIDENCE_DIR`, which defaults to
+`<DOMOTION_OUTPUT_DIR or tests/output>/e2e-browser-evidence/`. On macOS, the
+`visual-macos` job's always-run artifact `features-macos` includes
+`tests/output/e2e-browser-evidence/`. On Linux, the `regression` job sets the
+directory to `tests/output-linux/e2e-browser-evidence/` for every browser step,
+and its always-run `linux-fidelity-diffs` artifact includes it.
+
+To read one occurrence, find the dump's `dumpedAt`. Compare the browser lines
+just before it with the host-sample lines around the same minute. A viz,
+GPU or compositor error, or a browser that exited or restarted near the failure,
+points at the browser side. High load, low free memory or a full temporary disk
+with clean stderr points at host contention. Clean stderr and an idle host
+leave the cause unattributed. Chromium logs at its default verbosity here, so
+an empty ring is not proof that no surface error occurred.
+
+Coverage limits: browsers launched in a child process, such as the built CLI
+that some E2E files spawn, are not tapped. Browsers spawned directly rather
+than through Playwright's launcher are also not tapped, for example the
+real-world broker browser, which keeps its own `owned-*.log` diagnostics. The
+ring keeps only the newest 200 lines per browser. A failure outside a test or
+suite hook, such as an unhandled rejection, does not trigger a dump.
+`tests/e2e-browser-evidence.e2e.test.ts` proves the hook end to end. It runs a
+nested E2E process whose test throws the DevTools message by hand after a real
+launch, and requires stamped Chromium lines and host samples.
 
 ## One-command path
 
