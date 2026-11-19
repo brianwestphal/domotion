@@ -67,6 +67,11 @@ worst:
 | tsx tool rejection (A-C and paint-oracle migrations) | 1.3 s         | 130 s            |
 | helper-availability CLI                              | 0.5 s         | 50 s             |
 | E2E runner chain, including the signal fixture       | 0.3 s         | 30 s (floor)     |
+| Studio CLI help (umbrella and standalone)            | 1.2 s         | 120 s            |
+| evidence-tool rejection (tsx bin)                    | 1.1 s         | 110 s            |
+| real-world suite with no matching fixture            | 1.0 s         | 100 s            |
+| glyph-tool import or rejection                       | 0.9 s         | 90 s             |
+| real-world comparison tool (plain Node)              | 0.1 s         | 30 s (floor)     |
 
 That leaves about 3.6 times headroom over the worst measured tsx ratio
 (130 s against 35.9 s) and about 2 times over the worst ratio of the
@@ -76,6 +81,57 @@ timeout is the sum of its children's budgets plus the kill grace, so the
 child's own diagnostic failure arrives before Vitest's generic timeout.
 `tests/bounded-child.test.ts` pins the derivation, the stop of a child that
 never finishes, the SIGKILL escalation on POSIX and the output limit.
+
+## Second round: five more files with the same cause
+
+Five more files failed in loaded full runs without having been attributed:
+`tests/studio-cli-help.test.ts`, `tests/tool-cli-gl-migration.test.ts`,
+`tests/tool-evidence-cli-migration.test.ts`, `tests/output-directory.test.ts`
+and `src/capture/script/vertical-orientation.generated.test.ts`. They were
+measured the same way, on the same host with 30 busy processes: alone and
+unloaded, then inside a pueue-launched full `vitest run` (load average
+43-77), with a temporary probe test timing each child kind with
+`/usr/bin/time -l`, three rounds each.
+
+| child or work                                      | CPU unloaded | CPU in the loaded suite | wall in the loaded suite |
+| -------------------------------------------------- | ------------ | ----------------------- | ------------------------ |
+| `node --import tsx src/cli/index.ts studio --help` | 0.80-0.86 s  | 1.15-1.17 s             | up to 29.4 s (25x)       |
+| `node --import tsx` glyph-tool import or `--bogus` | 0.62-0.67 s  | 0.85-0.89 s             | up to 24.4 s (28x)       |
+| `tsx tools/animated-culling-geometry-oracle.ts`    | 0.72-0.79 s  | 0.98-1.00 s             | up to 28.8 s (29x)       |
+| `tsx tools/build-stage-evidence.ts --unknown`      | 0.20-0.23 s  | 0.29-0.32 s             | up to 11.2 s (39x)       |
+| `tests/real-world.tsx --only <no match>`           | 0.65 s       | 0.87-0.89 s             | up to 23.1 s (26x)       |
+| `node tools/compare-real-world-results.mjs`        | 0.05 s       | 0.08-0.09 s             | up to 2.5 s (32x)        |
+| one per-scalar `expect` sweep (in-process)         | 1.63-1.67 s  | 1.78-1.85 s             | up to 29.7 s (16x)       |
+
+CPU grew by about a third under load (cache and scheduler effects), but no
+child stalled: every one exited with its normal status, and wall time grew
+16-39 times. In a loaded full run of the original tests, every one of these
+files failed:
+
+- Studio help, glyph tools, evidence tools: Vitest's 30 s test timeout
+  around blocking `spawnSync` calls without a timeout of their own (Studio
+  32.7-66.3 s, glyph tools 48.4-69.2 s for two or three spawns, the culling
+  oracle 64.4 s for two). As before, the timeout was only reported after the
+  children had exited.
+- `output-directory`: the 20 s `spawnSync` timeout on the real-world child
+  (`ETIMEDOUT` at 20.3 s, for 0.9 s of CPU). The comparison child's 10 s
+  timeout held in that run (the test took 5.2 s) but sat only four times
+  above its loaded wall time.
+- `vertical-orientation.generated`: no child at all. Each of the two sweep
+  tests checked all 1,114,112 scalars with one `expect` call per scalar, which
+  was about 1.6 s of CPU, while the same comparison without `expect` used
+  0.04 s. Loaded, each test took 50.9 s and 56.3 s against the 30 s test
+  timeout.
+
+The four child-process files now use `runBoundedChild` with budgets from the
+loaded CPU maxima (table above). The vertical-orientation sweeps still compare
+every scalar, but collect mismatches (the first 32, as `U+XXXX expected
+<bool>`) and assert the list is empty once, so the test does the work it
+checks instead of 1.1 million assertion calls. In a second loaded full run all
+22 tests in the five files passed: the child tests took 26-70 s within their
+budgets, and the sweeps took 0.5-0.7 s. That run used budgets sized from the
+unloaded CPU (80-110 s); they were then raised to the loaded maxima shown in
+the budget table.
 
 ## A bound that was timing the wrong interval
 
