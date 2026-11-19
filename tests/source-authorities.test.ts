@@ -7,6 +7,7 @@ import {
   SOURCE_AUTHORITY_PINS,
   sourceAuthorityPlan,
   sourceUrlFor,
+  unownedExistingFiles,
 } from "../scripts/materialize-source-authorities.mjs";
 
 const inventory = JSON.parse(readFileSync(resolve(__dirname, "..", "tools/semantic-coverage.json"), "utf8"));
@@ -44,6 +45,22 @@ describe("clean-checkout source authority materialization", () => {
     const planned = new Set(sourceAuthorityPlan(inventory, parityProgram).files);
     expect(inputs.length).toBeGreaterThan(0);
     expect(inputs.filter((path) => !planned.has(path))).toEqual([]);
+  });
+
+  // DM-559H05: widening the pinned subset adds files to an existing tree.
+  it("fetches only newly planned files into a tree its manifest vouches for", () => {
+    const manifest = { pins: SOURCE_AUTHORITY_PINS, files: ["external/a.cc", "external/b.cc"] };
+    const onDisk = new Set(["external/a.cc", "external/b.cc"]);
+    const exists = (path: string) => onDisk.has(path);
+    // A newly planned file that is absent is fetched, not refused.
+    expect(unownedExistingFiles(["external/a.cc", "external/b.cc", "external/c.cc"], manifest, exists)).toEqual([]);
+    // A planned file present on disk but never materialized is still refused.
+    onDisk.add("external/c.cc");
+    expect(unownedExistingFiles(["external/a.cc", "external/c.cc"], manifest, exists)).toEqual(["external/c.cc"]);
+    // Different pins, or no manifest, vouch for nothing.
+    const stale = { ...manifest, pins: { ...SOURCE_AUTHORITY_PINS, chromium: "0".repeat(40) } };
+    expect(unownedExistingFiles(["external/a.cc"], stale, exists)).toEqual(["external/a.cc"]);
+    expect(unownedExistingFiles(["external/a.cc"], null, exists)).toEqual(["external/a.cc"]);
   });
 
   it("rejects paths outside the external authority roots", () => {

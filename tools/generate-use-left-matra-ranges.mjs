@@ -47,7 +47,7 @@ async function main(argv) {
   const { positionals } = parseCommand(argv, {});
   if (positionals.length > 0) throw new Error("unexpected positional arguments");
   try {
-    const HARFBUZZ_REV = "4de187d"; // external/harfbuzz HEAD as of writing (git -C external/harfbuzz log -1)
+    const HARFBUZZ_REV = "4de187d"; // the harfbuzz pin in scripts/materialize-source-authorities.mjs (SOURCE_AUTHORITY_PINS)
     const harfbuzzDir = new URL("../external/harfbuzz/src/", import.meta.url);
 
     const tableSrc = readFileSync(new URL("hb-ot-shaper-use-table.hh", harfbuzzDir), "utf-8");

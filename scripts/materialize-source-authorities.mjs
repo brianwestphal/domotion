@@ -129,6 +129,20 @@ export function sourceUrlFor(ref) {
 }
 
 /**
+ * Planned files already on disk that this materializer did not write at the
+ * current pins. A manifest with the same pins vouches for the files it lists,
+ * so adding a path to the plan fetches only that path into an existing tree
+ * instead of refusing it (DM-559H05: the subset is meant to be widened when a
+ * decision needs more upstream files). Any other existing file, or any file
+ * at all under a manifest with different pins, is unowned.
+ */
+export function unownedExistingFiles(planFiles, manifest, exists) {
+  const samePins = manifest != null && JSON.stringify(manifest.pins) === JSON.stringify(SOURCE_AUTHORITY_PINS);
+  const vouched = new Set(samePins && Array.isArray(manifest.files) ? manifest.files : []);
+  return planFiles.filter((path) => !vouched.has(path) && exists(path));
+}
+
+/**
  * Delay before the next fetch attempt. A rate limit (429) or unavailable (503)
  * reply honors its Retry-After seconds, else backs off 5/10/20/40 s; a short
  * exponential backoff covered neither the GitHub raw-content limit that failed
@@ -188,14 +202,8 @@ export async function materializeSourceAuthorities({ concurrency = 4 } = {}) {
   ]);
   const plan = sourceAuthorityPlan(inventory, parityProgram);
   const manifestPath = resolve(ROOT, "external/.domotion-source-authorities.json");
-  let trustedCache = false;
-  if (existsSync(manifestPath)) {
-    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-    trustedCache =
-      JSON.stringify(manifest.pins) === JSON.stringify(SOURCE_AUTHORITY_PINS) &&
-      JSON.stringify(manifest.files) === JSON.stringify(plan.files);
-  }
-  const unownedExisting = trustedCache ? [] : plan.files.filter((path) => existsSync(resolve(ROOT, path)));
+  const manifest = existsSync(manifestPath) ? JSON.parse(await readFile(manifestPath, "utf8")) : null;
+  const unownedExisting = unownedExistingFiles(plan.files, manifest, (path) => existsSync(resolve(ROOT, path)));
   if (unownedExisting.length > 0) {
     throw new Error(
       `refusing to label ${unownedExisting.length} existing source files as pinned; run from a clean checkout`,

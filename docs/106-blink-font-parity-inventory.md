@@ -22,7 +22,7 @@ Status: **action items complete** — every action item in §5 is done (it began
 
 The goal (DM-1854) is a guaranteed match of the _mechanism_, not less code. A stage matches by construction when it is either transcribed Blink logic or the identical API call with identical arguments. "Scores well on the fixture corpus" is explicitly **not** a passing verdict here — every wrong-font bug in the 2026-07 cycle scored well right up until it didn't.
 
-All Chromium references are to the in-repo checkout, `external/chromium`, at revision **7d859f27 (2026-06-27)**. Re-read it rather than trusting this doc if the two disagree; and when a transcribed constant later disagrees with measured paint, suspect checkout drift first (`git -C external/chromium log -1 --format='%h %cd' --date=short`).
+All Chromium references are to the pinned source subset, `external/chromium`, at revision **7d859f27 (2026-06-27)**. Re-read it rather than trusting this doc if the two disagree; and when a transcribed constant later disagrees with measured paint, suspect drift first. The current pin is `SOURCE_AUTHORITY_PINS.chromium` in `scripts/materialize-source-authorities.mjs`; the subset has no Git metadata of its own, so `git -C external/chromium log` reports the Domotion repository instead.
 
 ---
 
