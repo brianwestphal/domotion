@@ -87,6 +87,49 @@ async function devToolsEndpoint(
 
 /** Harness-only browser ownership. The recorder receives the exact spawn env;
  * it stores its digest for font provenance, never the environment/arguments. */
+export type ScoutCloseResult = "closed" | "killed-after-close-deadline";
+
+/** Closes the discovery-only launch scout, bounded at `boundMs`.
+ *
+ * DM-5Q5MB2: on hosted macOS the scout sometimes needs longer than the bound
+ * to shut down. Retained evidence from main run 44256258243 showed two of
+ * three such scouts exiting on their own with status 0 at 7.4 s and 10.9 s,
+ * and the third killed at 11 s, all with silent output. The scout is used only
+ * to learn the executable and normal arguments; the owned browser launched
+ * next is a separate process with its own profile. So a scout that misses the
+ * graceful window is killed with its failure-only evidence retained, and the
+ * harness continues. Only a failed kill, which could leave the process
+ * running, is an error. */
+export async function closeLaunchScout(
+  scout: { close(): Promise<void>; kill(): Promise<void> },
+  evidence: Pick<ReturnType<typeof observeScoutClose>, "requested" | "expired" | "sample" | "dispose" | "fail">,
+  boundMs = 6_000,
+): Promise<ScoutCloseResult> {
+  try {
+    evidence.requested();
+    await cdpBounded(scout.close(), boundMs, "Chromium scout close");
+    evidence.dispose();
+    return "closed";
+  } catch (error) {
+    evidence.expired();
+    // Bounded and failure-only: where the slow scout is, before it is killed.
+    await evidence.sample();
+    let killError: unknown;
+    const killed = await scout.kill().then(
+      () => "resolved" as const,
+      (failure: unknown) => {
+        killError = failure;
+        return "rejected" as const;
+      },
+    );
+    // Evidence storage must never replace the close or kill outcome.
+    await evidence.fail(killed).catch(() => undefined);
+    if (killed === "rejected") throw killError;
+    console.warn(`Launch scout killed after its close bound: ${String(error)}`);
+    return "killed-after-close-deadline";
+  }
+}
+
 export async function openRealWorldBrowser(
   recordEnvironment: (browser: Browser, environment: NodeJS.ProcessEnv) => void,
   options: RealWorldBrowserOptions = {},
@@ -116,27 +159,7 @@ export async function openRealWorldBrowser(
     process.env["GITHUB_SHA"],
     diagnosticCase,
   );
-  try {
-    scoutEvidence.requested();
-    await cdpBounded(scout.close(), 6_000, "Chromium scout close");
-    scoutEvidence.dispose();
-  } catch (error) {
-    scoutEvidence.expired();
-    // Bounded and failure-only: where the stuck scout is, before it is killed.
-    await scoutEvidence.sample();
-    let killError: unknown;
-    const killed = await scout.kill().then(
-      () => "resolved" as const,
-      (failure: unknown) => {
-        killError = failure;
-        return "rejected" as const;
-      },
-    );
-    // Evidence storage must never replace the original close or kill error.
-    await scoutEvidence.fail(killed).catch(() => undefined);
-    if (killed === "rejected") throw killError;
-    throw error;
-  }
+  await closeLaunchScout(scout, scoutEvidence);
   const profile = await mkdtemp(join(tmpdir(), "domotion-real-world-browser-"));
   let child: ChildProcess | undefined;
   let raw: FlatCdp | undefined;

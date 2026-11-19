@@ -314,14 +314,18 @@ backend, worker ownership, startup deadlines and retry rules are unchanged.
 
 The harness first launches Playwright's public `launchServer` scout only to
 learn the executable and normal arguments, then closes it under a 6000 ms
-bound before the owned browser exists. A scout close timeout therefore fails
-in `beforeEach`, before any worker body runs, and the owned-browser journal
-cannot describe it. DM-3NDNF2 adds failure-only `scout-*.log` evidence under
+bound before the owned browser exists. The owned-browser journal cannot
+describe the scout, which is gone before that browser starts. DM-3NDNF2 adds failure-only `scout-*.log` evidence under
 the same opt-in: observers attach to `BrowserServer.process()` stdout/stderr,
 `exit` and `close` immediately before the unchanged close request. A scout
 that closes in time disposes them and writes nothing. On a timeout the harness
-still kills the scout and throws the original error (or the kill error); the
-evidence then waits at most two more seconds for process close and writes up
+kills the scout, logs a warning and continues; only a rejected kill, which could
+leave the scout running, is thrown. Evidence from main run 44256258243 showed
+why a missed bound is not a failure: of three scouts that missed it, two exited
+on their own with status 0 at 7.4 s and 10.9 s and the third was killed at
+11 s, all with silent output, so hosted macOS was shutting a discovery-only
+process down slowly rather than hanging it (DM-5Q5MB2: the scout-close timeout
+had been failing unrelated worker tests in `beforeEach`). The evidence then waits at most two more seconds for process close and writes up
 to 64 KiB of output through the same pre-retention filter, with the DevTools
 credential line counted but omitted. Its metadata records the case label,
 PIDs, validated source commit, millisecond offsets (from observer attachment)

@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { excludeSharedWorkerAutoAttach } from "./real-world-cdp.js";
-import { brokerLaunchArguments } from "./real-world-browser.js";
+import { brokerLaunchArguments, closeLaunchScout } from "./real-world-browser.js";
 
 type Filter = Array<{ type?: string; exclude?: boolean }>;
 const defaults: Filter = [{ type: "browser", exclude: true }, { type: "tab", exclude: true }, {}];
@@ -79,5 +79,59 @@ describe("public CDP bootstrap broker policy (DM-34WC46)", () => {
     ].map((args) => ({ args })),
   )("rejects unsupported launch provenance without guessing", ({ args }) => {
     expect(() => brokerLaunchArguments(args, "owned-profile")).toThrow("normal Playwright pipe/profile arguments");
+  });
+});
+
+describe("closeLaunchScout (DM-5Q5MB2)", () => {
+  const evidence = () => {
+    const calls: string[] = [];
+    return {
+      calls,
+      requested: () => void calls.push("requested"),
+      expired: () => void calls.push("expired"),
+      sample: async () => void calls.push("sample"),
+      dispose: () => void calls.push("dispose"),
+      fail: async (outcome: "resolved" | "rejected") => void calls.push(`fail:${outcome}`),
+    };
+  };
+
+  it("disposes failure-only evidence when the scout closes in time", async () => {
+    const record = evidence();
+    const kill = vi.fn(async () => undefined);
+    await expect(closeLaunchScout({ close: async () => undefined, kill }, record, 50)).resolves.toBe("closed");
+    expect(record.calls).toEqual(["requested", "dispose"]);
+    expect(kill).not.toHaveBeenCalled();
+  });
+
+  it("kills a scout that misses the close bound, retains evidence and continues", async () => {
+    const record = evidence();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const kill = vi.fn(async () => undefined);
+    const slowClose = () => new Promise<void>((resolve) => setTimeout(resolve, 1_000));
+    await expect(closeLaunchScout({ close: slowClose, kill }, record, 20)).resolves.toBe("killed-after-close-deadline");
+    expect(record.calls).toEqual(["requested", "expired", "sample", "fail:resolved"]);
+    expect(kill).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Chromium scout close timed out after 20ms"));
+    warn.mockRestore();
+  });
+
+  it("throws the kill error when the slow scout cannot be killed", async () => {
+    const record = evidence();
+    const failure = new Error("controlled kill rejection");
+    const slowClose = () => new Promise<void>((resolve) => setTimeout(resolve, 1_000));
+    await expect(closeLaunchScout({ close: slowClose, kill: () => Promise.reject(failure) }, record, 20)).rejects.toBe(
+      failure,
+    );
+    expect(record.calls).toEqual(["requested", "expired", "sample", "fail:rejected"]);
+  });
+
+  it("does not let an evidence write failure replace the outcome", async () => {
+    const record = { ...evidence(), fail: () => Promise.reject(new Error("disk full")) };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const slowClose = () => new Promise<void>((resolve) => setTimeout(resolve, 1_000));
+    await expect(closeLaunchScout({ close: slowClose, kill: async () => undefined }, record, 20)).resolves.toBe(
+      "killed-after-close-deadline",
+    );
+    warn.mockRestore();
   });
 });
