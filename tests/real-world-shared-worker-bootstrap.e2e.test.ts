@@ -82,6 +82,23 @@ const UNREACHABLE_WORKER = "/unreachable-worker.js";
 const LATE_UNREACHABLE_WORKER = "/late-unreachable-worker.js";
 const THROWING_WORKER = "/throwing-worker.js";
 const THROWING_WORKER_ERROR = "Worker startup failed: error (ErrorEvent): Uncaught Error: controlled top-level throw";
+/** DM-AS2YHF: a started SharedWorker whose host is destroyed before it reports
+ * gives the page no event at all; the race above is one way to get there. After
+ * the unchanged readiness timeout, `start()` accepts that outcome as a startup
+ * failure when the browser target for the script was created and destroyed with
+ * no report or error. CLOSING_WORKER reaches it deterministically by closing
+ * itself at top level, SILENT_WORKER stays alive without reporting (a timeout
+ * that must not be accepted), and INVALID_WORKER is the renderer-side parse
+ * failure that may end either way. */
+const CLOSING_WORKER = "/closing-worker.js";
+const SILENT_WORKER = "/silent-worker.js";
+const INVALID_WORKER = "/invalid-worker.js";
+const LOST_HOST_ERROR = "Worker startup failed: worker host lost";
+interface TargetLifecycle {
+  targetId: string;
+  createdAfterMs: number;
+  destroyedAfterMs: number | null;
+}
 const patch = `(()=>{globalThis.__dm34OriginalClear??=Object.getOwnPropertyDescriptor(WebGL2RenderingContext.prototype,'clear');Object.defineProperty(WebGL2RenderingContext.prototype,'clear',{value:function(){},writable:true,configurable:true});return true})()`;
 const restore = `(()=>{if(globalThis.__dm34OriginalClear)Object.defineProperty(WebGL2RenderingContext.prototype,'clear',globalThis.__dm34OriginalClear);delete globalThis.__dm34OriginalClear;return true})()`;
 
@@ -98,7 +115,11 @@ beforeAll(async () => {
           ? workerScript
           : request.url === THROWING_WORKER
             ? "throw new Error('controlled top-level throw');"
-            : "<!doctype html><body>worker fixture</body>";
+            : request.url === CLOSING_WORKER
+              ? "close();"
+              : request.url === SILENT_WORKER
+                ? "onconnect=()=>{};"
+                : "<!doctype html><body>worker fixture</body>";
     const fact = {
       path: (request.url ?? "").split("?")[0].slice(0, 128),
       contentType,
@@ -200,9 +221,10 @@ async function saveStartupFailure(
   page: Page,
   name: string,
   kind: string,
-  phase: "error" | "timeout",
+  phase: "error" | "timeout" | "lost_host",
   scriptPath: string,
   lateObservation?: LateObservation,
+  targetLifecycle?: TargetLifecycle[],
 ): Promise<void> {
   // Capture actual hook/counter state before awaiting any failure diagnostics.
   const observedAt = new Date().toISOString();
@@ -254,6 +276,7 @@ async function saveStartupFailure(
         phase,
         state,
         lateObservation: lateObservation ?? null,
+        targetLifecycle: targetLifecycle ?? null,
         controlFacts,
         bootstrapCounters,
         workerDiagnostic,
@@ -273,12 +296,13 @@ async function retainStartupFailure(
   page: Page,
   name: string,
   kind: string,
-  phase: "error" | "timeout",
+  phase: "error" | "timeout" | "lost_host",
   scriptPath: string,
   lateObservation?: LateObservation,
+  targetLifecycle?: TargetLifecycle[],
 ): Promise<void> {
   try {
-    await saveStartupFailure(page, name, kind, phase, scriptPath, lateObservation);
+    await saveStartupFailure(page, name, kind, phase, scriptPath, lateObservation, targetLifecycle);
   } catch {
     console.warn("Worker startup failed; diagnostic evidence could not be written.");
   }
@@ -288,6 +312,50 @@ async function start(
   name = "worker",
   kind: "shared" | "dedicated" = "shared",
   script?: string,
+): Promise<Report> {
+  const scriptPath = script ?? (kind === "shared" ? "/worker.js" : "/dedicated.js");
+  const lifecycle = kind === "shared" ? await observeTargetLifecycle(`${origin}${scriptPath}`) : null;
+  try {
+    return await startObserved(page, name, kind, script, scriptPath, lifecycle);
+  } finally {
+    await lifecycle?.dispose();
+  }
+}
+/** Browser-level record of the shared_worker targets for one script URL that
+ * appear after this call, so a started host's silent destruction is visible. */
+async function observeTargetLifecycle(url: string) {
+  const session = await owner.browser.newBrowserCDPSession();
+  const startedAt = Date.now();
+  const targets = new Map<string, TargetLifecycle>();
+  let armed = false;
+  session.on("Target.targetCreated", ({ targetInfo }) => {
+    // setDiscoverTargets replays existing targets before it resolves; only
+    // targets created after arming belong to this start.
+    if (!armed || targetInfo.type !== "shared_worker" || targetInfo.url !== url || targets.size >= 8) return;
+    targets.set(targetInfo.targetId, {
+      targetId: targetInfo.targetId,
+      createdAfterMs: Date.now() - startedAt,
+      destroyedAfterMs: null,
+    });
+  });
+  session.on("Target.targetDestroyed", ({ targetId }) => {
+    const target = targets.get(targetId);
+    if (target != null) target.destroyedAfterMs ??= Date.now() - startedAt;
+  });
+  await session.send("Target.setDiscoverTargets", { discover: true });
+  armed = true;
+  return {
+    snapshot: (): TargetLifecycle[] => [...targets.values()].map((target) => ({ ...target })),
+    dispose: () => session.detach().catch(() => undefined),
+  };
+}
+async function startObserved(
+  page: Page,
+  name: string,
+  kind: "shared" | "dedicated",
+  script: string | undefined,
+  scriptPath: string,
+  lifecycle: Awaited<ReturnType<typeof observeTargetLifecycle>> | null,
 ): Promise<Report> {
   await page.evaluate(
     ({ name, kind, script }) => {
@@ -330,6 +398,20 @@ async function start(
   try {
     await settled(8000);
   } catch (error) {
+    const targets = lifecycle?.snapshot() ?? [];
+    const outcome = await page
+      .evaluate((name) => {
+        const probe = (globalThis as Scope).dm34[name]!;
+        return probe.reports.length > 0 || probe.error != null;
+      }, name)
+      .catch(() => true);
+    // DM-AS2YHF: every target for this script was created and destroyed, and
+    // the page saw neither a report nor an error: the host is gone, so no event
+    // can still arrive. That is a startup failure, not a slow start.
+    if (!outcome && targets.length > 0 && targets.every((target) => target.destroyedAfterMs != null)) {
+      await retainStartupFailure(page, name, kind, "lost_host", scriptPath, undefined, targets);
+      throw new Error(LOST_HOST_ERROR);
+    }
     // Diagnostic only: the assertion still fails on the original timeout.
     const lateOutcome: LateObservation["outcome"] = await settled(LATE_OBSERVATION_MS)
       .then(() =>
@@ -344,20 +426,15 @@ async function start(
       name,
       kind,
       "timeout",
-      script ?? (kind === "shared" ? "/worker.js" : "/dedicated.js"),
+      scriptPath,
       { windowMs: LATE_OBSERVATION_MS, outcome: lateOutcome },
+      targets,
     );
     throw error;
   }
   const error = await page.evaluate((name) => (globalThis as Scope).dm34[name]!.error, name);
   if (error != null) {
-    await retainStartupFailure(
-      page,
-      name,
-      kind,
-      "error",
-      script ?? (kind === "shared" ? "/worker.js" : "/dedicated.js"),
-    );
+    await retainStartupFailure(page, name, kind, "error", scriptPath, undefined, lifecycle?.snapshot());
     throw new Error(`Worker startup failed: ${error}`);
   }
   return (await latest(page, name))!;
@@ -461,6 +538,42 @@ describe("owned SharedWorker startup through public CDP (DM-34WC46)", () => {
     expect(evidence.lateObservation).toEqual({ windowMs: 10_000, outcome: "error" });
     expect(evidence.state.error).toBe("error (Event)");
     expect(evidence.state.errorAfterMs).toBeGreaterThanOrEqual(8000);
+  });
+  it("accepts a started worker whose host is destroyed without a report as a startup failure", async () => {
+    const p = await page();
+    await expect(start(p, "closing-module", "shared", CLOSING_WORKER)).rejects.toThrow(LOST_HOST_ERROR);
+    const evidence = JSON.parse(await readFile(startupEvidence.at(-1)!, "utf8")) as {
+      phase: string;
+      state: { error: string | null; reports: number };
+      targetLifecycle: TargetLifecycle[];
+    };
+    expect(evidence.phase).toBe("lost_host");
+    expect(evidence.state).toMatchObject({ error: null, reports: 0 });
+    expect(evidence.targetLifecycle).toHaveLength(1);
+    expect(evidence.targetLifecycle[0]!.destroyedAfterMs).not.toBeNull();
+  });
+  it("keeps a live worker that never reports a readiness timeout", async () => {
+    const p = await page();
+    await expect(start(p, "silent-module", "shared", SILENT_WORKER)).rejects.toThrow(
+      "page.waitForFunction: Timeout 8000ms",
+    );
+    const evidence = JSON.parse(await readFile(startupEvidence.at(-1)!, "utf8")) as {
+      phase: string;
+      lateObservation: { outcome: string };
+      targetLifecycle: TargetLifecycle[];
+    };
+    expect(evidence.phase).toBe("timeout");
+    expect(evidence.lateObservation.outcome).toBe("none");
+    expect(evidence.targetLifecycle).toEqual([expect.objectContaining({ destroyedAfterMs: null })]);
+  });
+  it("treats a renderer-side module parse failure as a startup failure either way it ends", async () => {
+    const p = await page();
+    // The served HTML is a module parse error. Chromium usually reports it as a
+    // plain Event, but the cross-pipe race above can drop it with the host.
+    await expect(start(p, "invalid-module", "shared", INVALID_WORKER)).rejects.toThrow(
+      /^Worker startup failed: (?:error \(Event\)|worker host lost)$/,
+    );
+    expect(requests).toContainEqual(expect.objectContaining({ path: INVALID_WORKER, finished: true }));
   });
   it("preserves the original startup error when diagnostic artifact I/O fails", async () => {
     const p = await page();
