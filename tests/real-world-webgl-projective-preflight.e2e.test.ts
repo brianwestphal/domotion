@@ -103,14 +103,59 @@ async function installFixture(
     ? page.frameLocator("#outer").frameLocator("#inner").locator("canvas")
     : page.frameLocator("#outer").locator("canvas");
   await canvas.waitFor();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { ticks: number }).ticks)).toBeGreaterThan(1);
-  if (partlyVisibleHost)
-    await expect
-      .poll(() =>
-        canvas.evaluate((element) => (element.ownerDocument.defaultView as unknown as { ticks: number }).ticks),
-      )
-      .toBeGreaterThan(1);
+  await waitForLiveRaf("main frame", () => page.locator("html").evaluate(sampleRafOwner));
+  if (partlyVisibleHost) await waitForLiveRaf("canvas owner frame", () => canvas.evaluate(sampleRafOwner));
   return canvas;
+}
+
+interface RafSample {
+  ticks: number;
+  url: string;
+  visibility: DocumentVisibilityState;
+  devicePixelRatio: number;
+  innerWidth: number;
+  innerHeight: number;
+}
+/** Runs in the page: samples the fixture rAF counter of the window that owns `element`. */
+const sampleRafOwner = (element: Element): RafSample => {
+  const view = element.ownerDocument.defaultView!;
+  return {
+    ticks: (view as unknown as { ticks: number }).ticks,
+    url: view.location.href,
+    visibility: view.document.visibilityState,
+    devicePixelRatio: view.devicePixelRatio,
+    innerWidth: view.innerWidth,
+    innerHeight: view.innerHeight,
+  };
+};
+
+/**
+ * Fixture readiness: the frame's own requestAnimationFrame loop has run at least twice.
+ *
+ * This is legitimately asynchronous for a freshly created out-of-process iframe. Its second
+ * frame needs the new renderer to initialize a compositor frame sink against the GPU process
+ * and then receive BeginFrames from viz. A Chromium trace of this fixture under CPU contention
+ * showed hops on that chain of about 0.9 s each (the leaf's inline script, its
+ * `LayerTreeHostImpl::InitializeFrameSink`, and the GPU main thread's
+ * `SkiaOutputSurfaceImplOnGpu::SwapBuffers` under SwiftShader), with the second rAF arriving
+ * 1.5–2.5 s after commit. Vitest's default 1 s poll then failed on a macOS CI runner with the
+ * counter stuck at 1. The wait is therefore bounded explicitly, and a failure keeps the last
+ * sample (counter, frame URL, visibility, device pixel ratio, viewport) so a frame that is
+ * truly throttled is distinguishable from a slow one.
+ */
+const LIVE_RAF_TIMEOUT_MS = 10_000;
+async function waitForLiveRaf(label: string, sample: () => Promise<RafSample>): Promise<void> {
+  let last: RafSample | undefined;
+  const started = performance.now();
+  try {
+    await expect.poll(async () => (last = await sample()).ticks, { timeout: LIVE_RAF_TIMEOUT_MS }).toBeGreaterThan(1);
+  } catch (error) {
+    throw new Error(
+      `${label} requestAnimationFrame loop did not reach a second frame within ${LIVE_RAF_TIMEOUT_MS} ms ` +
+        `(waited ${Math.round(performance.now() - started)} ms); last sample: ${JSON.stringify(last)}`,
+      { cause: error },
+    );
+  }
 }
 
 async function saveCaptureEvidence(kind: string, capture: Capture, result: unknown) {

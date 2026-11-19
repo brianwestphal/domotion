@@ -792,6 +792,19 @@ replacement, default launch-argument change or extra recurring readback is intro
 The named `explicit-site-per-process` test control exercises OOPIF ownership
 using the same installed headless-shell binary.
 
+That rAF progression is a readiness precondition with an explicit 10 s bound,
+not Vitest's 1 s `expect.poll` default. A freshly created OOPIF reaches its
+second frame only after its new renderer has initialized a compositor frame
+sink in the GPU process and started receiving viz BeginFrames. Under CPU
+contention a trace of the nested fixture showed hops of about 0.9 s each on that
+chain (the leaf's inline canvas script, `LayerTreeHostImpl::InitializeFrameSink`,
+and the GPU main thread's `SkiaOutputSurfaceImplOnGpu::SwapBuffers` under
+SwiftShader), with the second rAF 1.5–2.5 s after commit. The 1 s default
+failed a macOS CI run with the leaf counter stuck at 1, and reproduced locally
+under load. A timeout reports the last sample (counter, frame URL, visibility,
+device pixel ratio, viewport), so a genuinely throttled frame remains
+distinguishable from a slow one.
+
 `tests/real-world-webgl-projective-preflight.e2e.test.ts` emits PNG/JSON evidence
 with `generatedAt`, platform, browser revision, launch-profile enum, source commit
 and exact input-file hashes. On Linux it writes `tests/output-linux/` unless an
