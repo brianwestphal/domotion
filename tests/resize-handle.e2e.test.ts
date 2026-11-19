@@ -195,9 +195,22 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
     // macOS and in the Linux container and hung it on an x64 CI runner, so a
     // failed in-page probe re-probes the captured page with a CSP-exempt
     // constructed sheet instead.
-    const reference = await env!.browser.newPage({ viewport: { width: 320, height: 180 } });
-    const expected = await measureBlinkPlatformResizer(reference).finally(() => reference.close());
     const launch = () => launchChromium({ args: ["--single-process"] });
+    // The reference is the ordinary in-page probe in its own single-process
+    // browser: hosted macOS paints a 16 px resizer in single-process mode where
+    // a multi-process browser on the same runner paints 15 px, so a
+    // multi-process reference would test the theme, not the re-probe.
+    const expected = await (async () => {
+      const { value: browser, child: referenceChild } =
+        process.platform === "linux" ? await launchWithLinuxChild(launch) : { value: await launch(), child: undefined };
+      try {
+        const reference = await browser.newPage({ viewport: { width: 320, height: 180 } });
+        return await measureBlinkPlatformResizer(reference);
+      } finally {
+        await closeBrowserSafely(browser, 4_000);
+        if (referenceChild != null) await settleAbandonedLinuxBrowser(referenceChild);
+      }
+    })();
     const { value: single, child } =
       process.platform === "linux" ? await launchWithLinuxChild(launch) : { value: await launch(), child: undefined };
     try {
