@@ -36,6 +36,7 @@ import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.j
 import { captureImageFontHinting, recordBrowserFontEnvironment } from "./image-font-hinting.js";
 import { awaitGpuFeatureInfo } from "./gpu-startup-barrier.js";
 import { browserRunsSingleProcess } from "./single-process-browser.js";
+import { warnLostCanvasContexts } from "./lost-canvas-contexts.js";
 import { captureImageSvgSupports } from "./image-svg-supports.js";
 import { normalizedFontData } from "./font-data.js";
 import { registerLocalFontAlias, registerWebfont, type RegisteredFontFamily } from "../render/font-resolution.js";
@@ -2499,6 +2500,7 @@ async function captureElementTreeWithWarningsInternal(
         sourceImagePath: opts?.rasterizeFromImagePath,
         warnings,
       });
+      await warnLostCanvasContexts(page, typed.tree, selector, warnings);
       await reverifyAnimationFrame();
       const replacedMediaFrameState = await replacedMediaTransaction?.finalize(typed.tree);
       await rasterizeMaskSources(page, typed.tree, viewport);

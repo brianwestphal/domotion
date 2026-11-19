@@ -29,6 +29,10 @@ export type {
   CaptureElementTreeResult,
   LaunchChromiumOptions,
 } from "./index.js";
+// Lets a caller that launches or connects to Chromium itself wait out GPU
+// startup before its first page, as launchChromium does (doc 17).
+export { awaitGpuFeatureInfo } from "./gpu-startup-barrier.js";
+export type { GpuFeatureInfoBarrierResult } from "./gpu-startup-barrier.js";
 export { assembleCaptureDebugBundle } from "./debug-bundle.js";
 export type { AssembleCaptureDebugBundleOptions, CaptureDebugArtifacts, CaptureDebugBundle } from "./debug-bundle.js";
 export { reverifyAnimationsAtFrame, seekAnimationsToFrame } from "./animation-frame.js";

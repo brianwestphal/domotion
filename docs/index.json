@@ -583,7 +583,8 @@
           "DM-KPMB5S",
           "DM-FTRBES",
           "DM-C3HJHY",
-          "DM-R4Y02H"
+          "DM-R4Y02H",
+          "DM-JS8CWX"
         ],
         "code": [
           "src/capture/replaced-element-raster.ts",
@@ -592,6 +593,9 @@
           "src/capture/gpu-startup-barrier.ts",
           "src/capture/gpu-startup-barrier.test.ts",
           "src/capture/gpu-startup-barrier.e2e.test.ts",
+          "src/capture/lost-canvas-contexts.ts",
+          "src/capture/lost-canvas-contexts.test.ts",
+          "src/capture/lost-canvas-contexts.e2e.test.ts",
           "src/capture/webgl-output-freeze.e2e.test.ts",
           "src/capture/replaced-element-raster.test.ts",
           "src/capture/replaced-media-frame.test.ts",

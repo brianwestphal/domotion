@@ -1,11 +1,12 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { chromium, type Browser } from "@playwright/test";
+import type { Browser } from "@playwright/test";
+import { launchChromium } from "../src/capture/index.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
 
 let browser: Browser | null = null;
 afterAll(async () => browser?.close());
 try {
-  browser = await chromium.launch({ headless: true });
+  browser = await launchChromium();
 } catch {
   browser = null;
 }

@@ -154,7 +154,15 @@ async function rgba(png: Buffer): Promise<Buffer> {
  * does its backing store still hold the blue pixel?) and draw the square
  * again once, which schedules a fresh canvas commit. The facts are written
  * next to the retained frame and logged, so the recurrence is still
- * attributed even when the redraw restores the precondition. */
+ * attributed even when the redraw restores the precondition.
+ *
+ * The symptom matches the GPU startup canvas loss that `launchChromium` now
+ * waits out (`awaitGpuFeatureInfo`), and this file's browser goes through that
+ * wait. The redraw stays because the loss was never reproduced for this file
+ * locally, with or without the wait (0 of 40 fresh-browser runs on macOS
+ * without it, half of them under full CPU load), so nothing yet shows the wait
+ * removed the CI cause; a new retained `recovered: true` record would show
+ * that it did not. */
 const CENTER = (50 * 100 + 50) * 4;
 
 async function presentedSource(page: Page): Promise<Buffer> {

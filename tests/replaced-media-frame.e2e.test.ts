@@ -1,6 +1,6 @@
-import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { captureElementTreeWithWarnings, installCaptureRafClock } from "../src/capture/index.js";
+import { captureElementTreeWithWarnings, installCaptureRafClock, launchChromium } from "../src/capture/index.js";
 import { reverifyAnimationsAtFrame, seekAnimationsToFrame } from "../src/capture/animation-frame.js";
 import { prepareReplacedMediaFrameTransaction } from "../src/capture/replaced-media-frame.js";
 import {
@@ -55,7 +55,7 @@ describe("atomic replaced-media capture transaction", () => {
   let handle: CaptureRafClockHandle;
 
   beforeEach(async () => {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchChromium();
     context = await browser.newContext({ viewport: { width: 180, height: 120 } });
     handle = await installCaptureRafClock(context);
     page = await context.newPage();

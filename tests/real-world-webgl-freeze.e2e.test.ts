@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { chromium, type Browser, type Page } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
+import { launchChromium } from "../src/capture/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
 
 let browser: Browser;
 beforeAll(async () => {
-  browser = await chromium.launch();
+  browser = await launchChromium();
 });
 afterAll(async () => closeBrowserSafely(browser), 15_000);
 

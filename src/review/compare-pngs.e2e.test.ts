@@ -17,8 +17,9 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium, type Browser, type Page } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { launchChromium } from "../capture/index.js";
 import { comparePngs, passes, passesStrict, strictCapsFor, type CompareResult } from "./compare-pngs.js";
 
 /** Score against the calibrated caps explicitly, so these cases assert the
@@ -33,7 +34,7 @@ let page: Page;
 let dir: string;
 
 beforeAll(async () => {
-  browser = await chromium.launch();
+  browser = await launchChromium();
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
   page = await ctx.newPage();
   await page.setContent(`<!doctype html><html><body style="margin:0"></body></html>`);

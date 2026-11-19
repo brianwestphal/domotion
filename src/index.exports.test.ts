@@ -73,6 +73,7 @@ const EXPECTED_VALUE_EXPORTS = [
   "applyStudioTreatments",
   "assembleCaptureDebugBundle",
   "assertNoFillBoxInClipOrMask",
+  "awaitGpuFeatureInfo",
   "backgroundLoopTemplate",
   "borderBox",
   "boxAnchorPoint",
@@ -320,6 +321,7 @@ describe("public barrel export surface (DM-1058)", () => {
       [
         "DemoRecorder",
         "assembleCaptureDebugBundle",
+        "awaitGpuFeatureInfo",
         "borderBox",
         "boxAnchorPoint",
         "captureElementTree",

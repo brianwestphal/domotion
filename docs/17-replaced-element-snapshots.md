@@ -5,7 +5,19 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2380", "DM-457", "DM-2642", "DM-FTB9WG", "DM-VXT5CE", "DM-KPMB5S", "DM-FTRBES", "DM-C3HJHY", "DM-R4Y02H"]
+tickets:
+  [
+    "DM-2380",
+    "DM-457",
+    "DM-2642",
+    "DM-FTB9WG",
+    "DM-VXT5CE",
+    "DM-KPMB5S",
+    "DM-FTRBES",
+    "DM-C3HJHY",
+    "DM-R4Y02H",
+    "DM-JS8CWX",
+  ]
 code:
   [
     "src/capture/replaced-element-raster.ts",
@@ -14,6 +26,9 @@ code:
     "src/capture/gpu-startup-barrier.ts",
     "src/capture/gpu-startup-barrier.test.ts",
     "src/capture/gpu-startup-barrier.e2e.test.ts",
+    "src/capture/lost-canvas-contexts.ts",
+    "src/capture/lost-canvas-contexts.test.ts",
+    "src/capture/lost-canvas-contexts.e2e.test.ts",
     "src/capture/webgl-output-freeze.e2e.test.ts",
     "src/capture/replaced-element-raster.test.ts",
     "src/capture/replaced-media-frame.test.ts",
@@ -166,10 +181,42 @@ target, which responds once that feature info is initialized
 After the change, 72 of 72 fresh launches kept their first page's canvas, while
 unpatched launches lost it in 12 of 20. A browser launched with
 `--use-angle=swiftshader` lost nothing (0 of 20), which points at the automatic
-GPU backend's startup fallback. Browsers that callers launch themselves are not
-covered. `src/capture/gpu-startup-barrier.e2e.test.ts` launches ten fresh
-browsers and fails if any first-page canvas is lost; without the barrier it
-failed in 3 of 10 launches.
+GPU backend's startup fallback. `src/capture/gpu-startup-barrier.e2e.test.ts`
+launches ten fresh browsers and fails if any first-page canvas is lost; without
+the barrier it failed in 3 of 10 launches.
+
+A browser that the caller launches or connects to itself does not pass through
+`launchChromium`, and the capture cannot repair it: the wait has to happen
+before the page exists. Measured on macOS with 15 fresh launches per arm, the
+first page lost its canvas in 9 (2D) and 10 (WebGL) launches with no wait, in 10
+and 7 when the wait ran after the page had loaded (where a capture entry point
+would run it), and in none when it ran before the page was created. Callers who
+launch their own browser therefore call the public `awaitGpuFeatureInfo(browser)`
+before their first page. Capture itself reports the loss instead of hiding it:
+after rasterizing replaced elements, when the captured tree contains a
+`<canvas>`, it enumerates the page's existing 2D and WebGL contexts with CDP
+`Runtime.queryObjects` (which does not create a context, as a probing
+`getContext` call would) and adds a `canvas-context-lost` warning for each
+captured top-level-document canvas whose context reports `isContextLost()`
+(`src/capture/lost-canvas-contexts.ts`; about 25 ms on a small page, and only when a canvas was captured).
+The warning is best effort. A lost WebGL context stays lost unless the page
+restores it, so it is reported at any later capture. Chromium restores a lost 2D
+context, cleared, about 500 ms after the loss, and after that the loss can no
+longer be observed. A context whose script object the page no longer
+references can be missed after V8 drops that object, and canvases in frames or
+workers are not inspected. `src/capture/lost-canvas-contexts.e2e.test.ts` checks
+the warning against a deliberately lost context. On macOS it also launches
+browsers without the wait until one loses its first-page WebGL canvas, requires
+the warning to match the page's own state on every launch, and then requires
+six launches that call `awaitGpuFeatureInfo` first to lose nothing.
+
+E2E files that draw a canvas on a fresh browser's first page launch through
+`launchChromium` for the same reason. The WebGL fixture suites keep
+`WEBGL_FIXTURE_LAUNCH_ARGS` (see [doc 66](66-ci-visual-tests.md#webgl-fixture-backend)):
+the failure it removed is a worker's first `getContext('webgl2')` returning
+null, which was not reproduced locally with or without the wait (35 fresh
+launches without either, 20 of them under full CPU load), so nothing shows the wait
+covers it.
 
 ## Transform, clip, and device-pixel spaces
 

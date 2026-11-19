@@ -304,6 +304,11 @@ race: the worker reached its connect handler, read a null WebGL context at its
 first `clearColor` call, and the owned browser's stderr held one or two
 command-buffer send failures and nothing else.
 
+`launchChromium`'s GPU startup wait ([doc 17](17-replaced-element-snapshots.md#presentation-before-each-screenshot))
+was evaluated as a replacement and not adopted: the null-context race was not
+reproduced locally with or without that wait, so nothing shows the wait covers
+it.
+
 ### Focused native worker diagnostics
 
 For the harness-owned CDP browser, `DEBUG=pw:browser` observes the launch scout,
