@@ -395,12 +395,14 @@ it("does not sample a scout that closed in time, nor record one never asked for"
 it.runIf(process.platform === "darwin")(
   "samples a real stalled process with macOS sample",
   async () => {
-    const { metadata, sample } = await stalledScoutWith(nativeSampler, 10_000);
+    const { metadata, sample } = await stalledScoutWith(nativeSampler, 25_000);
     expect(metadata.sample.status).toBe("captured");
     expect(sample).toMatch(/^Call graph:\n/);
     expect(sample).toMatch(/Thread_\d+/);
     expect(sample).not.toMatch(/Binary Images|\/Users\//);
-    // `sample` itself takes seconds on a loaded CI runner; its own bound is 10 s.
+    // The first `sample` of a binary pays a cold symbolication cache (Node:
+    // 2.2 s idle locally, 1.1 s warm), and every CI VM starts cold; a 10 s
+    // bound timed out on loaded hosted runners.
   },
-  30_000,
+  40_000,
 );

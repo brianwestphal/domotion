@@ -335,8 +335,11 @@ the kill resolved (schema `domotion-scout-close-v3`; v1 stamped its deadline
 only after the kill settled). Because the stalled scout's output is silent,
 DM-Q1CW1H also takes one native sample of the stuck process after the deadline
 and before the fallback kill: on macOS `sample <pid> 1 -mayDie` into a private
-temporary file, bounded at 5000 ms (the sampler is SIGKILLed and the wait
-abandoned at that bound, so the kill is never delayed longer); other platforms
+temporary file, bounded at 20000 ms (the sampler is SIGKILLed and the wait
+abandoned at that bound, so the kill is never delayed longer; the bound was
+5000 ms until DM-298522 found that the first `sample` of a binary pays a cold
+symbolication cache, 7.8 s for a fresh headless Chromium on an idle Mac against
+1.3 s warm, and that every hosted runner starts cold); other platforms
 record `unsupported` without spawning anything. Only the report's call-graph
 sections are kept — the header (executable path, parent process, dates) and the
 binary-image table are dropped, remaining absolute paths become `<path>`, and the

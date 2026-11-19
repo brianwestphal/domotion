@@ -138,8 +138,12 @@ export function captureOwnedBrowserDiagnostics(
 
 export const SCOUT_CLOSE_LOG_MAX_BYTES = 64 * 1024;
 export const SCOUT_SAMPLE_MAX_BYTES = 64 * 1024;
-/** Upper bound on how long a stalled-close sample may delay the fallback kill. */
-export const SCOUT_SAMPLE_TIMEOUT_MS = 5_000;
+/** Upper bound on how long a stalled-close sample may delay the fallback kill.
+ * The first `sample` of a binary pays a cold symbolication cache: locally a
+ * fresh headless Chromium took 7.8 s idle (1.3 s once warm), and every hosted
+ * CI VM starts cold, so the former 5 s bound never captured a scout sample. 20 s
+ * still fits close (6 s), kill and evidence wait inside the 60 s e2e hook. */
+export const SCOUT_SAMPLE_TIMEOUT_MS = 20_000;
 
 /** Returns a native sampler report for `pid`, or `null` when the platform has
  * no sampler. Must give up within `timeoutMs`. */
