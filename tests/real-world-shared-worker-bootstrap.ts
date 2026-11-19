@@ -223,17 +223,14 @@ export class SharedWorkerBootstrap {
       break;
     }
   }
-  /** Detaching does not reliably release a startup pause. Chromium latches
-   * `wait_for_debugger` when the worker starts, but binds its renderer DevTools
-   * channel only if a client is still attached when the worker becomes ready
-   * for inspection (`SharedWorkerDevToolsAgentHost::UpdateRendererChannel`
-   * under `kSharedWorkerDevToolsWorkerReadyCheck`). If every waiting client has
-   * detached by then, no renderer session ever connects, so neither
-   * `Runtime.runIfWaitingForDebugger` nor the V8 debugger barrier released on
-   * session destruction can resume it, and it stays paused with no error. CI
-   * recorded exactly that: `resume-failed`, `detach-ok` 1 ms later, then no
-   * worker outcome. Resume again while still attached (the browser session
-   * queues the command until the channel binds) and detach only afterwards. */
+  /** After a rejected resume, resume again while still attached and detach
+   * only afterwards, rather than relying on detach alone to release the
+   * startup pause: Chromium binds a SharedWorker's renderer DevTools channel
+   * only if a client is still attached when the worker becomes ready for
+   * inspection (`SharedWorkerDevToolsAgentHost::UpdateRendererChannel`).
+   * This does not explain the lost startup errors seen on CI: a later
+   * recurrence logged `resume-retry-ok` and the worker still reported nothing
+   * (DM-3C3NFV remains open). */
   private async resumeBeforeDetach(worker: Worker): Promise<void> {
     if (!this.live(worker) || !worker.waiting) return;
     this.log({ targetId: worker.targetId, url: worker.url, event: "resume-retry-sent" });
