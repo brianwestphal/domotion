@@ -42,6 +42,10 @@ const distance = (s: {
   (GENERIC_FAMILIES.includes(s.fontFamily) ? 0 : 1) +
   (s.lang == null ? 0 : 1);
 
+// The 50,544-stack checks below collect the stacks that break the rule and
+// assert once. One `expect` per stack used about 0.3 s of CPU against 0.04 s
+// for the comparison itself, and took up to 13.5 s in a loaded suite
+// (docs/tool-child-process-test-bounds.md).
 describe("the rule", () => {
   it("is exactly the six-way cross product, with nothing added or dropped", () => {
     const stacks = buildSyntheticStacks();
@@ -97,14 +101,13 @@ describe("the rule", () => {
   it("holds every stack at the CSS initial font size, and says so in the entry", () => {
     const stacks = buildSyntheticStacks();
     expect(SYNTHETIC_FONT_SIZE).toBe(16);
-    for (const s of stacks) {
-      expect(s.fontSize).toBe(16);
-      // `fixtures: 0` is load-bearing rather than filler: nothing here came from
-      // a fixture, and a non-zero value would make `--max-stacks` read as "most
-      // used" when it actually means "closest to the CSS initial state".
-      expect(s.fixtures).toBe(0);
-      expect(s.example).toContain(`rule v${RULE_VERSION}`);
-    }
+    // `fixtures: 0` is load-bearing rather than filler: nothing here came from
+    // a fixture, and a non-zero value would make `--max-stacks` read as "most
+    // used" when it actually means "closest to the CSS initial state".
+    const offRule = stacks
+      .map((s, i) => ({ i, fontSize: s.fontSize, fixtures: s.fixtures, example: s.example }))
+      .filter((s) => s.fontSize !== 16 || s.fixtures !== 0 || !s.example.includes(`rule v${RULE_VERSION}`));
+    expect(offRule.slice(0, 32)).toEqual([]);
   });
 });
 
@@ -112,12 +115,10 @@ describe("ordering makes a --max-stacks prefix meaningful", () => {
   const stacks = buildSyntheticStacks();
 
   it("is monotone in distance from the CSS initial state", () => {
-    let last = -1;
-    for (const s of stacks) {
-      const d = distance(s);
-      expect(d).toBeGreaterThanOrEqual(last);
-      last = d;
-    }
+    const decreases = stacks
+      .map((s, i) => ({ i, from: i === 0 ? 0 : distance(stacks[i - 1]), to: distance(s) }))
+      .filter((step) => step.to < step.from);
+    expect(decreases.slice(0, 32)).toEqual([]);
   });
 
   it("puts one stack per generic family first, all at the CSS initial state", () => {
@@ -142,7 +143,7 @@ describe("ordering makes a --max-stacks prefix meaningful", () => {
         (LANGUAGES.length - 1));
     const cut = GENERIC_FAMILIES.length + singleAxis;
     expect(cut).toBe(351);
-    for (const s of stacks.slice(0, cut)) expect(distance(s)).toBeLessThanOrEqual(1);
+    expect(stacks.slice(0, cut).filter((s) => distance(s) > 1)).toEqual([]);
     expect(distance(stacks[cut])).toBe(2);
   });
 });

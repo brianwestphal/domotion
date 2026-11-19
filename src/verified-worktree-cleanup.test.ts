@@ -7,9 +7,16 @@ import { expect, test } from "vitest";
  * scales with host load (19 s idle; 94 s under 30 busy processes on 15 cores,
  * with every call slower and none over 107 ms). A fixed wall-clock deadline
  * therefore measured load, not a hang. A hang is a child that stops emitting
- * its progress trace; the overall cap only bounds pathological slowness. */
+ * its progress trace; the overall cap only bounds pathological slowness.
+ *
+ * That cap was itself a fixed wall-clock deadline over the same load-scaled
+ * work. The child process tree used 24 s of CPU idle (27 s wall) and 39 s
+ * inside a loaded full Vitest run, where it took 1,101 s, exited 0 and never
+ * went quiet for more than 7.3 s, so a 300 s cap failed a healthy child. The
+ * cap is now 100 times that loaded CPU, the allowance the CPU-derived
+ * child-process bounds use (docs/tool-child-process-test-bounds.md). */
 const STALL_MS = 60_000;
-const OVERALL_MS = 300_000;
+const OVERALL_MS = 3_900_000;
 const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 
 interface ChildResult {

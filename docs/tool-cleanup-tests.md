@@ -3,8 +3,9 @@
 `src/verified-worktree-cleanup.test.ts` runs the real Node test file
 `scripts/verified-worktree-cleanup.test.mjs` under a progress watchdog: the
 child fails as `ESTALLED` if its progress trace is silent for 60 seconds (unless
-the trace has reported its own truncation), and as `ETIMEDOUT` after 300
-seconds overall, with a 4 MiB output limit (`ENOBUFS`). Windows retains its
+the trace has reported its own truncation), and as `ETIMEDOUT` after 3,900
+seconds overall (100 times the child tree's loaded CPU time; see the last
+section), with a 4 MiB output limit (`ENOBUFS`). Windows retains its
 portable-selection filter; POSIX hosts execute every Git fixture and refusal.
 The production cleanup adapter, exact-tree receipts, ownership checks and
 deletion refusals are unchanged by DM-GRZJPV.
@@ -94,3 +95,23 @@ wrapper passed in 110 seconds. Two controls pin the watchdog: a child that goes
 silent is stopped as `ESTALLED`, and one that reports trace truncation is left
 to finish. The production adapter, the 30-second native-command bound, all 75
 cases and the Windows selection are unchanged.
+
+## The overall cap was also load-scaled
+
+The 300-second overall cap that replaced the 90-second deadline was still a
+fixed wall-clock bound over the same work, and it failed both loaded full
+`vitest run` passes (30 busy processes on 15 cores, load average 43-77). With
+the cap raised for measurement, the child completed in 1,101 seconds inside
+such a run with exit status 0. Its longest gap between progress records was
+7.3 seconds, so the stall watchdog had at least eight times headroom
+throughout. Its process tree (the `--test` supervisor, the test file and every
+Git call) used 24 seconds of CPU idle, with 27 seconds of wall time, and 39
+seconds inside the loaded run. Wall time grew 28 times its CPU time, the same
+reduced share of a core recorded for the child-process tests in
+[`tool-child-process-test-bounds.md`](tool-child-process-test-bounds.md).
+
+The cap is therefore derived from CPU work like those bounds: 100 times the
+loaded 39 seconds, 3,900 seconds. The progress watchdog remains the hang
+check. The cap only stops a child that keeps reporting progress without
+finishing, or one whose trace has reported truncation, after which the
+silence check stands down by design.

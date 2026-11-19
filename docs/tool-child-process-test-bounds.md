@@ -219,6 +219,148 @@ derived bound. `tests/ci-font-conformance-shard.test.ts` and
 `tests/font-conformance-synthetic-stacks.test.ts` passed in both runs (at most
 22.8 s and 13.5 s) and were not changed.
 
+## Fourth round: helper spawns, a sampler and two timing assertions
+
+Six more files failed in loaded full runs (30 busy processes on 15 cores,
+load average 43-77): `tests/shaping-default-ignorable-logical.test.ts`,
+`tests/tool-cli-migration.test.ts`, `tests/tool-check-cli-migration.test.ts`,
+`src/verified-worktree-cleanup.test.ts`,
+`tests/real-world-browser-diagnostics.test.ts` (the real `sample` test) and
+`src/capture/install-chromium.test.ts` (the wedged-installer test). Two more
+passed with thin margins: `tests/ci-font-conformance-shard.test.ts` and
+`tests/font-conformance-synthetic-stacks.test.ts`. They were measured as in
+the earlier rounds: alone and unloaded, then inside a pueue-launched full
+`vitest run` with the same 30 busy processes (load average 63-80), with a
+temporary probe test timing each child kind with `/usr/bin/time -l`, three
+rounds each. The verified-cleanup child was timed the same way inside its
+own test, with its overall cap raised for the measurement.
+
+| child or work                                        | CPU unloaded             | CPU in the loaded suite | wall in the loaded suite |
+| ---------------------------------------------------- | ------------------------ | ----------------------- | ------------------------ |
+| `tsx tools/compare-roll-evidence.ts`                 | 0.22-0.25 s              | 0.29-0.32 s             | up to 11.8 s (37x)       |
+| `tsx tools/check-semantic-coverage.ts`               | 0.23-0.26 s              | 0.31-0.33 s             | up to 12.1 s (37x)       |
+| the roll comparison, timed inside its test           | 0.35-0.36 s              | 0.32-0.33 s             | up to 12.1 s (37x)       |
+| the semantic inventory, timed inside its test        | 0.41 s                   | 0.37 s                  | 35.7 s (97x)             |
+| shard script, single attempt (stubbed sweep)         | 0.01 s                   | 0.01-0.02 s             | up to 4.6 s              |
+| shard script, three drifted attempts (stubbed sweep) | 0.03-0.04 s              | 0.04-0.05 s             | up to 7.2 s              |
+| `node -e ""` (the installer stand-in)                | 0.06-0.07 s              | 0.07-0.08 s             | up to 3.1 s (39x)        |
+| the six shaping rows, one-shot helper (tsx)          | 1.22-1.24 s              | 1.66-1.69 s             | 72-77 s                  |
+| the six shaping rows, persistent helper (tsx)        | 1.05-1.11 s              | 1.44-1.60 s             | 28-41 s                  |
+| `/usr/bin/sample <node pid> 1`                       | 0.13-0.17 s (1.2 s wall) | 0.17-0.20 s             | 13-22 s                  |
+| synthetic corpus checks, one `expect` per stack      | 0.27-0.33 s              | 0.33-0.37 s             | 3.7-9.2 s                |
+| the same checks, collected and asserted once         | 0.04-0.06 s              | 0.04-0.07 s             | 0.6-1.2 s                |
+| verified-cleanup child tree (about 2,720 git calls)  | 23.8 s (26.8 s wall)     | 38.8 s                  | 1,101 s (28x)            |
+
+Every child exited with its normal status. Inside the same loaded run the
+unchanged tests behaved as follows: the first shaping row failed at 33.5 s,
+the two `tsx` CLI tests took 23.4 s and 20.8 s, the real `sample` test 19.4 s
+under its 25 s bound, the slowest shard test 7.7 s (the file 72.9 s), the
+slowest synthetic test 8.3 s, and the verified-cleanup child 1,101 s. The
+installer test passed in that run.
+
+Findings by file:
+
+- **Shaping rows.** The six rows made 31 one-shot glyph-helper processes (and
+  four ICU helper processes), so most of their loaded wall time was process
+  starts, as in the third round's compatibility sweep. The file now clears
+  `DOMOTION_HELPER_NO_SERVE` in `beforeAll` and closes the persistent helper
+  (`clearGlyphHelperCache()`) in `afterAll`; a spawn trace of the file shows
+  one `--serve` helper in place of the 31 one-shot runs. The remaining
+  in-process work is CPU-bound, so each test's timeout is 100 times the
+  loaded CPU of all six rows (170 s).
+- **Roll comparison and semantic inventory.** Blocking `spawnSync` calls of
+  the `tsx` CLI under Vitest's 30 s timeout, three in one test, as in the
+  first round. Each now runs through `runBoundedChild`. Timed inside the
+  tests themselves (Vitest sets a different environment from the probe), each
+  run used 0.32-0.41 s of CPU idle or loaded. The roll comparison took up to
+  12.1 s a run in the loaded suite (37 times its CPU), but the semantic
+  inventory took 35.7 s for 0.37 s of CPU (97 times), matching the 36 s
+  failure. The difference is not CPU: the inventory checks 894 repository
+  paths with one awaited `access()` call after another, and each round trip
+  through the thread pool waits for the main thread to be scheduled again,
+  about 40 ms each under that load. Its budget therefore adds 100 ms (2.5
+  times that) per path to the CPU-derived budget, with the path count read
+  from `tools/semantic-coverage.json`, so it grows with the inventory.
+- **Shard script.** Under 0.05 s of CPU but 8-20 short processes per run
+  (bash, `mkdir`, the stubbed recorders and sweep, and on the macOS path
+  `cat`, `mv` and up to three attempts), so its budget counts process starts.
+  Every run goes through `runBoundedChild`, and each test's timeout sums its
+  runs' budgets.
+- **Synthetic corpus.** No child: three checks over all 50,544 stacks made
+  one `expect` call per stack (about 200,000 in total). They now collect the
+  stacks that break the rule (the first 32) and assert once, as the
+  vertical-orientation sweeps do since the second round.
+- **The real `sample` test.** `sample <pid> 1` waits out a one-second
+  sampling window even idle (1.2 s of wall time for 0.13-0.17 s of CPU, and
+  2.2 s with a cold symbolication cache, which every CI VM has). Inside the
+  loaded suite it took 13-22 s for 0.2 s of CPU in the probe, 19.4 s in the
+  unchanged test, and 62.1-84.0 s in the later loaded runs below: up to 400
+  times its CPU, far past the allowance, while still finishing normally. One loaded sample
+  held only 17 stack samples against 824-832 idle, so the sampling window was
+  not what grew; the time went to waiting to be scheduled. Its budget is
+  therefore 100 times its cold idle wall time (220 s) rather than its CPU.
+  What the test checks is unchanged: a real sampler run is recorded as
+  `captured`, with a scrubbed call graph. The bound's expiry is still pinned
+  by the test whose sampler never settles.
+- **The wedged installer.** The test asserted more than five 10 ms timer
+  ticks during the 300 ms kill deadline. What it means to check is that the
+  installer wait is asynchronous: the old untimed `spawnSync` blocked a
+  library caller's event loop. Counting ticks measured the worker's share of
+  a core instead, and a loaded worker saw exactly five (`expected 5 > 5`).
+  The test now queues a `setImmediate` right after the call and requires the
+  call to still be pending when it runs, then requires the rejection that
+  names the deadline. Replacing the wait with a blocking `spawnSync`
+  (temporarily, as a negative control) fails the new check: the call has
+  already settled when the event loop next turns.
+- **Verified cleanup.** The 300 s overall cap failed a healthy child: it
+  completed in 1,101 s with exit 0, and its longest silence between progress
+  records was 7.3 s against the 60 s stall bound. The cap is now 100 times
+  the child tree's loaded CPU (3,900 s); the stall watchdog remains the hang
+  check ([`tool-cleanup-tests.md`](tool-cleanup-tests.md)). Its roughly 2,720
+  git starts are not counted separately: their cost is inside the measured
+  CPU, and the loaded wall time was 28 times that CPU, within the allowance.
+
+| caller                                                 | work used                                 | budget        |
+| ------------------------------------------------------ | ----------------------------------------- | ------------- |
+| roll comparison (`tsx` CLI)                            | 0.36 s CPU, 2 processes                   | 46 s per run  |
+| semantic inventory (`tsx` CLI)                         | 0.4 s CPU, 2 processes, 894 awaited paths | 139 s         |
+| shard script, single attempt                           | 0.05 s CPU, 8 processes                   | 75 s per run  |
+| shard script, up to three attempts                     | 0.05 s CPU, 20 processes                  | 195 s per run |
+| macOS `sample` in the real sampler test                | 2.2 s cold idle wall time                 | 220 s         |
+| stalled scout child around that sample                 | 0.08 s CPU                                | 30 s (floor)  |
+| shaping rows, per test (in-process, persistent helper) | 1.7 s CPU                                 | 170 s         |
+| verified-cleanup overall cap                           | 39 s CPU                                  | 3,900 s       |
+
+In two more loaded full runs with these changes, all eight files passed. The
+second run used earlier budgets (120 s for `sample`, 43 s per `tsx` CLI run),
+and the third the final ones except the two `tsx` CLI budgets, set to 120 s
+while their in-test timing was taken:
+
+| test                             | second run | third run |
+| -------------------------------- | ---------- | --------- |
+| first shaping row                | 9.6 s      | 8.5 s     |
+| roll comparison (three CLI runs) | 24.5 s     | 29.7 s    |
+| semantic inventory CLI           | 23.8 s     | 35.7 s    |
+| real `sample` test               | 62.1 s     | 84.0 s    |
+| verified-cleanup child           | 928 s      | 1,174 s   |
+| slowest shard test               | 11.7 s     | 13.2 s    |
+| slowest synthetic-corpus test    | 8.0 s      | 6.3 s     |
+
+The slowest synthetic-corpus test is now "is byte-identical across
+regenerations", which builds and serializes the corpus four times (0.28 s of
+CPU idle) rather than looping over `expect`, and is unchanged. The thinnest
+remaining margin is the real `sample` test, at 2.6 times its 84 s maximum.
+
+Other tests failed in these loaded runs and are not attributed here:
+`tests/e2e-native-logs.test.ts` (the forwarding flush described below),
+`tests/family-match-transient-report.test.ts` in all three runs (the CLI
+test exited 2 at 121.7-123.1 s, just past its 120 s `spawnSync` timeout, and
+in the third run the `--max-families 0` rejection test also reached the 30 s
+test timeout), and, in the third run only,
+`tests/variable-axis-fixture.test.ts` ("keeps production TypeScript free of
+literal NUL bytes", 50.8 s) and
+`tests/vertical-decoration-browser-oracle.test.ts` (its 60 s timeout).
+
 ## A bound that was timing the wrong interval
 
 `captureOwnedBrowserDiagnostics().finalize()` waits up to 2 s for the owned

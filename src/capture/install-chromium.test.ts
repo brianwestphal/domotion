@@ -17,16 +17,20 @@ describe("installPlaywrightChromium", () => {
   });
 
   it("kills a wedged installer at the deadline without blocking the event loop", async () => {
-    let ticks = 0;
-    const ticker = setInterval(() => ticks++, 10);
-    try {
-      await expect(installPlaywrightChromium(300, node("setTimeout(() => {}, 60_000)"))).rejects.toThrow(
-        /timed out after 300 ms/,
-      );
-    } finally {
-      clearInterval(ticker);
-    }
-    expect(ticks).toBeGreaterThan(5);
+    // Non-blocking means the caller's event loop gets a turn while the
+    // installer is still pending. A synchronous wait (the old `spawnSync`)
+    // would settle the call before any turn, so the check below would see it
+    // settled. Counting 10 ms timer ticks during the 300 ms deadline instead
+    // measured the worker's share of a core: in a loaded suite it saw exactly
+    // five (docs/tool-child-process-test-bounds.md).
+    let settled = false;
+    const install = installPlaywrightChromium(300, node("setTimeout(() => {}, 60_000)")).finally(() => {
+      settled = true;
+    });
+    const pendingAtNextTurn = await new Promise<boolean>((resolve) => setImmediate(() => resolve(!settled)));
+    expect(pendingAtNextTurn).toBe(true);
+    // The rejection names the deadline only when the child was killed by it.
+    await expect(install).rejects.toThrow(/timed out after 300 ms/);
   });
 
   it("rejects when the installer cannot be spawned", async () => {

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { harfbuzzShapeRun } from "@domotion/text-engine/testing";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { clearGlyphHelperCache, harfbuzzShapeRun } from "@domotion/text-engine/testing";
 import { BufferFlag } from "../packages/text-engine/vendor/harfbuzzjs/dist/index.mjs";
 import { renderTextAsPath } from "../src/render/text-to-path.js";
 import {
@@ -10,6 +10,27 @@ import {
   type OurShaping,
   type RunSpec,
 } from "../tools/shaping-conformance.js";
+import { budgetForCpuWork } from "./bounded-child.js";
+
+// These rows make about 31 native glyph-helper requests. Under the unit
+// config's one-shot transport each one is a separate process, and in a loaded
+// suite the first row timed out at 33-42 s; a standalone run of the same six
+// rows took 72-77 s for 1.7 s of CPU. The persistent channel answers the same
+// questions (pinned by helper-serve-switch.test.ts) from one process, which
+// is closed again in `afterAll`, as the E2E setup does for each file. That
+// cut the standalone loaded run to 28-41 s for 1.4-1.6 s of CPU, so each test
+// also gets 100 times that CPU (docs/tool-child-process-test-bounds.md).
+const SHAPING_TIMEOUT_MS = budgetForCpuWork(1_700);
+let noServe: string | undefined;
+beforeAll(() => {
+  noServe = process.env.DOMOTION_HELPER_NO_SERVE;
+  delete process.env.DOMOTION_HELPER_NO_SERVE;
+  clearGlyphHelperCache();
+});
+afterAll(() => {
+  clearGlyphHelperCache();
+  if (noServe != null) process.env.DOMOTION_HELPER_NO_SERVE = noServe;
+});
 
 const MACOS_STANDALONE_SELECTORS = [0xe0110, 0xe0108, 0xfe06, 0xe017c, 0xe01c3, 0xe01c8];
 
@@ -25,7 +46,7 @@ function spec(cp: number): RunSpec {
   };
 }
 
-describe("standalone default-ignorable logical shaping (DM-2521)", () => {
+describe("standalone default-ignorable logical shaping (DM-2521)", { timeout: SHAPING_TIMEOUT_MS }, () => {
   it.each(MACOS_STANDALONE_SELECTORS.map((cp) => [cp]))(
     "retains U+%s as the selected face's zero-advance space glyph",
     (cp) => {

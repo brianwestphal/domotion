@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Readable } from "node:stream";
 import { afterEach, expect, it, vi } from "vitest";
+import { budgetForCpuWork, testTimeoutFor } from "./bounded-child.js";
 import {
   captureOwnedBrowserDiagnostics,
   type NativeSampler,
@@ -407,17 +408,27 @@ it("does not sample a scout that closed in time, nor record one never asked for"
   expect(sampledScout(directory).metadata.sample).toEqual({ status: "not-requested" });
 });
 
+// The first `sample` of a binary pays a cold symbolication cache (Node: 2.2 s
+// idle locally, 1.1 s warm), and every CI VM starts cold; a 10 s bound timed
+// out on loaded hosted runners. A warm `sample <pid> 1` used 0.13-0.2 s of CPU
+// but 1.2 s of wall time even idle, because it waits out its one-second
+// sampling window. In a loaded suite it took 13-84 s, waiting to be scheduled
+// rather than computing, and a 25 s bound recorded `timeout`. Its budget is
+// therefore 100 times its cold idle wall time (2.2 s) rather than its CPU
+// (docs/tool-child-process-test-bounds.md). The bound's own expiry is pinned
+// by the never-settling sampler test above.
+const NATIVE_SAMPLE_BUDGET_MS = budgetForCpuWork(2_200);
+/** The stalled scout itself: a `node -e` start (0.08 s of CPU), its kill and close. */
+const SCOUT_CHILD_BUDGET_MS = budgetForCpuWork(80);
+
 it.runIf(process.platform === "darwin")(
   "samples a real stalled process with macOS sample",
   async () => {
-    const { metadata, sample } = await stalledScoutWith(nativeSampler, 25_000);
+    const { metadata, sample } = await stalledScoutWith(nativeSampler, NATIVE_SAMPLE_BUDGET_MS);
     expect(metadata.sample.status).toBe("captured");
     expect(sample).toMatch(/^Call graph:\n/);
     expect(sample).toMatch(/Thread_\d+/);
     expect(sample).not.toMatch(/Binary Images|\/Users\//);
-    // The first `sample` of a binary pays a cold symbolication cache (Node:
-    // 2.2 s idle locally, 1.1 s warm), and every CI VM starts cold; a 10 s
-    // bound timed out on loaded hosted runners.
   },
-  40_000,
+  testTimeoutFor(NATIVE_SAMPLE_BUDGET_MS, SCOUT_CHILD_BUDGET_MS),
 );

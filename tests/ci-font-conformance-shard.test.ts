@@ -17,13 +17,23 @@
  * command line it echoes is the assertion surface. A test that re-implemented
  * the case statement in TypeScript would pass against a broken script.
  */
-import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import { budgetForCpuWork, describeChild, runBoundedChild, testTimeoutFor } from "./bounded-child.js";
 
 const ROOT = resolve(import.meta.dirname, "..");
+
+// Each script run is a few hundredths of a second of CPU (0.01-0.05 s in a
+// loaded suite) spread over many short processes: bash, `mkdir`, the stubbed
+// recorders and sweep, and on the macOS path `cat`, `mv` and up to three sweep
+// attempts. Process starts, not CPU, dominate its wall time under load, so the
+// budget counts them (docs/tool-child-process-test-bounds.md).
+const SINGLE_ATTEMPT_BUDGET_MS = budgetForCpuWork(50, 8);
+const THREE_ATTEMPT_BUDGET_MS = budgetForCpuWork(50, 20);
+/** Vitest timeout for a test that runs the single-attempt script `runs` times. */
+const singleAttemptTimeout = (runs: number) => testTimeoutFor(...Array<number>(runs).fill(SINGLE_ATTEMPT_BUDGET_MS));
 const SCRIPT = join(ROOT, "scripts/ci-font-conformance-shard.sh");
 let stubDir: string;
 
@@ -45,11 +55,11 @@ beforeAll(() => {
 });
 
 /** Run the script and return the command line it says it will run. */
-function argsFor(env: Record<string, string>): string {
+async function argsFor(env: Record<string, string>): Promise<string> {
   const outDir = mkdtempSync(join(tmpdir(), "fc-shard-out-"));
-  const out = execFileSync("bash", [SCRIPT], {
+  const result = await runBoundedChild("bash", [SCRIPT], {
     cwd: ROOT,
-    encoding: "utf-8",
+    budgetMs: SINGLE_ATTEMPT_BUDGET_MS,
     env: {
       ...process.env,
       PATH: `${stubDir}:${process.env.PATH ?? ""}`,
@@ -60,58 +70,88 @@ function argsFor(env: Record<string, string>): string {
       ...env,
     },
   });
+  expect(result.status, describeChild(result)).toBe(0);
+  const out = result.stdout;
   const line = out.split("\n").find((l) => l.includes("npx tsx tools/font-conformance.ts"));
   expect(line, `the script must announce its command line:\n${out}`).toBeDefined();
   return line!.slice(line!.indexOf("npx tsx"));
 }
 
 describe("the conformance shard script passes exactly the flags it was asked for", () => {
-  it("always carries the stack shard and the output dir", () => {
-    expect(argsFor({})).toContain("--stack-shard 1/6");
-  });
+  it(
+    "always carries the stack shard and the output dir",
+    async () => {
+      expect(await argsFor({})).toContain("--stack-shard 1/6");
+    },
+    singleAttemptTimeout(1),
+  );
 
-  it("caps the corpus when given a number", () => {
-    expect(argsFor({ MAX_STACKS: "6" })).toContain("--max-stacks 6");
-  });
+  it(
+    "caps the corpus when given a number",
+    async () => {
+      expect(await argsFor({ MAX_STACKS: "6" })).toContain("--max-stacks 6");
+    },
+    singleAttemptTimeout(1),
+  );
 
-  it.each(["all", "ALL", "0", ""])("sweeps the WHOLE corpus for MAX_STACKS=%j", (v) => {
-    // The claim: no `--max-stacks` flag at all. Asserting the absence is the
-    // point — a cap of "434" would also look like a full sweep today and would
-    // silently truncate the moment the corpus grew.
-    expect(argsFor({ MAX_STACKS: v })).not.toContain("--max-stacks");
-  });
+  it.each(["all", "ALL", "0", ""])(
+    "sweeps the WHOLE corpus for MAX_STACKS=%j",
+    async (v) => {
+      // The claim: no `--max-stacks` flag at all. Asserting the absence is the
+      // point — a cap of "434" would also look like a full sweep today and would
+      // silently truncate the moment the corpus grew.
+      expect(await argsFor({ MAX_STACKS: v })).not.toContain("--max-stacks");
+    },
+    singleAttemptTimeout(1),
+  );
 
-  it("omits the codepoint axis unless a second dimension was asked for", () => {
-    // A gratuitous `--shard 1/1` makes a 1-D run look 2-D to the merge, which
-    // keys its codepoint accounting off that field.
-    expect(argsFor({ CP_TOTAL: "1", CP_SHARD: "1" })).not.toContain("--shard 1/1");
-    expect(argsFor({ CP_TOTAL: "4", CP_SHARD: "3" })).toContain("--shard 3/4");
-  });
+  it(
+    "omits the codepoint axis unless a second dimension was asked for",
+    async () => {
+      // A gratuitous `--shard 1/1` makes a 1-D run look 2-D to the merge, which
+      // keys its codepoint accounting off that field.
+      expect(await argsFor({ CP_TOTAL: "1", CP_SHARD: "1" })).not.toContain("--shard 1/1");
+      expect(await argsFor({ CP_TOTAL: "4", CP_SHARD: "3" })).toContain("--shard 3/4");
+    },
+    singleAttemptTimeout(2),
+  );
 
-  it("passes the boolean switches only when true", () => {
-    expect(argsFor({ NO_PUA: "true" })).toContain("--no-pua");
-    expect(argsFor({ NO_PUA: "false" })).not.toContain("--no-pua");
-    expect(argsFor({ STRICT_ALIAS: "true" })).toContain("--strict-alias");
-    expect(argsFor({ STRICT_ALIAS: "false" })).not.toContain("--strict-alias");
-  });
+  it(
+    "passes the boolean switches only when true",
+    async () => {
+      expect(await argsFor({ NO_PUA: "true" })).toContain("--no-pua");
+      expect(await argsFor({ NO_PUA: "false" })).not.toContain("--no-pua");
+      expect(await argsFor({ STRICT_ALIAS: "true" })).toContain("--strict-alias");
+      expect(await argsFor({ STRICT_ALIAS: "false" })).not.toContain("--strict-alias");
+    },
+    singleAttemptTimeout(4),
+  );
 
-  it("selects an alternate stack corpus when one is named", () => {
-    // How the synthetic sweep shares this script without a second copy of it.
-    expect(argsFor({ STACKS: "tools/font-conformance-stacks.synthetic.json" })).toContain(
-      "--stacks tools/font-conformance-stacks.synthetic.json",
-    );
-    expect(argsFor({})).not.toContain("--stacks");
-  });
+  it(
+    "selects an alternate stack corpus when one is named",
+    async () => {
+      // How the synthetic sweep shares this script without a second copy of it.
+      expect(await argsFor({ STACKS: "tools/font-conformance-stacks.synthetic.json" })).toContain(
+        "--stacks tools/font-conformance-stacks.synthetic.json",
+      );
+      expect(await argsFor({})).not.toContain("--stacks");
+    },
+    singleAttemptTimeout(2),
+  );
 
-  it("passes a rotating low-byte sample and treats all as exhaustive", () => {
-    expect(argsFor({ SAMPLE_BYTE: "00" })).toContain("--sample-byte 00");
-    expect(argsFor({ SAMPLE_BYTE: "AF" })).toContain("--sample-byte AF");
-    expect(argsFor({ SAMPLE_BYTE: "all" })).not.toContain("--sample-byte");
-  });
+  it(
+    "passes a rotating low-byte sample and treats all as exhaustive",
+    async () => {
+      expect(await argsFor({ SAMPLE_BYTE: "00" })).toContain("--sample-byte 00");
+      expect(await argsFor({ SAMPLE_BYTE: "AF" })).toContain("--sample-byte AF");
+      expect(await argsFor({ SAMPLE_BYTE: "all" })).not.toContain("--sample-byte");
+    },
+    singleAttemptTimeout(3),
+  );
 });
 
 describe("the macOS shard restarts only diagnosed oracle drift", () => {
-  function runStub(mode: "once" | "always" | "nondrift", runnerOS = "macOS") {
+  async function runStub(mode: "once" | "always" | "nondrift", runnerOS = "macOS") {
     const dir = mkdtempSync(join(tmpdir(), "fc-shard-retry-"));
     const outDir = join(dir, "out");
     const npx = join(dir, "npx");
@@ -123,9 +163,9 @@ describe("the macOS shard restarts only diagnosed oracle drift", () => {
     );
     chmodSync(npx, 0o755);
     chmodSync(node, 0o755);
-    const result = spawnSync("bash", [SCRIPT], {
+    const result = await runBoundedChild("bash", [SCRIPT], {
       cwd: ROOT,
-      encoding: "utf-8",
+      budgetMs: THREE_ATTEMPT_BUDGET_MS,
       env: {
         ...process.env,
         PATH: `${dir}:${process.env.PATH ?? ""}`,
@@ -140,49 +180,65 @@ describe("the macOS shard restarts only diagnosed oracle drift", () => {
     return { result, dir, outDir, count: Number(readFileSync(join(dir, "count"), "utf8")) };
   }
 
-  it("discards a partial process and accepts only the complete second attempt", () => {
-    const { result, outDir, count } = runStub("once");
-    expect(result.status).toBe(0);
-    expect(count).toBe(2);
-    expect(existsSync(join(outDir, "attempt-1/oracle-drift.json"))).toBe(true);
-    expect(existsSync(join(outDir, "attempt-1/report.json"))).toBe(false);
-    expect(existsSync(join(outDir, "report.json"))).toBe(true);
-    expect(JSON.parse(readFileSync(join(outDir, "oracle-attempts.json"), "utf8"))).toEqual({
-      attempts: 2,
-      maxAttempts: 3,
-      accepted: true,
-    });
-  });
+  it(
+    "discards a partial process and accepts only the complete second attempt",
+    async () => {
+      const { result, outDir, count } = await runStub("once");
+      expect(result.status, describeChild(result)).toBe(0);
+      expect(count).toBe(2);
+      expect(existsSync(join(outDir, "attempt-1/oracle-drift.json"))).toBe(true);
+      expect(existsSync(join(outDir, "attempt-1/report.json"))).toBe(false);
+      expect(existsSync(join(outDir, "report.json"))).toBe(true);
+      expect(JSON.parse(readFileSync(join(outDir, "oracle-attempts.json"), "utf8"))).toEqual({
+        attempts: 2,
+        maxAttempts: 3,
+        accepted: true,
+      });
+    },
+    testTimeoutFor(THREE_ATTEMPT_BUDGET_MS),
+  );
 
-  it("does not restart an unrelated tool failure", () => {
-    const { result, outDir, count } = runStub("nondrift");
-    expect(result.status).toBe(2);
-    expect(count).toBe(1);
-    expect(existsSync(join(outDir, "report.json"))).toBe(false);
-  });
+  it(
+    "does not restart an unrelated tool failure",
+    async () => {
+      const { result, outDir, count } = await runStub("nondrift");
+      expect(result.status, describeChild(result)).toBe(2);
+      expect(count).toBe(1);
+      expect(existsSync(join(outDir, "report.json"))).toBe(false);
+    },
+    testTimeoutFor(THREE_ATTEMPT_BUDGET_MS),
+  );
 
-  it("stops after three drifted attempts without publishing a report", () => {
-    const { result, outDir, count } = runStub("always");
-    expect(result.status).toBe(2);
-    expect(count).toBe(3);
-    expect(existsSync(join(outDir, "attempt-3/oracle-drift.json"))).toBe(true);
-    expect(existsSync(join(outDir, "report.json"))).toBe(false);
-    expect(JSON.parse(readFileSync(join(outDir, "oracle-attempts.json"), "utf8")).accepted).toBe(false);
-  });
+  it(
+    "stops after three drifted attempts without publishing a report",
+    async () => {
+      const { result, outDir, count } = await runStub("always");
+      expect(result.status, describeChild(result)).toBe(2);
+      expect(count).toBe(3);
+      expect(existsSync(join(outDir, "attempt-3/oracle-drift.json"))).toBe(true);
+      expect(existsSync(join(outDir, "report.json"))).toBe(false);
+      expect(JSON.parse(readFileSync(join(outDir, "oracle-attempts.json"), "utf8")).accepted).toBe(false);
+    },
+    testTimeoutFor(THREE_ATTEMPT_BUDGET_MS),
+  );
 
-  it.each(["Linux", "Windows"])("keeps %s on the single-attempt path", (runnerOS) => {
-    const { result, outDir, count } = runStub("once", runnerOS);
-    expect(result.status).toBe(2);
-    expect(count).toBe(1);
-    expect(existsSync(join(outDir, "oracle-attempts.json"))).toBe(false);
-  });
+  it.each(["Linux", "Windows"])(
+    "keeps %s on the single-attempt path",
+    async (runnerOS) => {
+      const { result, outDir, count } = await runStub("once", runnerOS);
+      expect(result.status, describeChild(result)).toBe(2);
+      expect(count).toBe(1);
+      expect(existsSync(join(outDir, "oracle-attempts.json"))).toBe(false);
+    },
+    testTimeoutFor(THREE_ATTEMPT_BUDGET_MS),
+  );
 });
 
 // DM-C15ZXR: the shard records the macOS MobileAsset fonts before the sweep and
 // again on exit, so its artifact shows whether the sweep itself made CoreText
 // download one. The after-record must be written on the failure path too.
 describe("the shard records MobileAsset fonts before and after the sweep", () => {
-  function run(npxExit: number) {
+  async function run(npxExit: number) {
     const dir = mkdtempSync(join(tmpdir(), "fc-shard-assets-"));
     const log = join(dir, "calls.log");
     writeFileSync(join(dir, "node"), `#!/bin/sh\necho "node $*" >> "${log}"\nexit 0\n`);
@@ -193,9 +249,9 @@ describe("the shard records MobileAsset fonts before and after the sweep", () =>
     chmodSync(join(dir, "node"), 0o755);
     chmodSync(join(dir, "npx"), 0o755);
     const outDir = join(dir, "out");
-    const result = spawnSync("bash", [SCRIPT], {
+    const result = await runBoundedChild("bash", [SCRIPT], {
       cwd: ROOT,
-      encoding: "utf-8",
+      budgetMs: SINGLE_ATTEMPT_BUDGET_MS,
       env: {
         ...process.env,
         PATH: `${dir}:${process.env.PATH ?? ""}`,
@@ -208,20 +264,28 @@ describe("the shard records MobileAsset fonts before and after the sweep", () =>
     return { result, calls: readFileSync(log, "utf8").trim().split("\n"), outDir };
   }
 
-  it("records before the sweep and after it, in that order", () => {
-    const { result, calls, outDir } = run(1);
-    expect(result.status).toBe(0);
-    const before = calls.indexOf(`node tools/font-inventory.mjs --assets ${outDir}/font-assets.json`);
-    const sweep = calls.indexOf("npx");
-    const after = calls.indexOf(`node tools/font-inventory.mjs --assets ${outDir}/font-assets-after.json`);
-    expect(before).toBeGreaterThanOrEqual(0);
-    expect(sweep).toBeGreaterThan(before);
-    expect(after).toBeGreaterThan(sweep);
-  });
+  it(
+    "records before the sweep and after it, in that order",
+    async () => {
+      const { result, calls, outDir } = await run(1);
+      expect(result.status, describeChild(result)).toBe(0);
+      const before = calls.indexOf(`node tools/font-inventory.mjs --assets ${outDir}/font-assets.json`);
+      const sweep = calls.indexOf("npx");
+      const after = calls.indexOf(`node tools/font-inventory.mjs --assets ${outDir}/font-assets-after.json`);
+      expect(before).toBeGreaterThanOrEqual(0);
+      expect(sweep).toBeGreaterThan(before);
+      expect(after).toBeGreaterThan(sweep);
+    },
+    singleAttemptTimeout(1),
+  );
 
-  it("still records after a dead shard, and keeps its exit code", () => {
-    const { result, calls, outDir } = run(3);
-    expect(result.status).toBe(3);
-    expect(calls).toContain(`node tools/font-inventory.mjs --assets ${outDir}/font-assets-after.json`);
-  });
+  it(
+    "still records after a dead shard, and keeps its exit code",
+    async () => {
+      const { result, calls, outDir } = await run(3);
+      expect(result.status, describeChild(result)).toBe(3);
+      expect(calls).toContain(`node tools/font-inventory.mjs --assets ${outDir}/font-assets-after.json`);
+    },
+    singleAttemptTimeout(1),
+  );
 });
