@@ -45,7 +45,13 @@ describe("E2E screenshot-failure evidence", () => {
     async () => {
       const directory = mkdtempSync(join(tmpdir(), "dm-e2e-evidence-e2e-"));
       try {
-        const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("VITEST")));
+        // The nested Vitest echoes the simulated failure, so keep the child
+        // evidence preload out of it; only the nested workers' own dumps count.
+        const env = Object.fromEntries(
+          Object.entries(process.env).filter(
+            ([key]) => !key.startsWith("VITEST") && key !== "NODE_OPTIONS" && key !== "DOMOTION_E2E_CHILD_EVIDENCE",
+          ),
+        );
         const result = await runBoundedChild(
           process.execPath,
           ["node_modules/vitest/vitest.mjs", "run", "--config", "vitest.e2e.config.ts", FILE],

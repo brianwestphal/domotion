@@ -17,6 +17,7 @@ import {
   installPlaywrightBrowserStderrTap,
   recordScreenshotFailureEvidence,
 } from "./e2e-browser-evidence.js";
+import { configureChildBrowserEvidence } from "./e2e-child-evidence.js";
 
 // Keep a bounded, stamped stderr ring for every Chromium Playwright launches in
 // this worker, and dump it when a failure names the hosted-runner
@@ -26,6 +27,10 @@ import {
 installPlaywrightBrowserStderrTap(
   createRequire(import.meta.url)("node:child_process") as Parameters<typeof installPlaywrightBrowserStderrTap>[0],
 );
+// Node children this worker spawns (for example the built CLI) inherit an
+// opt-in preload that keeps the same evidence for the browsers they launch
+// (see e2e-child-evidence.ts).
+configureChildBrowserEvidence();
 
 // Snapshot each process-global test knob before a case and restore it after.
 // withHostPlatform is scoped by its own finally; assert that scope did not leak.
