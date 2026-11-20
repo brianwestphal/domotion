@@ -157,6 +157,29 @@ describe("screenshotAfterPresentedFrame", () => {
 });
 
 describe("waitForPresentedFrame", () => {
+  it("bounds the wait from Node when the page never answers (timers or rAF frozen)", async () => {
+    const page = { evaluate: () => new Promise<boolean>(() => {}) } as unknown as Page;
+    const result = await waitForPresentedFrame(page, 20);
+    expect(result.presented).toBe(false);
+    expect(result.waitMs).toBeGreaterThanOrEqual(15);
+  });
+
+  it("propagates an evaluation failure that arrives before the deadline", async () => {
+    const closed = new Error("page.evaluate: Target page, context or browser has been closed");
+    const page = { evaluate: () => Promise.reject(closed) } as unknown as Page;
+    await expect(waitForPresentedFrame(page, 1_000)).rejects.toBe(closed);
+  });
+
+  it("ignores a late rejection from an evaluation that lost the race", async () => {
+    let reject!: (error: Error) => void;
+    const page = {
+      evaluate: () => new Promise<boolean>((_resolve, rejectLater) => (reject = rejectLater)),
+    } as unknown as Page;
+    await expect(waitForPresentedFrame(page, 10)).resolves.toMatchObject({ presented: false });
+    reject(new Error("closed after the deadline"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  });
+
   it("reports whether frames ran and how long the wait took", async () => {
     const { page, frameDeadlines } = fakePage([], [false]);
     const result = await waitForPresentedFrame(page, 123);

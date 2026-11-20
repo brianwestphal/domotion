@@ -1,5 +1,6 @@
 import { chromium, type Page } from "@playwright/test";
 import { describe, expect, it } from "vitest";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 
 const compatibility = 0x2f900;
 const emptyDocument =
@@ -32,7 +33,8 @@ function cellHtml(cell: Cell): string {
 
 async function addCell(page: Page, cell: Cell): Promise<void> {
   await page.locator("#w").evaluate((wrapper, html) => wrapper.insertAdjacentHTML("beforeend", html), cellHtml(cell));
-  await page.screenshot();
+  // Forces a paint; the first one can be a fresh page's first capture.
+  await screenshotAfterPresentedFrame(page);
 }
 
 async function faces(page: Page): Promise<{ face: string; locale: string }[]> {

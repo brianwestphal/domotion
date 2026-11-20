@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 import { freezeWebGlOutput } from "./real-world-webgl-freeze.js";
 import { primeOffscreenCanvases } from "./real-world-webgl-preflight.js";
 
@@ -14,7 +15,9 @@ export async function captureRealWorldReferenceFrame(
 ) {
   // This presentation frame is deliberately not the expected artifact: workers
   // can draw while preflight and prototype freezing cross protocol boundaries.
-  await page.screenshot({ clip: options.clip });
+  // It can be a fresh page's first capture, which races the renderer's first
+  // compositor frame on hosted runners, so it waits for a presented frame.
+  await screenshotAfterPresentedFrame(page, { clip: options.clip });
   const canvasPreflight = options.entirePage
     ? { primed: 0, failed: 0, skipped: 0 }
     : await primeOffscreenCanvases(page);

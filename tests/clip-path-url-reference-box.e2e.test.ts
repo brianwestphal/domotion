@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { captureElementTree, elementTreeToSvgInner, launchChromium, setRenderTextMode } from "../src/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 
 /**
  * DM-2362 — Blink's ClipPath::ParseSingleValue treats a URL reference as an
@@ -128,7 +129,8 @@ describeBrowser("URL clip-path reference boxes (DM-2362)", () => {
       <div id="object-host"><i></i></div>`);
 
         expect(await page.locator("#invalid").evaluate((element) => getComputedStyle(element).clipPath)).toBe("none");
-        const source = await page.screenshot({ clip: { x: 0, y: 0, width, height } });
+        // First capture of a new page: wait for a presented frame first.
+        const source = await screenshotAfterPresentedFrame(page, { clip: { x: 0, y: 0, width, height } });
 
         setRenderTextMode("paths");
         const tree = await captureElementTree(page, "body", { x: 0, y: 0, width, height });
