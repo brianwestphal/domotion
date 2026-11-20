@@ -64,6 +64,8 @@ export const DIRECT_SOURCE_FILES = Object.freeze([
   "external/chromium/third_party/blink/renderer/platform/geometry/contoured_rect.cc",
   "external/chromium/third_party/blink/renderer/platform/geometry/float_rounded_rect.cc",
   "external/chromium/third_party/blink/renderer/platform/geometry/layout_unit.h",
+  "external/chromium/third_party/blink/renderer/platform/graphics/compositing/paint_chunks_to_cc_layer.cc",
+  "external/chromium/third_party/blink/renderer/platform/graphics/compositing/property_tree_manager.cc",
   "external/chromium/third_party/blink/renderer/platform/graphics/graphics_context.cc",
   "external/chromium/third_party/blink/renderer/platform/graphics/graphics_context.h",
   "external/chromium/third_party/blink/renderer/platform/fonts/font_description.h",

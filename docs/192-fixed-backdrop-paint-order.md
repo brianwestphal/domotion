@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["paint-effects"]
 platforms: []
-tickets: ["DM-2487", "DM-2488", "DM-2489", "DM-2490", "DM-RN0T12"]
+tickets: ["DM-2487", "DM-2488", "DM-2489", "DM-2490", "DM-RN0T12", "DM-V1PPTQ"]
 code: ["tools/backdrop-source-surface-audit.ts", "src/render/stacking.ts", "src/render/paint-order.ts"]
 aliases: ["docs/192-fixed-backdrop-paint-order.md", "doc-192"]
 ---
@@ -63,10 +63,32 @@ group and reopens them inside it, mirroring that on exit (DM-X4W03B,
 isolation and `z-index` groups commute: clipping a group's content or its
 composite gives the same pixels. Clips re-applied around a context hoisted out
 of its clipping ancestor (`paintWithAncestorWrappers`) are registered the same
-way when they are the innermost wrappers. A nested `mix-blend-mode`, mask or
-`clip-path` context does not commute, so its fixed box still keeps the
-ancestor clip (DM-V1PPTQ). `tests/fixed-effect-ownership.e2e.test.ts` holds
-the native pixel controls.
+way when they are the innermost wrappers.
+
+A nested `mix-blend-mode` context moves the clip inside its group too
+(DM-V1PPTQ). The move is exact because a transparent source leaves the backdrop
+unchanged under every blend mode. It is also Blink's own structure. An effect
+whose layer has a fixed descendant escaping the current clip gets no output
+clip (`EffectCanUseCurrentClipAsOutputClip`,
+`core/paint/paint_property_tree_builder.cc:1856-1890`, Chromium 7d859f27). So
+`StartEffect` in `platform/graphics/compositing/paint_chunks_to_cc_layer.cc`
+opens the blend layer outside the ancestor clip, and only the non-escaping
+chunks re-enter that clip inside the layer.
+
+Mask and `clip-path` contexts are different. Their `MaskClip` and
+`ClipPathClip` nodes are parented on the ancestor clip and become the
+fixed-position clip (`:2182-2183`, `:2687-2688`), so a fixed descendant keeps
+the ancestor's overflow clip natively, and the renderer keeps it as well.
+
+One residual remains. Chromium composites a fixed box in its own layer, and
+when a blend surface is the only thing under an `opacity` context,
+`PropertyTreeManager::UpdateConditionalRenderSurfaceReasons` omits that
+opacity's conditional render surface. The escaped box then blends with the
+backdrop outside the opacity group instead of inside it (max channel
+difference 27 in the opacity + overflow + blend probe). That decision belongs
+to layerization and is not modeled.
+
+`tests/fixed-effect-ownership.e2e.test.ts` holds the native pixel controls.
 
 ## Evidence
 

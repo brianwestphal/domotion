@@ -92,6 +92,17 @@ describe("fixed boxes escaping clips through nested contexts (DM-X4W03B)", () =>
     }
     throw new Error(`no shape filled ${color} in ${svg}`);
   };
+  // Clip-path groups enclosing the first group whose tag contains `marker`.
+  const clipDepthAt = (svg: string, marker: string): number => {
+    const stack: boolean[] = [];
+    for (const match of svg.matchAll(/<g\b[^>]*>|<\/g>/g)) {
+      const tag = match[0];
+      if (tag === "</g>") stack.pop();
+      else if (tag.includes(marker)) return stack.filter(Boolean).length;
+      else stack.push(tag.includes("clip-path="));
+    }
+    throw new Error(`no group with ${marker} in ${svg}`);
+  };
   const fixed = () => box("rgb(0, 0, 255)", [50, 20, 30, 30], { position: "fixed" });
   const sibling = () => box("rgb(255, 0, 0)", [10, 10, 90, 10], {});
   const clipper = (styles: Parameters<typeof capturedStyles>[0], children: ReturnType<typeof capturedElement>[]) =>
@@ -120,13 +131,46 @@ describe("fixed boxes escaping clips through nested contexts (DM-X4W03B)", () =>
     expect(clipDepth(svg, "rgb(0,0,255)")).toBe(0);
   });
 
-  it("keeps the clip under a blending context, whose group does not commute with it", () => {
+  // DM-V1PPTQ: Blink gives a blend effect with an escaping fixed descendant no
+  // output clip, so its layer opens outside the ancestor clip and only the
+  // non-escaping content re-enters it inside the layer.
+  it("moves the clip inside a blending context so the fixed box escapes it", () => {
     const svg = elementTreeToSvg(
       [
         clipper({ opacity: "0.5" }, [
-          box("rgba(0, 0, 0, 0)", [10, 10, 40, 40], { mixBlendMode: "multiply" }, [fixed()]),
+          box("rgba(0, 0, 0, 0)", [10, 10, 40, 40], { mixBlendMode: "multiply" }, [sibling(), fixed()]),
         ]),
       ],
+      100,
+      80,
+    );
+    expect(clipDepth(svg, "rgb(0,0,255)")).toBe(0);
+    expect(clipDepth(svg, "rgb(255,0,0)")).toBeGreaterThan(0);
+    expect(clipDepthAt(svg, "mix-blend-mode:multiply")).toBe(0);
+  });
+
+  it("keeps the clip outside a blending context without an escaping fixed box", () => {
+    const svg = elementTreeToSvg(
+      [
+        clipper({ opacity: "0.5" }, [
+          box("rgba(0, 0, 0, 0)", [10, 10, 40, 40], { mixBlendMode: "multiply" }, [sibling()]),
+        ]),
+      ],
+      100,
+      80,
+    );
+    expect(clipDepthAt(svg, "mix-blend-mode:multiply")).toBeGreaterThan(0);
+  });
+
+  // DM-V1PPTQ: a mask or clip-path context's MaskClip / ClipPathClip node is
+  // parented on the ancestor clip and becomes the fixed-position clip, so the
+  // fixed box keeps the ancestor clip natively.
+  it.each([
+    ["clip-path", { clipPath: "inset(0px -100px 0px 0px)" }],
+    ["mask", { maskImage: "linear-gradient(rgb(0, 0, 0), rgb(0, 0, 0))" }],
+  ])("keeps the clip under a %s context", (_name, styles) => {
+    const svg = elementTreeToSvg(
+      [clipper({ opacity: "0.5" }, [box("rgba(0, 0, 0, 0)", [10, 10, 40, 40], styles, [fixed()])])],
       100,
       80,
     );

@@ -3937,15 +3937,26 @@ function escapedChildClips(
  * Whether a nested stacking context's own groups commute with an ancestor's
  * overflow clip, so that clip can move inside them (DM-X4W03B). A clip
  * distributes over opacity and isolation: clipping the group's content and
- * clipping its composite give the same pixels. Blend, mask and clip-path do
- * not, and transform or filter make the context a fixed containing block.
+ * clipping its composite give the same pixels. Transform or filter make the
+ * context a fixed containing block.
+ *
+ * DM-V1PPTQ: a blend group commutes too, because a transparent source leaves
+ * the backdrop unchanged under every blend mode. It is also Blink's literal
+ * structure: an effect whose layer has a fixed descendant escaping the current
+ * clip gets no output clip (`EffectCanUseCurrentClipAsOutputClip`,
+ * `core/paint/paint_property_tree_builder.cc:1856-1890`, Chromium 7d859f27),
+ * so `StartEffect` opens the blend layer outside the ancestor clip and only
+ * the non-escaping chunks re-enter it inside the layer
+ * (`platform/graphics/compositing/paint_chunks_to_cc_layer.cc`). Mask and
+ * clip-path are different: their `MaskClip` / `ClipPathClip` nodes are parented
+ * on the ancestor clip and become the fixed-position clip (`:2182-2183`,
+ * `:2687-2688`), so a fixed descendant keeps that clip natively.
  */
 function clipCommutesWithContext(el: CapturedElement): boolean {
   const s = el.styles;
   const set = (value: string | undefined): boolean => value != null && value !== "" && value !== "none";
   return (
     !isFixedContainingBlock(el) &&
-    (s.mixBlendMode == null || s.mixBlendMode === "" || s.mixBlendMode === "normal") &&
     !set(s.clipPath) &&
     !set(s.maskImage) &&
     !set(s.backdropFilter) &&
