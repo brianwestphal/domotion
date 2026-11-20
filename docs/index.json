@@ -1099,11 +1099,14 @@
           "DM-CKS6JY",
           "DM-N933MV",
           "DM-F19PYG",
-          "DM-HSABGR"
+          "DM-HSABGR",
+          "DM-C6YH8W",
+          "DM-FMYC9Q"
         ],
         "code": [
           "src/capture/index.ts",
           "src/capture/external-css-svg.ts",
+          "src/capture/blink-url-fragment.ts",
           "src/capture/external-svg-transport.ts",
           "src/capture/external-css-svg-raster.ts",
           "src/capture/external-css-svg-shadow-guard.ts",

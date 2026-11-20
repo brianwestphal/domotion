@@ -33,6 +33,30 @@ beforeAll(async () => {
     response.once("close", () => {
       fact.closed = true;
     });
+    if (url.pathname === "/encoded.svg" || url.searchParams.has("spelled")) {
+      // Authored resource ID versus CSS fragment spelling (encoded identity).
+      const kind = url.searchParams.get("kind") === "mask" ? "mask" : "clip";
+      const id = url.searchParams.get("id") ?? "";
+      if (url.pathname === "/encoded.svg") {
+        const attribute = id.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+        response.setHeader("content-type", "image/svg+xml");
+        response.end(
+          `<svg xmlns="http://www.w3.org/2000/svg">${
+            kind === "clip"
+              ? `<clipPath id="${attribute}" clipPathUnits="userSpaceOnUse"><rect width="16" height="32"/></clipPath>`
+              : `<mask id="${attribute}" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="16" height="32" fill="white"/></mask>`
+          }</svg>`,
+        );
+        return;
+      }
+      const property = kind === "clip" ? "clip-path" : "mask-image";
+      const asset = `/encoded.svg?kind=${kind}&id=${encodeURIComponent(id)}`;
+      response.setHeader("content-type", "text/html; charset=utf-8");
+      response.end(
+        `<!doctype html><meta charset="utf-8"><body style="margin:0;background:white"><div id="box" style="width:32px;height:32px;background:red;${property}:url('${asset}#${url.searchParams.get("spelled")}')"></div>`,
+      );
+      return;
+    }
     if (url.pathname.endsWith(".svg")) {
       if (url.pathname === "/missing.svg") {
         response.writeHead(404).end("missing");
@@ -932,6 +956,55 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
         ]);
       } finally {
         await context.close();
+      }
+    },
+  );
+});
+
+describe("encoded external CSS SVG fragment identity", () => {
+  // Chromium decodes an external clip-path fragment once and an external
+  // mask-image fragment twice before getElementById (svg_resource.cc:347-349;
+  // css_image_value.cc:152-157 then svg_resource.cc:391-394, pin 7d859f27).
+  // `resolves` is the native discriminator, asserted before comparing output.
+  it.each([
+    { kind: "clip", id: "a b", spelled: "a%20b", resolves: true },
+    { kind: "mask", id: "é", spelled: "é", resolves: true },
+    { kind: "clip", id: "Ã©ÿ", spelled: "%C3%A9%FF", resolves: true },
+    { kind: "mask", id: "é�", spelled: "%C3%A9%FF", resolves: false },
+    { kind: "clip", id: "%41", spelled: "%2541", resolves: true },
+    { kind: "clip", id: "A", spelled: "%2541", resolves: false },
+    { kind: "mask", id: "A", spelled: "%2541", resolves: true },
+    { kind: "mask", id: "%41", spelled: "%2541", resolves: false },
+    { kind: "clip", id: "a)b", spelled: "a)b", resolves: true },
+  ] as const)(
+    "$kind #$spelled -> id $id matches native resolution ($resolves)",
+    async ({ kind, id, spelled, resolves }) => {
+      const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
+      try {
+        await page.goto(`${origin}/?kind=${kind}&id=${encodeURIComponent(id)}&spelled=${encodeURIComponent(spelled)}`);
+        const before = await pixels(page);
+        // (24,16) is outside the left-half definition. A resolved definition
+        // clears it; an unresolved clip paints unclipped, an unresolved mask nothing.
+        expect([...before.subarray((16 * 64 + 24) * 3, (16 * 64 + 24) * 3 + 3)]).toEqual(
+          resolves || kind === "mask" ? [255, 255, 255] : [255, 0, 0],
+        );
+        expect([...before.subarray((16 * 64 + 4) * 3, (16 * 64 + 4) * 3 + 3)]).toEqual(
+          resolves || kind === "clip" ? [255, 0, 0] : [255, 255, 255],
+        );
+        const style = await page.locator("#box").getAttribute("style");
+        await freezeRealWorldDom(page);
+        const result = await captureElementTreeWithWarnings(page, "body", viewport, {});
+        const output = await browser.newPage({ viewport: { width: 64, height: 64 } });
+        try {
+          await output.setContent(`<body style="margin:0">${elementTreeToSvg(result.tree, 64, 64, {})}`);
+          expect((await pixels(output)).equals(before)).toBe(true);
+        } finally {
+          await output.close();
+        }
+        expect(await page.locator("#box").getAttribute("style")).toBe(style);
+        expect(await page.locator('svg [id^="__domotionCssSvgDefinition_"]').count()).toBe(0);
+      } finally {
+        await page.close();
       }
     },
   );

@@ -32,7 +32,8 @@ reusing the reference identifier/string decoders and shared URL argument reader.
 - `src/capture/` owns browser bring-up, DOM/style/geometry collection, source
   evidence, replaced/native surfaces, and the serialized page capture script.
   `external-css-svg.ts` owns temporary CSS clip/mask resources, reusing the
-  document-authenticated `external-svg-transport.ts` with Node deadlines.
+  document-authenticated `external-svg-transport.ts` with Node deadlines;
+  `blink-url-fragment.ts` gives it Blink's decoded external fragment IDs.
   `external-css-svg-raster.ts` preserves selected native CSS resource paint when
   resource bytes are unavailable, with bounded isolation and exact ownership. Its public-CDP
   `external-css-svg-shadow-guard.ts` refuses author-shadow documents and retains

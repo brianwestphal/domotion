@@ -12,17 +12,13 @@ import {
   type CssSvgIsolation,
 } from "./external-css-svg-raster.js";
 import type { CapturedElement } from "./types.js";
+import { externalCssSvgReferences, type ExternalCssSvgUrlReference } from "./blink-url-fragment.js";
 
 // Keep static fragment identity stable across captures of the same Page.
 const definitionPrefixes = new WeakMap<Page, string>();
 
 type Property = "clip-path" | "mask-image";
-interface Reference {
-  href: string;
-  fragment: string;
-  start: number;
-  length: number;
-}
+type Reference = ExternalCssSvgUrlReference;
 interface Target {
   element: HTMLElement | SVGElement;
   property: Property;
@@ -175,26 +171,15 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
     await registry.tag(
       page,
       ({ token, prefix }) => {
-        const here = new URL(document.URL);
-        here.hash = "";
+        // Node tokenizes these computed values and decodes Blink's fragment
+        // identity (src/capture/blink-url-fragment.ts); keep every candidate.
         const targets: Target[] = [];
         for (const element of document.querySelectorAll("*")) {
           if (!(element instanceof HTMLElement || element instanceof SVGElement)) continue;
           const style = getComputedStyle(element);
           for (const property of ["clip-path", "mask-image"] as const) {
             const computed = style.getPropertyValue(property);
-            const references: Reference[] = [];
-            const expression = /url\(\s*["']?([^"')#]+)#([^"')\s]+)["']?\s*\)/gi;
-            for (const match of computed.matchAll(expression)) {
-              try {
-                const href = new URL(match[1], document.baseURI).href;
-                if (href === here.href) continue;
-                references.push({ href, fragment: match[2], start: match.index, length: match[0].length });
-              } catch {
-                /* The existing walker owns invalid references. */
-              }
-            }
-            if (references.length > 0) targets.push({ element, property, computed, references });
+            if (/url\(/i.test(computed)) targets.push({ element, property, computed, references: [] });
           }
         }
         return {
@@ -211,15 +196,23 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
       },
       { token, prefix },
     );
-    const hrefs = await evaluateInFrame(
+    const snapshot = await evaluateInFrame(
       page,
       ({ key, token }) => {
         const state = (globalThis as typeof globalThis & Record<string, Journal>)[key];
         if (state?.token !== token) throw new Error("external CSS SVG source ownership unavailable");
-        return [...new Set(state.targets.flatMap((target) => target.references.map((reference) => reference.href)))];
+        return {
+          baseUrl: document.baseURI,
+          documentUrl: document.URL,
+          targets: state.targets.map((target) => ({ property: target.property, computed: target.computed })),
+        };
       },
       { key: registry.key, token },
     );
+    const references = snapshot.targets.map((target) =>
+      externalCssSvgReferences(target.property, target.computed, snapshot.baseUrl, snapshot.documentUrl),
+    );
+    const hrefs = [...new Set(references.flat().map((reference) => reference.href))];
     if (hrefs.length === 0) {
       await registry.dispose();
       disposed = true;
@@ -233,11 +226,14 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
       // transport. A navigation before setup must not fetch stale source URLs.
       await evaluateInFrame(
         page,
-        ({ key, token }) => {
-          if ((globalThis as typeof globalThis & Record<string, Journal>)[key]?.token !== token)
+        ({ key, token, references }) => {
+          const state = (globalThis as typeof globalThis & Record<string, Journal>)[key];
+          if (state?.token !== token || state.targets.length !== references.length)
             throw new Error("external CSS SVG source ownership changed before fetching");
+          state.targets.forEach((target, index) => (target.references = references[index]));
+          state.targets = state.targets.filter((target) => target.references.length > 0);
         },
-        { key: registry.key, token },
+        { key: registry.key, token, references },
       );
       for (const href of hrefs) {
         const result = await transport.fetch(href);
@@ -299,7 +295,8 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
             continue;
           }
           const matches = target.references.map((reference) => {
-            const element = parsed.get(reference.href)?.getElementById(reference.fragment);
+            // Blink's decoded resource-document ID, never the computed spelling.
+            const element = parsed.get(reference.href)?.getElementById(reference.id);
             const wanted = target.property === "clip-path" ? "clippath" : "mask";
             return { reference, element: element?.tagName.toLowerCase() === wanted ? element : null };
           });
@@ -311,7 +308,7 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
           }
           let value = target.computed;
           for (const { reference, element } of matches.slice().reverse()) {
-            const identity = `${target.property}|${reference.href}#${reference.fragment}`;
+            const identity = `${target.property}|${reference.href}#${reference.id}`;
             let id = definitions.get(identity);
             if (id == null) {
               if (state.host == null) {

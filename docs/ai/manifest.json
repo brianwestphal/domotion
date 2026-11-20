@@ -680,6 +680,7 @@
       "code": [
         "src/capture/index.ts",
         "src/capture/external-css-svg.ts",
+        "src/capture/blink-url-fragment.ts",
         "src/capture/external-svg-transport.ts",
         "src/capture/external-css-svg-raster.ts",
         "src/capture/external-css-svg-shadow-guard.ts",

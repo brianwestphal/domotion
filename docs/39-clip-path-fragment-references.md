@@ -20,11 +20,14 @@ tickets:
     "DM-N933MV",
     "DM-F19PYG",
     "DM-HSABGR",
+    "DM-C6YH8W",
+    "DM-FMYC9Q",
   ]
 code:
   [
     "src/capture/index.ts",
     "src/capture/external-css-svg.ts",
+    "src/capture/blink-url-fragment.ts",
     "src/capture/external-svg-transport.ts",
     "src/capture/external-css-svg-raster.ts",
     "src/capture/external-css-svg-shadow-guard.ts",
@@ -147,6 +150,21 @@ CORS and Playwright HAR routing; each request, including its body, has a
 5-second Node-owned bound. It never resumes author fetch or timers. The
 original default-document token is checked again after transport binding so
 navigation cannot reuse a stale CSS snapshot in a new document.
+
+Fragment identity follows Blink, not the computed spelling
+(`src/capture/blink-url-fragment.ts`, Chromium pin `7d859f27`). Computed
+`url("…")` tokens are read as CSS strings, so a fragment may contain `)` or
+`'`, which the URL parser leaves unencoded. The canonical URL fragment is then
+decoded with a port of `DecodeUrlEscapeSequences(kUtf8OrIsomorphic)`
+(`url/url_util.cc:833-891`): a `%` without two hex digits stays literal, and
+any invalid UTF-8 reverts the whole ID to its isomorphic (byte per code point)
+reading. External `clip-path` decodes once (`svg_resource.cc:347-349`).
+External `mask-image` decodes twice, because `CSSImageValue::EnsureSVGResource`
+hands the already-normalized fragment (`css_image_value.cc:152-157`, `:189-194`)
+to `ExternalSVGResourceImageContent::ResolveTarget`, which decodes it again
+(`svg_resource.cc:391-394`). So `#%2541` names `%41` in a clip but `A` in a mask.
+Native-vs-captured pixel controls in `tests/external-css-svg.e2e.test.ts` cover
+spaces, Unicode, whole-sequence isomorphic reversion and that opposite pair.
 
 The prepass imports the matching `<clipPath>` or `<mask>` into an owned hidden
 SVG and temporarily points the source property at its local definition. The
