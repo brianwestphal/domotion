@@ -1,7 +1,7 @@
 ---
 name: kerf-app
 description: Build UIs in the kerf reactive framework and its @kerfjs/ui component package (https://github.com/brianwestphal/kerf). Use this skill whenever the user is writing or modifying code that imports `kerfjs` or `@kerfjs/ui`, asks to add a feature to a kerf app, or asks "how do I do X in kerf?". Use it proactively the moment you spot a kerf import in the file you're editing.
-kerf-skill-version: 1.31.0
+kerf-skill-version: 1.33.0
 ---
 
 # Building apps with kerf
@@ -180,7 +180,7 @@ if (import.meta.env.DEV) await import("kerfjs/dev");
 5. **Capture the `delegate()` / `delegateCapture()` disposer** whenever the registration's scope is shorter than the page. Both helpers return `() => void`; the listener closure pins `rootEl`, `handler`, and everything the handler closes over (stores, signals, app state). Discarding the disposer on a transient root (modal, route view, mount swap, dynamic widget) leaks the listener AND the app graph it captures; re-mount cycles stack listeners linearly. `mount()`'s own disposer does NOT remove delegates for you. Safe to discard only when the registration is truly page-lifetime (root is `document.body` or equivalent, attached once at startup, never torn down).
 6. **One `mount()` per root.** Don't nest `mount()` calls. Compose with plain functions returning JSX. One exception: a modal `<dialog>` of your own that anchors kerf `popover()` / `tooltip()` surfaces must contain `<div data-kerf-overlay-host data-morph-skip></div>` — kerf renders those surfaces into it (inside the modal, so they are not inert) and that slot is the one allowed nested-mount boundary. Dialogs `kerfjs/overlay` opens get a slot automatically.
 7. **Components are plain functions.** `<MyComponent props />` works — the JSX runtime calls `MyComponent(props)` and uses the returned JSX — but there's no hook system, no lifecycle, and no per-instance state. State lives in module-scope signals or stores, never in component closures.
-8. **Values bind, structure re-renders.** For a value hole, pass the signal/computed ITSELF (`<span>{count}</span>`, `class={sig}`) — kerf updates that one node directly, no render re-run. Read `.value` only when the JSX _structure_ depends on the signal — and then the read must happen INSIDE the render function to be tracked: `const x = count.value; mount(el, () => <span>{x}</span>)` does NOT re-render. One caveat on bound holes: bind a STABLE signal/computed instance per hole (`class={computed(() => …)}` that switches internally), never `class={cond ? sigA : sigB}` — switching instances can go silently stale (detectable via `enableWarnings({ staleBinding: true })` (or `KERF_DEV_WARN_STALE_BINDING=1` under Node)). The idiom's endpoint: a render that reads NO `.value` runs exactly once — a fully bound mount never re-renders. To find `.value` holes worth migrating, `enableWarnings({ valueOnlyRerender: true })` (or `KERF_DEV_WARN_VALUE_ONLY_RERENDER=1` under Node) flags re-renders whose only differences were text/attribute values.
+8. **Values bind, structure re-renders.** For a value hole, pass the signal/computed ITSELF (`<span>{count}</span>`, `class={sig}`) — kerf updates that one node directly, no render re-run. Read `.value` only when the JSX _structure_ depends on the signal — and then the read must happen INSIDE the render function to be tracked: `const x = count.value; mount(el, () => <span>{x}</span>)` does NOT re-render. Global holes follow the selected signal when a render switches sources. Reuse stable references to avoid restarting unchanged work. The idiom's endpoint: a render that reads NO `.value` runs exactly once — a fully bound mount never re-renders. To find `.value` holes worth migrating, `enableWarnings({ valueOnlyRerender: true })` (or `KERF_DEV_WARN_VALUE_ONLY_RERENDER=1` under Node) flags re-renders whose only differences were text/attribute values.
 9. **Store actions take `(set, get)`, not `(state)`.** `set(next)` replaces state; mutating `get()` does nothing.
 10. **Use `data-action` attributes, not inline `onClick`.** Inline handlers are NOT supported by the JSX → string runtime; delegate from the root.
 11. **`arraySignal` is opt-in for long keyed lists** where most updates are pointwise. For short lists / filter+sort pipelines, plain `signal` + `each(items.value, ...)` is simpler and equally fast.
@@ -265,29 +265,17 @@ const cart = defineStore({
 // the template describes liveCard's CHILDREN; liveCard's own attributes are untouched
 morph(liveCard, '<h2 class="card-title">…</h2><p>…</p>');
 
-// Pattern 5: fine-grained binding (opt-in) — pass the signal/computed ITSELF
-// into a hole so a change updates ONLY that node (no render re-run, no
-// reconcile). For a hot spot driven by an external signal (selection class,
-// live status attr) — not everywhere. Use computed(), never a bare () => ….
+// Create one selector per owner. Only the old and new keys notify on a flip.
 const selectedId = signal<number | null>(null);
+const isSelected = selector(selectedId);
 mount(listEl, () => (
-  <ul>
-    {each(
-      rows.value,
-      (row) => (
-        <li class={computed(() => (row.id === selectedId.value ? "sel" : ""))}>
-          {row.label}
-        </li>
-      ),
-      (row) => row.id,
-    )}
-  </ul>
+  <ul>{each(rows.value, row => (
+    <li data-key={row.id} class={computed(() => isSelected(row.id).value ? "sel" : "")}>
+      {row.label}
+    </li>
+  ))}</ul>
 ));
-// selectedId.value = 3  → only the ~2 affected <li> class attrs update.
-// Large list: `const isSelected = selector(selectedId)` (from "kerfjs") and
-// `computed(() => (isSelected(row.id).value ? "sel" : ""))` — one subscription
-// to selectedId instead of one per row, so a selection flip is O(1).
-
+// Read the flag inside the bound computed so selecting never rerenders the list.
 // Pattern 6: no build step (CDN / importmap) — the html tagged template
 // instead of JSX. Same runtime semantics; real HTML attribute names; a hole
 // must be a text position or a COMPLETE attribute value (partials throw).
