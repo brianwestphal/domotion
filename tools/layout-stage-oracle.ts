@@ -8,6 +8,7 @@
  * platform/fonts/shaping. Capture representation boundary: docs 270 and 120.
  */
 import { type Page } from "@playwright/test";
+import { createRasterViewportSpace, mapRectThroughAffine } from "../src/capture/raster-viewport-space.js";
 import { withBrowser } from "./lib/browser.js";
 import { isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeReport } from "./lib/report.js";
@@ -156,6 +157,16 @@ async function main(args: string[]): Promise<number> {
 
   function capturedGeometry(tree: CapturedElement[], box: { x: number; y: number }, scale: number): Geometry {
     const origins: Origin[] = [];
+    // Static 2D transforms are captured untransformed and re-applied by the
+    // renderer, so captured text origins and boxes are local: map them through
+    // the emitted transform before comparing with Chromium's live geometry.
+    const space = createRasterViewportSpace(tree);
+    const push = (owner: CapturedElement, char: string, x: number, y: number): void => {
+      const ctm = space.frozenCtm(owner);
+      const px = ctm == null ? x : ctm[0] * x + ctm[2] * y + ctm[4];
+      const py = ctm == null ? y : ctm[1] * x + ctm[3] * y + ctm[5];
+      origins.push({ char, x: (px - box.x) / scale, y: (py - box.y) / scale });
+    };
     const visitSegment = (seg: TextSegment, owner: CapturedElement): void => {
       for (const entry of codePointEntries(seg.sourceText ?? seg.text)) {
         if (/^\s+$/u.test(entry.char)) continue;
@@ -166,14 +177,13 @@ async function main(args: string[]): Promise<number> {
           // the renderer paints at `y + fontAscent`; ordinary ruby annotation
           // combine cells already expose their physical top and need no shift.
           const physicalY = seg.y < owner.y ? seg.y + (seg.fontAscent ?? 0) : seg.y;
-          if (x != null)
-            origins.push({ char: entry.char, x: (seg.x + x - box.x) / scale, y: (physicalY - box.y) / scale });
+          if (x != null) push(owner, entry.char, seg.x + x, physicalY);
         } else if (seg.verticalWritingMode != null) {
           const y = seg.yOffsets?.[entry.start];
-          if (y != null) origins.push({ char: entry.char, x: (seg.x - box.x) / scale, y: (y - box.y) / scale });
+          if (y != null) push(owner, entry.char, seg.x, y);
         } else {
           const x = seg.xOffsets?.[entry.start];
-          if (x != null) origins.push({ char: entry.char, x: (x - box.x) / scale, y: (seg.y - box.y) / scale });
+          if (x != null) push(owner, entry.char, x, seg.y);
         }
       }
     };
@@ -183,8 +193,11 @@ async function main(args: string[]): Promise<number> {
     };
     for (const element of tree) visit(element);
     const root = tree[0];
+    const local = { x: root?.x ?? 0, y: root?.y ?? 0, width: root?.width ?? 0, height: root?.height ?? 0 };
+    const rootCtm = root == null ? null : space.frozenCtm(root);
+    const mapped = rootCtm == null ? local : mapRectThroughAffine(local, rootCtm);
     return {
-      box: { width: (root?.width ?? 0) / scale, height: (root?.height ?? 0) / scale },
+      box: { width: mapped.width / scale, height: mapped.height / scale },
       origins,
     };
   }
