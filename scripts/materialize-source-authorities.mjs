@@ -118,6 +118,11 @@ export const DIRECT_SOURCE_FILES = Object.freeze([
   "external/skia/src/core/SkScan_AAAPath.cpp",
   "external/skia/src/core/SkScan_AntiPath.cpp",
   "external/skia/src/effects/imagefilters/SkBlurImageFilter.cpp",
+  // Filter-layer CTM decomposition: a rotated/skewed CTM keeps only its scale
+  // as the layer matrix for scale+translate-capable filters such as blur.
+  "external/skia/src/core/SkImageFilterTypes.cpp",
+  "external/skia/src/core/SkImageFilter_Base.h",
+  "external/skia/src/core/SkImageFilter.cpp",
 ]);
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");

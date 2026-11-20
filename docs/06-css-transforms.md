@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2473", "DM-2475", "DM-WTSX24", "DM-S2EA2P", "DM-PYF5QN", "DM-9VS6RT", "SK-1091", "SK-1127"]
+tickets: ["DM-2473", "DM-2475", "DM-WTSX24", "DM-S2EA2P", "DM-PYF5QN", "DM-9VS6RT", "DM-6AX9BY", "SK-1091", "SK-1127"]
 code:
   [
     "src/capture/script/index.ts",
@@ -14,6 +14,7 @@ code:
     "src/capture/raster-viewport-space.ts",
     "src/capture/frozen-transform-neutralizer.ts",
     "src/render/element-tree-to-svg.ts",
+    "src/render/filter-layer-lattice.ts",
     "src/render/stacking.ts",
     "src/render/transforms.ts",
   ]
@@ -250,6 +251,58 @@ separate `imagePaintBasis` (local origin fraction plus shift), described in the
 [images handbook](handbook/images-media-and-embedding.md#raster-image-paint-rectangles).
 Text and other unsnapped content inside an isolated subtree still paint at
 their captured positions.
+
+### Filter layers under a rotated or skewed CTM (DM-6AX9BY)
+
+Blink emits a CSS `filter` as a `SaveLayerOp` in the filter effect's local
+transform space, the nearest Transform node (`UpdateFilter`:
+`state.local_transform_space = context_.current.transform`,
+`core/paint/paint_property_tree_builder.cc:2453`; `StartEffect` switches to it
+before `push<cc::SaveLayerOp>`,
+`platform/graphics/compositing/paint_chunks_to_cc_layer.cc:689-743`, Chromium
+`7d859f27`). Blur-based filters (blur, drop-shadow) are only
+`kScaleTranslate`-capable (`SkImageFilter_Base::onGetCTMCapability`,
+`src/core/SkImageFilter_Base.h:225`, Skia `62efacd3`), so under a rotation or
+skew `Mapping::decomposeCTM` keeps only the CTM's column scale as the layer
+matrix and applies the rest after filtering
+(`src/core/SkImageFilterTypes.cpp:274-283`, `SkMatrix::decomposeScale`,
+`src/core/SkMatrix.cpp:1479-1499`). The subtree is rasterized on that scaled
+local grid first (glyph baselines snap to whole layer pixels, x positions to
+quarter pixels) and the layer is resampled into place.
+
+The renderer's user space keeps page coordinates inside every transform
+wrapper, so a filter on such a group rasterized on the page grid: `frac(P)`
+away from Blink's under a unit-scale rotation, and `s · P` away under a scaled
+or skewed one. `src/render/filter-layer-lattice.ts` puts the filter group's
+user space at Blink's local origin and counter-translates the content, which
+moves nothing. That origin is congruent to minus the summed
+`transformPaintShift` of the enclosing transforms and lies within half a pixel
+of the nearest transformed box. Where a layer column has unit length, the
+smallest congruent translation is used, so the wrapper adds no scaled
+round-off of its own (the emitted matrix entries carry five decimals). Where the
+column is scaled, only the exact origin reproduces Blink's grid. Scale+translate
+CTMs keep the layer in device space and get no wrapper. A filter hoisted
+outside its transform group for a clip or mask (the DM-704 path) is not
+covered.
+
+Measured on macOS against native Chromium: Chromium paints a rotated,
+drop-shadowed box at a fractional margin byte-identically to the same box at
+the rounded margin, and the renderer now does too
+(`tests/filter-layer-lattice.e2e.test.ts`: own rotation, own skew, and a
+filtered child of a rotated box, each with a negative control). On a
+240-configuration probe (4 fonts, 6 margins, rotate/skew/rotate+scale/scale,
+two box heights) the summed RGB error fell from 10.05M to 6.63M; whole-margin
+rotations are unchanged, and scale-only boxes are untouched. In html-test,
+22-deep-filter-paint-bounds moves 0.983% → 0.824%; the other filter-and-rotation
+fixtures (22-deep-filter-stacking, 22-filter, 07-deep-svg-textpath-filters,
+32-real-world-pricing-table) are unchanged.
+
+Residual: when the layer-space baseline sits exactly on a half pixel (common
+under flex centering), SVG `<text>` and HTML text break the tie differently.
+SVG text paints from a LayoutUnit origin in the CTM-scaled font space and then
+scales back (`TextFragmentPainter`, `core/paint/text_fragment_painter.cc:516-521`
+and `:660-663`), so the snapped baseline can land one layer pixel away from
+Blink's. That is tracked separately and is not fitted here.
 
 ## Follow-ups to file
 

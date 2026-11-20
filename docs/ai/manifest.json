@@ -112,6 +112,7 @@
         "src/capture/raster-viewport-space.ts",
         "src/capture/frozen-transform-neutralizer.ts",
         "src/render/element-tree-to-svg.ts",
+        "src/render/filter-layer-lattice.ts",
         "src/render/stacking.ts",
         "src/render/transforms.ts"
       ],

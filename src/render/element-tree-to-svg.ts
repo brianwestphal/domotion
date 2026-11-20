@@ -170,6 +170,7 @@ import {
   textAffineEquals,
   IDENTITY_TEXT_AFFINE,
 } from "./text-affine.js";
+import { buildFilterLayerBasisMap, filterLayerParameterOrigin, formatTranslation } from "./filter-layer-lattice.js";
 import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "./real-text-layer.js";
 import { paintOutline } from "./outline-paint.js";
 export { thinDottedEndpointPlan } from "./outline-paint.js";
@@ -364,6 +365,8 @@ export interface PaintCtx {
   geometricTextCtm?: ReturnType<typeof buildEmittedTextCtmMap>;
   /** Static SVG CTM open around each element before its own wrapper. */
   emittedParentCtm: ReturnType<typeof buildEmittedParentCtmMap>;
+  /** Local transform space each element's content paints in (filter-layer-lattice.ts). */
+  filterLayerBasis?: ReturnType<typeof buildFilterLayerBasisMap>;
 }
 
 // DM-1342: explicit render-context struct threaded through the lifted render
@@ -2011,6 +2014,7 @@ function buildRenderState(
     emittedTextCtm: buildEmittedTextCtmMap(elements),
     geometricTextCtm: buildEmittedTextCtmMap(elements, true),
     emittedParentCtm: buildEmittedParentCtmMap(elements),
+    filterLayerBasis: buildFilterLayerBasisMap(elements),
   };
   // Form-control gradient defs (SK-1224) — renderFormControl pushes
   // <linearGradient> entries into defsParts via this context.
@@ -2951,6 +2955,7 @@ function computeGroupWrapperAttrs(
   opacity: number,
   filterCss: string,
   blendCss: string,
+  filterLayerOrigin: [number, number] | null = null,
 ): {
   needsGroup: boolean;
   groupAttrs: string[];
@@ -2959,12 +2964,24 @@ function computeGroupWrapperAttrs(
   localizeReferenceFilter: boolean;
   outerBlendStyle: string;
   hasTransform: boolean;
+  /** Counter-translation opened inside the group (see filter-layer-lattice.ts). */
+  filterLatticeInner: string | null;
 } {
   const projective = el.projectiveTransform;
   const hasProjectiveTransform = projective != null;
-  const transformAttr = hasProjectiveTransform
+  const ownTransformAttr = hasProjectiveTransform
     ? `matrix(${projective[0]} ${projective[3]} ${projective[1]} ${projective[4]} ${projective[2]} ${projective[5]})`
     : svgTransformForElement(el);
+  const localizeReferenceFilter = /\burl\(\s*(?:["']?)#/i.test(filterCss);
+  const needsFilterOuter = filterCss !== "" && (localizeReferenceFilter || clipPathUrlId != null || maskUrlId != null);
+  // A filter painted on this group rasterizes on its user-space grid; move
+  // that space to Blink's local transform space and counter-translate the
+  // content (filter-layer-lattice.ts).
+  const layerOrigin = filterCss !== "" && !needsFilterOuter ? filterLayerOrigin : null;
+  const transformAttr = [ownTransformAttr, layerOrigin == null ? "" : formatTranslation(layerOrigin)]
+    .filter((part) => part !== "")
+    .join(" ");
+  const filterLatticeInner = layerOrigin == null ? null : formatTranslation([-layerOrigin[0], -layerOrigin[1]]);
   // A projective matrix3d with no Chromium-owned surface (hand-built or
   // pre-contract trees; capture normally hands these to
   // `transformSubtreeRaster`) has no SVG affine. Fail closed: hide the
@@ -3054,8 +3071,6 @@ function computeGroupWrapperAttrs(
   // feTurbulence/feDisplacementMap. Put reference filters on a translated
   // outer wrapper and counter-translate their content so the filter sees the
   // same local coordinate space while the result stays at its page position.
-  const localizeReferenceFilter = /\burl\(\s*(?:["']?)#/i.test(filterCss);
-  const needsFilterOuter = filterCss !== "" && (localizeReferenceFilter || clipPathUrlId != null || maskUrlId != null);
   const filterInsideBlend = localizeReferenceFilter && needsFilterOuter && blendCss !== "";
   const styleParts: string[] = [];
   if (filterCss !== "" && !needsFilterOuter) styleParts.push(`filter:${filterCss}`);
@@ -3076,7 +3091,8 @@ function computeGroupWrapperAttrs(
     needsFilterOuter,
     localizeReferenceFilter,
     outerBlendStyle,
-    hasTransform: transformAttr !== "" || hasProjectiveTransform,
+    hasTransform: ownTransformAttr !== "" || hasProjectiveTransform,
+    filterLatticeInner,
   };
 }
 
@@ -3097,6 +3113,7 @@ function openElementWrappers(
     if (localizeReferenceFilter) svgParts.push(`${indent}<g transform="translate(${r(-el.x)} ${r(-el.y)})">`);
   }
   if (needsGroup) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
+  if (wrappers.filterLatticeInner != null) svgParts.push(`${indent}<g transform="${wrappers.filterLatticeInner}">`);
   return wrapperStart;
 }
 
@@ -5047,6 +5064,7 @@ function renderElement(
     opacity,
     filterCss,
     blendCss,
+    filterLayerParameterOrigin(state.paintCtx.emittedTextCtm.get(el), state.paintCtx.filterLayerBasis?.get(el)),
   );
   const { needsGroup, animClass, needsFilterOuter, localizeReferenceFilter, outerBlendStyle, hasTransform } = wrappers;
   const opened = needsGroup;
@@ -5160,6 +5178,7 @@ function renderElement(
     if (innerOverflowClipId != null) svgParts.push(`${indent}</g>`);
     if (legacyClipId != null) svgParts.push(`${indent}</g>`);
     if (animClass !== "") svgParts.push(`${indent}</g>`);
+    if (wrappers.filterLatticeInner != null) svgParts.push(`${indent}</g>`);
     if (opened) svgParts.push(`${indent}</g>`);
     if (localizeReferenceFilter) svgParts.push(`${indent}</g>`);
     if (needsFilterOuter) svgParts.push(`${indent}</g>`);
