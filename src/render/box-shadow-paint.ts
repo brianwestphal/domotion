@@ -19,6 +19,7 @@ import {
   outsetCornerRadiiWithCoverageCorrection,
   roundedRectPath,
   roundedRectSvg,
+  skRRectSvg,
   type CornerRadii,
 } from "./borders.js";
 
@@ -119,6 +120,26 @@ export function shadowInnerBorderContour(el: ShadowBox, corners: CornerRadii): S
 const shadowShapeNumber = (n: number): string => formatNumberLoose(n, 3);
 
 /**
+ * An antialiased clip that removes nothing from a shape inside (x, y, w, h):
+ * a rounded rect whose 1px corners sit 2px outside the shape's pixel bounds.
+ * It exists only so Skia rasterizes the shape the way it does under Blink's
+ * AA clip-out (`SkRasterClip` is not BW, so `SkScan::AntiFillPath` passes
+ * forceRLE, SkScan_AntiPath.cpp:145-153). A clip containing the whole device
+ * would be reduced to BW, which is why it hugs the shape.
+ */
+function aaRouteClip(ctx: ShadowPaintCtx, x: number, y: number, width: number, height: number): string {
+  const id = ctx.nextClipId("shaa");
+  const left = Math.floor(x) - 2,
+    top = Math.floor(y) - 2;
+  const right = Math.ceil(x + width) + 2,
+    bottom = Math.ceil(y + height) + 2;
+  ctx.defsParts.push(
+    `<clipPath id="${id}" clipPathUnits="userSpaceOnUse"><rect x="${left}" y="${top}" width="${right - left}" height="${bottom - top}" rx="1"/></clipPath>`,
+  );
+  return id;
+}
+
+/**
  * Corner radii of a normal shadow's shape. Blink's rounded branch
  * (`PaintNormalBoxShadow`, box_painter_base.cc:371-380, Chromium 7d859f27)
  * calls `ApplySpreadToShadowShape` (:91-97): nothing for a zero spread,
@@ -189,16 +210,57 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
     }
     let clipAttr = "";
     const background = el.styles.backgroundColor == null ? null : parseColor(el.styles.backgroundColor);
+    const roundedBorder = [corners.tl, corners.tr, corners.br, corners.bl].some(
+      (corner) => corner.h > 0 || corner.v > 0,
+    );
+    // On an opaque background Blink clips out the contour inset by 1px
+    // (ClipToBorderEdge, box_painter_base.cc:185-187) and skips an empty one.
+    // That only reaches visible pixels at a rounded corner, where the inset
+    // contour still crosses the background's antialiased edge. Sharp opaque
+    // boxes and blurred shadows (no native control for the mask-filter route
+    // yet) keep the unclipped producer.
+    const opaqueRoundedClip =
+      sh.blur === 0 &&
+      background != null &&
+      background.a >= 1 &&
+      roundedBorder &&
+      border.width > 2 &&
+      border.height > 2;
+    if (opaqueRoundedClip) {
+      const clipId = ctx.nextClipId("shcut");
+      const contour = { x: border.x + 1, y: border.y + 1, width: border.width - 2, height: border.height - 2 };
+      const contourCorners = insetCornerRadii(corners, 1, 1, 1, 1);
+      const contourClip = aaRouteClip(ctx, contour.x, contour.y, contour.width, contour.height);
+      ctx.defsParts.push(
+        `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${skRRectSvg(contour.x, contour.y, contour.width, contour.height, contourCorners, `fill="black" clip-path="url(#${contourClip})"`, shadowShapeNumber)}</mask>`,
+      );
+      clipAttr = ` mask="url(#${clipId})"`;
+    }
     if (background != null && background.a < 1) {
       // Blink 147 BoxPainterBase::ClipToBorderEdge excludes the original
       // border contour before normal-shadow paint on a nonopaque background.
       // Clip after filtering, so the blur cannot refill the transparent box.
-      // Opaque/unknown backgrounds retain their existing producer path.
       const clipId = ctx.nextClipId("shcut");
-      const rounded = [corners.tl, corners.tr, corners.br, corners.bl].some((corner) => corner.h > 0 || corner.v > 0);
-      if (rounded) {
+      if (roundedBorder) {
+        // Blink builds this clip as an SkAAClip, whose path coverage comes from
+        // the run-based accumulator (SkAAClip::setPath → AntiFillPath forceRLE);
+        // draw the mask's contour under an AA clip so it takes the same route.
+        // A blurred shadow keeps the earlier contour: its mask-filter route
+        // has no native control proving this one yet.
+        const contour =
+          sh.blur === 0
+            ? skRRectSvg(
+                border.x,
+                border.y,
+                border.width,
+                border.height,
+                corners,
+                `fill="black" clip-path="url(#${aaRouteClip(ctx, border.x, border.y, border.width, border.height)})"`,
+                shadowShapeNumber,
+              )
+            : roundedRectSvg(border.x, border.y, border.width, border.height, corners, 'fill="black"');
         ctx.defsParts.push(
-          `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${roundedRectSvg(border.x, border.y, border.width, border.height, corners, 'fill="black"')}</mask>`,
+          `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${contour}</mask>`,
         );
         clipAttr = ` mask="url(#${clipId})"`;
       } else {
@@ -210,11 +272,33 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
         clipAttr = ` clip-path="url(#${clipId})"`;
       }
     }
+    const fill = `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"`;
+    // Blink draws a rounded box's shadow under ClipOutContouredRect, an
+    // antialiased clip (ClipToBorderEdge, box_painter_base.cc:175-198), unless
+    // the inset-by-1 contour of an opaque box is empty. Under an AA clip Skia's
+    // CPU rasterizer fills paths with the run-based accumulator
+    // (SkScan::AntiFillPath forceRLE, SkScan_AntiPath.cpp:145-153;
+    // SkScan_AAAPath.cpp:1736-1739) instead of the mask accumulator, which
+    // changes edge coverage by a few levels. The knockout itself is the mask
+    // above; reproduce the raster route with an AA clip whose rounded edge sits
+    // 2px outside the shadow shape, so it never removes coverage. A blurred
+    // shadow takes the mask-filter path instead and is left alone.
+    const rasterUnderAaClip =
+      sh.blur === 0 &&
+      background != null &&
+      [corners.tl, corners.tr, corners.br, corners.bl].some((corner) => corner.h > 0 || corner.v > 0) &&
+      (background.a < 1 || (border.width > 2 && border.height > 2));
     // The corner-corrected radii are arbitrary floats (2 → 5.504 for a 4px
     // spread); the default one-decimal coordinate format would move the arc
     // by up to 0.05px, so the shadow shape keeps three decimals.
+    if (rasterUnderAaClip) {
+      const aaId = aaRouteClip(ctx, sx, sy, sw, sh2);
+      const shape = skRRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill} clip-path="url(#${aaId})"`, shadowShapeNumber);
+      ctx.svgParts.push(clipAttr === "" ? `${indent}${shape}` : `${indent}<g${clipAttr}>${shape}</g>`);
+      continue;
+    }
     ctx.svgParts.push(
-      `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}${clipAttr}`, shadowShapeNumber)}`,
+      `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill}${filterAttr}${clipAttr}`, shadowShapeNumber)}`,
     );
   }
   return;

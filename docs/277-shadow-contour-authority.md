@@ -302,10 +302,9 @@ the one-decimal coordinate format alone moved a 3.646px radius to 3.6px.
 On macOS, 20×20 boxes with `2px`/`4px`, `1px`/`8px` (offset 3,2), `3px`/`10px`
 and unequal `2px 0 4px 8px`/`5px` radius/spread previously differed from
 Chromium by a maximum alpha of 90, 255, 251 and 124; they now differ by at most
-10, 1, 1 and 3. That remainder is the same unattributed arc-coverage residual
-recorded above for elliptical and unequal contours, so the e2e bound in
-`tests/box-shadow-border-knockout.e2e.test.ts` is a small alpha residual rather
-than byte equality. Inset spread needs no change: a negative outset always
+10, 1, 1 and 3. That remainder was the arc-coverage residual attributed in
+"Rounded shadows under Blink's antialiased clip" below; with that fix all four
+are byte-exact. Inset spread needs no change: a negative outset always
 takes the linear branch, which `insetCornerRadii` already implements. Inline
 fragment shadows (`background-inline-paint.ts`) still use the linear rule.
 
@@ -318,3 +317,73 @@ fractional negative, positive and translucent-background spreads are now
 byte-exact native controls. Negative spread still paints: Chromium's antialiased
 `ClipOutContouredRect` leaves coverage at the corners, so the all-zero
 coincident skip must not extend to it.
+
+## Rounded shadows under Blink's antialiased clip (DM-5KSA83, DM-ZNQ7PH)
+
+This attributes the remaining coverage residual on rounded zero-blur shadows:
+subpixel offsets, elliptical and unequal contours, and corrected spread radii.
+The geometry was already exact. What differed was the Skia raster route.
+Headless Chromium here rasterizes on the CPU: CDP `SystemInfo` reports
+`rasterization: disabled_software`.
+
+- `PaintNormalBoxShadow` draws the shadow after `ClipToBorderEdge`. For a box
+  with a border radius, that clip is `ClipOutContouredRect`, which is
+  antialiased (`box_painter_base.cc:175-198`, Chromium `7d859f27`). On an
+  opaque background the contour is first inset by 1px and skipped when empty.
+- The cc `DrawLooper` adds a color filter and a translation
+  (`cc/paint/draw_looper.cc:22-42`). `Draw::drawRRect` then falls back to
+  `drawPath(SkPath::RRect)` (Skia `62efacd3`, `SkDraw.cpp:848-878`).
+- When the raster clip is antialiased, `SkScan::AntiFillPath` passes `forceRLE`
+  (`SkScan_AntiPath.cpp:145-153`). `AAAFillPath` therefore uses the run-based
+  accumulator instead of the mask accumulator (`SkScan_AAAPath.cpp:1736-1739`),
+  and that changes a few edge pixels by up to 10 alpha levels.
+- The same holds for the clip's own coverage: `SkAAClip::setPath` builds it
+  with `forceRLE`.
+
+`paintBoxShadow` reproduces that route for zero-blur shadows on a box with a
+border radius and a known background:
+
+- **Shadow shape.** It is drawn under `aaRouteClip`, an antialiased clip whose
+  1px-rounded edge sits 2px outside the shape. The clip removes nothing; it
+  only keeps Skia off the BW-clip path. A clip containing the whole device would
+  collapse to BW, which is why it hugs the shape.
+- **Knockout contour.** The contour inside the luminance mask is drawn the same
+  way. For an opaque background, the contour inset by 1px is now knocked out
+  too, because it reaches visible pixels at a rounded corner.
+- **Corner representation.** Four equal elliptical corners are written as
+  `<rect rx ry>` (`skRRectSvg`), the same conic `SkRRect`. Path `A` commands are
+  decomposed into cubics and do not match.
+
+These are now byte-exact native controls in
+`tests/box-shadow-border-knockout.e2e.test.ts`:
+
+- half-pixel horizontal and vertical offsets on radius 5 (previously 3 and 4
+  pixels off);
+- `8px / 4px` elliptical and `8px 0 3px 5px` unequal contours (the cases
+  DM-H5DDDE retained);
+- elliptical corners with spread;
+- the four spread-correction cases;
+- opaque elliptical, half-pixel and blurred boxes.
+
+Two gaps remain:
+
+- **Unequal corners.** There is no SVG primitive for an `SkRRect` with unequal
+  radii; the path's cubic arcs stay. A 12px spread over `2px 0 4px 8px` still
+  differs by up to 54 alpha.
+- **Blurred shadows.** These take the mask-filter route, which this change does
+  not touch.
+
+### Blurred shadows (DM-RRWR8E)
+
+Blink's σ is exactly half the blur radius (`shadow_data.h:76-82`), as ours is.
+The engines differ:
+
+- A **sharp** blurred rect goes through `SkBlurMaskFilterImpl::filterRectMask`
+  → `SkBlurMask::BlurRect` (`SkBlurMaskFilterImpl.cpp:124-130`,
+  `SkBlurMask.cpp:405`). That is an analytic integral profile.
+- `feGaussianBlur` uses the image-filter blur engine (`SkBlurImageFilter`,
+  `SkBlurEngine`).
+
+The measured residual matches that split. The ticket's `4px 4px 4px` sharp case
+differs at 443 pixels (max alpha delta 7), while a radius-5 blurred shadow,
+which Blink blurs through the rrect mask route, is byte-exact.

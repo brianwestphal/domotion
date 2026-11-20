@@ -117,7 +117,41 @@ describe("normal box-shadow pixel-snapped border contour", () => {
   it("snaps the rounded knockout mask contour too", () => {
     const ctx = paintNormal(box(snapHalf), ROUND5);
     expect(ctx.svgParts[0]).toContain('x="25" y="21"');
-    expect(ctx.defsParts[0]).toContain('x="21" y="21" width="20" height="20"');
+    expect(ctx.defsParts.join("")).toContain('x="21" y="21" width="20" height="20" rx="5" fill="black"');
+  });
+
+  // Blink's rounded clip-out is antialiased, which sends Skia's CPU path fill
+  // through the run-based accumulator (SkScan_AntiPath.cpp:145-153 at Skia
+  // 62efacd3); both the knockout contour and the shape are drawn under an AA
+  // clip whose rounded edge sits 2px outside them.
+  it("draws a rounded zero-blur shadow and its knockout under AA clips", () => {
+    const ctx = paintNormal(box(snapHalf), ROUND5);
+    expect(ctx.defsParts[0]).toBe(
+      '<clipPath id="shaa1" clipPathUnits="userSpaceOnUse"><rect x="19" y="19" width="24" height="24" rx="1"/></clipPath>',
+    );
+    expect(ctx.defsParts[2]).toBe(
+      '<clipPath id="shaa2" clipPathUnits="userSpaceOnUse"><rect x="23" y="19" width="24" height="24" rx="1"/></clipPath>',
+    );
+    expect(ctx.svgParts[0]).toMatch(/^<g mask="url\(#shcut0\)"><rect [^>]*clip-path="url\(#shaa2\)" \/><\/g>$/);
+  });
+
+  it("leaves sharp and blurred shadows on the unclipped raster route", () => {
+    expect(paintNormal(box(snapHalf), SHARP).defsParts.join("")).not.toContain("shaa");
+    const blurred = paintNormal(
+      { ...box(snapHalf), styles: { ...box().styles, boxShadow: "rgb(255, 0, 0) 4px 0px 3px 0px" } },
+      ROUND5,
+    );
+    expect(blurred.svgParts[0]).not.toContain("shaa");
+  });
+
+  // On an opaque background Blink clips out the contour inset by 1px
+  // (box_painter_base.cc:185-187) and skips an empty one.
+  it("clips an opaque rounded box's shadow to the contour inset by one pixel", () => {
+    const opaque = { ...box(snapHalf), styles: { ...box().styles, backgroundColor: "rgb(0, 0, 255)" } };
+    const ctx = paintNormal(opaque, ROUND5);
+    expect(ctx.defsParts.join("")).toContain('x="22" y="22" width="18" height="18" rx="4" fill="black"');
+    const tiny = { ...opaque, width: 2, height: 2, borderPaintSnap: undefined };
+    expect(paintNormal(tiny, ROUND5).defsParts.join("")).not.toContain("<mask");
   });
 
   it("ignores a record describing a box of another size (a derived box)", () => {

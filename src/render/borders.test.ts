@@ -6,6 +6,7 @@ import {
   pixelSnappedBorderReferenceRect,
   snappedBorderEdges,
   snappedInsetBox,
+  skRRectSvg,
   uniformDoubleBorderStripeBoxes,
   snapNinePieceDestinationGrid,
   findOffGridCollapsedCells,
@@ -799,5 +800,25 @@ describe("snappedInsetBox", () => {
       width: 18,
       height: 17,
     });
+  });
+});
+
+describe("skRRectSvg", () => {
+  const corners = (h: number, v: number) => ({
+    tl: { h, v },
+    tr: { h, v },
+    br: { h, v },
+    bl: { h, v },
+    uniform: h === v,
+  });
+  it("writes four equal elliptical corners as one <rect rx ry>", () => {
+    expect(skRRectSvg(1, 2, 20, 10, corners(8, 4), 'fill="red"')).toBe(
+      '<rect x="1" y="2" width="20" height="10" rx="8" ry="4" fill="red" />',
+    );
+  });
+  it("keeps circular corners on <rect rx> and unequal ones on a path", () => {
+    expect(skRRectSvg(0, 0, 20, 20, corners(5, 5), "")).toContain('rx="5"');
+    const unequal = { ...corners(8, 4), tr: { h: 0, v: 0 }, uniform: false };
+    expect(skRRectSvg(0, 0, 20, 20, unequal, "")).toMatch(/^<path /);
   });
 });

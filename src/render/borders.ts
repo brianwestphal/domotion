@@ -961,6 +961,43 @@ export function roundedRectSvg(
   return `<path d="${roundedRectPath(x, y, w, h, c, fmt)}" ${attrs} />`;
 }
 
+/**
+ * `roundedRectSvg`, but four equal elliptical corners are written as
+ * `<rect rx ry>`: Chromium turns that into the same SkRRect (conic corners)
+ * Blink fills for a CSS rounded rect, whereas path arc commands are
+ * decomposed into cubics and cover edge pixels differently. Used where a
+ * native control proves it byte-exact (box-shadow shapes and their knockout).
+ */
+export function skRRectSvg(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  c: CornerRadii,
+  attrs: string,
+  fmt: (n: number) => string = r,
+): string {
+  if (c.uniform) return roundedRectSvg(x, y, w, h, c, attrs, fmt);
+  const round = (curvature: number | undefined) => curvature == null || curvature === ROUND_CURVATURE;
+  const same = (p: CornerRadiusPair) => p.h === c.tl.h && p.v === c.tl.v;
+  if (
+    c.tl.h > 0 &&
+    c.tl.v > 0 &&
+    same(c.tr) &&
+    same(c.br) &&
+    same(c.bl) &&
+    round(c.curvature?.tl) &&
+    round(c.curvature?.tr) &&
+    round(c.curvature?.br) &&
+    round(c.curvature?.bl) &&
+    c.tl.h * 2 <= w &&
+    c.tl.v * 2 <= h
+  ) {
+    return `<rect x="${fmt(x)}" y="${fmt(y)}" width="${fmt(w)}" height="${fmt(h)}" rx="${fmt(c.tl.h)}" ry="${fmt(c.tl.v)}" ${attrs} />`;
+  }
+  return `<path d="${roundedRectPath(x, y, w, h, c, fmt)}" ${attrs} />`;
+}
+
 export interface BorderSide {
   w: number;
   style: string;

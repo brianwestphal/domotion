@@ -219,18 +219,31 @@ it("keeps a display:contents selector transparent and captures its real child", 
   }
 });
 
-// ApplySpreadToShadowShape (box_painter_base.cc:91-97, Chromium 7d859f27) grows
-// a radius smaller than the spread by the coverage-factor corner correction,
-// not linearly. The shapes are geometrically Blink's, but these corners keep the
-// unattributed arc coverage residual tracked for elliptical/unequal contours,
-// so the bound is a small alpha residual, not byte equality. The linear rule
-// measured max alpha deltas of 90, 255, 251 and 124 on these cases.
+// Rounded shadows, full RGBA:
+// - ApplySpreadToShadowShape (box_painter_base.cc:91-97, Chromium 7d859f27)
+//   grows a radius smaller than the spread by the coverage-factor correction.
+// - Blink draws a rounded box's shadow under the antialiased
+//   ClipOutContouredRect (ClipToBorderEdge, :175-198; inset 1px on an opaque
+//   background). Under an AA clip Skia's CPU rasterizer accumulates path
+//   coverage run by run (SkScan::AntiFillPath forceRLE, Skia 62efacd3
+//   SkScan_AntiPath.cpp:145-153), so the shape and the knockout contour are
+//   drawn under AA clips too.
+// - Four equal elliptical corners are an SVG <rect rx ry>, the same conic
+//   SkRRect; path arcs would become cubics.
 it.each([
-  { name: "small radius, larger spread", css: "box-shadow:0 0 0 4px red;border-radius:2px", maxAlpha: 10 },
-  { name: "offset with a large spread", css: "box-shadow:3px 2px 0 8px red;border-radius:1px", maxAlpha: 1 },
-  { name: "three times the radius", css: "box-shadow:0 0 0 10px red;border-radius:3px", maxAlpha: 1 },
-  { name: "unequal corners", css: "box-shadow:0 0 0 5px red;border-radius:2px 0 4px 8px", maxAlpha: 3 },
-])("corrects small shadow radii by the spread coverage factor: $name", async ({ css, maxAlpha }) => {
+  { name: "small radius, larger spread", css: "box-shadow:0 0 0 4px red;border-radius:2px" },
+  { name: "offset with a large spread", css: "box-shadow:3px 2px 0 8px red;border-radius:1px" },
+  { name: "three times the radius", css: "box-shadow:0 0 0 10px red;border-radius:3px" },
+  { name: "unequal corners with spread", css: "box-shadow:0 0 0 5px red;border-radius:2px 0 4px 8px" },
+  { name: "half-pixel horizontal offset", css: "box-shadow:.5px 0 0 red;border-radius:5px" },
+  { name: "half-pixel vertical offset", css: "box-shadow:0 .5px 0 red;border-radius:5px" },
+  { name: "elliptical corners", css: "box-shadow:4px 4px 0 red;border-radius:8px / 4px" },
+  { name: "unequal corners", css: "box-shadow:4px 4px 0 red;border-radius:8px 0 3px 5px" },
+  { name: "elliptical corners with spread", css: "box-shadow:0 0 0 6px red;border-radius:3px / 1px" },
+  { name: "opaque elliptical box", css: "box-shadow:4px 4px 0 red;border-radius:8px / 4px;background:blue" },
+  { name: "opaque box at a half pixel", css: "box-shadow:.5px 0 0 red;border-radius:5px;background:blue" },
+  { name: "opaque blurred box", css: "box-shadow:4px 4px 4px red;border-radius:5px;background:blue" },
+])("matches native rounded shadow coverage: $name", async ({ css }) => {
   const page = await browser.newPage({ viewport }),
     output = await browser.newPage({ viewport });
   try {
@@ -242,10 +255,7 @@ it.each([
       "<style>body{margin:0}</style>" +
         elementTreeToSvg(await captureElementTree(page, "#container", viewport), 100, 100),
     );
-    const actual = await rgba(await output.screenshot({ omitBackground: true }));
-    let worst = 0;
-    for (let i = 3; i < source.length; i += 4) worst = Math.max(worst, Math.abs(source[i] - actual[i]));
-    expect(worst).toBeLessThanOrEqual(maxAlpha);
+    expect(await rgba(await output.screenshot({ omitBackground: true }))).toEqual(source);
   } finally {
     await page.close();
     await output.close();

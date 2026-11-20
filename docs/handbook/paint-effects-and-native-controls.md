@@ -167,8 +167,8 @@ already supported.
 
 The [native contour investigation](../277-shadow-contour-authority.md) retains
 source geometry, full-RGBA measurements and strict unresolved producer probes.
-It does not establish elliptical/unequal contour parity or a raster floor
-(DM-ZNQ7PH, DM-5KSA83, DM-TFN8RD). Normal shadows use Blink's [pixel-snapped border rectangle](../277-shadow-contour-authority.md#pixel-snapped-normal-shadow-paint-rectangle)
+Rounded zero-blur shadows now take Skia's AA-clip raster route and match
+natively except unequal corners with spread (DM-5KSA83, DM-ZNQ7PH). Normal shadows use Blink's [pixel-snapped border rectangle](../277-shadow-contour-authority.md#pixel-snapped-normal-shadow-paint-rectangle)
 when capture authenticates the local paint space (DM-WYY3ZZ). DM-09GQAV omits
 the native-empty coincident shadow; root admission is guarded below.
 
