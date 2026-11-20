@@ -255,6 +255,60 @@ export const releaseFrozenPaintBase = (el: Element): void => {
   frozenPaintShifts.delete(el);
 };
 
+/**
+ * The translation a transformed box's subtree is painted through in the
+ * renderer's output: a frozen transform's re-applied wrapper matrix when it is
+ * a pure 2D translation, null for any other wrapper and for a live-rect
+ * transform (whose emitted user space is not a fixed translation of the
+ * device). Live pure translations need no entry: their offset is already in
+ * the captured viewport coordinates.
+ */
+const paintTransformTranslations = new WeakMap<Element, { x: number; y: number } | null>();
+
+/** Record what the renderer will wrap `el`'s paint in (see above). */
+export const registerPaintTransformTranslation = (el: Element, wrapper: string | null): void => {
+  let translation: { x: number; y: number } | null = null;
+  if (wrapper != null) {
+    try {
+      const m = new DOMMatrix(wrapper);
+      if (m.is2D && m.a === 1 && m.b === 0 && m.c === 0 && m.d === 1) translation = { x: m.e, y: m.f };
+    } catch {
+      translation = null;
+    }
+  }
+  paintTransformTranslations.set(el, translation);
+};
+
+export const releasePaintTransformTranslation = (el: Element): void => {
+  paintTransformTranslations.delete(el);
+};
+
+/**
+ * The fractional part of the translation from the renderer's user space at
+ * `el` to device pixels, or undefined when that is not a pure translation.
+ * Blink's non-antialiased clips (`GraphicsContext::ClipOut(RectF)` /
+ * `Clip(RectF)`) round their DEVICE rect (`SkRasterClip::op` →
+ * `devRect.round()`, Skia 62efacd3 SkRasterClip.cpp:170-171), so the renderer
+ * needs this to place those edges. Only frozen wrappers move the user space;
+ * scroll offsets are already proven integral by `localPaintOffset`.
+ */
+const deviceTranslationFraction = (el: Element): { x: number; y: number } | undefined => {
+  let x = 0,
+    y = 0;
+  for (let node: Element | null = el; node != null; node = composedParent(node)) {
+    if (!paintTransformTranslations.has(node)) continue;
+    const translation = paintTransformTranslations.get(node);
+    if (translation == null) return undefined;
+    x += translation.x;
+    y += translation.y;
+  }
+  const fraction = (value: number) => {
+    const quantized = Math.round(value * 64) / 64;
+    return quantized - Math.floor(quantized);
+  };
+  return { x: fraction(x), y: fraction(y) };
+};
+
 /** The paint-offset rounding folded into a frozen transform being captured. */
 export const frozenPaintShift = (el: Element): { x: number; y: number } | undefined => frozenPaintShifts.get(el);
 
@@ -278,6 +332,7 @@ export const captureBorderPaintSnap = (
     localTop = local.y;
   const localRight = localLeft + rect.width,
     localBottom = localTop + rect.height;
+  const device = deviceTranslationFraction(el);
   return {
     source: "blink-pixel-snapped-border-v1",
     left: Math.round(localLeft) - localLeft,
@@ -286,5 +341,6 @@ export const captureBorderPaintSnap = (
     bottom: Math.round(localBottom) - localBottom,
     width: rect.width,
     height: rect.height,
+    ...(device == null ? {} : { device }),
   };
 };

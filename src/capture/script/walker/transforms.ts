@@ -61,7 +61,12 @@
 // src/capture/raster-viewport-space.ts and
 // src/capture/frozen-transform-neutralizer.ts.
 //
-import { registerFrozenPaintBase, releaseFrozenPaintBase } from "./border-paint-snap.js";
+import {
+  registerFrozenPaintBase,
+  registerPaintTransformTranslation,
+  releaseFrozenPaintBase,
+  releasePaintTransformTranslation,
+} from "./border-paint-snap.js";
 
 // Detect whether a CSS computed `transform` matrix string contains rotation or
 // skew components. Pure-translate / pure-scale matrices have b=c=0 in the 2D
@@ -423,10 +428,14 @@ export const createTransformsHandler = () => {
         shift.x === 0 && shift.y === 0
           ? zoomedTransform
           : new DOMMatrix().translate(shift.x, shift.y).multiply(new DOMMatrix(zoomedTransform)).toString();
+      // The renderer re-applies this matrix as the subtree's wrapper only when
+      // threadFrozenTransform keeps it (an affine 2D matrix).
+      registerPaintTransformTranslation(el, transformWrapsAsAffine2D(paintTransform) ? paintTransform : null);
       try {
         return captureInner(el, cs, paintTransform, zoomTransformOrigin(cs.transformOrigin, zoom));
       } finally {
         releaseFrozenPaintBase(el);
+        releasePaintTransformTranslation(el);
         el.style.transform = inlineTransform;
         el.style.rotate = inlineRotate;
         el.style.scale = inlineScale;
@@ -437,7 +446,13 @@ export const createTransformsHandler = () => {
     // An animated planar transform, or a projective one owned by the
     // transform-subtree raster: keep the live-rect model (no clear, no wrap).
     liveTransformStyles.add(cs);
-    return captureInner(el, cs, originalTransform, cs.transformOrigin);
+    // Its emitted user space is not a fixed translation of the device.
+    registerPaintTransformTranslation(el, null);
+    try {
+      return captureInner(el, cs, originalTransform, cs.transformOrigin);
+    } finally {
+      releasePaintTransformTranslation(el);
+    }
   };
 
   const threadFrozenTransform = (

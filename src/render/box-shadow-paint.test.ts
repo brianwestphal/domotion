@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  deviceRoundedEdge,
+  deviceRoundedRect,
+  insetShadowCastingRect,
+  regionBandPieces,
   paintBoxShadow,
   paintInsetBoxShadow,
   shadowBorderContour,
@@ -276,5 +280,138 @@ describe("normal box-shadow pixel-snapped border contour", () => {
     expect(contour.corners.tl.h).toBeCloseTo(14.5, 10);
     expect(contour.corners.br.h).toBeCloseTo((5 * 29) / 30, 10);
     expect(constrainCornerRadiiToRect(ROUND5, 20, 20)).toBe(ROUND5);
+  });
+});
+
+// A sharp box's shadow knockout is GraphicsContext::ClipOut(RectF), a
+// non-antialiased difference clip (graphics_context.h:384-386, Chromium
+// 7d859f27): SkRasterClip rounds its device rect (Skia 62efacd3
+// SkRasterClip.cpp:170-171) and SkScan::AntiFillRect fills the shadow rect once
+// per clip-region rectangle (SkScan_Antihair.cpp:784-808).
+describe("non-antialiased sharp shadow clips", () => {
+  it("rounds a user-space edge to the device pixel edge, half up", () => {
+    expect(deviceRoundedEdge(21, 0.5)).toBe(21.5);
+    expect(deviceRoundedEdge(20.75, 0.25)).toBe(20.75);
+    expect(deviceRoundedEdge(20.5, 0)).toBe(21);
+    expect(deviceRoundedEdge(20.49, 0)).toBe(20);
+    expect(deviceRoundedEdge(-0.5, 0)).toBe(0);
+    expect(deviceRoundedRect({ left: 21, top: 21, right: 41, bottom: 41 }, { x: 0.5, y: 0.25 })).toEqual({
+      left: 21.5,
+      top: 20.75,
+      right: 41.5,
+      bottom: 40.75,
+    });
+  });
+
+  it("splits a rect into the clip region's bands", () => {
+    const hole = { left: 20, top: 20, right: 40, bottom: 40 };
+    // Overlapping the hole on the right: only the right span survives.
+    expect(regionBandPieces({ left: 24, top: 20, right: 44, bottom: 40 }, hole)).toEqual([
+      { left: 40, top: 20, right: 44, bottom: 40 },
+    ]);
+    // A half-pixel row below the hole becomes its own one-scanline piece.
+    expect(regionBandPieces({ left: 50.5, top: 20.5, right: 70.5, bottom: 40.5 }, hole)).toEqual([
+      { left: 50.5, top: 20.5, right: 70.5, bottom: 40 },
+      { left: 50.5, top: 40, right: 70.5, bottom: 40.5 },
+    ]);
+    // Spread around the whole hole: all four pieces.
+    expect(regionBandPieces({ left: 18, top: 18, right: 42, bottom: 42 }, hole)).toEqual([
+      { left: 18, top: 18, right: 42, bottom: 20 },
+      { left: 18, top: 20, right: 20, bottom: 40 },
+      { left: 40, top: 20, right: 42, bottom: 40 },
+      { left: 18, top: 40, right: 42, bottom: 42 },
+    ]);
+    // Inside the hole: nothing. An empty hole leaves the shape whole.
+    expect(regionBandPieces({ left: 22, top: 22, right: 30, bottom: 30 }, hole)).toEqual([]);
+    const shape = { left: 1, top: 2, right: 3, bottom: 4 };
+    expect(regionBandPieces(shape, { left: 5, top: 5, right: 5, bottom: 9 })).toEqual([shape]);
+  });
+
+  it("transcribes AreaCastingShadowInHole for the inset fill", () => {
+    const bounds = { left: 20, top: 20, right: 40, bottom: 40 };
+    expect(insetShadowCastingRect(bounds, 0, 0, 0, 3)).toEqual(bounds);
+    expect(insetShadowCastingRect(bounds, 3, -2, 0, 0)).toEqual({ left: 20, top: 18, right: 43, bottom: 40 });
+    expect(insetShadowCastingRect(bounds, 3, 2, 0, -1)).toEqual({ left: 19, top: 19, right: 44, bottom: 43 });
+    expect(insetShadowCastingRect(bounds, 0, 0, 4, 0)).toEqual({ left: 16, top: 16, right: 44, bottom: 44 });
+  });
+
+  const sharpBox = (boxShadow: string, backgroundColor: string, device?: { x: number; y: number }): ShadowBox => ({
+    x: 21,
+    y: 21,
+    width: 20,
+    height: 20,
+    borderPaintSnap: {
+      source: "blink-pixel-snapped-border-v1",
+      left: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      width: 20,
+      height: 20,
+      ...(device == null ? {} : { device }),
+    },
+    styles: {
+      boxShadow,
+      backgroundColor,
+      borderTopWidth: "0px",
+      borderRightWidth: "0px",
+      borderBottomWidth: "0px",
+      borderLeftWidth: "0px",
+    },
+  });
+  const run = (el: ShadowBox, inset = false): ShadowPaintCtx => {
+    let n = 0;
+    const ctx: ShadowPaintCtx = { svgParts: [], defsParts: [], nextClipId: (p) => `${p}${n++}` };
+    if (inset) paintInsetBoxShadow(ctx, el, SHARP, "");
+    else paintBoxShadow(ctx, el, SHARP, "");
+    return ctx;
+  };
+
+  it("paints a transparent box's sharp shadow as unclipped region pieces around the device-rounded hole", () => {
+    const ctx = run(sharpBox("rgb(255, 0, 0) 4px 0px 0px 0px", "rgba(0, 0, 0, 0)", { x: 0.5, y: 0.5 }));
+    expect(ctx.defsParts).toEqual([]);
+    expect(ctx.svgParts).toEqual([
+      '<rect x="25" y="21" width="20" height="0.5" fill="rgb(255,0,0)"/>',
+      '<rect x="41.5" y="21.5" width="3.5" height="19.5" fill="rgb(255,0,0)"/>',
+    ]);
+  });
+
+  it("clips an opaque box's sharp shadow out of the contour inset by one pixel", () => {
+    const ctx = run(sharpBox("rgb(255, 0, 0) 4px 0px 0px 0px", "rgb(0, 0, 255)", { x: 0.5, y: 0.5 }));
+    // Hole 22..40 in user space → device 22.5..40.5 → rounded 23..41.
+    expect(ctx.svgParts).toEqual([
+      '<rect x="25" y="21" width="20" height="1.5" fill="rgb(255,0,0)"/>',
+      '<rect x="40.5" y="22.5" width="4.5" height="18" fill="rgb(255,0,0)"/>',
+      '<rect x="25" y="40.5" width="20" height="0.5" fill="rgb(255,0,0)"/>',
+    ]);
+    const tiny = {
+      ...sharpBox("rgb(255, 0, 0) 4px 0px 0px 0px", "rgb(0, 0, 255)", { x: 0, y: 0 }),
+      width: 2,
+      height: 2,
+    };
+    tiny.borderPaintSnap = { ...tiny.borderPaintSnap!, width: 2, height: 2 };
+    expect(run(tiny).svgParts).toEqual(['<rect x="25" y="21" width="2" height="2" fill="rgb(255,0,0)"/>']);
+  });
+
+  it("snaps a blurred transparent shadow's knockout hole to device pixels", () => {
+    const ctx = run(sharpBox("rgb(255, 0, 0) 4px 0px 3px 0px", "rgba(0, 0, 0, 0)", { x: 0.5, y: 0.5 }));
+    expect(ctx.defsParts.join("")).toContain("M21.5 21.5H41.5V41.5H21.5Z");
+    expect(ctx.svgParts[0]).toContain('filter="url(#sh0)"');
+  });
+
+  it("keeps the antialiased producer without a device record (negative control)", () => {
+    const ctx = run(sharpBox("rgb(255, 0, 0) 4px 0px 0px 0px", "rgba(0, 0, 0, 0)"));
+    expect(ctx.defsParts[0]).toContain('clip-rule="evenodd"');
+    expect(ctx.svgParts).toHaveLength(1);
+    const opaqueBlur = run(sharpBox("rgb(255, 0, 0) 4px 0px 3px 0px", "rgb(0, 0, 255)", { x: 0.5, y: 0.5 }));
+    expect(opaqueBlur.defsParts.join("")).not.toContain("<clipPath");
+  });
+
+  it("snaps a sharp inset clip to device pixels and fills the casting rect around the hole", () => {
+    const ctx = run(sharpBox("rgb(255, 0, 0) 0px 0px 0px 3px inset", "rgba(0, 0, 0, 0)", { x: 0.5, y: 0.5 }), true);
+    expect(ctx.defsParts).toEqual(['<clipPath id="ishc0"><rect x="21.5" y="21.5" width="20" height="20"/></clipPath>']);
+    expect(ctx.svgParts[0]).toContain('d="M21,21 L41,21 L41,41 L21,41 L21,21 Z M24,24 L38,24');
+    const unsnapped = run(sharpBox("rgb(255, 0, 0) 0px 0px 0px 3px inset", "rgba(0, 0, 0, 0)"), true);
+    expect(unsnapped.defsParts[0]).toContain('<rect x="21" y="21" width="20" height="20" rx="0"');
   });
 });

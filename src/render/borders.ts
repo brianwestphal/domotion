@@ -51,7 +51,15 @@ export interface BorderPaintSnapCarrier {
   y: number;
   width: number;
   height: number;
-  borderPaintSnap?: { left: number; top: number; right: number; bottom: number; width: number; height: number };
+  borderPaintSnap?: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+    width: number;
+    height: number;
+    device?: { x: number; y: number };
+  };
 }
 
 /** The box's paint snap record, unless the box was derived with another size

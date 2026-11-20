@@ -118,6 +118,90 @@ export function shadowInnerBorderContour(el: ShadowBox, corners: CornerRadii): S
 }
 
 const shadowShapeNumber = (n: number): string => formatNumberLoose(n, 3);
+// Device-snapped pieces sit on 1/64 fractions of the user space.
+const devicePieceNumber = (n: number): string => formatNumberLoose(n, 6);
+
+/** An axis-aligned rectangle by its edges. */
+export interface EdgeRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * The user-space position of the device pixel edge a non-antialiased clip
+ * puts at user coordinate `u`, given the fractional user→device translation
+ * `d`. `SkRasterClip::op` rounds a BW clip's device rect with `SkRect::round`
+ * (Skia 62efacd3 SkRasterClip.cpp:170-171), i.e. `floor(x + 0.5)` per edge.
+ */
+export function deviceRoundedEdge(u: number, d: number): number {
+  const device = Math.round((u + d) * 64) / 64;
+  return Math.floor(device + 0.5) - d;
+}
+
+/** `rect` with each edge moved to the device pixel edge a non-AA clip rounds it to. */
+export function deviceRoundedRect(rect: EdgeRect, device: { x: number; y: number }): EdgeRect {
+  return {
+    left: deviceRoundedEdge(rect.left, device.x),
+    top: deviceRoundedEdge(rect.top, device.y),
+    right: deviceRoundedEdge(rect.right, device.x),
+    bottom: deviceRoundedEdge(rect.bottom, device.y),
+  };
+}
+
+/**
+ * The rectangles Skia fills for an antialiased rect drawn under a BW clip that
+ * is the canvas minus `hole` (both in the same space, the hole on device pixel
+ * edges). `SkScan::AntiFillRect` walks the clip region's rectangles
+ * (`SkRegion::Cliperator`) and fills `antifillrect(piece)` once per piece
+ * (Skia 62efacd3 SkScan_Antihair.cpp:784-808). A region minus one rect has a
+ * band above, a left and a right span beside, and a band below the hole. The
+ * split is not cosmetic: a piece one scanline high takes `do_scanline(...,
+ * B - T - 1)` (:664-666), one level below the same row of an unsplit rect.
+ * An empty hole leaves the region a rect, and the shape whole.
+ */
+export function regionBandPieces(shape: EdgeRect, hole: EdgeRect): EdgeRect[] {
+  if (hole.left >= hole.right || hole.top >= hole.bottom) return [shape];
+  const candidates: EdgeRect[] = [
+    { left: shape.left, top: shape.top, right: shape.right, bottom: Math.min(shape.bottom, hole.top) },
+    {
+      left: shape.left,
+      top: Math.max(shape.top, hole.top),
+      right: Math.min(shape.right, hole.left),
+      bottom: Math.min(shape.bottom, hole.bottom),
+    },
+    {
+      left: Math.max(shape.left, hole.right),
+      top: Math.max(shape.top, hole.top),
+      right: shape.right,
+      bottom: Math.min(shape.bottom, hole.bottom),
+    },
+    { left: shape.left, top: Math.max(shape.top, hole.bottom), right: shape.right, bottom: shape.bottom },
+  ];
+  return candidates.filter((piece) => piece.left < piece.right && piece.top < piece.bottom);
+}
+
+/**
+ * The rect `PaintInsetBoxShadow` fills around the hole before the looper
+ * shifts it by the shadow offset (`AreaCastingShadowInHole`,
+ * box_painter_base.cc:509-522, Chromium 7d859f27): the bounds outset by the
+ * blur radius and by a negative spread, united with that rect moved against
+ * the offset. Returned in the shifted (painted) position.
+ */
+export function insetShadowCastingRect(bounds: EdgeRect, x: number, y: number, blur: number, spread: number): EdgeRect {
+  const outset = blur + (spread < 0 ? -spread : 0);
+  const left = bounds.left - outset,
+    top = bounds.top - outset,
+    right = bounds.right + outset,
+    bottom = bounds.bottom + outset;
+  return {
+    left: Math.min(left, left - x) + x,
+    top: Math.min(top, top - y) + y,
+    right: Math.max(right, right - x) + x,
+    bottom: Math.max(bottom, bottom - y) + y,
+  };
+}
 
 /**
  * An antialiased clip that removes nothing from a shape inside (x, y, w, h):
@@ -213,6 +297,53 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
     const roundedBorder = [corners.tl, corners.tr, corners.br, corners.bl].some(
       (corner) => corner.h > 0 || corner.v > 0,
     );
+    // A sharp box's ClipToBorderEdge is `GraphicsContext::ClipOut(RectF)`, a
+    // NON-antialiased difference clip (graphics_context.h:384-386, Chromium
+    // 7d859f27; box_painter_base.cc:189-196): Skia rounds its device rect to
+    // whole pixels and the shadow rect is filled region piece by region piece.
+    // That needs the user→device translation; without it the antialiased
+    // producer below is kept.
+    const device = authenticBorderPaintSnap(el)?.device;
+    if (!roundedBorder && background != null && device != null && (sh.blur === 0 || background.a < 1)) {
+      // An opaque box clips out its contour inset by one pixel, and nothing
+      // when that is empty (box_painter_base.cc:180-196).
+      const inset = background.a >= 1 ? 1 : 0;
+      const clipOut = {
+        left: border.x + inset,
+        top: border.y + inset,
+        right: border.x + border.width - inset,
+        bottom: border.y + border.height - inset,
+      };
+      const hole =
+        clipOut.right > clipOut.left && clipOut.bottom > clipOut.top ? deviceRoundedRect(clipOut, device) : null;
+      const shape = { left: sx, top: sy, right: sx + sw, bottom: sy + sh2 };
+      const fill = `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"`;
+      if (sh.blur === 0) {
+        for (const piece of hole == null ? [shape] : regionBandPieces(shape, hole)) {
+          const n = devicePieceNumber;
+          ctx.svgParts.push(
+            `${indent}<rect x="${n(piece.left)}" y="${n(piece.top)}" width="${n(piece.right - piece.left)}" height="${n(piece.bottom - piece.top)}" ${fill}/>`,
+          );
+        }
+        continue;
+      }
+      // A blurred shadow is a mask-filter blit, which a region clip does not
+      // split; an antialiased clip on whole device pixels has the same 0/1
+      // coverage as the BW one.
+      let snappedClip = "";
+      if (hole != null) {
+        const clipId = ctx.nextClipId("shcut");
+        const n = devicePieceNumber;
+        ctx.defsParts.push(
+          `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="M${r(sx - sw)} ${r(sy - sh2)}h${r(sw * 3)}v${r(sh2 * 3)}h${r(-sw * 3)}Z M${n(hole.left)} ${n(hole.top)}H${n(hole.right)}V${n(hole.bottom)}H${n(hole.left)}Z" clip-rule="evenodd"/></clipPath>`,
+        );
+        snappedClip = ` clip-path="url(#${clipId})"`;
+      }
+      ctx.svgParts.push(
+        `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill}${filterAttr}${snappedClip}`, shadowShapeNumber)}`,
+      );
+      continue;
+    }
     // On an opaque background Blink clips out the contour inset by 1px
     // (ClipToBorderEdge, box_painter_base.cc:185-187) and skips an empty one.
     // That only reaches visible pixels at a rounded corner, where the inset
@@ -319,6 +450,10 @@ export function paintInsetBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners:
   const ibW = inner.width;
   const ibH = inner.height;
   const innerCorners = inner.corners;
+  const innerRounded = [innerCorners.tl, innerCorners.tr, innerCorners.br, innerCorners.bl].some(
+    (corner) => corner.h > 0 || corner.v > 0,
+  );
+  const device = authenticBorderPaintSnap(el)?.device;
   // DM-699: CSS Backgrounds 3 §6.4 stacks shadows with the FIRST shadow
   // ON TOP. The outer-shadow loop above already iterates in reverse so
   // the topmost CSS shadow emits last; this inset loop was iterating
@@ -345,7 +480,21 @@ export function paintInsetBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners:
       filterAttr = ` filter="url(#${fid})"`;
     }
     const cid = ctx.nextClipId("ishc");
-    ctx.defsParts.push(`<clipPath id="${cid}">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, "")}</clipPath>`);
+    // A sharp padding box is `context.Clip(bounds.Rect())`, a non-antialiased
+    // clip (box_painter_base.cc:560-564, graphics_context.h:377-394, Chromium
+    // 7d859f27) whose device rect Skia rounds to whole pixels. Placed on whole
+    // device pixels, the SVG's antialiased rect clip is reduced to the same BW
+    // clip (`nearly_integral`, Skia 62efacd3 SkRasterClip.cpp:161-167).
+    const sharpBounds = !innerRounded;
+    const snappedBounds =
+      sharpBounds && device != null
+        ? deviceRoundedRect({ left: ibLeft, top: ibTop, right: ibLeft + ibW, bottom: ibTop + ibH }, device)
+        : null;
+    ctx.defsParts.push(
+      snappedBounds == null
+        ? `<clipPath id="${cid}">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, "")}</clipPath>`
+        : `<clipPath id="${cid}"><rect x="${devicePieceNumber(snappedBounds.left)}" y="${devicePieceNumber(snappedBounds.top)}" width="${devicePieceNumber(snappedBounds.right - snappedBounds.left)}" height="${devicePieceNumber(snappedBounds.bottom - snappedBounds.top)}"/></clipPath>`,
+    );
 
     // Pure-blur-centered inset (x=0, y=0, spread=0, blur>0): the donut
     // has zero area, so use the legacy stroked-rect approach which
@@ -379,10 +528,31 @@ export function paintInsetBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners:
     }
     const innerC = insetCornerRadii(innerCorners, sh.spread, sh.spread, sh.spread, sh.spread);
     const margin = Math.max(Math.abs(sh.x), Math.abs(sh.y), sh.spread, sh.blur, 1) * 4;
-    const outerX = Math.min(ibLeft, innerL) - margin;
-    const outerY = Math.min(ibTop, innerT) - margin;
-    const outerR = Math.max(ibLeft + ibW, innerL + innerW) + margin;
-    const outerB = Math.max(ibTop + ibH, innerT + innerH) + margin;
+    let outerX = Math.min(ibLeft, innerL) - margin;
+    let outerY = Math.min(ibTop, innerT) - margin;
+    let outerR = Math.max(ibLeft + ibW, innerL + innerW) + margin;
+    let outerB = Math.max(ibTop + ibH, innerT + innerH) + margin;
+    if (sharpBounds && sh.blur === 0) {
+      // Blink fills `AreaCastingShadowInHole` around the hole (a rect with a
+      // contoured hole, box_painter_base.cc:571-576). Its outer edge meets the
+      // padding box wherever the offset does not move it, so its coverage is
+      // visible where the rounded clip edge falls outside; and a path that
+      // fits Skia's 32px mask accumulator (`MaskAdditiveBlitter::
+      // CanHandleRect`) takes a different coverage route than a wider one.
+      // A blurred shadow keeps the padded rect: its mask-filter route has no
+      // native control here yet.
+      const casting = insetShadowCastingRect(
+        { left: ibLeft, top: ibTop, right: ibLeft + ibW, bottom: ibTop + ibH },
+        sh.x,
+        sh.y,
+        sh.blur,
+        sh.spread,
+      );
+      outerX = casting.left;
+      outerY = casting.top;
+      outerR = casting.right;
+      outerB = casting.bottom;
+    }
     const sharp: CornerRadii = {
       tl: { h: 0, v: 0 },
       tr: { h: 0, v: 0 },
@@ -390,8 +560,9 @@ export function paintInsetBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners:
       bl: { h: 0, v: 0 },
       uniform: true,
     };
-    const outerD = roundedRectPath(outerX, outerY, outerR - outerX, outerB - outerY, sharp);
-    const innerD = roundedRectPath(innerL, innerT, innerW, innerH, innerC);
+    const pathNumber = sharpBounds && sh.blur === 0 ? devicePieceNumber : r;
+    const outerD = roundedRectPath(outerX, outerY, outerR - outerX, outerB - outerY, sharp, pathNumber);
+    const innerD = roundedRectPath(innerL, innerT, innerW, innerH, innerC, pathNumber);
     ctx.svgParts.push(
       `${indent}<g clip-path="url(#${cid})"><path d="${outerD} ${innerD}" fill="${shadowColor}" fill-rule="evenodd"${filterAttr}/></g>`,
     );

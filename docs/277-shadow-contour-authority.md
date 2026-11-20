@@ -17,6 +17,7 @@ tickets:
     "DM-TFN8RD",
     "DM-S2EA2P",
     "DM-6A9J20",
+    "DM-8PMQPX",
   ]
 code:
   [
@@ -387,6 +388,75 @@ Two gaps remain:
   differs by up to 54 alpha.
 - **Blurred shadows.** These take the mask-filter route, which this change does
   not touch.
+
+## Sharp shadows under Blink's non-antialiased clips (DM-8PMQPX)
+
+For a box without a border radius both shadow clips are **non-antialiased**,
+and Skia snaps them in device space:
+
+- **Normal shadow.** `ClipToBorderEdge` calls `GraphicsContext::ClipOut(RectF)`,
+  which is `ClipRect(rect, kNotAntiAliased, kDifference)`
+  (`graphics_context.h:384-386`, `box_painter_base.cc:189-196`, Chromium
+  `7d859f27`). On a BW raster clip `SkRasterClip::op` applies
+  `devRect.round()` (`SkRasterClip.cpp:170-171`, Skia `62efacd3`), rounding
+  each device edge half up.
+- **Region pieces.** The shadow is a plain antialiased `drawRect`. Under a
+  non-rectangular BW region, `SkScan::AntiFillRect` walks the region's
+  rectangles (`SkRegion::Cliperator`) and fills `antifillrect` once per piece
+  (`SkScan_Antihair.cpp:784-808`). A piece one scanline high takes
+  `do_scanline(..., B - T - 1)` (`:664-666`), so a half-pixel row that starts a
+  band paints alpha 127, not 128. This happens with no transform at all:
+  `box-shadow:30.5px .5px 0 red` far from its box differed at 21 pixels.
+- **Inset shadow.** A sharp padding box is `context.Clip(bounds.Rect())`, also
+  non-antialiased (`box_painter_base.cc:560-564`). The shadow is
+  `FillRectWithContouredHole(AreaCastingShadowInHole(bounds), hole)`
+  (`:509-522`, `:571-576`): a rect only as large as the bounds, outset by blur
+  and a negative spread and united with its offset copy.
+
+Device space needs the translation from the renderer's user space to device
+pixels. The capture records it as `borderPaintSnap.device`: the fractional
+part of the sum of frozen pure-translation transforms the renderer re-applies
+as wrappers around the box (live translations are already in the captured
+viewport coordinates). The record is omitted when any re-applied transform on
+the chain is not a pure translation or uses the live-rect model.
+
+With the record, `paintBoxShadow` and `paintInsetBoxShadow` do this for sharp
+boxes:
+
+- **Zero-blur normal shadow on a known background.** The hole (the border box,
+  or the box inset by 1px on an opaque background, skipped when empty) is
+  rounded to device pixels. The shadow is emitted as the up-to-four region band
+  pieces as separate `<rect>`s with no clip, the same rectangles Skia's
+  `Cliperator` hands to `antifillrect`.
+- **Blurred normal shadow on a transparent background.** The even-odd clip
+  keeps its shape, but its hole sits on device pixels. An antialiased clip on
+  whole device pixels has the same 0/1 coverage as the BW one, and a
+  mask-filter blit is not split by the region.
+- **Inset shadow.** The clip rect sits on whole device pixels; Skia reduces an
+  antialiased rect clip there to the BW clip (`nearly_integral`,
+  `SkRasterClip.cpp:161-167`). For zero blur, the donut's outer edge is
+  `AreaCastingShadowInHole`. Its edge coverage is visible where the rounded clip
+  edge falls outside the bounds. Keeping the path small also keeps it on Skia's
+  mask accumulator rather than the run-based one, which differs by one alpha
+  level at the hole edge.
+
+Without the record the antialiased producer is kept. Native full-RGBA controls
+in `tests/box-shadow-border-knockout.e2e.test.ts` are byte-exact on every
+selected root. They cover own and ancestor half-pixel translations (sharp,
+opaque, inset), quarter-pixel translations with spread and offsets, mixed and
+translucent layers, and the band-split rows with and without a background. A
+negative control strips `device` and requires the pixels to move. Capture tests
+pin the record for own, ancestor, summed and fail-closed (scaled) transforms.
+
+Remaining gaps:
+
+- **Opaque blurred sharp shadows.** These keep the unclipped producer.
+- **Blurred inset shadows.** These keep the padded donut.
+- **Collapsed sharp insets.** When the hole is empty, Blink fills the bounds
+  with no clip and no blur (`box_painter_base.cc:548-554`); ours still clips
+  and blurs.
+- **Negative-spread inset holes.** These get rounded corners that Blink's
+  coverage-corrected outset keeps sharp.
 
 ### Blurred shadows (DM-RRWR8E)
 

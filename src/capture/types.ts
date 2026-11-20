@@ -2074,6 +2074,15 @@ export interface CapturedBorderPaintSnap {
   /** The border-box size the deltas describe; a derived box of another size ignores them. */
   width: number;
   height: number;
+  /**
+   * The fractional part (in [0, 1), on the 1/64 grid) of the translation from
+   * the renderer's user space at this box to device pixels: the sum of the
+   * frozen pure-translation transforms re-applied around it. Blink's
+   * non-antialiased box-shadow clips round their device rect, so the renderer
+   * places those edges with it. Absent when any re-applied transform on the
+   * chain is not a pure translation, or is on the live-rect model.
+   */
+  device?: { x: number; y: number };
 }
 
 export interface CapturedElement {

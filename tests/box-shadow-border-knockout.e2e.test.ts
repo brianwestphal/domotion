@@ -105,6 +105,63 @@ const cases = [
     extra: "border-radius:5px;background:rgba(0,0,255,.5)",
     ownsOtherRootPaint: true,
   },
+  // A sharp box's knockout is ClipOut(RectF), a non-antialiased difference
+  // clip (graphics_context.h:384-386, Chromium 7d859f27): Skia rounds its
+  // DEVICE rect (SkRasterClip.cpp:170-171, Skia 62efacd3) and fills the shadow
+  // rect once per clip-region rectangle (SkScan_Antihair.cpp:784-808), so a
+  // half-pixel row that starts a region band paints one level lower.
+  {
+    name: "own half-pixel translate, sharp",
+    shadow: "4px 0 0 red",
+    extra: "margin:20.5px;transform:translate(.5px,.5px)",
+  },
+  { name: "ancestor half-pixel translate, sharp", shadow: "4px 0 0 red", wrap: "transform:translate(.5px,.5px)" },
+  { name: "half-pixel row starting a clip band", shadow: "30.5px .5px 0 red" },
+  {
+    name: "half-pixel row starting a clip band, opaque",
+    shadow: "30.5px .5px 0 red",
+    extra: "background:blue",
+    ownsOtherRootPaint: true,
+  },
+  {
+    name: "own half-pixel translate, opaque sharp",
+    shadow: "4px 0 0 red",
+    extra: "margin:20.5px;background:blue;transform:translate(.5px,.5px)",
+    ownsOtherRootPaint: true,
+  },
+  {
+    name: "quarter-pixel translate with spread",
+    shadow: "3px 2px 0 1px red",
+    extra: "margin:20.25px;transform:translate(.25px,.75px)",
+  },
+  {
+    name: "translucent layers under a half-pixel translate",
+    shadow: "4px 3px 0 rgba(255,0,0,.5),-3.5px 0 0 green",
+    extra: "margin:20.5px;background:rgba(0,0,255,.5);transform:translate(.5px,.5px)",
+    ownsOtherRootPaint: true,
+  },
+  // The sharp inset clip is context.Clip(RectF), non-antialiased as well, and
+  // the hole is cut from AreaCastingShadowInHole (box_painter_base.cc:509-576).
+  {
+    name: "own half-pixel translate, sharp inset",
+    shadow: "inset 0 0 0 3px red",
+    extra: "margin:20.5px;transform:translate(.5px,.5px)",
+  },
+  {
+    name: "ancestor half-pixel translate, sharp inset",
+    shadow: "inset 0 0 0 3px red",
+    wrap: "transform:translate(.5px,.5px)",
+  },
+  {
+    name: "offset inset under a quarter-pixel translate",
+    shadow: "inset 2px -3px 0 1px red",
+    extra: "margin:20.25px 20.75px;transform:translate(.25px,.5px)",
+  },
+  {
+    name: "mixed inset and normal layers under a half-pixel translate",
+    shadow: "inset 0 0 0 3px blue,4px 4px 0 red,-3.5px 0 0 green",
+    extra: "margin:20.5px;transform:translate(.5px,.5px)",
+  },
 ];
 it.each(cases)(
   "matches complete native pixels for $name",
@@ -112,7 +169,7 @@ it.each(cases)(
     const page = await browser.newPage({ viewport }),
       output = await browser.newPage({ viewport });
     try {
-      const fixtureHtml = `<style>body{margin:0}#only{display:block;width:20px;height:20px;margin:20px;border:0;background:transparent;box-shadow:${sample.shadow};${sample.extra ?? ""}}</style><div id="container"><div id="only"></div></div>`;
+      const fixtureHtml = `<style>body{margin:0}#only{display:block;width:20px;height:20px;margin:20px;border:0;background:transparent;box-shadow:${sample.shadow};${sample.extra ?? ""}}</style><div id="container" style="${"wrap" in sample ? sample.wrap : ""}"><div id="only"></div></div>`;
       await page.setContent(fixtureHtml);
       const sourcePng = await page.screenshot({ omitBackground: true });
       const witness =
@@ -364,5 +421,131 @@ it.each([
     else expect(record && [record.left, record.top, record.right, record.bottom]).toEqual(snap);
   } finally {
     await page.close();
+  }
+});
+
+// The renderer places Blink's non-antialiased sharp-shadow clips on device
+// pixels from the user→device translation the capture records: the frozen pure
+// translations re-applied around the box. Any other re-applied transform
+// leaves it unknown, and the renderer keeps the antialiased producer.
+it.each([
+  { name: "untransformed", extra: "margin:20.5px", wrap: "", mid: "", device: { x: 0, y: 0 } },
+  {
+    name: "own frozen translate",
+    extra: "transform:translate(.5px,.25px)",
+    wrap: "",
+    mid: "",
+    device: { x: 0.5, y: 0.25 },
+  },
+  { name: "live root translate", extra: "", wrap: "transform:translate(.5px,.5px)", mid: "", device: { x: 0, y: 0 } },
+  {
+    name: "frozen translated ancestor",
+    extra: "",
+    wrap: "",
+    mid: "transform:translate(.75px,1.5px)",
+    device: { x: 0.75, y: 0.5 },
+  },
+  {
+    name: "own and ancestor translations add",
+    extra: "transform:translate(.5px)",
+    wrap: "",
+    mid: "transform:translate(.75px)",
+    device: { x: 0.25, y: 0 },
+  },
+  { name: "frozen scaled ancestor", extra: "margin:20.5px", wrap: "", mid: "transform:scale(1.5)", device: undefined },
+  { name: "own scale", extra: "margin:20.5px;transform:scale(2)", wrap: "", mid: "", device: undefined },
+])("records the device translation of a snapped shadow box: $name", async ({ extra, wrap, mid, device }) => {
+  const page = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      `<style>body{margin:0}#only{width:20px;height:20px;margin:20px;box-shadow:4px 0 0 red;${extra}}</style><div id="container" style="${wrap}"><div id="mid" style="${mid}"><div id="only"></div></div></div>`,
+    );
+    const tree = await captureElementTree(page, "#container", viewport);
+    const find = (nodes: typeof tree): (typeof tree)[number] | undefined => {
+      for (const node of nodes) {
+        if (node.styles.boxShadow != null && node.styles.boxShadow !== "none") return node;
+        const found = find(node.children ?? []);
+        if (found != null) return found;
+      }
+      return undefined;
+    };
+    const record = find(tree)?.borderPaintSnap;
+    expect(record).toBeDefined();
+    expect(record?.device).toEqual(device);
+  } finally {
+    await page.close();
+  }
+});
+
+// Negative control: without the device record the same capture renders through
+// the antialiased even-odd clip and the native pixels move.
+it.each([
+  { name: "sharp", shadow: "4px 0 0 red" },
+  { name: "sharp inset", shadow: "inset 0 0 0 3px red" },
+])("needs the device record to match a translated $name shadow", async ({ shadow }) => {
+  const page = await browser.newPage({ viewport }),
+    output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      `<style>body{margin:0}#only{width:20px;height:20px;margin:20.5px;box-shadow:${shadow};transform:translate(.5px,.5px)}</style><div id="container"><div id="only"></div></div>`,
+    );
+    const source = await rgba(await page.screenshot({ omitBackground: true }));
+    const tree = await captureElementTree(page, "#container", viewport);
+    const render = async (nodes: typeof tree) => {
+      await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(nodes, 100, 100));
+      return rgba(await output.screenshot({ omitBackground: true }));
+    };
+    expect(await render(tree)).toEqual(source);
+    const strip = (nodes: typeof tree): typeof tree =>
+      nodes.map((node) => ({
+        ...node,
+        ...(node.borderPaintSnap == null ? {} : { borderPaintSnap: { ...node.borderPaintSnap, device: undefined } }),
+        children: strip(node.children ?? []),
+      }));
+    expect((await render(strip(tree))).equals(source)).toBe(false);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
+
+// A blurred sharp shadow is a mask-filter blit that the region clip does not
+// split; its knockout still rounds to device pixels (columns and rows 22..41
+// here, the box covering 21.5..41.5). Blur kernel parity stays out of scope.
+it("knocks out the device-rounded interior of a blurred shadow under a half-pixel translate", async () => {
+  const page = await browser.newPage({ viewport }),
+    output = await browser.newPage({ viewport });
+  const alphas = async (png: Buffer) => {
+    const raw = await rgba(png);
+    const at = (x: number, y: number) => raw[(y * 100 + x) * 4 + 3];
+    const rows: number[][] = [];
+    for (let y = 21; y <= 42; y++) rows.push(Array.from({ length: 22 }, (_, i) => at(21 + i, y)));
+    return rows;
+  };
+  try {
+    await page.setContent(
+      '<style>body{margin:0}#only{width:20px;height:20px;margin:20.5px;box-shadow:4px 4px 4px red;transform:translate(.5px,.5px)}</style><div id="container"><div id="only"></div></div>',
+    );
+    const source = await alphas(await page.screenshot({ omitBackground: true }));
+    await output.setContent(
+      "<style>body{margin:0}</style>" +
+        elementTreeToSvg(await captureElementTree(page, "#container", viewport), 100, 100),
+    );
+    const actual = await alphas(await output.screenshot({ omitBackground: true }));
+    // The knocked-out interior (device 22..41) is exact and empty on both.
+    const interior = (rows: number[][]) => rows.slice(1, 21).map((row) => row.slice(1, 21));
+    expect(interior(actual)).toEqual(interior(source));
+    expect(
+      interior(source)
+        .flat()
+        .every((alpha) => alpha === 0),
+    ).toBe(true);
+    // Row 42, just below the rounded hole, keeps shadow on both; with an
+    // antialiased hole edge at 41.5, row 41 would keep some too.
+    expect(source[21][10]).toBeGreaterThan(0);
+    expect(actual[21][10]).toBeGreaterThan(0);
+  } finally {
+    await page.close();
+    await output.close();
   }
 });
