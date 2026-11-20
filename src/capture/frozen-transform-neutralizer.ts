@@ -107,8 +107,17 @@ export async function withFrozenTransformsNeutralized<T>(page: Page, work: () =>
         const saved = host[key] as SavedStyle[] | undefined;
         for (let index = (saved?.length ?? 0) - 1; index >= 0; index--) {
           const entry = saved![index];
-          if (entry.style == null) entry.element.removeAttribute("style");
-          else entry.element.setAttribute("style", entry.style);
+          if (entry.style == null) {
+            // Chromium serializes a CSSOM-mutated inline style into the
+            // attribute lazily (Element::SynchronizeStyleAttributeInternal,
+            // Chromium 7d859f27 core/dom/element.cc:12241).
+            // Removing the attribute while that sync is pending lets the next
+            // read re-materialize `style=""`, so empty the declaration and
+            // read the attribute (which synchronizes it) before removing it.
+            entry.element.style.cssText = "";
+            void entry.element.getAttribute("style");
+            entry.element.removeAttribute("style");
+          } else entry.element.setAttribute("style", entry.style);
         }
         delete host[key];
         void document.documentElement.getBoundingClientRect();

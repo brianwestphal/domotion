@@ -85,6 +85,19 @@ describe("frozen-transform paint space", () => {
     },
   );
 
+  it("leaves no style attribute on a frozen owner that had none", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
+    try {
+      await page.setContent(
+        `<style>#owner{transform:translate(10.5px,10px) scale(1.2);transform-origin:0 0}</style><div id="owner"><input value="hi"><canvas width="20" height="10"></canvas></div>`,
+      );
+      await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+      expect(await page.locator("#owner").evaluate((owner) => owner.getAttribute("style"))).toBeNull();
+    } finally {
+      await page.close();
+    }
+  });
+
   it("resolves a percentage translate longhand against the border box", async () => {
     const { count } = await differingPixels(
       `<div style="position:relative;height:100px"><div style="position:absolute;left:110px;top:50px;width:80px;height:20px;translate:-50% 8px;background:#166534"></div></div>`,

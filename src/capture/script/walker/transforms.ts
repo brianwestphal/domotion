@@ -359,6 +359,9 @@ export const createTransformsHandler = () => {
       const inlineRotate = el.style.rotate;
       const inlineScale = el.style.scale;
       const inlineTranslate = el.style.translate;
+      // Writing through CSSOM materializes a `style` attribute; an element
+      // that had none must not be left with an empty one.
+      const hadStyleAttribute = el.hasAttribute("style");
       el.style.transform = "translate(0)";
       el.style.rotate = "none";
       el.style.scale = "none";
@@ -378,6 +381,7 @@ export const createTransformsHandler = () => {
         el.style.rotate = inlineRotate;
         el.style.scale = inlineScale;
         el.style.translate = inlineTranslate;
+        if (!hadStyleAttribute && el.getAttribute("style") === "") el.removeAttribute("style");
       }
     }
     // An animated planar transform, or a projective one owned by the
