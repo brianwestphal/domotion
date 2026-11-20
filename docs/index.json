@@ -271,6 +271,7 @@
         "platforms": [],
         "tickets": [
           "DM-6VCX1C",
+          "DM-8F20GA",
           "DM-1242",
           "DM-1243",
           "DM-2194",
@@ -292,6 +293,7 @@
           "src/render/advanced-gradient-raster.ts",
           "src/render/form-controls.ts",
           "src/render/gradient-defs.ts",
+          "src/render/gradient-tile.ts",
           "src/render/gradients.ts"
         ],
         "aliases": ["docs/07-gradient-fills.md", "doc-07"]

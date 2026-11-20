@@ -40,6 +40,7 @@ import { clipPathShapeForElement, parseSameDocumentClipPathUrl } from "./clip-pa
 import { backgroundPositionOffsetPx, buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
 import { paintClipForLayer } from "./paint-clip-layers.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js";
+import { buildGradientTilePatternDef } from "./gradient-tile.js";
 import { advancedGradientTile, needsChromiumGradientRaster } from "./advanced-gradient-raster.js";
 import { computeTileSize } from "./conic-raster.js";
 import { _conicTileCache } from "./raster-tile-cache.js";
@@ -5226,6 +5227,25 @@ function buildBackgroundLayerDef(
     );
   }
   const linear = /^(?:repeating-)?linear-gradient\((.+)\)$/i.exec(layer);
+  const radialMatch = linear == null ? /^(?:repeating-)?radial-gradient\((.+)\)$/i.exec(layer) : null;
+  if (linear != null || radialMatch != null) {
+    // Blink tiles generated images by background size/position/repeat across
+    // the painting area; a single stretched gradient is only equivalent when
+    // one tile coincides with the positioning area and covers the painting
+    // area (DM-8F20GA, `buildGradientTilePatternDef`).
+    const tiled = buildGradientTilePatternDef({
+      id,
+      kind: linear != null ? "linear" : "radial",
+      args: (linear ?? radialMatch)![1],
+      repeating: /^repeating-/i.test(layer),
+      positioningArea: { x: gradX, y: gradY, width: gradW, height: gradH },
+      paintingArea,
+      size: sizeCss,
+      position: posCss,
+      repeat: repeatCss,
+    });
+    if (tiled != null) return { def: tiled };
+  }
   if (linear != null) {
     const repeating = /^repeating-/i.test(layer);
     return { def: buildLinearGradientDef(id, linear[1], repeating, gradW, gradH, gradX, gradY) };

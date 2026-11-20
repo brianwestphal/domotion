@@ -219,10 +219,14 @@ describe("pseudoBox radial-gradient glow end-to-end (DM-1121)", () => {
 
   it("offsets the gradient core to the lower-left and dims it via <g opacity>", () => {
     const svg = elementTreeToSvgInner([glowEl], 390, 6000);
-    // Position honored: the radial center is the lower-left corner, not (211,4512).
-    expect(svg).toContain('cx="121"');
-    expect(svg).toContain('cy="4602"');
-    expect(svg).not.toContain('cx="211"');
+    // Position honored: with the default `repeat`, Blink tiles the 200 px
+    // gradient from (111-90, 4412+90) across the box (DM-8F20GA), so the tile
+    // pattern's phase carries the offset and the gradient sits mid-tile.
+    const tile = /<pattern [^>]*x="(-?[\d.]+)" y="(-?[\d.]+)" width="200" height="200"/.exec(svg);
+    expect(tile).not.toBeNull();
+    expect((((Number(tile![1]) - 21) % 200) + 200) % 200).toBe(0);
+    expect((((Number(tile![2]) - 4502) % 200) + 200) % 200).toBe(0);
+    expect(svg).toContain('cx="100"');
     // Opacity honored: the gradient rect is wrapped in a 0.45-opacity group.
     expect(svg).toMatch(/<g opacity="0\.45"><rect[^>]*fill="url\(#[^)]*pbg[^)]*\)"/);
   });

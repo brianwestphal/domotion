@@ -8,6 +8,7 @@ platforms: []
 tickets:
   [
     "DM-6VCX1C",
+    "DM-8F20GA",
     "DM-1242",
     "DM-1243",
     "DM-2194",
@@ -30,6 +31,7 @@ code:
     "src/render/advanced-gradient-raster.ts",
     "src/render/form-controls.ts",
     "src/render/gradient-defs.ts",
+    "src/render/gradient-tile.ts",
     "src/render/gradients.ts",
   ]
 aliases: ["docs/07-gradient-fills.md", "doc-07"]
@@ -168,6 +170,25 @@ explicit; and radial start/end circles emit as SVG `fx`/`fy`/`fr` and
 `cx`/`cy`/`r`. Deprecated stops stable-sort before the pinned Skia terminal
 clamp, and the form remains non-repeating. Modern magic-corner and repeating
 routes are unchanged.
+
+## Background tiling (DM-8F20GA)
+
+A linear or radial gradient background layer is a generated image with no
+natural size, and Blink tiles it exactly like a URL image: one tile of
+`background-size` (the positioning area for `auto`), placed by
+`background-position` and repeated by `background-repeat` (repeat, space,
+round, no-repeat) across the painting area (`BackgroundImageGeometry`,
+`core/paint/background_image_geometry.cc`, Chromium `7d859f27`).
+`src/render/gradient-tile.ts` resolves that geometry with the same transcription
+the URL path uses (`resolveBlinkBackgroundImageGeometry`) and emits a
+`<pattern>` holding one tile-sized gradient. When the single tile coincides with
+the positioning area and covers the painting area (within 0.5 px of pixel
+snapping), the established single stretched `<linearGradient>` /
+`<radialGradient>` is kept byte-for-byte. A gradient therefore now repeats into
+the border area of a `background-clip: border-box` box whose origin is the
+padding box, as in Chromium. Covered by `src/render/gradient-tile.test.ts` and
+`src/capture/gradient-background-tiling.e2e.test.ts`. Form-control pseudo slots
+keep their own path (below).
 
 ## Edge cases
 
