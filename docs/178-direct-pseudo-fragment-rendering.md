@@ -17,6 +17,7 @@ tickets:
     "DM-5YF0BB",
     "DM-9PEZBK",
     "DM-C5GEMW",
+    "DM-ESPA0W",
   ]
 code:
   [
@@ -26,6 +27,7 @@ code:
     "src/render/pseudo-stacking-contexts.ts",
     "src/render/pseudo-stacking-contexts.test.ts",
     "src/capture/pseudo-fragment-cdp.ts",
+    "src/capture/pseudo-blend-mode.e2e.test.ts",
     "tests/pseudo-ancestor-stacking.e2e.test.ts",
     "tests/hoisted-real-ancestry.e2e.test.ts",
     "tests/pseudo-fragment-render-oracle.e2e.test.ts",
@@ -217,7 +219,21 @@ itself, not its anonymous content children — into `paint.stackingContext`, and
 the collector admits it at `EffectiveZIndex` (the authored z for a flex/grid
 item, otherwise 0; `computed_style.h:794-798`, Chromium `7d859f27`). No
 computed-style guess promotes a record; an unflagged static `z-index` stays
-host-local. `mix-blend-mode` on generated boxes is not yet painted (DM-ESPA0W).
+host-local.
+
+Generated boxes also carry their computed `mix-blend-mode` in
+`paint.mixBlendMode` (DM-ESPA0W). Blink stores it on the pseudo box's own
+effect node (`paint_property_tree_builder.cc:2040`, Chromium `7d859f27`) and
+isolates it at the nearest CSS isolated group, which is a stacking context
+(same file `:1774-1788`). The record group therefore emits
+`mix-blend-mode:<mode>` beside its `filter`, and blends against everything the
+nearest isolating stacking context has painted below it: the element renderer
+already opens an `isolation:isolate` group for each such context. The
+terminal-raster group carries the blend too, because its isolated Chromium
+surface was painted over a transparent backdrop, where every mode reduces to
+source-over. Known gap: an SVG `clip-path` group isolates blending, so a
+non-stacking overflow-clip ancestor still cuts the blend off from paint behind
+it, for real elements and generated boxes alike (DM-HV0D36).
 
 Positioned source records of either sign now join the nearest real
 two-dimensional stacking context's paint list. Negative records (DM-C5GEMW)

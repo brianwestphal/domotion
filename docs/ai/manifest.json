@@ -3129,6 +3129,7 @@
         "src/render/pseudo-stacking-contexts.ts",
         "src/render/pseudo-stacking-contexts.test.ts",
         "src/capture/pseudo-fragment-cdp.ts",
+        "src/capture/pseudo-blend-mode.e2e.test.ts",
         "tests/pseudo-ancestor-stacking.e2e.test.ts",
         "tests/hoisted-real-ancestry.e2e.test.ts",
         "tests/pseudo-fragment-render-oracle.e2e.test.ts",

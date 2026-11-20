@@ -579,6 +579,13 @@ export interface CapturedPseudoPaintStyle {
   filter: string;
   /** Chromium's computed pseudo-owned backdrop operation (`none` when inactive). */
   backdropFilter?: string;
+  /**
+   * Computed `mix-blend-mode`. Blink stores it on the pseudo's own effect node
+   * and blends that group against the backdrop inside the nearest isolated
+   * stacking context. Absent on trees captured before it was recorded, which
+   * the renderer treats as `normal`.
+   */
+  mixBlendMode?: string;
   transform: string;
   transformOrigin: string;
   zIndex?: number;

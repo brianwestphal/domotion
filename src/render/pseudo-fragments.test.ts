@@ -292,4 +292,36 @@ describe("DM-2468 direct generated-pseudo paint", () => {
     expect(renderPseudoFragmentRecord(terminal).match(/<image/g)).toHaveLength(1);
     expect(renderPseudoFragmentRecord(terminal)).toContain('data-domotion-pseudo-owner="chromium-raster"');
   });
+
+  it("emits the captured mix-blend-mode on the record's own effect group (DM-ESPA0W)", () => {
+    const blended = record();
+    blended.paint.mixBlendMode = "multiply";
+    blended.paint.filter = "blur(1px)";
+    blended.paint.opacity = 0.5;
+    expect(renderPseudoFragmentRecord(blended)).toMatch(
+      /^<g [^>]*data-domotion-pseudo-owner="source-fragments"[^>]* opacity="0\.5" style="filter:blur\(1px\);mix-blend-mode:multiply">/,
+    );
+    const onlyBlend = record();
+    onlyBlend.paint.mixBlendMode = "luminosity";
+    expect(renderPseudoFragmentRecord(onlyBlend)).toContain(' style="mix-blend-mode:luminosity">');
+    // Normal and pre-capture trees (no field) stay unstyled.
+    for (const mode of ["normal", undefined]) {
+      const plain = record();
+      plain.paint.mixBlendMode = mode;
+      expect(renderPseudoFragmentRecord(plain)).not.toContain("mix-blend-mode");
+    }
+    // The isolated Chromium surface was painted over a transparent backdrop;
+    // its blend still applies against the real one.
+    const terminal = record();
+    terminal.status = "terminal-raster";
+    terminal.paint.mixBlendMode = "screen";
+    terminal.terminalRaster = {
+      dataUri: "data:image/png;base64,AAAA",
+      rect: { x: 7, y: 8, width: 9, height: 10 },
+      isolated: true,
+    };
+    expect(renderPseudoFragmentRecord(terminal)).toContain(
+      'data-domotion-pseudo-owner="chromium-raster" style="mix-blend-mode:screen"><image',
+    );
+  });
 });

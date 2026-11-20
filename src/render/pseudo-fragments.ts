@@ -582,6 +582,20 @@ export function pseudoFragmentPaintSlot(record: CapturedPseudoFragmentSet): Pseu
   return record.pseudo === "::after" ? "after" : "before";
 }
 
+/**
+ * The record's own blend mode. Blink puts it on the pseudo box's effect node
+ * (`state.blend_mode`, core/paint/paint_property_tree_builder.cc:2040, Chromium
+ * 7d859f27) and isolates it at the nearest CSS isolated group, which is a
+ * stacking context (`is_css_isolated_group`, same file :1774-1788). An SVG
+ * `<g style="mix-blend-mode">` composites its content as one group and blends
+ * it against the backdrop of the nearest isolated ancestor group, which the
+ * element renderer already opens for every isolating stacking context.
+ */
+function pseudoBlendMode(record: CapturedPseudoFragmentSet): string {
+  const mode = record.paint.mixBlendMode?.trim() ?? "";
+  return mode === "" || mode === "normal" ? "" : mode;
+}
+
 /** Render exactly one source-owned record, without any host-derived fallback. */
 export function renderPseudoFragmentRecord(
   record: CapturedPseudoFragmentSet,
@@ -597,7 +611,11 @@ export function renderPseudoFragmentRecord(
     const raster = record.terminalRaster;
     if (raster?.dataUri == null || !(raster.rect.width > 0) || !(raster.rect.height > 0))
       return `<g ${attrs} data-domotion-pseudo-boundary="terminal-empty"/>`;
-    const rasterMarkup = `<g ${attrs} data-domotion-pseudo-owner="chromium-raster"><image href="${esc(raster.dataUri)}" x="${r(raster.rect.x)}" y="${r(raster.rect.y)}" width="${r(raster.rect.width)}" height="${r(raster.rect.height)}" preserveAspectRatio="none"/></g>`;
+    // The isolated surface is painted over a transparent backdrop, where every
+    // blend mode reduces to source-over, so the blend still applies here.
+    const rasterBlend = pseudoBlendMode(record);
+    const rasterStyle = rasterBlend === "" ? "" : ` style="${esc(`mix-blend-mode:${rasterBlend}`)}"`;
+    const rasterMarkup = `<g ${attrs} data-domotion-pseudo-owner="chromium-raster"${rasterStyle}><image href="${esc(raster.dataUri)}" x="${r(raster.rect.x)}" y="${r(raster.rect.y)}" width="${r(raster.rect.width)}" height="${r(raster.rect.height)}" preserveAspectRatio="none"/></g>`;
     return (
       compensateEmittedCtm(rasterMarkup, options.emittedCtm) ??
       `<g ${attrs} data-domotion-pseudo-boundary="singular-emitted-ctm"/>`
@@ -654,11 +672,16 @@ export function renderPseudoFragmentRecord(
     const vectors = pieces.splice(vectorStart);
     pieces.push(`<g data-domotion-pseudo-vector-owner="source-fragments">${vectors.join("")}</g>`);
   }
+  const blend = pseudoBlendMode(record);
+  const effectStyle = [
+    record.paint.filter !== "" && record.paint.filter !== "none" ? `filter:${record.paint.filter}` : "",
+    blend === "" ? "" : `mix-blend-mode:${blend}`,
+  ]
+    .filter((part) => part !== "")
+    .join(";");
   const effectAttrs = [
     record.paint.opacity < 1 ? ` opacity="${r(record.paint.opacity)}"` : "",
-    record.paint.filter !== "" && record.paint.filter !== "none"
-      ? ` style="${esc(`filter:${record.paint.filter}`)}"`
-      : "",
+    effectStyle === "" ? "" : ` style="${esc(effectStyle)}"`,
   ].join("");
   const aria = label === "" ? "" : visualTextSemantics(label, false).attrs;
   const markup = `<g ${attrs} data-domotion-pseudo-owner="source-fragments"${aria}${effectAttrs}>${pieces.join("")}</g>`;

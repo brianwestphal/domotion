@@ -373,6 +373,7 @@ async function setupFrame(
                   opacity: number(style.opacity),
                   filter: style.filter,
                   backdropFilter: style.backdropFilter || style.getPropertyValue("-webkit-backdrop-filter") || "none",
+                  mixBlendMode: style.mixBlendMode || "normal",
                   transform: style.transform,
                   transformOrigin: style.transformOrigin,
                   ...(Number.isFinite(zIndex) ? { zIndex } : {}),
