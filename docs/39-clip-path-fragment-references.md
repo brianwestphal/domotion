@@ -17,6 +17,7 @@ tickets:
     "DM-302BYE",
     "DM-M6VWFD",
     "DM-CKS6JY",
+    "DM-JDJ0DP",
     "DM-N933MV",
     "DM-F19PYG",
     "DM-HSABGR",
@@ -194,23 +195,36 @@ One resource read is shared across consumers in the capture. The same Page
 retains stable private definition names between captures; existing IDs and
 local CSS references are excluded from allocation.
 
-The native-owner fallback refuses author-shadow documents (DM-CKS6JY). A
-public-CDP session with five-second setup/read and one-second query/cleanup
-bounds retains the actual owner object, original default
-execution context and document backend identity. A full pierced DOM tree must
-contain the same owner exactly once and no open or closed author shadow root,
-including empty roots or foreign hosts outside the selected ancestry. Browser-owned
-UA shadow trees are excluded. Pinned `InspectorDOMAgent::getDocument` builds the pierced shadow roots even when
-empty; `DidPushShadowRoot` emits events for fully requested hosts. Public
-topology/context events invalidate the proof
-during the screenshot, including roots inserted and removed before the final
-query. The same owner/document and tree are verified again before PNG adoption;
-unavailable coverage explicitly refuses and owned isolation is restored. This is
-a conservative refusal boundary, not author-shadow rendering support. The
-selected-root-only shadow fact used by inset-root admission does not authenticate
-foreign paint isolation. Native open/closed slotted and separate-host controls
-proved unrelated blue paint could enter the old selected-owner PNG while source
-paint remained unchanged; expected/captured witnesses are attached to DM-M6VWFD.
+The native-owner fallback isolates author-shadow documents through an
+authenticated per-scope authority (DM-JDJ0DP; it replaced the conservative
+author-shadow refusal of DM-CKS6JY). A public-CDP session with five-second
+setup/arm/read phases and one-second query/cleanup bounds retains the actual
+owner object, original default execution context and document backend identity.
+Before isolation it registers the main document's open and closed author roots,
+resolved by backend node from the full pierced tree into that context, so the
+isolation can reach closed trees. Isolation then walks the flat tree (slot
+assignment read from each root's own slots, since `assignedSlot` hides closed
+slots), checks every scope's elements, transitions and animations, and adopts
+one owned constructed copy of the hide/show rules into every author root, because
+a document sheet never matches inside a shadow tree. Arming re-verifies that the
+tree contains the owner exactly once and exactly the registered author roots;
+public topology/context events then invalidate the proof during the screenshot,
+including roots inserted and removed before the final query. The same
+owner/document/root set is verified again before PNG adoption. Restore removes
+each owned adopted sheet by identity and reports a changed author list.
+
+Still refused: author roots inside embedded documents, an owner whose subtree
+hosts an author root, an owner outside the flat tree, and any author cascade
+(for example an inner-scope `!important`, which wins over the outer hide per
+`cascade_priority.h:29-38`, Chromium 7d859f27) that leaves foreign paint visible.
+Browser-owned UA shadow trees are excluded. Pinned `InspectorDOMAgent::getDocument`
+builds the pierced shadow roots even when empty; `DidPushShadowRoot` emits events
+for fully requested hosts. Unavailable coverage explicitly refuses and owned
+isolation is restored. The selected-root-only shadow fact used by inset-root
+admission does not authenticate foreign paint isolation. Native open/closed
+slotted and separate-host controls had proved unrelated blue paint could enter
+the pre-guard selected-owner PNG; the per-scope authority now reproduces the flat
+document's PNG byte for byte in those shapes (doc 278).
 
 Chromium can paint an SVG resource even when CSP `connect-src` denies a new
 fetch. DM-302BYE preserves that paint through `externalCssSvgRaster`: a private

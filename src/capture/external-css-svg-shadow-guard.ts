@@ -18,14 +18,74 @@ async function bounded<T>(work: Promise<T>, timeout = 1000): Promise<T> {
   }
 }
 
+/** The structural subset of a pierced `DOM.Node` this guard reads. */
+export interface TreeNode {
+  backendNodeId: number;
+  shadowRootType?: string;
+  shadowRoots?: TreeNode[];
+  children?: TreeNode[];
+  contentDocument?: TreeNode;
+}
+
+/** At most this many author roots are registered for one isolation. */
+const AUTHOR_ROOT_BUDGET = 256;
+
+/** The owner's occurrence count and the main document's author roots, in tree order.
+ * Author roots inside embedded documents refuse: this fallback has no authenticated
+ * foreign-frame visibility isolation contract. */
+export function authorTopology(root: TreeNode, ownerBackend: number | undefined): { owners: number; roots: number[] } {
+  let owners = 0;
+  const roots: number[] = [];
+  const visit = (node: TreeNode, embedded: boolean): void => {
+    if (node.backendNodeId === ownerBackend) owners++;
+    for (const shadow of node.shadowRoots ?? []) {
+      if (shadow.shadowRootType !== "user-agent") {
+        if (embedded)
+          throw new Error("external CSS native isolation has unsupported author-shadow paint in an embedded document");
+        roots.push(shadow.backendNodeId);
+      }
+      visit(shadow, embedded);
+    }
+    for (const child of node.children ?? []) visit(child, embedded);
+    if (node.contentDocument != null) visit(node.contentDocument, true);
+  };
+  visit(root, false);
+  return { owners, roots };
+}
+
+/** Registers the actual author roots in the private journal. `this` is the bound owner;
+ * every argument after the identity is a ShadowRoot resolved from a backend node. */
+const registerAuthorRoots = `function(key, token, ownerToken, ...roots) {
+  const state = globalThis[key];
+  if (state == null || state.token !== token || state.isolation != null) throw new Error("journal");
+  const selected = [...state.rasterOwners].filter(([, value]) => value.token === ownerToken);
+  if (selected.length !== 1 || selected[0][0] !== this) throw new Error("owner");
+  if (
+    new Set(roots).size !== roots.length ||
+    roots.some((root) => !(root instanceof ShadowRoot) || root.host.getRootNode({ composed: true }) !== document)
+  )
+    throw new Error("root");
+  state.authorShadowRoots = roots;
+  return roots.length;
+}`;
+
 /** A retained remote owner and original document, never a transferable topology boolean.
- * InspectorDOMAgent's pierced tree includes empty/open/closed author roots. DOM events
+ * InspectorDOMAgent's pierced tree includes empty/open/closed author roots
+ * (`BuildObjectForNode` pushes every `GetShadowRoot()`, inspector_dom_agent.cc:2375-2381
+ * at Chromium 7d859f27). The main document's author roots are resolved by backend node
+ * into the journal's own default context (`resolveNode`, :1886-1917) and registered so
+ * isolation can reach closed trees.
+ *
+ * Open the guard before isolation and `arm()` it after: arming re-verifies the owner,
+ * the document and the exact author-root set, and DOM topology events from then on
  * invalidate the lease even if a late root is removed before the final tree query.
  * UA trees are browser-owned and do not grant author paint a separate CSS scope. */
 export async function openCssSvgShadowGuard(
   page: Page,
   identity: Identity,
 ): Promise<{
+  /** Re-verifies topology and starts invalidating on DOM topology events. */
+  arm(): Promise<void>;
   verify(): Promise<void>;
   dispose(): Promise<void>;
 }> {
@@ -34,6 +94,8 @@ export async function openCssSvgShadowGuard(
   let objectId: string | undefined;
   let ownerBackend: number | undefined;
   let documentBackend: number | undefined;
+  /** Backend IDs of the registered main-document author roots. */
+  let registered: Set<number> | undefined;
   let context: { id: number; uniqueId: string } | undefined;
   let armed = false;
   let changed = false;
@@ -99,20 +161,16 @@ export async function openCssSvgShadowGuard(
         tree.root.backendNodeId !== documentBackend
       )
         throw new Error("external CSS shadow source owner/document changed");
-      let owners = 0;
-      const visit = (node: typeof tree.root): void => {
-        if (node.backendNodeId === ownerBackend) owners++;
-        for (const shadow of node.shadowRoots ?? []) {
-          if (shadow.shadowRootType !== "user-agent")
-            throw new Error("external CSS native isolation has unsupported author-shadow document paint");
-        }
-        for (const child of node.children ?? []) visit(child);
-        // Refuse author contexts inside embedded documents too: this fallback has
-        // no authenticated foreign-frame visibility isolation contract.
-        if (node.contentDocument != null) visit(node.contentDocument);
-      };
-      visit(tree.root);
-      if (owners !== 1 || changed) throw new Error("external CSS shadow ownership changed or unavailable");
+      const { owners, roots } = authorTopology(tree.root, ownerBackend);
+      const expected = registered;
+      if (
+        owners !== 1 ||
+        changed ||
+        expected == null ||
+        roots.length !== expected.size ||
+        roots.some((root) => !expected.has(root))
+      )
+        throw new Error("external CSS shadow ownership changed or unavailable");
     }
     // Candidate remote handles remain owned by this session until detach. A
     // separate release failure must not replace the original proof error.
@@ -182,10 +240,43 @@ export async function openCssSvgShadowGuard(
     if (selected.exceptionDetails != null || objectId == null)
       throw new Error("external CSS shadow source owner identity unavailable");
     ownerBackend = (await query(session.send("DOM.describeNode", { objectId }))).node.backendNodeId;
-    documentBackend = (await query(session.send("DOM.getDocument", { depth: -1, pierce: true }))).root.backendNodeId;
+    const tree = await query(session.send("DOM.getDocument", { depth: -1, pierce: true }));
+    documentBackend = tree.root.backendNodeId;
+    const roots = authorTopology(tree.root, ownerBackend).roots;
+    if (roots.length > AUTHOR_ROOT_BUDGET)
+      throw new Error("external CSS native isolation author-shadow budget exceeded");
+    const resolved: string[] = [];
+    for (const backendNodeId of roots) {
+      const remote = await query(session.send("DOM.resolveNode", { backendNodeId, executionContextId: context.id }));
+      if (remote.object.objectId == null) throw new Error("external CSS shadow author root identity unavailable");
+      resolved.push(remote.object.objectId);
+    }
+    const registration = await query(
+      session.send("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: registerAuthorRoots,
+        arguments: [
+          { value: identity.key },
+          { value: identity.token },
+          { value: identity.ownerToken },
+          ...resolved.map((root) => ({ objectId: root })),
+        ],
+        returnByValue: true,
+        silent: true,
+      }),
+    );
+    if (registration.exceptionDetails != null || registration.result.value !== roots.length)
+      throw new Error("external CSS shadow author root registration unavailable");
+    registered = new Set(roots);
     await verify();
-    armed = true;
-    return { verify, dispose };
+    const arm = async (): Promise<void> => {
+      if (armed) throw new Error("external CSS shadow ownership guard already armed");
+      // Arming is its own five-second phase, after the caller's isolation work.
+      deadline = Date.now() + 5000;
+      await verify();
+      armed = true;
+    };
+    return { arm, verify, dispose };
   } catch (error) {
     try {
       await dispose();

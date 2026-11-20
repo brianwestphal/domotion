@@ -36,7 +36,7 @@ reusing the reference identifier/string decoders and shared URL argument reader.
   `blink-url-fragment.ts` gives it Blink's decoded external fragment IDs.
   `external-css-svg-raster.ts` preserves selected native CSS resource paint when
   resource bytes are unavailable, with bounded isolation and exact ownership. Its public-CDP
-  `external-css-svg-shadow-guard.ts` refuses author-shadow documents and retains
+  `external-css-svg-shadow-guard.ts` registers the main document's open/closed author roots for per-scope isolation and retains
   owner/document identities through native readback.
   `capture/debug-bundle.ts` owns the filesystem-neutral in-memory reproduction
   artifacts used by programmatic capture callers; CLI directory conventions

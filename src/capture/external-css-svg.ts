@@ -64,6 +64,9 @@ export interface ExternalCssSvgJournal {
   hostMarkup: string | null;
   rasterOwners: Map<Element, { token: string; properties: Array<{ property: Property; computed: string }> }>;
   isolation?: CssSvgIsolation;
+  /** The main document's open and closed author roots, registered by the
+   * native-paint ownership guard from its pierced CDP tree for one isolation. */
+  authorShadowRoots?: ShadowRoot[];
 }
 type Journal = ExternalCssSvgJournal;
 interface SwappedTarget {

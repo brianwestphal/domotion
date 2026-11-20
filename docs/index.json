@@ -1137,6 +1137,7 @@
           "DM-302BYE",
           "DM-M6VWFD",
           "DM-CKS6JY",
+          "DM-JDJ0DP",
           "DM-N933MV",
           "DM-F19PYG",
           "DM-HSABGR",
@@ -6410,7 +6411,7 @@
         "status": "current",
         "owners": ["images-media", "paint-effects"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-302BYE", "DM-M6VWFD", "DM-CKS6JY"],
+        "tickets": ["DM-302BYE", "DM-M6VWFD", "DM-CKS6JY", "DM-JDJ0DP"],
         "code": [
           "src/capture/external-css-svg.ts",
           "src/capture/external-css-svg-raster.ts",
