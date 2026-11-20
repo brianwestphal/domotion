@@ -54,7 +54,7 @@ describe("discrete font-family keyframe choice (DM-ZAXD0C)", () => {
     expect(chooseFamilyKeyframe(end, 1)).toMatchObject({ value: "B" });
     expect(chooseFamilyKeyframe(end, 0.9)).toMatchObject({ value: "initial" });
   });
-  it("drops interior keyframes sharing an offset with both neighbours", () => {
+  it("drops interior keyframes sharing an offset with both neighbors", () => {
     const frames = withSyntheticFamilyKeyframes(
       [kf(0, "A"), kf(0.5, "B"), kf(0.5, "C"), kf(0.5, "D"), kf(1, "E")],
       "linear",

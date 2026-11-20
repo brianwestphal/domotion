@@ -16,7 +16,7 @@
  * - Synthetic neutral boundary keyframes: `AddSyntheticKeyframeIfRequired`
  *   (`keyframe_effect_model.cc:846-864`) and the zero-offset easing chosen in
  *   `EnsureKeyframeGroups` (`:509-553`); interior keyframes sharing an offset
- *   with both neighbours are dropped by `RemoveRedundantKeyframes` (`:694-711`).
+ *   with both neighbors are dropped by `RemoveRedundantKeyframes` (`:694-711`).
  * - Local fraction and per-keyframe easing: `InterpolationEffect::GetActiveInterpolations`
  *   (`core/animation/interpolation_effect.cc:27-41`), evaluated with
  *   `gfx::CubicBezier` / `StepsTimingFunction::GetValue` / `LinearTimingFunction`
