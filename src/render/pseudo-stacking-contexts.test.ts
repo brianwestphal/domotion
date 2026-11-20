@@ -124,3 +124,34 @@ describe("positioned generated paint context ownership", () => {
     expect(plan.unavailable[0].reason).toContain("native layer order");
   });
 });
+
+describe("non-positioned stacked generated boxes (DM-SC2P4R)", () => {
+  it("admits a native stacking-context record at EffectiveZIndex 0 outside flex/grid", () => {
+    const host = owner({ position: "static" });
+    record(host).paint.position = "static";
+    record(host).paint.zIndex = 5;
+    record(host).paint.stackingContext = true;
+    const plan = collectPseudoStackingContexts([host]);
+    expect(plan.managed.has(record(host))).toBe(true);
+    const [entry] = plan.contexts.get(null)!;
+    expect(entry.paint.zIndex).toBe(0);
+    // The captured record itself is not rewritten.
+    expect(record(host).paint.zIndex).toBe(5);
+  });
+
+  it("keeps the authored z-index for a flex/grid item", () => {
+    const host = owner({ position: "static", display: "flex" });
+    record(host).paint.position = "static";
+    record(host).paint.zIndex = -1;
+    record(host).paint.stackingContext = true;
+    const [entry] = collectPseudoStackingContexts([host]).contexts.get(null)!;
+    expect(entry.paint.zIndex).toBe(-1);
+  });
+
+  it("leaves unflagged non-positioned records host-local", () => {
+    const host = owner({ position: "static" });
+    record(host).paint.position = "static";
+    record(host).paint.zIndex = 5;
+    expect(collectPseudoStackingContexts([host]).managed.size).toBe(0);
+  });
+});

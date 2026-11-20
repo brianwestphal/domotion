@@ -98,6 +98,7 @@ interface SnapshotDocument {
     bounds: number[][];
     text: number[];
     paintOrders?: number[];
+    stackingContexts?: { index: number[] };
   };
   textBoxes: { layoutIndex: number[]; bounds: number[][]; start: number[]; length: number[] };
 }
@@ -514,6 +515,32 @@ function snapshotRows(snapshot: SnapshotResult, backendNodeId: number): Snapshot
     return rows;
   }
   return [];
+}
+
+/**
+ * Native stacking-context fact for a pseudo's own box. A generated node maps to
+ * several layout rows (its box, then anonymous content children); only the
+ * first row is the pseudo's LayoutObject, whose containment eligibility differs
+ * from the anonymous children's (`contain:paint` flags the box alone).
+ */
+export function snapshotPseudoStackingContext(
+  snapshot: {
+    documents: Array<{
+      nodes: { backendNodeId?: number[] };
+      layout: { nodeIndex: number[]; stackingContexts?: { index: number[] } };
+    }>;
+  },
+  backendNodeId: number,
+): boolean | undefined {
+  for (const document of snapshot.documents) {
+    const nodeIndex = document.nodes.backendNodeId?.indexOf(backendNodeId) ?? -1;
+    if (nodeIndex < 0) continue;
+    const boxRow = document.layout.nodeIndex.indexOf(nodeIndex);
+    const flags = document.layout.stackingContexts?.index;
+    if (boxRow < 0 || flags == null) return undefined;
+    return flags.includes(boxRow);
+  }
+  return undefined;
 }
 
 function unionSnapshotBounds(
@@ -1565,6 +1592,9 @@ export async function preparePseudoFragmentGeometry(
               feature: FEATURE,
               detail: `${reason}; retained one isolated Chromium-painted pseudo surface`,
             });
+          }
+          if (snapshotPseudoStackingContext(snapshot, candidate.backendNodeId) === true) {
+            record = { ...record, paint: { ...record.paint, stackingContext: true } };
           }
           if (record.status === "exact") {
             const representations = pseudoBitmapRepresentations(record);
