@@ -590,7 +590,8 @@
           "DM-R4Y02H",
           "DM-JS8CWX",
           "DM-Z869QZ",
-          "DM-DPK3T8"
+          "DM-DPK3T8",
+          "DM-BFRCZ6"
         ],
         "code": [
           "src/capture/replaced-element-raster.ts",

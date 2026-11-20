@@ -19,6 +19,7 @@ tickets:
     "DM-JS8CWX",
     "DM-Z869QZ",
     "DM-DPK3T8",
+    "DM-BFRCZ6",
   ]
 code:
   [
@@ -250,12 +251,29 @@ opened during a capture are not exposed. A shipped capture is exposed only
 when it is the first capture of a fresh browser's first page and nothing
 before it has waited for a frame.
 
-Two shipped sites take that capture: `svg-review`'s rasterization of the
-actual SVG (`src/cli/review.ts`) and `domotion capture --debug`'s
-`expected.png`, taken before the capture script (`src/cli/capture.ts`). Both
-call `waitForPresentedFrame(page)` first. That is a bounded two-frame wait of
-at most 5 s, enforced from Node as well as in the page.
-`tests/presented-frame-production-policy.test.ts` holds both sites to it.
+The library capture API was measured the same way, with `launchChromium`,
+`setContent` with native controls and an emoji, and an immediate call:
+
+| call                                              | failures                                                           |
+| ------------------------------------------------- | ------------------------------------------------------------------ |
+| `captureElementTreeWithWarnings`                  | 0 / 1,500 (no rejected screenshot among 13,500)                    |
+| `captureElementTreeWithDebug`                     | 2 / 1,500 (both on its stable-frame screenshot, its first capture) |
+| `captureElementTreeWithWarnings` after two frames | 0 / 1,500                                                          |
+
+Three shipped sites take that capture:
+
+- `svg-review`'s rasterization of the actual SVG (`src/cli/review.ts`);
+- `domotion capture --debug`'s `expected.png`, taken before the capture
+  script (`src/cli/capture.ts`);
+- `captureElementTreeWithDebug`'s stable-frame screenshot
+  (`src/capture/index.ts`).
+
+Each calls `waitForPresentedFrame(page)` first. That is a bounded two-frame
+wait of at most 5 s, enforced from Node as well as in the page. The debug API
+skips the wait when a virtual `rafClock` drives the capture, because that
+clock replaces `requestAnimationFrame` and the wait could only time out.
+`tests/presented-frame-production-policy.test.ts` holds all three sites to
+it.
 
 ## Transform, clip, and device-pixel spaces
 

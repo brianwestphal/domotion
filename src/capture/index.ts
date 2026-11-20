@@ -35,6 +35,7 @@ import { withRenderWarningSink } from "../render/render-warn.js";
 import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.js";
 import { captureImageFontHinting, recordBrowserFontEnvironment } from "./image-font-hinting.js";
 import { awaitGpuFeatureInfo } from "./gpu-startup-barrier.js";
+import { waitForPresentedFrame } from "./presented-frame.js";
 import { browserRunsSingleProcess } from "./single-process-browser.js";
 import { warnLostCanvasContexts } from "./lost-canvas-contexts.js";
 import { captureImageSvgSupports } from "./image-svg-supports.js";
@@ -2190,6 +2191,14 @@ export async function captureElementTreeWithDebug(
 ): Promise<CaptureElementTreeDebugResult> {
   let expectedPng: Uint8Array | undefined;
   const result = await captureElementTreeWithWarningsInternal(page, selector, viewport, opts, async () => {
+    // This is usually the page's first capture. On a just-launched browser it
+    // can run before the renderer has presented a frame, and the DevTools
+    // surface copy then comes back empty ("Unable to capture screenshot"):
+    // measured on hosted macOS at 2 of 1,500 immediate debug captures, with
+    // 0 of 1,500 after two animation frames (presented-frame.ts). A capture
+    // driven by a virtual rAF clock has replaced requestAnimationFrame, so the
+    // wait would only run to its deadline; that path is left unchanged.
+    if (opts?.rafClock == null) await waitForPresentedFrame(page);
     expectedPng = await page.screenshot({
       clip: viewport,
       omitBackground: false,
