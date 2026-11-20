@@ -252,12 +252,34 @@ and 1 worsens:
 The 31-deep-inert-hidden change is a worse diffPct even though the total absolute
 error over its changed pixels fell from 52045 to 11824.
 
-Not covered:
+Not covered: tiled gradients (`background-size` smaller than the box) are off
+even at integral positions; that is the separate repeat-tiling gap.
 
-- Tiled gradients (`background-size` smaller than the box) are off even at
-  integral positions; that is the separate repeat-tiling gap.
-- A background color does not honor `background-clip: padding-box`/`content-box`;
-  that is pre-existing and unrelated to snapping (DM-NXDNGQ).
+### Background color and the bottom layer's clip (DM-NXDNGQ)
+
+The color belongs to the bottom FillLayer, so it fills that layer's clip box
+(`PaintFillLayer`, `box_painter_base.cc:1456-1551`). Border widths enter as
+integers (`ComputeSnappedBorders`, `:1339-1345`, `ToInt` truncation) and padding
+as LayoutUnits. The renderer used to fill the border box whatever the clip, so a
+padding-box color under a 3px translucent border differed at 276 pixels, even at
+an integral position. `backgroundColorClipBox` in `element-tree-to-svg.ts`
+handles the two cases Blink distinguishes:
+
+- **Sharp fill** (`:1539-1550`): the paint rect contracted by the insets, then
+  `ToPixelSnappedRect`, so each inset edge rounds in local paint space
+  (`snappedInsetBox`).
+- **Rounded fill** (`ContouredBorderRectForClip`, `:1201-1248`): the snapped
+  border contour, then `PixelSnappedContouredInnerBorder` /
+  `PixelSnappedContouredBorderWithOutsets` of that already-snapped rect. The
+  insets therefore round on their own, and the radii shrink by the insets.
+
+Snapped colors are written with three decimals, because inset radii such as
+5.75px lost up to 0.05px in the one-decimal format.
+
+Sharp padding-box and content-box cases are byte-exact native controls. The
+rounded ones match geometrically and keep a small alpha residual (max 13 where
+the inner rrect meets a translucent border's anti-aliased inner edge, 2 without
+a border), the rounded-contour coverage residual tracked separately.
 
 ## Normal-shadow spread radii
 

@@ -43,6 +43,25 @@ it.each([
     name: "content-box gradient",
     own: "background:linear-gradient(red,blue) content-box;padding:2.25px;margin:20.5px",
   },
+  // The color fills the bottom layer's clip box: border widths as integers,
+  // padding as LayoutUnits, contracted and then snapped (box_painter_base.cc
+  // :1339-1345, 1539-1550).
+  {
+    name: "padding-box color at an integral origin",
+    own: "background:red padding-box;border:3px solid rgba(0,0,255,.3);margin:20px",
+  },
+  {
+    name: "padding-box color at a half-pixel origin",
+    own: "background:red padding-box;border:3px solid rgba(0,0,255,.3);margin:20.5px",
+  },
+  {
+    name: "content-box color with fractional padding",
+    own: "background:red content-box;padding:2.25px;border:3px solid rgba(0,0,255,.3);margin:20.25px",
+  },
+  {
+    name: "padding-box color under a transparent border",
+    own: "background:red padding-box;border:4px solid transparent;margin:20.5px",
+  },
   { name: "positioned image", own: `background:${svgImage(10, 10, "10")} no-repeat 2px 3px;margin:20.5px` },
   { name: "repeated image", own: `background:${svgImage(7, 7, "4")};margin:20.5px` },
   { name: "covering image", own: `background:${svgImage(10, 5, "5")} center/cover;margin:20.25px 20.75px` },
@@ -58,6 +77,44 @@ it.each([
       "<style>body{margin:0}</style>" + elementTreeToSvg(await captureElementTree(page, "body", viewport), 100, 100),
     );
     expect(await rgba(await output.screenshot({ omitBackground: true }))).toEqual(source);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
+
+// Rounded clips follow ContouredBorderRectForClip (box_painter_base.cc
+// :1201-1248): the snapped contour inset by integer-rounded insets, radii
+// shrunk by the insets. Geometry matches; the remaining small alpha deltas sit
+// on the arc where the inner rrect meets the border's antialiased inner edge
+// (the rounded-contour coverage residual tracked separately). Before the clip
+// was honored these cases differed by the whole border ring (max alpha 178).
+it.each([
+  {
+    name: "rounded padding-box color",
+    own: "background:red padding-box;border:3px solid rgba(0,0,255,.3);border-radius:8px;margin:20.5px",
+    maxAlpha: 13,
+  },
+  {
+    name: "rounded content-box color",
+    own: "background:red content-box;padding:2.25px;border-radius:8px;margin:20.25px",
+    maxAlpha: 2,
+  },
+])("clips a $name to the inset contour", async ({ own, maxAlpha }) => {
+  const page = await browser.newPage({ viewport }),
+    output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      `<style>body{margin:0}#only{width:20px;height:20px;${own}}</style><div><div id="only"></div></div>`,
+    );
+    const source = await rgba(await page.screenshot({ omitBackground: true }));
+    await output.setContent(
+      "<style>body{margin:0}</style>" + elementTreeToSvg(await captureElementTree(page, "body", viewport), 100, 100),
+    );
+    const actual = await rgba(await output.screenshot({ omitBackground: true }));
+    let worst = 0;
+    for (let i = 3; i < source.length; i += 4) worst = Math.max(worst, Math.abs(source[i] - actual[i]));
+    expect(worst).toBeLessThanOrEqual(maxAlpha);
   } finally {
     await page.close();
     await output.close();

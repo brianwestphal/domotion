@@ -74,7 +74,15 @@ import {
 export { buildMaskDef, maskPaintAreas, positionFragmentMaskDef, rewriteFragmentMaskDef } from "./mask.js";
 export { resolveMaskContainCoverRect, resolveMaskPosition, resolveMaskPositionAxis } from "./mask-position.js";
 import { parseColor, colorStr, INVISIBLE_ALPHA, type RGBA } from "./colors.js";
-import { parseCornerRadii, insetCornerRadii, roundedRectSvg, injectSvgSize, type CornerRadii } from "./borders.js";
+import {
+  authenticBorderPaintSnap,
+  parseCornerRadii,
+  insetCornerRadii,
+  roundedRectSvg,
+  injectSvgSize,
+  snappedInsetBox,
+  type CornerRadii,
+} from "./borders.js";
 import { parseBoxShadow } from "./box-shadow.js";
 import {
   capturedBoxRespectsCssOverflow,
@@ -781,9 +789,13 @@ function paintBackgroundColor(
     // the rounded fast path PixelSnappedContouredBorder
     // (core/paint/box_painter_base.cc:1056-1058, 1213-1214, 1265, Chromium
     // 7d859f27) — in local paint space, hence the authenticated snap record.
-    const box = snappedBackgroundBox(el, corners);
+    const box = backgroundColorClipBox(el, corners);
+    if (box.width <= 0 || box.height <= 0) return out;
+    // Snapped edges and inset radii are exact LayoutUnit values (5.75, x.25);
+    // the default one-decimal format would move them, so keep three decimals.
+    const fmt = authenticBorderPaintSnap(el) == null ? r : (n: number) => formatNumberLoose(n, 3);
     out.push(
-      `${indent}${roundedRectSvg(box.x, box.y, box.width, box.height, box.corners, `fill="${colorStr(bgColor)}"`)}`,
+      `${indent}${roundedRectSvg(box.x, box.y, box.width, box.height, box.corners, `fill="${colorStr(bgColor)}"`, fmt)}`,
     );
   }
   return out;
@@ -863,6 +875,52 @@ function paintDocumentCanvas(state: RenderState, elements: CapturedElement[], wi
     svgParts.length = start;
     svgParts.push(`<g style="isolation:isolate">\n${stack}\n</g>`);
   }
+}
+
+/**
+ * The area the background color fills: the bottom FillLayer's clip box
+ * (`BoxPainterBase::PaintFillLayer`, core/paint/box_painter_base.cc:1456-1551,
+ * Chromium 7d859f27). Border widths enter as integers (`ComputeSnappedBorders`,
+ * :1339-1345, `ToInt` truncation), padding as LayoutUnits.
+ * - Sharp fills clip to `ToPixelSnappedRect` of the paint rect contracted by
+ *   those insets (:1539-1550): each inset edge rounds in local paint space.
+ * - Rounded fills use `ContouredBorderRectForClip` (:1201-1248): the snapped
+ *   border contour, then `PixelSnappedContouredInnerBorder` /
+ *   `PixelSnappedContouredBorderWithOutsets` of that already snapped rect, so
+ *   the insets round on their own, and the radii shrink by the insets.
+ */
+function backgroundColorClipBox(
+  el: CapturedElement,
+  corners: CornerRadii,
+): { x: number; y: number; width: number; height: number; corners: CornerRadii } {
+  const image = el.styles.backgroundImage;
+  const layerCount = image == null || image === "" || image === "none" ? 0 : splitTopLevelCommas(image).length;
+  const clip = paintClipForLayer(el.styles.backgroundClip, Math.max(0, layerCount - 1));
+  const outer = snappedBackgroundBox(el, corners);
+  if (clip !== "padding-box" && clip !== "content-box") return outer;
+  const px = (value: string | undefined) => parseFloat(value ?? "0") || 0;
+  const content = clip === "content-box";
+  const insets = {
+    top: Math.trunc(px(el.styles.borderTopWidth)) + (content ? px(el.styles.paddingTop) : 0),
+    right: Math.trunc(px(el.styles.borderRightWidth)) + (content ? px(el.styles.paddingRight) : 0),
+    bottom: Math.trunc(px(el.styles.borderBottomWidth)) + (content ? px(el.styles.paddingBottom) : 0),
+    left: Math.trunc(px(el.styles.borderLeftWidth)) + (content ? px(el.styles.paddingLeft) : 0),
+  };
+  const rounded = [corners.tl, corners.tr, corners.br, corners.bl].some((corner) => corner.h > 0 || corner.v > 0);
+  const innerCorners = insetCornerRadii(outer.corners, insets.top, insets.right, insets.bottom, insets.left);
+  if (!rounded) {
+    const box = snappedInsetBox(el, insets);
+    return { ...box, width: Math.max(0, box.width), height: Math.max(0, box.height), corners: innerCorners };
+  }
+  // Rounded: inset the snapped contour, rounding each inset on its own when the
+  // contour is authentic (its edges are then whole local pixels).
+  const snapped = authenticBorderPaintSnap(el) != null;
+  const inset = (value: number) => (snapped ? Math.round(value) : value);
+  const x = outer.x + inset(insets.left),
+    y = outer.y + inset(insets.top);
+  const right = outer.x + outer.width - (snapped ? -Math.round(-insets.right) : insets.right);
+  const bottom = outer.y + outer.height - (snapped ? -Math.round(-insets.bottom) : insets.bottom);
+  return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y), corners: innerCorners };
 }
 
 /** Blink associates background-color with the bottom FillLayer. Therefore the
