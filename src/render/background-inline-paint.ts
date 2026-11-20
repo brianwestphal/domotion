@@ -58,6 +58,9 @@ export function paintBackgroundImageLayers(
   captureViewport: { w: number; h: number },
   buildBackgroundLayerDef: BackgroundLayerBuilder,
   backgroundColorClipsToText: BackgroundColorClipsToText,
+  /** The document canvas paints its propagated layers over the whole canvas
+   * while positioning them against the root box (`el`). */
+  paintingAreaOverride?: { x: number; y: number; width: number; height: number },
 ): {
   fills: string[];
   fragmentFills: (string[] | null)[];
@@ -148,12 +151,13 @@ export function paintBackgroundImageLayers(
         width: originBox.w,
         height: originBox.h,
       };
-      const paintingBox = attachmentGeometry?.paintingBox ?? {
-        x: clipBox.x,
-        y: clipBox.y,
-        width: clipBox.w,
-        height: clipBox.h,
-      };
+      const paintingBox = paintingAreaOverride ??
+        attachmentGeometry?.paintingBox ?? {
+          x: clipBox.x,
+          y: clipBox.y,
+          width: clipBox.w,
+          height: clipBox.h,
+        };
       const defId = ctx.nextClipId("bg");
       // Pattern is positioned + sized relative to the origin box (where the image starts)
       // then painted into a rect clipped to the clip box. For fixed attachment
