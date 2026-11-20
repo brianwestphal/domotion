@@ -4,7 +4,7 @@ import { privateCaptureKey } from "./private-key.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { matchedFamilyIsUnambiguouslyAuthored, type MatchedFamilyDeclarations } from "./font-family-declarations.js";
 import { familyDomRecords, nativeFontFamilyType, type FamilyDomNode } from "./font-family-cascade-cdp.js";
-import { computedFontLocaleLanguage } from "./font-locale.js";
+import { computedFontLocaleLanguage, isAutoFontLocale } from "./font-locale.js";
 import { fontLocaleMatchesCapturedLanguage, type ProvenFamilyType } from "./font-family-cascade.js";
 import { withTimeout } from "../utils/with-timeout.js";
 import type { CaptureWarning } from "./types.js";
@@ -66,10 +66,34 @@ const collectCandidates = String.raw`function(literalOnly) {
   return candidates;
 }`;
 
-/** Supplement known CSSOM author facts only for opaque-sheet initial-name candidates. */
+/**
+ * Can the renderer route a proven standard family type with the locale Blink
+ * selects with? `FontSelector::FamilyNameFromSettings` reads the script of
+ * `FontDescription::LocaleOrDefault()` (Chromium 7d859f27), so the renderer must
+ * resolve that same locale: an explicit computed `-webkit-locale` string; for
+ * `auto` (a null locale, i.e. `LayoutLocale::GetDefault()`), the authenticated
+ * renderer default, which capture records beside every computed `auto` locale;
+ * otherwise only when the DOM-language compatibility route coincides.
+ */
+export function standardFamilyLocaleRoutable(
+  fontLocale: string | undefined,
+  language: string | undefined,
+  defaultFontLocale: string | undefined,
+): boolean {
+  return (
+    computedFontLocaleLanguage(fontLocale) !== undefined ||
+    (defaultFontLocale != null && isAutoFontLocale(fontLocale)) ||
+    fontLocaleMatchesCapturedLanguage(fontLocale, language)
+  );
+}
+
+/** Supplement known CSSOM author facts only for opaque-sheet initial-name candidates.
+ * `defaultFontLocale` is the authenticated renderer default font locale
+ * (`renderer-default-locale.ts`); capture must annotate the tree with the same
+ * value whenever it is passed here. */
 export async function captureFontFamilyDeclarationFacts(
   page: Page,
-  options: { literalOnly?: boolean } = {},
+  options: { literalOnly?: boolean; defaultFontLocale?: string } = {},
 ): Promise<{
   propertyKey: string;
   warnings: CaptureWarning[];
@@ -238,12 +262,11 @@ export async function captureFontFamilyDeclarationFacts(
                     provenance.type = native.resolution.type;
                     provenance.usable =
                       provenance.type !== "standard" ||
-                      computedFontLocaleLanguage(native.fontLocale) !== undefined ||
-                      fontLocaleMatchesCapturedLanguage(native.fontLocale, language);
+                      standardFamilyLocaleRoutable(native.fontLocale, language, options.defaultFontLocale);
                     if (!provenance.usable)
                       report(
                         new Error(
-                          "standard family type cannot use the captured DOM language for this computed font locale (DM-PJG8E9)",
+                          "standard family type cannot use the captured DOM language for this computed font locale, and the renderer default font locale is unauthenticated (DM-PJG8E9)",
                         ),
                       );
                   } else if (!authored)
@@ -292,8 +315,7 @@ export async function captureFontFamilyDeclarationFacts(
                         language,
                         usable:
                           nativePseudo.resolution.type !== "standard" ||
-                          computedFontLocaleLanguage(nativePseudo.fontLocale) !== undefined ||
-                          fontLocaleMatchesCapturedLanguage(nativePseudo.fontLocale, language),
+                          standardFamilyLocaleRoutable(nativePseudo.fontLocale, language, options.defaultFontLocale),
                       };
                     else if (!authoredPseudos.includes(pseudo.pseudoType))
                       report(

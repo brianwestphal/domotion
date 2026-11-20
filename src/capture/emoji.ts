@@ -38,6 +38,7 @@ import {
 import { selectedGlyphRasterSpans } from "../render/text-to-path.js";
 import { capturedTextSegmentFontFeatures, parseFontVariationSettings } from "../render/text.js";
 import { capturedFontFamilyCss } from "../font-family-stack.js";
+import { fontSelectionLanguage } from "./font-locale.js";
 
 const APPLE_COLOR_EMOJI_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
 
@@ -385,7 +386,7 @@ function segmentCandidates(text: string): Array<{ start: number; end: number }> 
   return out;
 }
 
-function selectedRasterSpansForSegment(
+export function selectedRasterSpansForSegment(
   el: CapturedElement,
   seg: RasterTextSeg,
   spans: Array<{ start: number; end: number }>,
@@ -399,7 +400,9 @@ function selectedRasterSpansForSegment(
     fontWeight: seg.fontWeight ?? el.styles.fontWeight,
     fontStyle: seg.fontStyle ?? el.styles.fontStyle,
     fontStretch: el.styles.fontStretch,
-    lang: el.styles.lang,
+    // Same selection language as glyph emission: explicit computed locale,
+    // the renderer default for `auto`, then DOM language.
+    lang: fontSelectionLanguage(el.styles),
     variationSettings: parseFontVariationSettings(el.styles.fontVariationSettings),
     features: capturedTextSegmentFontFeatures(el, seg),
     fontVariantEmoji:

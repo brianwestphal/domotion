@@ -1320,7 +1320,10 @@ async function isolatePseudoSurface(
   }
 }
 
-function pseudoBitmapRepresentations(record: CapturedPseudoFragmentSet): string[] {
+/** `defaultFontLocale` is the authenticated renderer default that capture
+ * later records on `auto` pseudo typography; select with it now so the raster
+ * boundary matches the renderer's glyph emission. */
+export function pseudoBitmapRepresentations(record: CapturedPseudoFragmentSet, defaultFontLocale?: string): string[] {
   if (record.status !== "exact" || record.contentItems.some((item) => item.kind === "image")) return [];
   const typography = record.typography;
   const representations = new Set<string>();
@@ -1336,7 +1339,10 @@ function pseudoBitmapRepresentations(record: CapturedPseudoFragmentSet): string[
       fontWeight: typography.fontWeight,
       fontStyle: typography.fontStyle,
       fontStretch: typography.fontStretch,
-      lang: fontSelectionLanguage(typography),
+      lang: fontSelectionLanguage({
+        ...typography,
+        defaultFontLocale: typography.defaultFontLocale ?? defaultFontLocale,
+      }),
       variationSettings: parseFontVariationSettings(typography.fontVariationSettings),
       fontVariantEmoji:
         variantEmoji === "text" || variantEmoji === "emoji" || variantEmoji === "unicode" ? variantEmoji : undefined,
@@ -1399,6 +1405,7 @@ export async function preparePseudoFragmentGeometry(
   page: Page,
   selector: string,
   viewport: { x: number; y: number; width: number; height: number },
+  options: { defaultFontLocale?: string } = {},
 ): Promise<PseudoFragmentProbe> {
   const registry = createPageRegistry<unknown>(page, "PseudoFragments");
   const key = registry.key;
@@ -1598,7 +1605,7 @@ export async function preparePseudoFragmentGeometry(
             record = { ...record, paint: { ...record.paint, stackingContext: true } };
           }
           if (record.status === "exact") {
-            const representations = pseudoBitmapRepresentations(record);
+            const representations = pseudoBitmapRepresentations(record, options.defaultFontLocale);
             if (representations.length > 0) {
               try {
                 const raster = await isolatePseudoSurface(page, prepared, candidate, key, viewport, true);
