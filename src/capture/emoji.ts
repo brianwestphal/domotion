@@ -403,6 +403,7 @@ export function selectedRasterSpansForSegment(
     // Same selection language as glyph emission: explicit computed locale,
     // the renderer default for `auto`, then DOM language.
     lang: fontSelectionLanguage(el.styles),
+    fontLocaleForHan: el.styles.fontLocaleForHan,
     variationSettings: parseFontVariationSettings(el.styles.fontVariationSettings),
     features: capturedTextSegmentFontFeatures(el, seg),
     fontVariantEmoji:

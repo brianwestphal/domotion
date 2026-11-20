@@ -141,6 +141,7 @@ export { isHarfbuzzDefaultIgnorable, usesHarfbuzzShaping } from "./render/unicod
 export {
   blinkWinFallbackLocale,
   blinkWinHardcodedFamilies,
+  withFontLocaleForHan,
   winFallbackPriorityForTextRun,
   type WinGenericFamily,
 } from "./render/win-font-fallback.js";

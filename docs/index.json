@@ -5152,9 +5152,12 @@
           "DM-XWGRJC",
           "DM-MGQCRJ",
           "DM-DZVKRG",
-          "DM-GREERW"
+          "DM-GREERW",
+          "DM-FEN1QP",
+          "DM-QRHRNY"
         ],
         "code": [
+          "tests/han-accept-languages.e2e.test.ts",
           "src/font-family-stack.test.ts",
           "src/capture/script/font-family-default.ts",
           "src/capture/script/font-family-default.test.ts",

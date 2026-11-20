@@ -158,6 +158,11 @@ describe("project conventions", () => {
       "linuxFontEnvironmentKey",
       "FontRenderHinting",
       "LinuxFontRenderContext",
+      // DM-FEN1QP: capture decides steps 1-3 of Blink's LayoutLocale::LocaleForHan
+      // from the authenticated renderer state with the renderer's own
+      // transcription, so the recorded answer and the Windows Han stages that
+      // consume it cannot disagree on HasScriptForHan.
+      "layoutLocaleForHan",
       // the three real queries
       "resolveFontKey",
       "getFontInstance",

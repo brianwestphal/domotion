@@ -84,6 +84,7 @@ export function renderVerticalEmphasisMarks(el: CapturedElement, fillColor: stri
       fontStyle: segStyle,
       fontStretch: el.styles.fontStretch,
       lang: fontSelectionLanguage(el.styles),
+      fontLocaleForHan: el.styles.fontLocaleForHan,
     });
     if (metrics == null) continue;
     const position = el.styles.textEmphasisPosition ?? "over right";
@@ -346,6 +347,7 @@ function renderVerticalDecoration(el: CapturedElement, seg: TextSegment, fillCol
         fontStyle: segStyle,
         fontStretch: el.styles.fontStretch,
         lang: fontSelectionLanguage(el.styles),
+        fontLocaleForHan: el.styles.fontLocaleForHan,
         variationSettings: parseFontVariationSettings(el.styles.fontVariationSettings),
         // Blink disables a non-horizontal decorating box, so inherited
         // declarations remain but UsedFont/metrics are the TARGET vertical run.

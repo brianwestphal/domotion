@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   annotateDefaultFontLocale,
+  annotateFontLocaleForHan,
+  decideBrowserAcceptLanguages,
   decideRendererDefaultLocale,
+  isHeadlessShellArgv,
+  lastAcceptLangSwitch,
   lastLangSwitch,
   readProcessFacts,
   type RendererLocaleDeps,
@@ -190,5 +194,81 @@ describe("default font locale annotation (DM-JRG1BD)", () => {
       undefined,
       undefined,
     ]);
+  });
+});
+
+describe("browser --accept-lang authority (DM-FEN1QP)", () => {
+  it("keeps the LAST --accept-lang value verbatim, like base::CommandLine", () => {
+    expect(lastAcceptLangSwitch(["shell", "--accept-lang=ja", "--accept-lang=zh-TW,en"])).toBe("zh-TW,en");
+    expect(lastAcceptLangSwitch(["--ACCEPT-LANG=ko"])).toBe("ko");
+    expect(lastAcceptLangSwitch(["--accept-lang="])).toBe("");
+    expect(lastAcceptLangSwitch(["--lang=ja", "accept-lang=ja"])).toBeUndefined();
+  });
+
+  it("recognizes the headless shell on every platform's executable name", () => {
+    expect(isHeadlessShellArgv(["/ms-playwright/chromium_headless_shell-1/chrome-linux/headless_shell"])).toBe(true);
+    // A Windows command line split on whitespace inside a quoted program path.
+    expect(isHeadlessShellArgv(["C:\\Users\\A", "B\\chrome-headless-shell-win64\\chrome-headless-shell.exe"])).toBe(
+      true,
+    );
+    expect(isHeadlessShellArgv(["/Applications/Google Chrome.app/Contents/MacOS/Google", "Chrome"])).toBe(false);
+  });
+
+  const shell = {
+    1000: { ppid: 1, argv: ["node"] },
+    2000: { ppid: 1000, argv: ["/x/chrome-headless-shell", "--headless", "--accept-lang=en-US,ja"] },
+  };
+  const browserOnly = [{ type: "browser", id: 2000 }];
+
+  it("reads the launched headless shell's accept-languages", async () => {
+    expect(await decideBrowserAcceptLanguages(deps(shell, browserOnly))).toEqual({ acceptLanguages: "en-US,ja" });
+  });
+  it("reports an absent switch as EMPTY accept-languages (the option's default)", async () => {
+    const tree = { ...shell, 2000: { ppid: 1000, argv: ["/x/chrome-headless-shell", "--headless"] } };
+    expect(await decideBrowserAcceptLanguages(deps(tree, browserOnly))).toEqual({ acceptLanguages: "" });
+  });
+  it("refuses a browser this process did not launch", async () => {
+    const tree = { ...shell, 2000: { ppid: 1, argv: ["/x/chrome-headless-shell"] } };
+    expect(await decideBrowserAcceptLanguages(deps(tree, browserOnly))).toEqual({
+      reason: "browser was not launched by this process",
+    });
+  });
+  it("refuses a non-headless-shell browser, whose list lives in profile preferences", async () => {
+    const tree = { ...shell, 2000: { ppid: 1000, argv: ["/opt/chrome", "--accept-lang=ja"] } };
+    const decided = await decideBrowserAcceptLanguages(deps(tree, browserOnly));
+    expect("reason" in decided && decided.reason).toContain("not the headless shell");
+  });
+  it("refuses an ambiguous browser identity", async () => {
+    expect(await decideBrowserAcceptLanguages(deps(shell, []))).toEqual({
+      reason: "browser process identity is unavailable",
+    });
+  });
+});
+
+describe("LocaleForHan annotation (DM-FEN1QP)", () => {
+  it("decides steps 1-3 per element: null content for auto, the explicit locale otherwise", () => {
+    const auto = capturedElement({ styles: capturedStyles({ fontLocale: "auto" }), children: [] });
+    const en = capturedElement({ styles: capturedStyles({ fontLocale: '"en"' }), children: [] });
+    const ko = capturedElement({ styles: capturedStyles({ fontLocale: '"ko"' }), children: [] });
+    const legacy = capturedElement({ styles: capturedStyles({}), children: [] });
+    const root = capturedElement({
+      styles: capturedStyles({ fontLocale: "auto" }),
+      children: [auto, en, ko, legacy],
+    });
+    annotateFontLocaleForHan([root], "zh-TW", "en-US,ja");
+    expect([root, auto, en, ko, legacy].map((el) => el.styles.fontLocaleForHan)).toEqual([
+      "ja", // the accept-language precedes the (also disambiguating) default
+      "ja",
+      "ja", // explicit non-Han content still reaches accept-languages
+      "ko", // explicit Han content wins at step 1
+      undefined, // no computed font locale: the legacy route
+    ]);
+  });
+  it("records null when nothing disambiguates, and reaches the default without accept-languages", () => {
+    const auto = capturedElement({ styles: capturedStyles({ fontLocale: "auto" }), children: [] });
+    annotateFontLocaleForHan([auto], "en-US", "");
+    expect(auto.styles.fontLocaleForHan).toBeNull();
+    annotateFontLocaleForHan([auto], "ja", "");
+    expect(auto.styles.fontLocaleForHan).toBe("ja");
   });
 });

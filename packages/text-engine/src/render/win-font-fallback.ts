@@ -716,22 +716,99 @@ export function systemHanScript(): WinScript {
 }
 
 /**
- * `LayoutLocale::LocaleForHan(content_locale)->GetScriptForHan()`
- * (layout_locale.cc:226-257), collapsed to what this process can know.
+ * Steps 1-3 of `LayoutLocale::LocaleForHan(content_locale)`
+ * (`platform/text/layout_locale.cc:226-257`, Chromium 7d859f27), as a pure
+ * function of the renderer state a capture authenticates:
  *
- * Blink tries, in order: the content locale, then the first accept-language that
- * disambiguates, then the default locale, then the system locale — and returns
- * nullptr when NONE of them does, which leaves the script as `USCRIPT_HAN`. The
- * three fallback sources all reduce to the host's locale here (there is no
- * browser accept-languages list in a capture process), so this is content locale
- * then host locale, and null when neither disambiguates.
+ *     if (content_locale && content_locale->HasScriptForHan())
+ *       return content_locale;
+ *     // Use the first acceptLanguages that can disambiguate.
+ *     for (token : current_accept_languages.SplitSkippingEmpty(','))
+ *       if (LayoutLocale::Get(token.StripWhiteSpace())->HasScriptForHan()) ...
+ *     if (!default_locale_for_han && GetDefault().HasScriptForHan()) ...
+ *     if (!default_locale_for_han && GetSystem().HasScriptForHan()) ...
+ *
+ * `contentLocale` is `FontDescription::Locale()`: null for computed
+ * `font-locale: auto`, the explicit computed locale otherwise.
+ * `acceptLanguages` is `RendererPreferences.accept_languages` (the comma list
+ * `FontCache::AcceptLanguagesChanged` installs); `defaultLocale` is
+ * `GetDefault()`, the renderer's `--lang`. Step 4 (`GetSystem()`, the renderer's
+ * ICU default) is left to the consumer, which knows the host. Returns the
+ * winning locale string, or null when steps 1-3 find none.
+ */
+export function layoutLocaleForHan(
+  contentLocale: string | null | undefined,
+  acceptLanguages: string,
+  defaultLocale: string,
+): string | null {
+  if (contentLocale != null && hanScriptForLocale(contentLocale) != null) return contentLocale;
+  for (const raw of acceptLanguages.split(",")) {
+    // `SplitSkippingEmpty(',')` then `StripWhiteSpace()`: a whitespace-only
+    // token survives the split but strips to "", which disambiguates nothing.
+    const token = raw.trim();
+    if (token !== "" && hanScriptForLocale(token) != null) return token;
+  }
+  if (hanScriptForLocale(defaultLocale) != null) return defaultLocale;
+  return null;
+}
+
+/**
+ * The request-scoped answer to steps 1-3 of `LocaleForHan` for the run being
+ * rendered: a Han-disambiguating locale, `null` when none of the content
+ * locale, accept-languages or default locale disambiguates, or `undefined`
+ * when the capture could not authenticate the renderer state (legacy route).
+ *
+ * It is scoped rather than threaded because Blink's own inputs are split the
+ * same way: the content locale rides on `FontDescription`, while the
+ * accept-languages answer lives in per-thread `LayoutLocale` state. The engine
+ * entry points enter it from `TextFontOptions.fontLocaleForHan`.
+ */
+let _fontLocaleForHan: string | null | undefined;
+
+/** Run `fn` with `fontLocaleForHan` as the Han-locale context. `undefined`
+ *  inherits the enclosing context, so a nested entry call that carries no
+ *  field keeps its caller's answer. */
+export function withFontLocaleForHan<T>(fontLocaleForHan: string | null | undefined, fn: () => T): T {
+  if (fontLocaleForHan === undefined) return fn();
+  const previous = _fontLocaleForHan;
+  _fontLocaleForHan = fontLocaleForHan;
+  try {
+    return fn();
+  } finally {
+    _fontLocaleForHan = previous;
+  }
+}
+
+/** Cache-key identity of the current Han-locale context ("" = legacy). */
+export function fontLocaleForHanIdentity(): string {
+  return _fontLocaleForHan === undefined ? "" : _fontLocaleForHan === null ? "\u0000" : _fontLocaleForHan;
+}
+
+/**
+ * `LayoutLocale::LocaleForHan(content_locale)` (layout_locale.cc:226-257),
+ * returning the winning locale STRING, or null.
+ *
+ * With a captured context, steps 1-3 were decided from the authenticated
+ * renderer state and only step 4 (`GetSystem()`, ICU's default) remains. Without
+ * one (older captures, unauthenticated or non-headless-shell browsers), this is
+ * the prior reduction: the passed `lang` (which for `auto` is already the
+ * default locale) as the content locale, then the host locale.
  *
  * Null is load-bearing rather than a shrug: it is what selects the CJK
  * pan-Unicode probe list over the common one downstream, and it is the state a
  * plain `en-US` host is actually in.
  */
+function localeForHan(lang: string | undefined): string | null {
+  const captured = _fontLocaleForHan;
+  if (captured != null) return captured;
+  if (captured === undefined && lang != null && hanScriptForLocale(lang) != null) return lang;
+  const system = icuDefaultLocale();
+  return hanScriptForLocale(system) != null ? system : null;
+}
+
+/** `LocaleForHan(content_locale)->GetScriptForHan()`, or null for no locale. */
 function localeForHanScript(lang: string | undefined): WinScript | null {
-  return hanScriptForLocale(lang) ?? hanScriptForLocale(icuDefaultLocale());
+  return hanScriptForLocale(localeForHan(lang) ?? undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -874,11 +951,15 @@ export function blinkWinFallbackLocale(
   // Note this is the RAW script, not `GetScript`'s block-inferred one — Blink
   // calls `uscript_getScript` directly here.
   if (uscriptGetScript(cp) === "Han") {
-    const script = localeForHanScript(lang);
+    const hanLocale = localeForHan(lang);
     // "return han_locale ? han_locale
     //                    : LayoutLocale::Get(AtomicString(kChineseSimplified));"
-    if (script == null) return HAN_DEFAULT_LOCALE;
-    return SK_FONT_MGR_LOCALE[script] ?? HAN_DEFAULT_LOCALE;
+    // and the caller then asks `fallback_locale->LocaleForSkFontMgr()` — the
+    // LOCALE's tag, keyed on its own `script_`, not `ToSkFontMgrLocale` of its
+    // Han script. They differ for a locale that disambiguates Han only through
+    // a region subtag: `en-JP` reaches DirectWrite as `en`, not `ja`.
+    if (hanLocale == null) return HAN_DEFAULT_LOCALE;
+    return localeForSkFontMgr(hanLocale);
   }
   // "return font_description.Locale() ? font_description.Locale()
   //                                   : &LayoutLocale::GetDefault();"

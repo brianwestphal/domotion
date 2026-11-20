@@ -104,6 +104,7 @@ import {
   isLeftReorderingMatra,
   isRtlScriptCodepoint,
 } from "./unicode-classification.js";
+import { withFontLocaleForHan } from "./win-font-fallback.js";
 
 import {
   BLINK_ITALIC_SLOPE_VALUE,
@@ -738,6 +739,11 @@ export function embeddedBaselineY(
  * absent the size-relative `fontSize * 0.8` fallback keeps us off the font.
  */
 export function renderTextAsSystemFont(text: string, x: number, y: number, options: RenderTextOptions): string {
+  return withFontLocaleForHan(options.fontLocaleForHan, () => renderTextAsSystemFontInHanContext(text, x, y, options));
+}
+
+/** `renderTextAsSystemFont` inside the Han-locale context its caller entered. */
+function renderTextAsSystemFontInHanContext(text: string, x: number, y: number, options: RenderTextOptions): string {
   if (text === "") return "";
   const {
     fontSize,
@@ -4675,6 +4681,15 @@ export interface TextFontOptions {
   /** BCP-47 language tag for locale-aware Han fallback variant routing
    *  (PingFang TC / HK / MO, or Hiragino Kaku for `ja`). DM-394. */
   lang?: string;
+  /**
+   * Steps 1-3 of Blink's `LayoutLocale::LocaleForHan` for this run, decided at
+   * capture from the authenticated renderer state (content locale, browser
+   * `--accept-lang`, renderer `--lang`): the Han-disambiguating locale, or
+   * `null` when none of the three disambiguates. Absent keeps the prior route
+   * (`lang`, then the host locale). Consulted only by the Windows Han fallback
+   * stages; see `layoutLocaleForHan`.
+   */
+  fontLocaleForHan?: string | null;
   /** Author-set `font-variation-settings` axis overrides. DM-578. */
   variationSettings?: Record<string, number>;
   /** Computed Blink FontCacheKey fields for the macOS quoted system-ui alias. */
@@ -4775,6 +4790,27 @@ export function glyphRasterRepresentation(
  * OpenType SVG). Plain outline glyphs in a mixed color-capable face stay vector.
  */
 export function selectedGlyphRasterSpans(
+  text: string,
+  candidates: Array<{ start: number; end: number }>,
+  options: TextFontOptions,
+): Array<{
+  start: number;
+  end: number;
+  representation: GlyphRasterRepresentation;
+  fontKey: string;
+  faceId: string;
+  glyphIds: number[];
+  paletteEntryCount?: number;
+  paletteCount?: number;
+  paletteTypes?: number[];
+}> {
+  return withFontLocaleForHan(options.fontLocaleForHan, () =>
+    selectedGlyphRasterSpansInHanContext(text, candidates, options),
+  );
+}
+
+/** `selectedGlyphRasterSpans` inside the Han-locale context its caller entered. */
+function selectedGlyphRasterSpansInHanContext(
   text: string,
   candidates: Array<{ start: number; end: number }>,
   options: TextFontOptions,
@@ -4983,6 +5019,11 @@ export function renderSourceOwnedTextBoundary(
  * Returns a <g> element containing <use> references, positioned at (x, y) top.
  */
 export function renderTextAsPath(text: string, x: number, y: number, options: RenderTextOptions): string {
+  return withFontLocaleForHan(options.fontLocaleForHan, () => renderTextAsPathInHanContext(text, x, y, options));
+}
+
+/** `renderTextAsPath` inside the Han-locale context its caller entered. */
+function renderTextAsPathInHanContext(text: string, x: number, y: number, options: RenderTextOptions): string {
   const {
     fontSize,
     fontFamily,
@@ -5416,6 +5457,16 @@ export function getDecorationMetrics(
   fontOptions: TextFontOptions,
   decoration: DecorationStyleOptions = {},
 ): DecorationMetrics {
+  return withFontLocaleForHan(fontOptions.fontLocaleForHan, () =>
+    getDecorationMetricsInHanContext(fontOptions, decoration),
+  );
+}
+
+/** `getDecorationMetrics` inside the Han-locale context its caller entered. */
+function getDecorationMetricsInHanContext(
+  fontOptions: TextFontOptions,
+  decoration: DecorationStyleOptions = {},
+): DecorationMetrics {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const {
     thicknessOverride,
@@ -5585,6 +5636,11 @@ export function getDecorationMetrics(
  * where Chrome paints it.
  */
 export function fontSpaceAdvancePx(fontOptions: TextFontOptions): number {
+  return withFontLocaleForHan(fontOptions.fontLocaleForHan, () => fontSpaceAdvancePxInHanContext(fontOptions));
+}
+
+/** `fontSpaceAdvancePx` inside the Han-locale context its caller entered. */
+function fontSpaceAdvancePxInHanContext(fontOptions: TextFontOptions): number {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
@@ -5632,6 +5688,16 @@ export function measureTruncationMarker(
   customText: string | null,
   fontOptions: TextFontOptions,
 ): { text: string; widthPx: number } | null {
+  return withFontLocaleForHan(fontOptions.fontLocaleForHan, () =>
+    measureTruncationMarkerInHanContext(customText, fontOptions),
+  );
+}
+
+/** `measureTruncationMarker` inside the Han-locale context its caller entered. */
+function measureTruncationMarkerInHanContext(
+  customText: string | null,
+  fontOptions: TextFontOptions,
+): { text: string; widthPx: number } | null {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const font = resolveFont(
     fontFamily,
@@ -5656,6 +5722,11 @@ export function measureTruncationMarker(
 }
 
 export function measureLastGlyphRsb(text: string, fontOptions: TextFontOptions): number {
+  return withFontLocaleForHan(fontOptions.fontLocaleForHan, () => measureLastGlyphRsbInHanContext(text, fontOptions));
+}
+
+/** `measureLastGlyphRsb` inside the Han-locale context its caller entered. */
+function measureLastGlyphRsbInHanContext(text: string, fontOptions: TextFontOptions): number {
   // Drop trailing whitespace — DM-789 probed that Chrome's SVG renderer
   // collapses / drops trailing whitespace despite `xml:space="preserve"`,
   // so the visible-rightmost glyph is the last NON-space character.
@@ -5693,6 +5764,16 @@ export function measureLastGlyphRsb(text: string, fontOptions: TextFontOptions):
 
 /** Blink emphasis-mark metrics for the fallback-selected face at 50% size. */
 export function measureEmphasisMarkMetrics(
+  mark: string,
+  fontOptions: TextFontOptions,
+): { fontSize: number; ascent: number; descent: number; inkCenterX: number; inkCenterY: number } | null {
+  return withFontLocaleForHan(fontOptions.fontLocaleForHan, () =>
+    measureEmphasisMarkMetricsInHanContext(mark, fontOptions),
+  );
+}
+
+/** `measureEmphasisMarkMetrics` inside the Han-locale context its caller entered. */
+function measureEmphasisMarkMetricsInHanContext(
   mark: string,
   fontOptions: TextFontOptions,
 ): { fontSize: number; ascent: number; descent: number; inkCenterX: number; inkCenterY: number } | null {
@@ -5796,6 +5877,14 @@ export function measureInkMetrics(
   text: string,
   fontOptions: TextFontOptions,
 ): { inkAscent: number; inkDescent: number } | null {
+  return withFontLocaleForHan(fontOptions.fontLocaleForHan, () => measureInkMetricsInHanContext(text, fontOptions));
+}
+
+/** `measureInkMetrics` inside the Han-locale context its caller entered. */
+function measureInkMetricsInHanContext(
+  text: string,
+  fontOptions: TextFontOptions,
+): { inkAscent: number; inkDescent: number } | null {
   const { fontFamily, fontSize, fontStyle, fontStretch, lang, variationSettings, features } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
   const slant = slantForStyle(fontStyle);
@@ -5883,6 +5972,20 @@ export function measureInkMetrics(
  * font / glyph can't be resolved or the glyph has no outline.
  */
 export function renderStretchyFenceGlyph(
+  char: string,
+  x: number,
+  boxY: number,
+  boxH: number,
+  fontOptions: TextFontOptions,
+  fill: string,
+): string | null {
+  return withFontLocaleForHan(fontOptions.fontLocaleForHan, () =>
+    renderStretchyFenceGlyphInHanContext(char, x, boxY, boxH, fontOptions, fill),
+  );
+}
+
+/** `renderStretchyFenceGlyph` inside the Han-locale context its caller entered. */
+function renderStretchyFenceGlyphInHanContext(
   char: string,
   x: number,
   boxY: number,
@@ -6007,6 +6110,23 @@ export function renderStretchyFenceGlyph(
  * outline.
  */
 export function renderRadicalGlyph(
+  x: number,
+  topY: number,
+  height: number,
+  width: number,
+  fontOptions: TextFontOptions,
+  fill: string,
+  /** Border + padding of the `<msqrt>` / `<mroot>` box on the sides that offset its content. */
+  insets: { top: number; left: number; right: number } = { top: 0, left: 0, right: 0 },
+  geometry: { baseHeight?: number; baseTop?: number; baseRight?: number; displayStyle?: boolean } = {},
+): string | null {
+  return withFontLocaleForHan(fontOptions.fontLocaleForHan, () =>
+    renderRadicalGlyphInHanContext(x, topY, height, width, fontOptions, fill, insets, geometry),
+  );
+}
+
+/** `renderRadicalGlyph` inside the Han-locale context its caller entered. */
+function renderRadicalGlyphInHanContext(
   x: number,
   topY: number,
   height: number,
@@ -6314,6 +6434,17 @@ export interface SkipInkOptions {
 }
 
 export function computeSkipInkGaps(
+  text: string,
+  fontOptions: TextFontOptions,
+  skipInk: SkipInkOptions = {},
+): Array<[number, number]> {
+  return withFontLocaleForHan(fontOptions.fontLocaleForHan, () =>
+    computeSkipInkGapsInHanContext(text, fontOptions, skipInk),
+  );
+}
+
+/** `computeSkipInkGaps` inside the Han-locale context its caller entered. */
+function computeSkipInkGapsInHanContext(
   text: string,
   fontOptions: TextFontOptions,
   skipInk: SkipInkOptions = {},

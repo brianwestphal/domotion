@@ -2,7 +2,8 @@ import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import type { Browser, Page } from "@playwright/test";
 import type { CapturedElement } from "./types.js";
-import { isAutoFontLocale } from "./font-locale.js";
+import { computedFontLocaleLanguage, isAutoFontLocale } from "./font-locale.js";
+import { layoutLocaleForHan } from "../render/font-resolution.js";
 
 /**
  * Blink's default font locale — what `font-locale: auto` (`-webkit-locale`
@@ -244,6 +245,124 @@ export async function rendererDefaultLocaleForPage(page: Page): Promise<Renderer
   const result = await pending;
   if ("locale" in result) cache.set(browser, Promise.resolve(result));
   return result;
+}
+
+/**
+ * The renderer's `RendererPreferences.accept_languages` — the list Blink's
+ * `LayoutLocale::LocaleForHan` walks as its second step, installed through
+ * `WebViewImpl::UpdateRendererPreferences` → `FontCache::AcceptLanguagesChanged`
+ * (`core/exported/web_view_impl.cc:3767-3769`, Chromium 7d859f27).
+ *
+ * In the headless shell Playwright launches, that list is the browser
+ * context's `accept_language` (`headless/lib/browser/headless_web_contents_impl.cc:459-460`),
+ * which defaults to the browser option (`headless_browser_context_options.cc:39-41`),
+ * which only the browser's own `--accept-lang` switch sets
+ * (`headless/lib/browser/command_line_handler.cc:249-251`) and is otherwise
+ * empty (`headless/public/headless_browser.h:105`). Playwright's `locale`
+ * context option is CDP `Emulation.setUserAgentOverride`, whose accept-language
+ * reaches only `navigator.languages` and request headers
+ * (`core/inspector/inspector_emulation_agent.cc:642-652,979-983`), never
+ * `AcceptLanguagesChanged` — so neither `navigator.languages` nor the context
+ * option is this value.
+ *
+ * Any other browser build (headed Chromium, a Chrome channel) keeps the list in
+ * profile preferences, which no command line authenticates: unknown.
+ */
+export type BrowserAcceptLanguages = { acceptLanguages: string } | { reason: string };
+
+/** Last `--accept-lang=` value in an argv (`base::CommandLine` keeps the last). */
+export function lastAcceptLangSwitch(argv: readonly string[]): string | undefined {
+  let value: string | undefined;
+  for (const arg of argv) {
+    const m = /^(?:--|-|\/)accept-lang=(.*)$/i.exec(arg);
+    if (m) value = m[1];
+  }
+  return value;
+}
+
+/** Whether a browser argv is the `headless/` shell build, whose accept-language
+ * option the switch above owns. Judged over the whole argv because a Windows
+ * command line is split on whitespace and the program path may contain spaces. */
+export function isHeadlessShellArgv(argv: readonly string[]): boolean {
+  return argv.some((arg) => /chrome-headless-shell|headless_shell/i.test(arg));
+}
+
+/** Pure decision over injected process facts (unit-testable on any host). */
+export async function decideBrowserAcceptLanguages(deps: RendererLocaleDeps): Promise<BrowserAcceptLanguages> {
+  const browsers = (await deps.processes()).filter((p) => p.type === "browser");
+  if (browsers.length !== 1) return { reason: "browser process identity is unavailable" };
+  const browserPid = browsers[0].id;
+  if (!(await descendsFrom(browserPid, deps.ownerPid, deps.facts)))
+    return { reason: "browser was not launched by this process" };
+  const facts = await deps.facts(browserPid);
+  if (facts.retitled === true) return { reason: "browser command line is retitled" };
+  if (!isHeadlessShellArgv(facts.argv))
+    return { reason: "browser is not the headless shell; accept-languages live in profile preferences" };
+  return { acceptLanguages: lastAcceptLangSwitch(facts.argv) ?? "" };
+}
+
+const acceptCache = new WeakMap<Browser, Promise<BrowserAcceptLanguages>>();
+
+/** The launched browser's accept-languages for `page`, cached per browser on
+ * success (the switch is fixed for a launch). Disabled with the renderer
+ * default locale authority (`DOMOTION_RENDERER_DEFAULT_LOCALE=0`) or alone with
+ * `DOMOTION_ACCEPT_LANGUAGES=0` (negative control). */
+export async function browserAcceptLanguagesForPage(page: Page): Promise<BrowserAcceptLanguages> {
+  if (!rendererDefaultLocaleEnabled() || process.env.DOMOTION_ACCEPT_LANGUAGES === "0")
+    return { reason: "accept-languages authority disabled" };
+  const browser = page.context().browser();
+  if (browser == null) return { reason: "page has no owning browser" };
+  const cached = acceptCache.get(browser);
+  if (cached != null) return cached;
+  const result = await decideBrowserAcceptLanguages({
+    ownerPid: process.pid,
+    async processes() {
+      const session = await browser.newBrowserCDPSession();
+      try {
+        const info = (await session.send("SystemInfo.getProcessInfo")) as {
+          processInfo: Array<{ type: string; id: number }>;
+        };
+        return info.processInfo;
+      } finally {
+        await session.detach().catch(() => undefined);
+      }
+    },
+    facts: (pid) => readProcessFacts(pid),
+  }).catch((cause: unknown): BrowserAcceptLanguages => ({
+    reason: `browser command line unavailable: ${cause instanceof Error ? cause.message : String(cause)}`,
+  }));
+  if ("acceptLanguages" in result) acceptCache.set(browser, Promise.resolve(result));
+  return result;
+}
+
+/**
+ * Record steps 1-3 of `LocaleForHan` on every element and pseudo-fragment
+ * typography whose computed font locale is known: the content locale is null
+ * for `auto` and the explicit computed locale otherwise. Requires both
+ * authorities; without them nothing is recorded and the renderer keeps the
+ * prior route.
+ */
+export function annotateFontLocaleForHan(
+  tree: CapturedElement[],
+  defaultLocale: string,
+  acceptLanguages: string,
+): void {
+  const decide = (fontLocale: string | undefined): string | null | undefined => {
+    if (fontLocale == null) return undefined;
+    if (isAutoFontLocale(fontLocale)) return layoutLocaleForHan(null, acceptLanguages, defaultLocale);
+    const content = computedFontLocaleLanguage(fontLocale);
+    return content == null ? undefined : layoutLocaleForHan(content, acceptLanguages, defaultLocale);
+  };
+  const visit = (el: CapturedElement): void => {
+    const own = decide(el.styles.fontLocale);
+    if (own !== undefined) el.styles.fontLocaleForHan = own;
+    for (const pseudo of el.pseudoFragments ?? []) {
+      const answer = decide(pseudo.typography.fontLocale);
+      if (answer !== undefined) pseudo.typography.fontLocaleForHan = answer;
+    }
+    for (const child of el.children) visit(child);
+  };
+  for (const root of tree) visit(root);
 }
 
 /** Record the default locale beside every computed `auto` font locale, on

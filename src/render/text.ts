@@ -192,6 +192,7 @@ export function renderTextEmphasisMarks(el: CapturedElement, fillColorFallback: 
       fontStyle: segFontStyle,
       fontStretch: el.styles.fontStretch,
       lang: fontSelectionLanguage(el.styles),
+      fontLocaleForHan: el.styles.fontLocaleForHan,
     });
     if (metrics == null) continue;
     const offset = isUnder ? Math.ceil(segDescent + metrics.ascent) : Math.floor(-segAscent - metrics.descent);
@@ -375,6 +376,8 @@ export interface TextDecorationOptions {
   fontWeight: string | number;
   fontStyle: string | undefined;
   lang?: string;
+  /** Steps 1-3 of Blink's `LocaleForHan` (see `TextFontOptions.fontLocaleForHan`). */
+  fontLocaleForHan?: string | null;
   variationSettings?: Record<string, number>;
   /** Computed CSS `font-stretch` (a percentage string). The decoration
    *  metrics and skip-ink intercepts must resolve the same cut / axis
@@ -878,6 +881,7 @@ export function renderTextDecoration(opts: TextDecorationOptions): string {
       fontStyle: mFontStyle,
       fontStretch,
       lang: opts.lang,
+      fontLocaleForHan: opts.fontLocaleForHan,
       variationSettings: opts.variationSettings,
     },
     {
@@ -924,6 +928,7 @@ export function renderTextDecoration(opts: TextDecorationOptions): string {
         fontStyle,
         fontStretch,
         lang: opts.lang,
+        fontLocaleForHan: opts.fontLocaleForHan,
         variationSettings: opts.variationSettings,
         features,
       },
@@ -1824,6 +1829,7 @@ function buildPathOptions(
   const stroke = textStrokeParams(el.styles);
   return {
     lang: fontSelectionLanguage(el.styles),
+    fontLocaleForHan: el.styles.fontLocaleForHan,
     textStrokeWidth: stroke.width,
     textStrokeColor: stroke.color,
     paintOrder: stroke.paintOrder,
@@ -1975,6 +1981,7 @@ export function renderSingleLineText(opts: RenderTextOpts): string {
       fontStyle: segFontStyle,
       fontStretch: el.styles.fontStretch,
       lang: fontSelectionLanguage(el.styles),
+      fontLocaleForHan: el.styles.fontLocaleForHan,
       variationSettings,
       features,
     });

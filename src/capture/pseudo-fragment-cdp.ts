@@ -1343,6 +1343,7 @@ export function pseudoBitmapRepresentations(record: CapturedPseudoFragmentSet, d
         ...typography,
         defaultFontLocale: typography.defaultFontLocale ?? defaultFontLocale,
       }),
+      fontLocaleForHan: typography.fontLocaleForHan,
       variationSettings: parseFontVariationSettings(typography.fontVariationSettings),
       fontVariantEmoji:
         variantEmoji === "text" || variantEmoji === "emoji" || variantEmoji === "unicode" ? variantEmoji : undefined,
