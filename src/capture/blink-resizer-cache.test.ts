@@ -141,7 +141,10 @@ describe("measureBlinkPlatformResizer promise cache", () => {
       context: () => ({ newPage: async () => isolated, browser: () => null }),
       viewportSize: () => ({ width: 160, height: 60 }),
     } as unknown as Page;
-    expect(await measureBlinkPlatformResizer(page)).toEqual({ themeThickness: 15, scaleFromDIP: 2 });
+    const metrics = await measureBlinkPlatformResizer(page);
+    expect(metrics).toMatchObject({ themeThickness: 15, scaleFromDIP: 2 });
+    // the in-page refusal is retained as a diagnostic, not discarded
+    expect(metrics.recoveredFrom).toEqual(expect.any(String));
     expect(screenshots).toBe(0); // the cropped in-page screenshot is never taken
     expect(resized).toEqual([{ width: 160, height: 64 }]);
   });
@@ -208,7 +211,11 @@ describe("measureBlinkPlatformResizer isolated-page fallback by browser process 
 
   it("re-probes the captured page with a constructed sheet instead of opening a second BrowserContext", async () => {
     const { page, calls } = await implicitContextPage(singleProcess, 1);
-    expect(await measureBlinkPlatformResizer(page)).toEqual({ themeThickness: 15, scaleFromDIP: 2 });
+    expect(await measureBlinkPlatformResizer(page)).toEqual({
+      themeThickness: 15,
+      scaleFromDIP: 2,
+      recoveredFrom: "Error: probe failure 1",
+    });
     expect(calls).toMatchObject({ browserNewPage: 0, cdpSessions: 1, detached: 1 });
     expect(calls.probes).toEqual(["element", "constructed"]);
   });
@@ -223,9 +230,28 @@ describe("measureBlinkPlatformResizer isolated-page fallback by browser process 
     expect(calls.probes).toEqual(["element", "constructed"]);
   });
 
+  it("fails with both messages, and the original failure as cause, when the isolated page also fails", async () => {
+    const { page } = await implicitContextPage(multiProcess, 1);
+    const browser = page.context().browser() as unknown as { newPage: () => Promise<unknown> };
+    browser.newPage = async () => ({
+      evaluate: async () => {
+        throw new Error("isolated failure");
+      },
+      viewportSize: () => ({ width: 320, height: 180 }),
+      close: async () => {},
+    });
+    const error = await measureBlinkPlatformResizer(page).catch((caught: unknown) => caught);
+    expect((error as Error).message).toBe("Error: probe failure 1; isolated-page retry: Error: isolated failure");
+    expect((error as Error).cause).toEqual(new Error("probe failure 1"));
+  });
+
   it("keeps the isolated page in a new BrowserContext for a multi-process browser", async () => {
     const { page, calls } = await implicitContextPage(multiProcess, 1);
-    expect(await measureBlinkPlatformResizer(page)).toEqual({ themeThickness: 15, scaleFromDIP: 2 });
+    expect(await measureBlinkPlatformResizer(page)).toEqual({
+      themeThickness: 15,
+      scaleFromDIP: 2,
+      recoveredFrom: "Error: probe failure 1",
+    });
     expect(calls.browserNewPage).toBe(1);
     expect(calls.probes).toEqual(["element"]);
   });
@@ -236,7 +262,7 @@ describe("measureBlinkPlatformResizer isolated-page fallback by browser process 
       refusals++;
       throw new Error("Command line not returned because --enable-automation not set.");
     }, 1);
-    expect(await measureBlinkPlatformResizer(page)).toEqual({ themeThickness: 15, scaleFromDIP: 2 });
+    expect(await measureBlinkPlatformResizer(page)).toMatchObject({ themeThickness: 15, scaleFromDIP: 2 });
     expect(calls.browserNewPage).toBe(1);
     expect(refusals).toBe(1);
   });

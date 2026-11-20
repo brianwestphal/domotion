@@ -1511,6 +1511,12 @@ export interface BlinkPlatformResizerMetrics {
   themeThickness: number;
   /** ChromeClient::WindowToViewportScalar, not devicePixelRatio. */
   scaleFromDIP: number;
+  /**
+   * Diagnostic only: the in-page probe's error when a fallback probe then
+   * succeeded. A recovered failure is otherwise invisible, which left an
+   * x64 Linux --single-process screenshot failure unattributable.
+   */
+  recoveredFrom?: string;
 }
 
 /** CSS-px side of the resizer probe box; it must fit the probed page's viewport. */
@@ -1655,7 +1661,7 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
           // Re-probe the captured page itself, once, with a CSP-exempt
           // constructed sheet. A viewport smaller than the probe still fails.
           try {
-            return await runProbe(page, { constructedSheet: true });
+            return { ...(await runProbe(page, { constructedSheet: true })), recoveredFrom: String(pageError) };
           } catch (retryError) {
             throw new Error(
               `Chromium platform-resizer probe failed in a --single-process browser, which cannot open an isolated page in a second BrowserContext: ${String(pageError)}; retry: ${String(retryError)}`,
@@ -1687,9 +1693,10 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
         return {
           themeThickness: fallback.themeThickness,
           scaleFromDIP: Number.isFinite(capturedScale) && capturedScale > 0 ? capturedScale : 1,
+          recoveredFrom: String(pageError),
         };
-      } catch {
-        throw pageError;
+      } catch (fallbackError) {
+        throw new Error(`${String(pageError)}; isolated-page retry: ${String(fallbackError)}`, { cause: pageError });
       } finally {
         await isolated.close().catch(() => {});
       }

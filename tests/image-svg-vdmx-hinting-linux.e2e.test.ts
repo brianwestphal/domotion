@@ -6,7 +6,7 @@ import { buildVdmxHintedFont, clearGlyphHelperCache } from "@domotion/text-engin
 import sharp from "sharp";
 import { expect, it, vi } from "vitest";
 import { captureImageFontHinting } from "../src/capture/image-font-hinting.js";
-import { captureElementTree, launchChromium } from "../src/capture/index.js";
+import { captureElementTree, launchChromium, measureBlinkPlatformResizer } from "../src/capture/index.js";
 import { imageRootFontMetricUnits } from "../src/render/svg-image-root-font.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
 import type { CapturedElement } from "../src/capture/types.js";
@@ -86,6 +86,10 @@ it.skipIf(process.platform !== "linux")(
             );
             throw error;
           });
+          // Served from the capture's per-page cache: names an in-page resizer
+          // probe failure that a fallback recovered from, which is otherwise silent.
+          const { recoveredFrom } = await measureBlinkPlatformResizer(page);
+          if (recoveredFrom != null) console.log("VDMX resizer probe recovered from:", recoveredFrom);
           let owner: CapturedElement | undefined;
           const routing: Array<{
             tag: string;

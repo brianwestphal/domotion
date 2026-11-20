@@ -526,7 +526,10 @@ container. The capture no longer opens that context in a single-process browser
 and re-probes the captured page instead; see the CSS resize controls entry in
 [doc 01](01-fidelity.md). The screenshot failure's message was not retained,
 so its cause on that runner is unverified; it did not reproduce in four local
-container runs.
+container runs. A fallback that recovers now keeps the in-page failure as the
+diagnostic `recoveredFrom` field of the cached resizer metrics, which the test
+logs as `VDMX resizer probe recovered from:`. A fallback that also fails
+reports both messages, with the in-page failure as its `cause`.
 
 For an iterative native check, dispatch `test-linux.yml` with
 `image_root_metrics_only=true`. It reuses the Linux helper build/setup and runs
