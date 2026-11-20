@@ -231,9 +231,12 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
       await page.setContent(`<meta http-equiv="Content-Security-Policy" content="style-src 'none'">
         <main id="sentinel">strict page</main>`);
       const adoptedBefore = await page.evaluate(() => document.adoptedStyleSheets.length);
+      // The CSP blocks the in-page probe's inline rule; the constructed-sheet
+      // re-probe recovers, and the recovered failure is kept as a diagnostic.
       expect(await measureBlinkPlatformResizer(page)).toEqual({
         themeThickness: expected.themeThickness,
         scaleFromDIP: 1,
+        recoveredFrom: expect.stringMatching(/painted no custom corner pixels/),
       });
       expect(single.isConnected()).toBe(true);
       expect(single.contexts()).toHaveLength(1);
