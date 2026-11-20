@@ -5,7 +5,7 @@ kind: "investigation"
 status: "current"
 owners: ["images-media", "paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-302BYE", "DM-M6VWFD", "DM-CKS6JY"]
+tickets: ["DM-302BYE", "DM-M6VWFD", "DM-CKS6JY", "DM-JDJ0DP"]
 code:
   [
     "src/capture/external-css-svg.ts",
@@ -50,9 +50,10 @@ the committed machine-readable summary records this provenance distinction.
 
 DM-CKS6JY binds public CDP evidence to the actual remote owner, original unique
 default execution context, owner/document backend IDs and private journal token.
-The full pierced tree must contain that owner exactly once and no author roots,
-including empty/open/closed roots elsewhere in the document or embedded
-documents. Browser-owned UA roots do not grant author paint another CSS scope.
+The full pierced tree must contain that owner exactly once. CKS also required no
+author roots anywhere; that blanket refusal now applies only to roots inside
+embedded documents, and main-document roots are isolated per scope (next
+section). Browser-owned UA roots do not grant author paint another CSS scope.
 Unknown, changed or unavailable authority refuses the native fallback.
 
 Topology/context subscriptions invalidate the lease during readback, including
@@ -68,11 +69,53 @@ shadow event semantics; installed browser147 revision6b5a1b80 supplies the nativ
 controls. These are separately stated authorities, not an assertion that the
 two Chromium revisions are identical. The regression files retain ordinary
 CSP clip/mask positives and19 static/late-topology/identity/cleanup controls.
-The complete native frozen-resource CI profile requires96 passing assertions.
+The complete native frozen-resource CI profile requires110 passing assertions
+(96 before the per-scope author-shadow controls).
+
+## Per-scope author-shadow isolation
+
+DM-JDJ0DP replaces the blanket author-root refusal above with an authority that
+isolates inside every author scope. The guard is opened before isolation. From
+the pierced tree (`BuildObjectForNode` pushes every `GetShadowRoot()`,
+`inspector_dom_agent.cc:2375-2381`, pin 7d859f27) it resolves each main-document
+author root, open or closed, by backend node into the journal's own default
+context (`resolveNode`, :1886-1917) and registers those actual `ShadowRoot`
+objects in the private journal. The isolation then:
+
+- walks the flat tree: a host's light child's parent is the slot it is assigned
+  to, read from each registered root's own slots because `assignedSlot` hides
+  closed slots; the chain must reach the document element;
+- scans every scope for foreign paint, transition channels and active
+  `CSSTransition`s (each scope's `getAnimations()` reports only its own tree);
+- adopts one owned constructed copy of the same hide/show rules into each
+  author root, appended last, since a document sheet never matches inside a
+  shadow tree. One global attribute index serves every scope.
+
+`arm()` re-verifies the owner, the document and that the pierced author-root set
+equals the registered set before the screenshot; topology events then invalidate
+as before, and the after-screenshot check also requires every owned sheet to be
+still adopted and every page-visible open root to be registered. Restore removes
+each owned sheet by identity, reports a changed author list or mutated owned
+rules, and always drops the registered roots.
+
+Still refused: author roots in embedded documents, an owner whose light subtree
+hosts an author root, an owner outside the flat tree, and any author cascade that
+leaves foreign or ancestor paint visible. An inner-scope `!important` wins over
+the outer hide because important declarations reverse tree order
+(`cascade_priority.h:29-38`); it refuses through the computed-visibility check.
+
+Native controls (`tests/external-css-svg-shadow.e2e.test.ts`): open and closed
+roots × slotted, slotted under a painted wrapper, separate host and empty root ×
+clip and mask produce a PNG byte-identical to the flat document's, with the
+source pixels, markup and the root's author adopted sheets restored exactly.
+Production capture reproduces the flat raster for closed slotted and separate
+host roots. Removing only the adoption makes every positive refuse, so the
+mechanism is in the loop. A CSP-blocked mask whose slotting root adopts an author
+sheet within the same task as slotting stops painting in the source page itself;
+the mask positives therefore keep the author-sheet witness on non-slotting roots.
 
 ## Remaining capability boundaries
 
-- DM-JDJ0DP owns authenticated isolation in legitimate author-shadow documents.
 - DM-N933MV owns unsupported ancestor/compositing, transition, scrollbar and
   direct-text boundaries. Refusal does not establish their rendering parity.
 - DM-F19PYG owns local SVG dependencies outside the selected owner's subtree.

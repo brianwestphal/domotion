@@ -6,7 +6,10 @@ import { chromium, type Browser, type CDPSession, type Page } from "@playwright/
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { primeExternalCssSvgReferences, type ExternalCssSvgJournal } from "../src/capture/external-css-svg.js";
+import { captureElementTreeWithWarnings } from "../src/capture/index.js";
+import type { CapturedElement } from "../src/capture/types.js";
 import { capturedTree } from "../src/test-support/captured-fixtures.js";
+import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 let server: Server;
@@ -93,48 +96,128 @@ async function prepared(page: Page) {
   ]);
   return { prime, tree };
 }
-describe("native CSS owner author-shadow refusal (DM-CKS6JY)", () => {
+/** Decoded RGBA of the produced native raster, with its viewport placement. */
+async function rasterOf(tree: ReturnType<typeof capturedTree>) {
+  const raster = tree[0].externalCssSvgRaster;
+  if (raster?.dataUri == null) throw new Error("missing native raster");
+  const { data, info } = await sharp(Buffer.from(raster.dataUri.split(",")[1], "base64"))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return {
+    rect: [raster.x, raster.y, raster.width, raster.height],
+    size: [info.width, info.height],
+    sha256: createHash("sha256").update(data).digest("hex"),
+    data,
+  };
+}
+/** The native raster of the same owner in the flat document, per kind. */
+const flatRasters = new Map<string, Awaited<ReturnType<typeof rasterOf>>>();
+async function flatRaster(kind: string) {
+  const known = flatRasters.get(kind);
+  if (known != null) return known;
+  const page = await pageFor(kind);
+  try {
+    const { prime, tree } = await prepared(page);
+    try {
+      await prime.rasterize(tree, viewport);
+    } finally {
+      await prime.dispose();
+    }
+    const raster = await rasterOf(tree);
+    flatRasters.set(kind, raster);
+    return raster;
+  } finally {
+    await page.close();
+  }
+}
+type Placement = "slotted" | "slotted-painted" | "foreign" | "empty";
+/** Attaches the author root and keeps it, plus any author adopted sheet, reachable
+ * from the test (never from the capture) through a test-only global. */
+async function attach(page: Page, mode: "open" | "closed", placement: Placement, authorSheet = false) {
+  await page.evaluate(
+    ({ mode, placement, authorSheet }) => {
+      const slotted = placement.startsWith("slotted");
+      const host = document.getElementById(slotted ? "host" : "foreign")!;
+      const root = host.attachShadow({ mode });
+      const sheets: CSSStyleSheet[] = [];
+      if (authorSheet) {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync("i { color: green }");
+        sheets.push(sheet);
+        root.adoptedStyleSheets = sheets;
+      }
+      if (placement !== "empty")
+        root.innerHTML =
+          (slotted
+            ? `<div style="width:32px;height:32px${placement === "slotted-painted" ? ";background:lime;outline:2px solid green" : ""}"><slot></slot>`
+            : "") +
+          '<div style="visibility:visible;position:absolute;left:' +
+          (slotted ? 48 : 0) +
+          'px;top:0;width:16px;height:16px;background:blue"></div>' +
+          (slotted ? "</div>" : "");
+      (globalThis as Record<string, unknown>).__cssShadowTestRoot = { root, sheets };
+    },
+    { mode, placement, authorSheet },
+  );
+}
+async function testRootSheets(page: Page) {
+  return page.evaluate(() => {
+    const saved = (globalThis as Record<string, unknown>).__cssShadowTestRoot as {
+      root: ShadowRoot;
+      sheets: CSSStyleSheet[];
+    };
+    const current = saved.root.adoptedStyleSheets;
+    return {
+      length: current.length,
+      exact: current.length === saved.sheets.length && current.every((sheet, index) => sheet === saved.sheets[index]),
+    };
+  });
+}
+describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", () => {
   for (const kind of ["clip", "mask"])
     for (const mode of ["open", "closed"] as const)
-      for (const placement of ["slotted", "foreign", "empty"] as const) {
-        it(`refuses ${mode} ${placement} author shadow for ${kind} and restores source`, async () => {
+      for (const placement of ["slotted", "slotted-painted", "foreign", "empty"] as const) {
+        it(`isolates ${mode} ${placement} author shadow for ${kind} exactly like the flat document`, async () => {
+          const expected = await flatRaster(kind);
           const page = await pageFor(kind);
           try {
-            await page.evaluate(
-              ({ mode, placement }) => {
-                const host = document.getElementById(placement === "slotted" ? "host" : "foreign")!;
-                const root = host.attachShadow({ mode });
-                if (placement !== "empty")
-                  root.innerHTML =
-                    (placement === "slotted" ? "<div><slot></slot>" : "") +
-                    '<div style="visibility:visible;position:absolute;left:' +
-                    (placement === "slotted" ? 48 : 0) +
-                    'px;top:0;width:16px;height:16px;background:blue"></div>' +
-                    (placement === "slotted" ? "</div>" : "");
-              },
-              { mode, placement },
-            );
+            const authorSheet = kind === "clip" || !placement.startsWith("slotted");
+            await attach(page, mode, placement, authorSheet);
             const before = await pixels(page),
               markup = await page.content();
             const color = (x: number, y: number) => [...before.subarray((y * 128 + x) * 3, (y * 128 + x) * 3 + 3)];
             expect(color(24, 24)).toEqual([255, 0, 0]);
-            expect(color(44, 24)).toEqual([255, 255, 255]);
+            // The clip/mask keeps the right half unpainted by the owner.
+            expect(color(44, 24)).toEqual(placement === "slotted-painted" ? [0, 255, 0] : [255, 255, 255]);
             if (placement !== "empty") expect(color(72, 24)).toEqual([0, 0, 255]);
             const { prime, tree } = await prepared(page);
-            let error: unknown;
+            // Activation witness: the owned sheet is adopted (last) only while isolated.
+            let during: Awaited<ReturnType<typeof testRootSheets>> | undefined;
+            const original = page.screenshot.bind(page);
+            const screenshot = vi.spyOn(page, "screenshot").mockImplementation(async (options) => {
+              during = await testRootSheets(page);
+              return original(options);
+            });
             try {
               await prime.rasterize(tree, viewport);
-            } catch (caught) {
-              error = caught;
             } finally {
+              screenshot.mockRestore();
               await prime.dispose();
             }
-            expect(String(error)).toContain("unsupported author-shadow document paint");
+            expect(during).toEqual({ length: authorSheet ? 2 : 1, exact: false });
+            const actual = await rasterOf(tree);
+            expect(actual.rect).toEqual(expected.rect);
+            expect(actual.size).toEqual(expected.size);
+            expect(actual.data.equals(expected.data)).toBe(true);
+            expect(await testRootSheets(page)).toEqual({ length: authorSheet ? 1 : 0, exact: true });
             expect(await pixels(page)).toEqual(before);
             expect(await page.content()).toBe(markup);
             evidence.push({
               case: `${mode}-${placement}-${kind}`,
-              refusal: String(error),
+              rasterSha256: actual.sha256,
+              flatRasterSha256: expected.sha256,
+              rect: actual.rect,
               sourceUnchanged: true,
               sourceSha256: createHash("sha256").update(before).digest("hex"),
             });
@@ -143,6 +226,109 @@ describe("native CSS owner author-shadow refusal (DM-CKS6JY)", () => {
           }
         });
       }
+  const refusals: Array<{ name: string; message: string; setup: (mode: "open" | "closed") => void }> = [
+    {
+      // Important declarations reverse tree order, so an inner !important wins the
+      // cascade over the owned hide rule; the computed-visibility check refuses.
+      name: "an author !important that defeats the hide",
+      message: "could not suppress foreign paint",
+      setup: (mode) => {
+        const root = document.getElementById("foreign")!.attachShadow({ mode });
+        root.innerHTML =
+          '<style>#b#b#b{visibility:visible!important}</style><div id="b" style="width:16px;height:16px;background:blue"></div>';
+      },
+    },
+    {
+      name: "an author root inside an embedded document",
+      message: "author-shadow paint in an embedded document",
+      setup: (mode) => {
+        const frame = document.createElement("iframe");
+        frame.style.cssText = "position:absolute;left:68px;top:60px;width:40px;height:30px;border:0";
+        document.body.appendChild(frame);
+        frame.contentDocument!.body.attachShadow({ mode }).innerHTML = "<b>foreign</b>";
+      },
+    },
+    {
+      name: "an owner hosting an author root",
+      message: "owner hosts an author shadow tree",
+      setup: (mode) => {
+        document.getElementById("owner")!.attachShadow({ mode });
+      },
+    },
+    {
+      name: "an unassigned owner outside the flat tree",
+      message: "outside the flat tree",
+      setup: (mode) => {
+        document.getElementById("host")!.attachShadow({ mode }).innerHTML = "<b>no slot</b>";
+      },
+    },
+  ];
+  for (const refusal of refusals)
+    for (const mode of ["open", "closed"] as const)
+      it(`refuses ${refusal.name} (${mode}) and restores source`, async () => {
+        const page = await pageFor();
+        try {
+          await page.evaluate(`(${refusal.setup.toString()})(${JSON.stringify(mode)})`);
+          const before = await pixels(page),
+            markup = await page.content();
+          const { prime, tree } = await prepared(page);
+          let error: unknown;
+          try {
+            await prime.rasterize(tree, viewport);
+          } catch (caught) {
+            error = caught;
+          } finally {
+            await prime.dispose();
+          }
+          expect(String(error)).toContain(refusal.message);
+          expect(tree[0].externalCssSvgRaster?.dataUri).toBeUndefined();
+          expect(await pixels(page)).toEqual(before);
+          expect(await page.content()).toBe(markup);
+          evidence.push({ case: `refuse-${mode}-${refusal.name}`, refusal: String(error), sourceUnchanged: true });
+        } finally {
+          await page.close();
+        }
+      });
+  /** The production capture's native raster for the owner, decoded. */
+  async function capturedRaster(page: Page) {
+    await freezeRealWorldDom(page);
+    const result = await captureElementTreeWithWarnings(page, "body", viewport, {});
+    const rasters: NonNullable<CapturedElement["externalCssSvgRaster"]>[] = [];
+    const visit = (nodes: CapturedElement[]) => {
+      for (const node of nodes) {
+        if (node.externalCssSvgRaster != null) rasters.push(node.externalCssSvgRaster);
+        visit(node.children ?? []);
+      }
+    };
+    visit(result.tree);
+    expect(rasters).toHaveLength(1);
+    return rasterOf(capturedTree([{ tag: "div", externalCssSvgRaster: rasters[0] }]));
+  }
+  for (const placement of ["slotted-painted", "foreign"] as const)
+    it(`adopts the same native raster through production capture with a closed ${placement} root`, async () => {
+      const flat = await pageFor();
+      let expected: Awaited<ReturnType<typeof rasterOf>>;
+      try {
+        expected = await capturedRaster(flat);
+      } finally {
+        await flat.close();
+      }
+      const page = await pageFor();
+      try {
+        await attach(page, "closed", placement);
+        const markup = await page.content();
+        const actual = await capturedRaster(page);
+        expect(actual.rect).toEqual(expected.rect);
+        expect(actual.data.equals(expected.data)).toBe(true);
+        expect(await testRootSheets(page)).toEqual({ length: 0, exact: true });
+        expect(await page.content()).toBe(markup);
+        evidence.push({ case: `production-closed-${placement}`, rasterSha256: actual.sha256, equalsFlat: true });
+      } finally {
+        await page.close();
+      }
+    });
+});
+describe("native CSS owner author-shadow guard (DM-CKS6JY)", () => {
   for (const mode of ["open", "closed"] as const)
     for (const transient of [false, true]) {
       it(`rejects late ${mode} author topology${transient ? " even when removed" : ""}`, async () => {
@@ -165,7 +351,13 @@ describe("native CSS owner author-shadow refusal (DM-CKS6JY)", () => {
             return original(options);
           });
           try {
-            await expect(prime.rasterize(tree, viewport)).rejects.toThrow("shadow ownership changed or unavailable");
+            // A retained open root is also visible to the in-page scope check, which
+            // runs first; every other late shape is caught only by the CDP lease.
+            await expect(prime.rasterize(tree, viewport)).rejects.toThrow(
+              mode === "open" && !transient
+                ? "author-shadow isolation changed during screenshot"
+                : "shadow ownership changed or unavailable",
+            );
           } finally {
             screenshot.mockRestore();
             await prime.dispose();

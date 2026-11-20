@@ -781,7 +781,7 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
         frame.contentDocument!.body.appendChild(document.querySelector("#box")!);
       });
       try {
-        await expect(prime.rasterize(tree, viewport)).rejects.toThrow("owner document identity unavailable");
+        await expect(prime.rasterize(tree, viewport)).rejects.toThrow(/owner (document )?identity unavailable/);
       } finally {
         await prime.dispose();
       }
