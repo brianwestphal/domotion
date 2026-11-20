@@ -19,6 +19,7 @@ tickets:
     "DM-6A9J20",
     "DM-8PMQPX",
     "DM-4RGP8Y",
+    "DM-GX7XNJ",
   ]
 code:
   [
@@ -300,6 +301,53 @@ Sharp padding-box and content-box cases are byte-exact native controls. The
 rounded ones match geometrically and keep a small alpha residual (max 13 where
 the inner rrect meets a translucent border's anti-aliased inner edge, 2 without
 a border), the rounded-contour coverage residual tracked separately.
+
+### Background bleed avoidance under an obscuring border (DM-GX7XNJ)
+
+A rounded box whose border paints and whose every edge obscures the background
+edge shrinks its border-box background contour by half of each used border
+width, or a sixth when an edge is double, with the radii shrunk by the same
+amounts. Sources at Chromium `7d859f27`:
+
+- `BoxDecorationData::ComputeBleedAvoidance` picks
+  `kBackgroundBleedShrinkBackground` (`box_decoration_data.cc:23-68`).
+- An edge obscures the background when it is present, opaque, and neither
+  hidden, dotted nor dashed (`BorderEdge::ObscuresBackgroundEdge`,
+  `border_edge.cc:44-54`). An edge with style `none` has width 0 and still
+  obscures.
+- `ContouredBorderRectForClip` applies
+  `BackgroundContouredRectAdjustedForBleedAvoidance` to border-box layers
+  (`box_painter_base.cc:1165-1232`).
+- Inline boxes paint with `kBackgroundBleedNone`
+  (`inline_box_fragment_painter.cc:461-534`), and the document element never
+  shrinks.
+
+`backgroundBleedShrinkInsets` (`src/render/borders.ts`) mirrors this decision.
+`backgroundColorClipBox` and the border-box image layers apply it. Without the
+shrink, the background's anti-aliased rim composited through the border's
+outer edge: rounded corners and fractional edges read lighter than Chromium's.
+For example, a 1px `#d4d4d8` border corner read 168 where Chromium paints 87.
+
+The renderer's synthetic overflow-clip wrapper is bounded by the union of the
+fractional box and the snapped border contour. Blink's overflow clip is the
+snapped padding box and never cuts the box's own decorations
+(`ToSnappedClipRect`, `paint_property_tree_builder.cc:2536-2538, 3086-3099`).
+The fractional bound cut 0.3px off the snapped left border of a fractional
+`<input>`.
+
+**Effect on the feature suite.** `comp-input-button`'s raw diffPct rose from
+0.0658 to 0.0829 when background snapping landed, while its absolute error
+fell. Snapping made the straight edges exact, so the corner residue (this
+missing shrink) lost the shift exemption of `compare-pngs`. With the shrink
+and the clip bound, the corners and edges of its bordered button match within
+one level and diffPct is 0.0570. In `31-deep-inert-hidden` the same residue
+was a 199-pixel band along a rounded card's bottom border; that band is now
+exact (diffPct 0.0518 -> 0.0510).
+
+Strict full-RGBA controls are byte-exact for solid, thick, double and gradient
+cases; restoring the unshrunk contour makes each one differ. A square box with
+an overflow clip is byte-exact. A rounded one keeps a corner residual of at
+most 2 levels.
 
 ## Normal-shadow spread radii
 

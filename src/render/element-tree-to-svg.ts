@@ -76,6 +76,7 @@ export { resolveMaskContainCoverRect, resolveMaskPosition, resolveMaskPositionAx
 import { parseColor, colorStr, INVISIBLE_ALPHA, type RGBA } from "./colors.js";
 import {
   authenticBorderPaintSnap,
+  backgroundBleedShrinkInsets,
   parseCornerRadii,
   insetCornerRadii,
   roundedRectSvg,
@@ -904,7 +905,19 @@ function backgroundColorClipBox(
   const layerCount = image == null || image === "" || image === "none" ? 0 : splitTopLevelCommas(image).length;
   const clip = paintClipForLayer(el.styles.backgroundClip, Math.max(0, layerCount - 1));
   const outer = snappedBackgroundBox(el, corners);
-  if (clip !== "padding-box" && clip !== "content-box") return outer;
+  if (clip !== "padding-box" && clip !== "content-box") {
+    // A border-box fill under an obscuring border shrinks for bleed avoidance
+    // (backgroundBleedShrinkInsets).
+    const shrink = backgroundBleedShrinkInsets(el, corners);
+    if (shrink == null) return outer;
+    return {
+      x: outer.x + shrink.left,
+      y: outer.y + shrink.top,
+      width: Math.max(0, outer.width - shrink.left - shrink.right),
+      height: Math.max(0, outer.height - shrink.top - shrink.bottom),
+      corners: insetCornerRadii(outer.corners, shrink.top, shrink.right, shrink.bottom, shrink.left),
+    };
+  }
   const px = (value: string | undefined) => parseFloat(value ?? "0") || 0;
   const content = clip === "content-box";
   const insets = {
@@ -2754,10 +2767,21 @@ function resolveOverflowClipId(state: RenderState, el: CapturedElement, corners:
     // on that axis while the clipped axis stays bounded.
     const xVisibleCp = oxV === "visible" && oyV === "clip";
     const yVisibleCp = oyV === "visible" && oxV === "clip";
-    const cpX = xVisibleCp ? el.x - UNBOUNDED_CLIP_EXTENT : el.x - inflateL;
-    const cpW = xVisibleCp ? el.width + UNBOUNDED_CLIP_EXTENT * 2 : el.width + inflateL + inflateR;
-    const cpY = yVisibleCp ? el.y - UNBOUNDED_CLIP_EXTENT : el.y - inflateT;
-    const cpH = yVisibleCp ? el.height + UNBOUNDED_CLIP_EXTENT * 2 : el.height + inflateT + inflateB;
+    // The element's own background and border paint at the pixel-snapped
+    // border contour (shadowBorderContour), up to half a pixel outside the
+    // fractional box; Blink's overflow clip never cuts them (it is the snapped
+    // padding box and applies to contents only, ToSnappedClipRect,
+    // core/paint/paint_property_tree_builder.cc:2536-2538, 3086-3099, Chromium
+    // 7d859f27). Bound this wrapper by the union of both boxes.
+    const snapped = snappedBackgroundBox(el, corners);
+    const boxX = Math.min(el.x, snapped.x);
+    const boxY = Math.min(el.y, snapped.y);
+    const boxW = Math.max(el.x + el.width, snapped.x + snapped.width) - boxX;
+    const boxH = Math.max(el.y + el.height, snapped.y + snapped.height) - boxY;
+    const cpX = xVisibleCp ? boxX - UNBOUNDED_CLIP_EXTENT : boxX - inflateL;
+    const cpW = xVisibleCp ? boxW + UNBOUNDED_CLIP_EXTENT * 2 : boxW + inflateL + inflateR;
+    const cpY = yVisibleCp ? boxY - UNBOUNDED_CLIP_EXTENT : boxY - inflateT;
+    const cpH = yVisibleCp ? boxH + UNBOUNDED_CLIP_EXTENT * 2 : boxH + inflateT + inflateB;
     clipPathUrlId = paintCtx.nextClipId("cp");
     defsParts.push(
       `<clipPath id="${clipPathUrlId}"><rect x="${r(cpX)}" y="${r(cpY)}" width="${r(cpW)}" height="${r(cpH)}"/></clipPath>`,

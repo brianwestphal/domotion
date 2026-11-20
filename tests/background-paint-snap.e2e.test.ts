@@ -120,3 +120,102 @@ it.each([
     await output.close();
   }
 });
+
+// A rounded box whose border paints and obscures the background edge shrinks
+// its border-box background by half of each border width (a sixth for a
+// double border) for bleed avoidance, so the background's antialiased rim
+// stays under the border (BoxDecorationData::ComputeBleedAvoidance,
+// core/paint/box_decoration_data.cc:23-68;
+// BackgroundContouredRectAdjustedForBleedAvoidance,
+// core/paint/box_painter_base.cc:1165-1232; Chromium 7d859f27). The box's own
+// overflow clip must not cut its snapped border either.
+const bleedCases = [
+  {
+    name: "color under a solid border",
+    own: "background:#fff;border:1px solid #d4d4d8;border-radius:8px;margin:20.25px",
+    inset: 0.5,
+  },
+  {
+    name: "color under a thick solid border",
+    own: "background:#fff;border:3px solid #1d4ed8;border-radius:9px;margin:20.75px 20.5px",
+    inset: 1.5,
+  },
+  {
+    name: "color under a double border",
+    own: "background:#fff;border:6px double #111;border-radius:10px;margin:20.5px",
+    inset: 1,
+  },
+  {
+    name: "gradient under a solid border",
+    own: "background:linear-gradient(#fff,#fde68a);border:2px solid #92400e;border-radius:7px;margin:20.25px",
+    inset: 1,
+  },
+];
+
+// Counts pixels whose RGBA differs at all, on an opaque dark page so the
+// background's rim shows against it. `rewrite` edits the emitted SVG.
+async function bleedDiff(own: string, rewrite?: (svg: string) => string): Promise<{ pixels: number; worst: number }> {
+  const page = await browser.newPage({ viewport }),
+    output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      `<style>body{margin:0;background:#0d1117}#only{width:40px;height:30px;${own}}</style><div><div id="only"></div></div>`,
+    );
+    const source = await rgba(await page.screenshot());
+    const svg = elementTreeToSvg(await captureElementTree(page, "body", viewport), 100, 100);
+    await output.setContent("<style>body{margin:0}</style>" + (rewrite == null ? svg : rewrite(svg)));
+    const actual = await rgba(await output.screenshot());
+    let pixels = 0;
+    let worst = 0;
+    for (let i = 0; i < source.length; i += 4) {
+      const delta = Math.max(
+        Math.abs(source[i] - actual[i]),
+        Math.abs(source[i + 1] - actual[i + 1]),
+        Math.abs(source[i + 2] - actual[i + 2]),
+        Math.abs(source[i + 3] - actual[i + 3]),
+      );
+      if (delta > 0) pixels++;
+      worst = Math.max(worst, delta);
+    }
+    return { pixels, worst };
+  } finally {
+    await page.close();
+    await output.close();
+  }
+}
+
+// Negative control: grow the emitted background rect back to the full border
+// contour (undo the shrink of `inset` on every side and on the radius).
+const unshrink = (inset: number) => (svg: string) =>
+  svg.replace(
+    /<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)" rx="([\d.]+)" (fill="(?:rgb\(255,255,255\)|url\(#[^"]+\))")/,
+    (_match, x: string, y: string, w: string, h: string, rx: string, fill: string) =>
+      `<rect x="${+x - inset}" y="${+y - inset}" width="${+w + 2 * inset}" height="${+h + 2 * inset}" rx="${+rx + inset}" ${fill}`,
+  );
+
+it.each(bleedCases)("shrinks a rounded $name for bleed avoidance", async ({ own, inset }) => {
+  expect(await bleedDiff(own)).toEqual({ pixels: 0, worst: 0 });
+  const control = await bleedDiff(own, unshrink(inset));
+  expect(control.pixels).toBeGreaterThan(20);
+});
+
+// The rounded case keeps a low-amplitude corner residual (61 pixels, at most
+// 2 levels) that the square case does not have.
+it.each([
+  { name: "square", own: "background:#fff;border:1px solid #d4d4d8;margin:20.25px;overflow:hidden", worst: 0 },
+  {
+    name: "rounded",
+    own: "background:#fff;border:1px solid #d4d4d8;border-radius:8px;margin:20.25px;overflow:hidden",
+    worst: 2,
+  },
+])("keeps a $name overflow clip off the box's own snapped border", async ({ own, worst }) => {
+  expect((await bleedDiff(own)).worst).toBeLessThanOrEqual(worst);
+  // Negative control: bound the wrapper clip by the fractional box again.
+  const control = await bleedDiff(own, (svg) =>
+    svg.replace(
+      /(<clipPath id="cp\d+"><rect x=")([\d.]+)(" y=")([\d.]+)/,
+      (_match, before: string, x: string, middle: string, y: string) => `${before}${+x + 0.25}${middle}${+y + 0.25}`,
+    ),
+  );
+  expect(control.worst).toBeGreaterThan(20);
+});

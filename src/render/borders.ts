@@ -378,6 +378,60 @@ export function parseCornerRadii(
   return { tl, tr, br, bl, uniform, curvature };
 }
 
+/**
+ * Blink's `kBackgroundBleedShrinkBackground` insets, or null when Blink does
+ * not shrink. A rounded box whose border paints and whose every edge obscures
+ * the background edge (present, opaque, not hidden, dotted or dashed) clips its
+ * border-box background layers to the snapped border contour inset by half of
+ * each used border width (a sixth with a double border), with the radii shrunk
+ * by the same amounts. That keeps the background's anti-aliased rim under the
+ * border instead of compositing through its outer edge.
+ * `BoxDecorationData::ComputeBleedAvoidance` (core/paint/box_decoration_data.cc:23-68),
+ * `BorderEdge::ObscuresBackgroundEdge` (core/style/border_edge.cc:44-54),
+ * `BackgroundContouredRectAdjustedForBleedAvoidance` and its use in
+ * `ContouredBorderRectForClip` (core/paint/box_painter_base.cc:1165-1232),
+ * Chromium 7d859f27. Inline boxes paint with `kBackgroundBleedNone`
+ * (inline_box_fragment_painter.cc:461-534), and the document element never
+ * shrinks.
+ */
+export function backgroundBleedShrinkInsets(
+  el: Pick<CapturedElement, "tag" | "styles">,
+  corners: CornerRadii,
+): { top: number; right: number; bottom: number; left: number } | null {
+  const s = el.styles;
+  if (el.tag === "html" || s.display === "inline") return null;
+  if ([corners.tl, corners.tr, corners.br, corners.bl].every((corner) => corner.h <= 0 && corner.v <= 0)) return null;
+  const borderImage = s.borderImageSource;
+  if (borderImage != null && borderImage !== "" && borderImage !== "none") return null;
+  if (s.borderCollapse === "collapse" && /^table-cell$/.test(s.display ?? "")) return null;
+  const sides = [
+    { width: s.borderTopWidth, style: s.borderTopStyle, color: s.borderTopColor },
+    { width: s.borderRightWidth, style: s.borderRightStyle, color: s.borderRightColor },
+    { width: s.borderBottomWidth, style: s.borderBottomStyle, color: s.borderBottomColor },
+    { width: s.borderLeftWidth, style: s.borderLeftStyle, color: s.borderLeftColor },
+  ].map((side) => {
+    const style = side.style ?? "none";
+    // A border with style none or hidden computes to width 0 (ToInt-truncated
+    // BorderEdge widths).
+    const width = style === "none" || style === "hidden" ? 0 : Math.trunc(parseFloat(side.width ?? "0") || 0);
+    return { width, style, color: parseColor(side.color ?? "") };
+  });
+  if (sides.every((side) => side.width === 0)) return null;
+  const obscures = sides.every(
+    (side) =>
+      side.color != null &&
+      side.color.a >= 1 &&
+      side.style !== "hidden" &&
+      side.style !== "dotted" &&
+      side.style !== "dashed",
+  );
+  if (!obscures) return null;
+  // A double border narrower than 3px paints solid (BorderEdge::EffectiveStyle).
+  const fraction = sides.some((side) => side.style === "double" && side.width >= 3) ? 1 / 6 : 1 / 2;
+  const [top, right, bottom, left] = sides.map((side) => side.width * fraction);
+  return { top, right, bottom, left };
+}
+
 /** Inset each corner radius by the matching border-side widths, clamping to 0.
  *  Use this to derive the inner radii used by background clips (where the
  *  border has eaten into the corner) and inner border strokes. CSS specifies

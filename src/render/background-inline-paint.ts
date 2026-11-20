@@ -3,6 +3,7 @@ import { paintBlinkCurvedDashedDottedBorder, paintPerSideBorder } from "./border
 import type { CapturedBackgroundImage, CapturedElement } from "../capture/types.js";
 import { resolveBackgroundAttachment, intersectBackgroundRects } from "./background-attachment.js";
 import {
+  backgroundBleedShrinkInsets,
   insetCornerRadii,
   roundedRectSvg,
   parseCornerRadii,
@@ -239,14 +240,30 @@ export function paintBackgroundImageLayers(
       // is clipped to. For padding-box / content-box layers this matches
       // CSS's "the corner gets pulled in by the adjacent border widths"
       // semantics (rTL.h shrinks by bwL, rTL.v shrinks by bwT, etc.).
-      const innerCorners = layerClip === "border-box" ? corners : insetCornerRadii(corners, bwT, bwR, bwB, bwL);
+      let innerCorners = layerClip === "border-box" ? corners : insetCornerRadii(corners, bwT, bwR, bwB, bwL);
+      // A rounded border-box layer under an obscuring border clips to the
+      // contour shrunk for bleed avoidance (backgroundBleedShrinkInsets).
+      let layerRect = paintingBox;
+      const shrink =
+        layerClip === "border-box" && paintingAreaOverride == null && attachmentGeometry == null
+          ? backgroundBleedShrinkInsets(el, corners)
+          : null;
+      if (shrink != null) {
+        layerRect = {
+          x: paintingBox.x + shrink.left,
+          y: paintingBox.y + shrink.top,
+          width: Math.max(0, paintingBox.width - shrink.left - shrink.right),
+          height: Math.max(0, paintingBox.height - shrink.top - shrink.bottom),
+        };
+        innerCorners = insetCornerRadii(corners, shrink.top, shrink.right, shrink.bottom, shrink.left);
+      }
       // CSS Compositing §6.1: every image layer uses its corresponding
       // background-blend-mode, including the bottom image layer as it blends
       // with the background color painted beneath it.
       const layerBlend = cyclicBackgroundLayer(blendLayers, li, "normal");
       const blendAttr = layerBlend !== "normal" && layerBlend !== "" ? ` style="mix-blend-mode:${layerBlend}"` : "";
       ctx.svgParts.push(
-        `${indent}${roundedRectSvg(paintingBox.x, paintingBox.y, paintingBox.width, paintingBox.height, innerCorners, `fill="url(#${defId})"${blendAttr}`)}`,
+        `${indent}${roundedRectSvg(layerRect.x, layerRect.y, layerRect.width, layerRect.height, innerCorners, `fill="url(#${defId})"${blendAttr}`)}`,
       );
     }
   }

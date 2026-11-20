@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { capturedStyles } from "../test-support/captured-fixtures.js";
 import {
+  backgroundBleedShrinkInsets,
   computeWedgeApexes,
   borderImageSpaceTiling,
   doubleBorderStripeGeometry,
@@ -24,6 +26,72 @@ import {
   selectBestDashGap,
   wedgePolygonPoints,
 } from "./borders.js";
+
+describe("backgroundBleedShrinkInsets", () => {
+  const rounded = parseCornerRadii(
+    {
+      borderTopLeftRadius: "8px 8px",
+      borderTopRightRadius: "8px 8px",
+      borderBottomRightRadius: "8px 8px",
+      borderBottomLeftRadius: "8px 8px",
+    },
+    60,
+    40,
+  );
+  const square = parseCornerRadii({}, 60, 40);
+  const box = (overrides: Record<string, string> = {}, tag = "div") => {
+    const sides: Record<string, string> = {};
+    for (const side of ["Top", "Right", "Bottom", "Left"]) {
+      sides[`border${side}Width`] = "2px";
+      sides[`border${side}Style`] = "solid";
+      sides[`border${side}Color`] = "rgb(212, 212, 216)";
+    }
+    return { tag, styles: capturedStyles({ display: "block", borderImageSource: "none", ...sides, ...overrides }) };
+  };
+
+  it("shrinks by half of each border width under an obscuring border", () => {
+    expect(backgroundBleedShrinkInsets(box(), rounded)).toEqual({ top: 1, right: 1, bottom: 1, left: 1 });
+  });
+
+  it("shrinks by a sixth under a double border of at least 3px, and by a half below that", () => {
+    const double = { borderTopStyle: "double", borderTopWidth: "6px" };
+    expect(backgroundBleedShrinkInsets(box(double), rounded)).toEqual({
+      top: 1,
+      right: 2 / 6,
+      bottom: 2 / 6,
+      left: 2 / 6,
+    });
+    expect(backgroundBleedShrinkInsets(box({ borderTopStyle: "double" }), rounded)?.top).toBe(1);
+  });
+
+  it("treats a side with style none as width 0 that still obscures", () => {
+    expect(backgroundBleedShrinkInsets(box({ borderTopStyle: "none", borderBottomStyle: "none" }), rounded)).toEqual({
+      top: 0,
+      right: 1,
+      bottom: 0,
+      left: 1,
+    });
+  });
+
+  it.each([
+    ["square corners", box(), square],
+    ["a translucent side", box({ borderLeftColor: "rgba(212, 212, 216, 0.5)" }), rounded],
+    ["a dashed side", box({ borderRightStyle: "dashed" }), rounded],
+    ["a dotted side", box({ borderRightStyle: "dotted" }), rounded],
+    ["a hidden side", box({ borderRightStyle: "hidden" }), rounded],
+    ["a border image", box({ borderImageSource: "linear-gradient(red, blue)" }), rounded],
+    ["an inline box", box({ display: "inline" }), rounded],
+    ["the document element", box({}, "html"), rounded],
+    ["a collapsed-border cell", box({ display: "table-cell", borderCollapse: "collapse" }), rounded],
+    [
+      "no border",
+      box({ borderTopStyle: "none", borderRightStyle: "none", borderBottomStyle: "none", borderLeftStyle: "none" }),
+      rounded,
+    ],
+  ])("does not shrink with %s", (_name, el, corners) => {
+    expect(backgroundBleedShrinkInsets(el, corners)).toBeNull();
+  });
+});
 
 describe("snapNinePieceDestinationGrid (DM-2253)", () => {
   it("snaps the far edge relative to the snapped origin", () => {
