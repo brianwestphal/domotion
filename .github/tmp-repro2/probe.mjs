@@ -47,9 +47,34 @@ async function runWarm(raf) {
   }
 }
 
+// Fresh browser per iteration, as in the first repro; "fresh-barrier" first
+// awaits the GPU feature-info barrier that launchChromium applies.
+async function runFresh(barrier) {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    if (barrier) {
+      const { awaitGpuFeatureInfo } = await import(new URL("../../dist/capture/gpu-startup-barrier.js", import.meta.url).href);
+      await awaitGpuFeatureInfo(browser);
+    }
+    const page = await browser.newPage();
+    await page.setContent('<body style="margin:0;background:#fff"><div style="width:80px;height:40px;background:#000"></div>');
+    await page.screenshot();
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, detail: String(error).split("\n")[0] };
+  } finally {
+    await browser.close();
+  }
+}
+
 async function one(index) {
   const started = Date.now();
-  const result = arm === "cli" ? await runCli(index) : await runWarm(arm === "warm-raf");
+  const result =
+    arm === "cli"
+      ? await runCli(index)
+      : arm.startsWith("fresh")
+        ? await runFresh(arm === "fresh-barrier")
+        : await runWarm(arm === "warm-raf");
   tally.runs++;
   if (!result.ok) {
     tally.failures++;
@@ -60,7 +85,7 @@ async function one(index) {
   appendFileSync(out, JSON.stringify({ arm, index, ms: Date.now() - started, ...result }) + "\n");
 }
 
-if (arm !== "cli") warm = await chromium.launch({ headless: true });
+if (arm.startsWith("warm")) warm = await chromium.launch({ headless: true });
 async function worker() {
   while (next < iterations) await one(next++);
 }
