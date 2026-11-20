@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveTranslateComponent, transformReferenceBox, transformWrapsAsAffine2D } from "./transforms.js";
+import {
+  resolveTranslateComponent,
+  transformReferenceBox,
+  transformWrapsAsAffine2D,
+  zoomTransformOrigin,
+  zoomTransformTranslation,
+} from "./transforms.js";
 
 function computed(fields: Record<string, string>): CSSStyleDeclaration {
   return {
@@ -61,5 +67,25 @@ describe("transformWrapsAsAffine2D", () => {
     expect(transformWrapsAsAffine2D("matrix3d(2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 3, 4, 0, 1)")).toBe(true);
     expect(transformWrapsAsAffine2D("matrix3d(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 5, 1)")).toBe(false);
     expect(transformWrapsAsAffine2D("matrix3d(1, 0, 0, 0, 0, 1, 0, -0.01, 0, 0, 1, 0, 0, 0, 0, 1)")).toBe(false);
+  });
+});
+
+describe("effective zoom on a frozen transform", () => {
+  it("scales only the matrix translation, as AffineTransform::Zoom does", () => {
+    expect(zoomTransformTranslation("matrix(1.5, 0, 0, 1.5, 17, 9)", 1.25)).toBe(
+      "matrix(1.5, 0, 0, 1.5, 21.25, 11.25)",
+    );
+    expect(zoomTransformTranslation("matrix3d(2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 10, 20, 0, 1)", 0.5)).toBe(
+      "matrix3d(2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 5, 10, 0, 1)",
+    );
+    expect(zoomTransformTranslation("matrix(1, 0, 0, 1, 17, 9)", 1)).toBe("matrix(1, 0, 0, 1, 17, 9)");
+    expect(zoomTransformTranslation("none", 2)).toBe("none");
+  });
+
+  it("scales a resolved px origin and leaves anything else alone", () => {
+    expect(zoomTransformOrigin("7.5px 3.25px", 1.25)).toBe("9.375px 4.0625px");
+    expect(zoomTransformOrigin("20px 12px 4px", 0.5)).toBe("10px 6px 2px");
+    expect(zoomTransformOrigin("7.5px 3.25px", 1)).toBe("7.5px 3.25px");
+    expect(zoomTransformOrigin("50% 50%", 2)).toBe("50% 50%");
   });
 });

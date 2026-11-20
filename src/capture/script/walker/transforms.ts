@@ -320,6 +320,54 @@ export const transformFreezes = (el: Element, cs: CSSStyleDeclaration): boolean 
   );
 };
 
+// Computed `transform`, `translate` and `transform-origin` are serialized in
+// unzoomed CSS px: Blink stores them zoomed (StyleBuilderConverter converts
+// their lengths with the zoom-carrying CSSToLengthConversionData,
+// core/css/resolver/style_builder_converter.cc:3270-3297 and :3341-3362 at
+// Chromium 7d859f27) and divides by the effective zoom when serializing
+// (ComputedStyleUtils::ValueForTransform applies AffineTransform::Zoom(1/zoom),
+// core/css/properties/computed_style_utils.cc:3131; transform-origin and
+// translate use ZoomAdjustedPixelValue, longhands_custom.cc:10563/10771).
+// AffineTransform::Zoom scales only the translation (affine_transform.cc:
+// 277-281). Captured geometry is zoomed layout px, so the frozen matrix's
+// translation and the origin are scaled back by the effective zoom.
+export const effectiveZoomOf = (el: Element): number => {
+  let zoom = 1;
+  for (let node: Element | null = el; node != null; node = node.parentElement) {
+    const view = node.ownerDocument?.defaultView ?? window;
+    const own = parseFloat(view.getComputedStyle(node).zoom);
+    if (isFinite(own) && own > 0) zoom *= own;
+  }
+  return zoom;
+};
+
+export const zoomTransformTranslation = (transform: string, zoom: number): string => {
+  if (zoom === 1 || transform === "none") return transform;
+  const m2 = /^matrix\(([^)]+)\)$/.exec(transform);
+  if (m2 != null) {
+    const v = m2[1].split(",").map((part) => parseFloat(part));
+    if (v.length !== 6 || v.some((n) => !isFinite(n))) return transform;
+    return `matrix(${v[0]}, ${v[1]}, ${v[2]}, ${v[3]}, ${v[4] * zoom}, ${v[5] * zoom})`;
+  }
+  const m3 = /^matrix3d\(([^)]+)\)$/.exec(transform);
+  if (m3 != null) {
+    const v = m3[1].split(",").map((part) => parseFloat(part));
+    if (v.length !== 16 || v.some((n) => !isFinite(n))) return transform;
+    v[12] *= zoom;
+    v[13] *= zoom;
+    v[14] *= zoom;
+    return `matrix3d(${v.join(", ")})`;
+  }
+  return transform;
+};
+
+export const zoomTransformOrigin = (origin: string, zoom: number): string => {
+  if (zoom === 1) return origin;
+  const parts = origin.trim().split(/\s+/);
+  if (!parts.every((part) => /^-?[\d.]+(?:e[-+]?\d+)?px$/i.test(part))) return origin;
+  return parts.map((part) => `${parseFloat(part) * zoom}px`).join(" ");
+};
+
 export const createTransformsHandler = () => {
   // Computed styles of elements whose planar transform stayed live (animated),
   // so threadFrozenTransform records `none` for them.
@@ -369,12 +417,14 @@ export const createTransformsHandler = () => {
       // Blink pivots and offsets the subtree from the box's rounded paint
       // offset; fold that shift into the matrix the renderer re-applies.
       const shift = registerFrozenPaintBase(el, originalTransform, cs);
+      const zoom = effectiveZoomOf(el);
+      const zoomedTransform = zoomTransformTranslation(originalTransform, zoom);
       const paintTransform =
         shift.x === 0 && shift.y === 0
-          ? originalTransform
-          : new DOMMatrix().translate(shift.x, shift.y).multiply(new DOMMatrix(originalTransform)).toString();
+          ? zoomedTransform
+          : new DOMMatrix().translate(shift.x, shift.y).multiply(new DOMMatrix(zoomedTransform)).toString();
       try {
-        return captureInner(el, cs, paintTransform, cs.transformOrigin);
+        return captureInner(el, cs, paintTransform, zoomTransformOrigin(cs.transformOrigin, zoom));
       } finally {
         releaseFrozenPaintBase(el);
         el.style.transform = inlineTransform;
@@ -393,7 +443,7 @@ export const createTransformsHandler = () => {
   const threadFrozenTransform = (
     cs: CSSStyleDeclaration,
     frozenTransform: string | null | undefined,
-    _frozenTransformOrigin: string | null | undefined,
+    frozenTransformOrigin: string | null | undefined,
   ) => ({
     // For elements with rotation/skew, record the ORIGINAL transform so the
     // renderer wraps a `<g transform=...>` around the (un-rotated) captured
@@ -406,7 +456,11 @@ export const createTransformsHandler = () => {
       frozenTransform != null && !liveTransformStyles.has(cs) && transformWrapsAsAffine2D(frozenTransform)
         ? frozenTransform
         : "none",
-    transformOrigin: cs.transformOrigin,
+    // A frozen owner records its origin in zoomed layout px, like its rect.
+    transformOrigin:
+      frozenTransform != null && !liveTransformStyles.has(cs) && frozenTransformOrigin != null
+        ? frozenTransformOrigin
+        : cs.transformOrigin,
     // DM-751: extract `matrix3d` translateZ so the paint-order sort can
     // honor 3D Z position when the parent element has
     // `transform-style: preserve-3d` (which sorts children by Z in 3D

@@ -119,6 +119,15 @@ express either, so the capture walk freezes every static planar transform:
   against the border box (`transformReferenceBox`, `resolveTranslateComponent`),
   including `calc()` of a length and a percentage, for elements and for
   `::before`/`::after`.
+- Computed `transform`, `translate` and `transform-origin` serialize in
+  unzoomed CSS px: Blink stores them zoomed and divides by the effective zoom
+  when serializing (`ComputedStyleUtils::ValueForTransform` applies
+  `AffineTransform::Zoom(1 / zoom)`, `computed_style_utils.cc:3131`, which
+  scales only the translation, `affine_transform.cc:277-281`; the origin and
+  `translate` use `ZoomAdjustedPixelValue`, `longhands_custom.cc:10563/10771`,
+  Chromium `7d859f27`). Captured geometry is zoomed layout px, so a frozen
+  owner records its matrix translation and origin multiplied by its effective
+  zoom (`zoomTransformTranslation`, `zoomTransformOrigin`).
 
 Consumers that read captured geometry use the emitted CTM: hit-testing
 (`paint-order.ts`) and the overlay resolver map points and boxes through it.

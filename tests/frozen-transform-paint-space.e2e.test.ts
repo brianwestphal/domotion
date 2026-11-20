@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import type { Browser } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg, launchChromium } from "../src/index.js";
+import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // Static translate/scale transforms are captured untransformed and re-applied
@@ -20,7 +21,10 @@ beforeAll(async () => {
 });
 afterAll(async () => closeBrowserSafely(browser), 15_000);
 
-async function differingPixels(html: string): Promise<{ count: number; svg: string }> {
+async function differingPixels(
+  html: string,
+  mutate?: (tree: CapturedElement[]) => void,
+): Promise<{ count: number; svg: string; tree: CapturedElement[] }> {
   const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
   const out = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
   try {
@@ -30,6 +34,7 @@ async function differingPixels(html: string): Promise<{ count: number; svg: stri
       .raw()
       .toBuffer();
     const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+    mutate?.(tree);
     const svg = elementTreeToSvg(tree, WIDTH, HEIGHT);
     await out.setContent(`<style>body{margin:0;background:white}</style>${svg}`);
     const actual = await sharp(await out.screenshot())
@@ -45,7 +50,7 @@ async function differingPixels(html: string): Promise<{ count: number; svg: stri
       );
       if (delta > 40) count++;
     }
-    return { count, svg };
+    return { count, svg, tree };
   } finally {
     await page.close();
     await out.close();
@@ -96,6 +101,37 @@ describe("frozen-transform paint space", () => {
     } finally {
       await page.close();
     }
+  });
+
+  // The margin keeps the box origin on whole pixels at each zoom, so the
+  // only fractional geometry is the transform's own.
+  // Computed transform/translate/transform-origin serialize in unzoomed CSS px
+  // (ComputedStyleUtils::ValueForTransform zooms the matrix by 1/zoom), while
+  // captured geometry is zoomed layout px.
+  const unzoomFrozen = (zoom: number) => (tree: CapturedElement[]) => {
+    const visit = (node: CapturedElement) => {
+      const m = /^matrix\(([^)]+)\)$/.exec(node.styles.transform ?? "");
+      if (m != null) {
+        const v = m[1].split(",").map(Number);
+        node.styles.transform = `matrix(${v[0]}, ${v[1]}, ${v[2]}, ${v[3]}, ${v[4] / zoom}, ${v[5] / zoom})`;
+        node.styles.transformOrigin = (node.styles.transformOrigin ?? "")
+          .split(" ")
+          .map((part) => `${parseFloat(part) / zoom}px`)
+          .join(" ");
+      }
+      node.children.forEach(visit);
+    };
+    tree.forEach(visit);
+  };
+  it.each([
+    ["translate under zoom 0.8", 0.8, 10, "transform:translate(17px,9px)"],
+    ["translate under zoom 1.25", 1.25, 8, "transform:translate(17px,9px)"],
+    ["scale about a fractional origin under zoom 1.25", 1.25, 8, "transform:scale(1.5);transform-origin:7.5px 3.25px"],
+  ])("applies the effective zoom to a frozen %s", async (_name, zoom, margin, css) => {
+    const html = `<div style="zoom:${zoom}"><div style="margin:${margin}px;width:40px;height:24px;background:#1d4ed8;outline:2px solid #dc2626;${css}"></div></div>`;
+    expect((await differingPixels(html)).count).toBe(0);
+    // Negative control: the unzoomed computed matrix and origin misplace it.
+    expect((await differingPixels(html, unzoomFrozen(zoom))).count).toBeGreaterThan(20);
   });
 
   it("resolves a percentage translate longhand against the border box", async () => {
