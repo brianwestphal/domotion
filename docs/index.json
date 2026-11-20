@@ -6485,6 +6485,7 @@
           "src/render/containment.ts",
           "src/render/stacking.ts",
           "tests/containment-stacking.e2e.test.ts",
+          "tests/containment-eligibility-native-authority.e2e.test.ts",
           "src/scroll/",
           "tests/feature-coverage.ts"
         ],

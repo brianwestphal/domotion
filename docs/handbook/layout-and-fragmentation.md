@@ -15,6 +15,7 @@ code:
     "src/render/containment.ts",
     "src/render/stacking.ts",
     "tests/containment-stacking.e2e.test.ts",
+    "tests/containment-eligibility-native-authority.e2e.test.ts",
     "src/scroll/",
     "tests/feature-coverage.ts",
   ]
@@ -81,6 +82,34 @@ content stacking and clipping, and containment fixed ownership; layout-only
 stacking requires native authority. Source-specific replaced/control/SVG and
 other unknown layout states remain unprobed, rather than inferred from a tag
 name. DM-F42BPG owns that explicit native-authority and legacy-input gap.
+
+DM-F42BPG attributes the gap. At Chromium `7d859f27`, eligibility is false on
+`LayoutObject` (`layout_object.h:621-624`), true on every `LayoutBox`
+(`layout_box.h:1178-1181`), and false on table rows, sections and columns.
+That makes the following eligible:
+
+- images in every load state, including an errored image with alt text;
+- video, canvas, iframe and object;
+- the outer `<svg>` (`LayoutSVGRoot` is a `LayoutReplaced`);
+- `foreignObject` and SVG `<text>` (both `LayoutSVGBlock`);
+- form controls and table cells.
+
+Inner `<svg>`, `<g>`, shapes, `<br>` and inline boxes are ineligible.
+
+DOMSnapshot reports `LayoutObject::IsStackingContext()` per layout object
+(`inspector_dom_snapshot_agent.cc:687-688`). That value is
+`IsStackingContextWithoutContainment() || ((layout || paint) && eligible) ||
+IsOverscrollAreaParent()` (`layout_object.h:695-712`). With containment
+declared, the flag is a read-only native answer that needs no mutation and
+joins the node by backend id:
+
+- A false flag proves the object is ineligible.
+- A true flag proves eligibility only when no other stacking reason applies.
+
+`tests/containment-eligibility-native-authority.e2e.test.ts` pins that matrix,
+the attribution limit, and the failure of the fixed-child question on
+replaced/control owners. Capture does not consume it yet; legacy trees keep
+the compatibility behavior above.
 DM-D8Y3WJ separately tracks an unchanged-source native-control capture path that
 adds an empty `style` attribute and invokes source style callbacks; that defect
 is not attributed to the neutral eligibility probe.
