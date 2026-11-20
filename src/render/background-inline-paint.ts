@@ -34,7 +34,29 @@ export type BackgroundLayerBuilder = (
   fixedViewport?: { w: number; h: number } | null,
   selectedImage?: CapturedBackgroundImage | null,
   paintingArea?: { x: number; y: number; width: number; height: number } | null,
+  /** The part of the painting area not covered by the box's own opaque
+   * border, used only to decide whether a gradient needs tiling. */
+  visiblePaintingArea?: { x: number; y: number; width: number; height: number } | null,
 ) => { def: string };
+
+/** Width of one border side that paints fully opaque over the background
+ * (solid style, opaque color), so the background beneath it never shows. */
+function opaqueBorderWidth(el: CapturedElement, side: "Top" | "Right" | "Bottom" | "Left"): number {
+  const s = el.styles;
+  const [style, color, width] =
+    side === "Top"
+      ? [s.borderTopStyle, s.borderTopColor, s.borderTopWidth]
+      : side === "Right"
+        ? [s.borderRightStyle, s.borderRightColor, s.borderRightWidth]
+        : side === "Bottom"
+          ? [s.borderBottomStyle, s.borderBottomColor, s.borderBottomWidth]
+          : [s.borderLeftStyle, s.borderLeftColor, s.borderLeftWidth];
+  if (style !== "solid") return 0;
+  if (s.borderImageSource != null && s.borderImageSource !== "" && s.borderImageSource !== "none") return 0;
+  const parsed = parseColor(color ?? "");
+  if (parsed == null || parsed.a < 1) return 0;
+  return Math.max(0, parseFloat(width ?? "0") || 0);
+}
 
 export type BackgroundColorClipsToText = (element: CapturedElement) => boolean;
 
@@ -159,6 +181,24 @@ export function paintBackgroundImageLayers(
           height: clipBox.h,
         };
       const defId = ctx.nextClipId("bg");
+      // A border-box painting area under an opaque solid border shows the
+      // background only inside the border; a gradient repeat confined to the
+      // covered band is invisible, so it must not force the tiled path.
+      const visiblePaintingArea =
+        paintingAreaOverride == null && attachmentGeometry == null && layerClip === "border-box"
+          ? (() => {
+              const top = opaqueBorderWidth(el, "Top");
+              const right = opaqueBorderWidth(el, "Right");
+              const bottom = opaqueBorderWidth(el, "Bottom");
+              const left = opaqueBorderWidth(el, "Left");
+              return {
+                x: paintingBox.x + left,
+                y: paintingBox.y + top,
+                width: Math.max(0, paintingBox.width - left - right),
+                height: Math.max(0, paintingBox.height - top - bottom),
+              };
+            })()
+          : null;
       // Pattern is positioned + sized relative to the origin box (where the image starts)
       // then painted into a rect clipped to the clip box. For fixed attachment
       // the origin is the viewport instead.
@@ -177,6 +217,7 @@ export function paintBackgroundImageLayers(
         attachmentGeometry == null ? captureViewport : null,
         selectedImage,
         paintingBox,
+        visiblePaintingArea,
       );
       if (out.def === "") continue;
       ctx.defsParts.push(out.def);
