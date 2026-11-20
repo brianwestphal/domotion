@@ -103,12 +103,21 @@ describe("animated font-family type (DM-ZAXD0C)", () => {
         standard: await painted(page, "ctl-initial"),
         concrete: await painted(page, "ctl-concrete"),
       };
-      // On macOS Han under lang=ja paints a different face for the standard
-      // family than for the same-named concrete family (asserted below), so
-      // paint proves each expected type. Another host's generic
-      // settings may map both to one face; the type facts are still checked.
+      // On macOS and Windows, `A漢` under lang=ja paints a different face for
+      // the standard family than for the same-named concrete family (macOS:
+      // Hiragino Kaku Gothic for both glyphs against Times + Hiragino;
+      // Windows: Yu Gothic for both against Times New Roman + Yu Gothic),
+      // because Playwright's generic preferences there carry per-script
+      // standard families. Paint therefore proves each expected type.
+      // Playwright's Linux table has no per-script entries, so the standard
+      // family is "Times New Roman" for every script
+      // (`GenericFontFamilySettings::GenericFontFamilyForScript` falls back to
+      // the common script, `generic_font_family_settings.cc:81-107`, Chromium
+      // 7d859f27) and both elements resolve the same family: no script or
+      // language can discriminate there (0 of 130 lang × text cells on the CI
+      // image), so only the type facts are checked on Linux.
       const discriminates = paint.standard !== paint.concrete;
-      if (process.platform === "darwin") expect(discriminates).toBe(true);
+      expect(discriminates).toBe(process.platform !== "linux");
       const got = await facts(page);
       for (const [id, , type] of fixtures) {
         if (discriminates) expect(await painted(page, id), id).toBe(paint[type]);
