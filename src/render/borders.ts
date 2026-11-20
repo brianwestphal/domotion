@@ -1101,11 +1101,31 @@ export function skRRectUnderAaClipSvg(
   c: CornerRadii,
   attrs: string,
 ): string | null {
+  if (isSingleSvgRectRRect(w, h, c)) return null;
+  const clip = skRRectInsetClip(x, y, w, h, c);
+  if (clip == null) return null;
+  const { box } = clip;
+  return `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" ${attrs} style="${clip.style}" />`;
+}
+
+/**
+ * The CSS clip that is Blink's SkRRect for (x, y, w, h, c) (see
+ * `skRRectUnderAaClipSvg`). The style is relative to `box`, the pixel-aligned
+ * rect 1px larger than the shape, so the clipped element's fill box must be
+ * exactly `box`. Null for an empty box or non-round `corner-shape` curvature.
+ */
+export function skRRectInsetClip(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  c: CornerRadii,
+): { box: { x: number; y: number; w: number; h: number }; style: string } | null {
   const round = (curvature: number | undefined) => curvature == null || curvature === ROUND_CURVATURE;
   if (!round(c.curvature?.tl) || !round(c.curvature?.tr) || !round(c.curvature?.br) || !round(c.curvature?.bl)) {
     return null;
   }
-  if (isSingleSvgRectRRect(w, h, c) || w <= 0 || h <= 0) return null;
+  if (w <= 0 || h <= 0) return null;
   const left = Math.floor(x) - 1,
     top = Math.floor(y) - 1;
   const right = Math.ceil(x + w) + 1,
@@ -1115,7 +1135,10 @@ export function skRRectUnderAaClipSvg(
   const radii =
     `${f(c.tl.h)}px ${f(c.tr.h)}px ${f(c.br.h)}px ${f(c.bl.h)}px / ` +
     `${f(c.tl.v)}px ${f(c.tr.v)}px ${f(c.br.v)}px ${f(c.bl.v)}px`;
-  return `<rect x="${left}" y="${top}" width="${right - left}" height="${bottom - top}" ${attrs} style="clip-path:inset(${insets} round ${radii}) fill-box" />`;
+  return {
+    box: { x: left, y: top, w: right - left, h: bottom - top },
+    style: `clip-path:inset(${insets} round ${radii}) fill-box`,
+  };
 }
 
 export interface BorderSide {

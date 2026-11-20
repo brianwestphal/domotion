@@ -7,6 +7,7 @@ import {
   renderBorderImage,
   insetCornerRadii,
   roundedRectPath,
+  skRRectInsetClip,
   roundedRectSvg,
   roundBorderSideClipPolygon,
   hyperellipseBorderSideClipPolygon,
@@ -566,7 +567,9 @@ interface RingBox {
  * when only a path can express it (non-round corner-shape, or radii that
  * Skia's SkRRect would scale down). One rect when every corner shares a radius
  * pair; otherwise one per rounded corner, each extended past the far sides so
- * only its own corner is curved inside the box (DM-1110JP).
+ * only its own corner is curved inside the box (DM-1110JP). The ring clip uses
+ * the per-corner layers only to decide that a contour qualifies; it paints
+ * them as one inset() SkRRect clip (`roundedRectRingClipMarkup`).
  */
 export function roundedRectClipLayers(box: RingBox, corners: CornerRadii): string[] | null {
   if (box.w <= 0 || box.h <= 0) return null;
@@ -606,11 +609,16 @@ export function roundedRectClipLayers(box: RingBox, corners: CornerRadii): strin
  * Blink clips a curved dashed/dotted stroke with Skia's anti-aliased
  * rounded-rect clips: ClipContouredRect on the outer contour and
  * ClipOutContouredRect on the inner one, around DrawCurvedDashedDottedBoxSide
- * (box_border_painter.cc, Chromium 6b5a1b80). An even-odd arc-path ring mask
- * covers the curved edges differently. Emit the outer contour as nested
- * rounded-rect clipPaths and the inner one as a rounded-rect cut-out in a
- * mask (DM-C77Q41, DM-KA85VS); per-corner radii intersect one rect per corner
- * (DM-1110JP). Returns null when either contour needs a path.
+ * (box_border_painter.cc:1463-1490, Chromium 7d859f27). Each is ONE SkRRect
+ * (GraphicsContext::ClipContouredRect calls ClipRRect, graphics_context.cc:
+ * 913-929). An even-odd arc-path ring mask covers the curved edges
+ * differently (DM-C77Q41, DM-KA85VS), and so do stacked per-corner clips,
+ * whose coverages multiply wherever two of them are partial (DM-6FFGSY). A
+ * contour whose corners share one radius pair is a `<rect rx ry>` clipPath;
+ * per-corner radii use the CSS inset() clip that Blink builds as the same
+ * SkRRect (`skRRectInsetClip`). The outer contour wraps the content; the inner
+ * one is the black cut-out of a mask. Returns null when either contour needs
+ * a path.
  */
 export function roundedRectRingClipMarkup(
   clipId: string,
@@ -623,24 +631,31 @@ export function roundedRectRingClipMarkup(
   const outerLayers = roundedRectClipLayers(outer, outerCorners);
   const innerLayers = roundedRectClipLayers(inner, innerCorners);
   if (outerLayers == null || innerLayers == null) return null;
-  const outerIds = outerLayers.map((_, i) => (i === 0 ? clipId : `${clipId}-${i}`));
-  const defs = outerLayers.map((layer, i) => `<clipPath id="${outerIds[i]}">${layer}</clipPath>`);
-  let cutOut: string;
-  if (innerLayers.length === 1) {
-    cutOut = innerLayers[0].replace("/>", ' fill="black"/>');
+  const outerInset = outerLayers.length > 1 ? skRRectInsetClip(outer.x, outer.y, outer.w, outer.h, outerCorners) : null;
+  const innerInset = innerLayers.length > 1 ? skRRectInsetClip(inner.x, inner.y, inner.w, inner.h, innerCorners) : null;
+  if ((outerLayers.length > 1 && outerInset == null) || (innerLayers.length > 1 && innerInset == null)) return null;
+  const defs: string[] = [];
+  let open: string;
+  if (outerInset != null) {
+    // The clip's fill box must be exactly `box`: the transparent rect is it,
+    // and the content (the stroke's centerline) lies inside the contour.
+    const { box } = outerInset;
+    open = `<g style="${outerInset.style}"><rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" fill="none"/>`;
   } else {
-    const innerIds = innerLayers.map((_, i) => `${maskId}-i${i}`);
-    innerLayers.forEach((layer, i) => defs.push(`<clipPath id="${innerIds[i]}">${layer}</clipPath>`));
-    cutOut = `${innerIds.map((id) => `<g clip-path="url(#${id})">`).join("")}<rect x="${r(inner.x)}" y="${r(inner.y)}" width="${r(inner.w)}" height="${r(inner.h)}" fill="black"/>${"</g>".repeat(innerIds.length)}`;
+    defs.push(`<clipPath id="${clipId}">${outerLayers[0]}</clipPath>`);
+    open = `<g clip-path="url(#${clipId})">`;
+  }
+  let cutOut: string;
+  if (innerInset != null) {
+    const { box } = innerInset;
+    cutOut = `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" fill="black" style="${innerInset.style}"/>`;
+  } else {
+    cutOut = innerLayers[0].replace("/>", ' fill="black"/>');
   }
   defs.push(
     `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}"><rect x="${r(outer.x)}" y="${r(outer.y)}" width="${r(outer.w)}" height="${r(outer.h)}" fill="white"/>${cutOut}</mask>`,
   );
-  return {
-    defs,
-    open: outerIds.map((id) => `<g clip-path="url(#${id})">`).join(""),
-    close: "</g>".repeat(outerIds.length),
-  };
+  return { defs, open, close: "</g>" };
 }
 
 function roundedRectRingClip(

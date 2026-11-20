@@ -306,20 +306,27 @@ describe("curved dashed/dotted border ring clip (DM-KA85VS)", () => {
     expect(svg).not.toContain('fill-rule="evenodd"');
   });
 
-  it("intersects one rounded rect per corner for per-corner radii (DM-1110JP)", () => {
+  // Blink clips each contour with ONE SkRRect (graphics_context.cc:913-929);
+  // stacked per-corner clips multiply partial coverage (DM-6FFGSY), so
+  // per-corner radii take the CSS inset() clip that is that SkRRect.
+  it("clips per-corner radii with one inset() SkRRect per contour (DM-6FFGSY)", () => {
     const svg = paint({ ...uniform, borderTopRightRadius: "3px" });
-    // Each corner's rect extends past the far sides by more than its radius.
-    expect(svg).toContain('<rect x="10" y="20" width="107" height="47" rx="6" ry="6"/></clipPath>');
-    expect(svg).toContain('<rect x="6" y="20" width="104" height="44" rx="3" ry="3"/></clipPath>');
-    expect(svg.match(/<g clip-path=/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(svg).toContain(
+      '<g style="clip-path:inset(1px 1px 1px 1px round 6px 3px 6px 6px / 6px 3px 6px 6px) fill-box"><rect x="9" y="19" width="102" height="42" fill="none"/>',
+    );
+    expect(svg).toContain(
+      '<rect x="11" y="21" width="98" height="38" fill="black" style="clip-path:inset(1px 1px 1px 1px round 4px 1px 4px 4px / 4px 1px 4px 4px) fill-box"/></mask>',
+    );
+    expect(svg).not.toContain("<clipPath");
     expect(svg).not.toContain('fill-rule="evenodd"');
   });
 
-  it("cuts out an unequal-width inner contour with per-corner rects", () => {
+  it("cuts out an unequal-width inner contour with one inset() clip", () => {
     const svg = paint({ ...uniform, borderLeftWidth: "4" });
     // The inner top-left corner is 2x4 (6 - left 4, 6 - top 2).
-    expect(svg).toContain('rx="2" ry="4"');
-    expect(svg).toContain('fill="black"/></g>');
+    expect(svg).toMatch(
+      /fill="black" style="clip-path:inset\([^"]* round 2px 4px 4px 2px \/ 4px 4px 4px 4px\) fill-box"\/><\/mask>/,
+    );
     expect(svg).not.toContain('fill-rule="evenodd"');
   });
 });

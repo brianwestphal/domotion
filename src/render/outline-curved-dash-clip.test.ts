@@ -42,11 +42,13 @@ describe("rounded dashed/dotted outline clipping (DM-C77Q41)", () => {
     }
   });
 
-  // DM-1110JP: per-corner radii intersect one rounded-rect clip per corner.
-  it("intersects per-corner rounded-rect clips instead of a path ring", () => {
+  // DM-6FFGSY: per-corner radii clip with one inset() SkRRect per contour,
+  // not stacked per-corner clips whose partial coverages multiply.
+  it("clips per-corner radii with one inset() SkRRect instead of a path ring", () => {
     const markup = outline("dashed", 5, { borderTopRightRadius: "2px" });
-    expect(markup).toContain('<rect x="13" y="18" width="29" height="29" rx="4" ry="4"/>');
-    expect(markup).toMatch(/<g clip-path="url\(#[^"]+-outer\)"><g clip-path="url\(#[^"]+-outer-1\)">/);
+    expect(markup).toMatch(/<g style="clip-path:inset\([^"]+ round [^"]+\) fill-box"><rect [^>]* fill="none"\/><path /);
+    expect(markup).toMatch(/fill="black" style="clip-path:inset\([^"]+\) fill-box"\/><\/mask>/);
+    expect(markup).not.toContain("-outer-1");
     expect(markup).not.toContain('fill-rule="evenodd"');
   });
 

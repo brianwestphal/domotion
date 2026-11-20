@@ -1327,8 +1327,9 @@ function paintCurvedDashedDottedOutline(
   // Blink clips the doubled stroke to the outer contour and clips out the
   // inner one with Skia's anti-aliased rounded-rect clips; rounded-rect
   // clipPaths and a cut-out mask match them where an even-odd arc-path ring
-  // does not (DM-C77Q41, per-corner radii DM-1110JP). Radii that SkRRect would
-  // scale down, or a non-round corner-shape, keep the path ring.
+  // does not (DM-C77Q41). Per-corner radii use one CSS inset() clip per
+  // contour, which Blink builds as the same SkRRect (DM-6FFGSY). Radii that
+  // SkRRect would scale down, or a non-round corner-shape, keep the path ring.
   const ringClip = roundedRectRingClipMarkup(
     `${maskId}-outer`,
     maskId,

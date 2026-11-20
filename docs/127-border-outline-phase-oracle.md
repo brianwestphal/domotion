@@ -23,6 +23,7 @@ tickets:
     "DM-C77Q41",
     "DM-KA85VS",
     "DM-1110JP",
+    "DM-6FFGSY",
     "DM-2PSXZV",
     "DM-DBGKAG",
     "DM-F77PN8",
@@ -439,9 +440,47 @@ DPR 1:
 | radius 8/0/8/0, 2px dashed outline  | 203       | 40               |
 | radius 0/6/6/6, 2px dashed outline  | 294       | 26               |
 
-Stacked SVG clips do not rasterize exactly like one SkRRect clip, so a few
-isolated corner pixels can still differ more than before (premultiplied max 58
-against 33 for the 6/3/6/3 border); DM-6FFGSY tracks that residual.
+Stacked SVG clips do not rasterize like one SkRRect clip. Each clip's partial
+coverage multiplies where two of them overlap, so a few isolated corner pixels
+differed more than with the path ring (premultiplied max 58 against 33 for the
+6/3/6/3 border).
+
+Blink clips each contour with exactly one SkRRect: `ClipContouredRect` calls
+`ClipRRect` for a round contour (`graphics_context.cc:913-929`, Chromium
+7d859f27; `box_border_painter.cc:1463-1490`). Per-corner contours are therefore
+emitted as one CSS `clip-path: inset(… round h… / v…) fill-box` each
+(DM-6FFGSY):
+
+- `BasicShapeInset::GetPath` builds that clip as the same SkRRect
+  (`basic_shapes.cc:349-379`; see doc 277, "Unequal-radius rounded rects").
+- The outer contour wraps the stroke in a `<g>`. That group's first child is a
+  transparent pixel-aligned rect, which makes the group's fill box exact.
+- The inner contour is a black pixel-aligned rect under the same kind of clip,
+  inside the cut-out mask.
+
+`roundedRectClipLayers` still decides which contours qualify. A contour that
+shares one radius pair keeps its `<rect rx ry>` clipPath.
+
+Measured on a 36×28 box at DPR 1, max is premultiplied and sum is alpha:
+
+| case                                | stacked clips (max / sum) | inset() clip (max / sum) |
+| ----------------------------------- | ------------------------- | ------------------------ |
+| radius 6/3/6/3, 2px dashed border   | 58 / 130                  | 13 / 58                  |
+| radius 12/6/12/6, 4px dashed border | 13 / 101                  | 5 / 77                   |
+| radius 6/3/6/3, 2px dashed outline  | 47 / 179                  | 7 / 45                   |
+| radius 9/3, 3px dashed border       | 28 / 164                  | 28 / 139                 |
+| radius 6/3/6/3, 2px dotted border   | 58 / 222                  | 28 / 150                 |
+
+The probe also compared every pixel the change moved against native: 58 of 59
+got closer, and 48 became exact. The one that got worse moved by 1 level.
+
+The ticket's isolated pixels now match: (57,50) on the dashed border and
+(19,20) on the outline. What remains comes from the dash stroke, not the clip:
+
+- The uniform 6px dashed ring keeps max 24 with a single `<rect rx>` clip.
+- Its error does not move when the inner cut-out takes the inset() route, or
+  when the centerline is stroked as a `<rect rx ry>`. That rect is
+  `PathBuilder::AddRoundedRect`, the same path as Blink's centerline.
 
 The element-tree renderer remains the paint-order
 orchestrator and calls this state-independent owner at the existing outline

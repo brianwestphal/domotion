@@ -358,17 +358,24 @@ describeBrowser("per-corner rounded double, dashed and dotted outlines (DM-2PSXZ
 });
 
 // DM-1110JP: per-corner and unequal-width rounded dashed/dotted contours
-// intersect one rounded rect per corner instead of an even-odd arc-path ring.
-// Summed alpha error falls on every case (the ring measured 145, 679, 203, 294
-// and 462 on the per-corner cases below); a few isolated corner pixels still
-// differ, since stacked SVG clips do not rasterize like one SkRRect clip.
+// replaced an even-odd arc-path ring (it measured 145, 679, 203, 294 and 462
+// summed alpha on the first five cases below). DM-6FFGSY: Blink clips each
+// contour with ONE SkRRect (graphics_context.cc:913-929, Chromium 7d859f27),
+// so per-corner radii now take the CSS inset() clip that is that SkRRect
+// instead of stacked per-corner clips, whose partial coverages multiply. The
+// stacked clips measured max/sum 58/130, 13/101, 47/179, 28/164 and 58/222 on
+// the per-corner cases; the remainder is the dash stroke itself (the uniform
+// 6px ring keeps max 24 with a single rect clip).
 describeBrowser("per-corner rounded dashed and dotted clipping (DM-1110JP)", () => {
   for (const [css, maxBound, sumBound] of [
-    ["border:2px dashed red;border-radius:6px 3px 6px 3px", 64, 140],
-    ["border:2px dashed red;border-left-width:4px;border-radius:8px", 64, 480],
-    ["border:4px dashed blue;border-radius:12px 6px 12px 6px", 16, 130],
-    ["outline:2px dashed red;border-radius:8px 0 8px 0", 12, 60],
-    ["outline:2px dashed red;border-radius:0 6px 6px 6px", 12, 60],
+    ["border:2px dashed red;border-radius:6px 3px 6px 3px", 16, 70],
+    ["border:2px dashed red;border-left-width:4px;border-radius:8px", 64, 430],
+    ["border:4px dashed blue;border-radius:12px 6px 12px 6px", 8, 90],
+    ["outline:2px dashed red;border-radius:8px 0 8px 0", 12, 50],
+    ["outline:2px dashed red;border-radius:0 6px 6px 6px", 12, 40],
+    ["outline:2px dashed red;border-radius:6px 3px 6px 3px", 10, 60],
+    ["border:3px dashed red;border-radius:9px 3px", 32, 150],
+    ["border:2px dotted red;border-radius:6px 3px 6px 3px", 32, 165],
   ] as const) {
     it(`reduces curved-edge coverage error for ${css}`, async () => {
       const source = `<!doctype html><style>body{margin:0}#probe{position:absolute;left:20px;top:20px;width:36px;height:28px;${css}}</style><div id="probe"></div>`;
