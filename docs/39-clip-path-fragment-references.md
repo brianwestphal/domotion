@@ -25,6 +25,7 @@ tickets:
     "DM-CN257K",
     "DM-VA1P9H",
     "DM-0A8SGG",
+    "DM-K48QDG",
   ]
 code:
   [
@@ -240,11 +241,33 @@ vector fallback.
 
 The initial native boundary is static HTML owners in the main document. It
 refuses root body/html owners, animated/transitioning owners, backdrop blending,
-and ancestors with transformed, filtered, blended or clipped paint, propagated
-decoration or direct text. Potential isolation transitions, exposed root
-scrollbars and inherited paint changes also refuse; owner computed paint must
-remain unchanged through isolation/readback. These legitimate unsupported cases
-are tracked by DM-VA1P9H.
+and ancestors with filtered, blended or clipped paint, 3D or individual-property
+transforms, zoom, propagated decoration or image list markers. Potential
+isolation transitions, exposed root scrollbars and inherited paint changes also
+refuse; owner computed paint must remain unchanged through isolation/readback.
+These legitimate unsupported cases are tracked by DM-K48QDG.
+
+Static 2D ancestor `transform`s are supported (DM-VA1P9H). The walk freezes them
+and the renderer re-applies each as a `<g transform>`; the stamp is a viewport-
+space crop that the renderer places through the inverse of the CTM open at the
+owner's emission point (`viewportRasterMarkup`), so the transform is applied
+once. The raster is marked `viewportSpace` so culling does not read its
+rectangle as the owner's local box. Native clip/mask controls under
+`rotate(8deg)` and `translate(6px, 4px) scale(1.25)` match source within
+resampling of the antialiased stamp edge; without the inverse they are off by
+full channel range.
+
+Direct ancestor text, `::first-line`/`::first-letter` and text list markers are
+supported for clip-path owners (DM-VA1P9H). When the ancestor path paints text,
+isolation also makes `color`, `-webkit-text-fill-color`,
+`-webkit-text-stroke-color`, `text-emphasis-color` and `text-shadow`
+transparent/none on the ancestors and their first-line, first-letter and marker
+pseudos, pins the owner to its own computed values (colors equal to `color` as
+`currentcolor`, which inherits as a keyword), and verifies the ancestor text
+channels after isolation and after readback; the owner-subtree fingerprint
+catches any inherited change. A **mask** owner under ancestor text refuses: the
+restyle makes a CSP-blocked external mask stop painting natively, so the stamp
+would come back transparent.
 
 Ancestor `opacity` is supported (DM-N933MV). The renderer already emits each
 captured ancestor's opacity group around the owner's `<image>`, so the stamp

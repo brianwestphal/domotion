@@ -2679,6 +2679,8 @@ export interface CapturedElement {
     token: string;
     dataUri?: string;
     empty?: boolean;
+    /** Set when a frozen ancestor transform separates the crop from the local box. */
+    viewportSpace?: true;
   };
   /**
    * For <canvas> / <video> / <iframe> / <object> / <embed>: a viewport-relative

@@ -113,8 +113,13 @@ beforeAll(async () => {
               ? "/missing.svg"
               : "/sprite.svg";
       const fragment = url.searchParams.get("fragment") === "missing" ? "missing" : kind;
+      const owner = `<div id="box" style="width:32px; height:32px; background:red; ${property}:url(${asset}#${fragment}) !important; --sentinel: author">${url.searchParams.has("compound") ? '<div style="width:32px;height:32px;background:blue;mask-image:url(/child.svg#mask)"></div>' : ""}</div>`;
+      // Static ancestor text and a list marker (re-attaching a CSP-blocked
+      // external mask in script stops its native paint).
       response.end(
-        `<!doctype html><body style="margin:0;background:white"><div id="box" style="width:32px; height:32px; background:red; ${property}:url(${asset}#${fragment}) !important; --sentinel: author">${url.searchParams.has("compound") ? '<div style="width:32px;height:32px;background:blue;mask-image:url(/child.svg#mask)"></div>' : ""}</div>`,
+        url.searchParams.get("ancestor") === "list"
+          ? `<!doctype html><body style="margin:0;background:white"><ul style="margin:0;padding-left:40px;color:green;font:16px sans-serif"><li style="text-shadow:1px 1px blue">${owner}ancestor text</li></ul>`
+          : `<!doctype html><body style="margin:0;background:white">${owner}`,
       );
     }
   });
@@ -312,7 +317,145 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
       }
     },
   );
-  it.each(["clipping", "text"] as const)(
+  it("refuses ancestor text over a native external mask instead of stamping a lost mask", async () => {
+    const page = await browser.newPage({ viewport: { width: 128, height: 128 } });
+    try {
+      await page.goto(`${origin}/?kind=mask&csp=blocked&ancestor=list`);
+      const before = await sharp(await page.screenshot())
+        .removeAlpha()
+        .raw()
+        .toBuffer();
+      expect([...before.subarray((16 * 128 + 44) * 3, (16 * 128 + 44) * 3 + 3)]).toEqual([255, 0, 0]);
+      const { prime, tree } = await nativeOwner(page);
+      try {
+        await expect(prime.rasterize(tree, viewport)).rejects.toThrow("ancestor text over a mask");
+      } finally {
+        await prime.dispose();
+      }
+      const after = await sharp(await page.screenshot())
+        .removeAlpha()
+        .raw()
+        .toBuffer();
+      expect(after.equals(before)).toBe(true);
+    } finally {
+      await page.close();
+    }
+  });
+  it.each(["clip"] as const)(
+    "keeps native %s paint under ancestor direct text and a list marker without stamping them",
+    async (kind) => {
+      const page = await browser.newPage({ viewport: { width: 128, height: 128 } });
+      try {
+        await page.goto(`${origin}/?kind=${kind}&csp=blocked&ancestor=list`);
+        const before = await sharp(await page.screenshot())
+          .removeAlpha()
+          .raw()
+          .toBuffer();
+        const at = (buffer: Buffer, x: number, y: number) => [
+          ...buffer.subarray((y * 128 + x) * 3, (y * 128 + x) * 3 + 3),
+        ];
+        // Native discriminator: left-half red inside the owner at x=40.
+        expect(at(before, 44, 16)).toEqual([255, 0, 0]);
+        expect(at(before, 64, 16)).toEqual([255, 255, 255]);
+        const ownerStyle = await page.locator("#box").getAttribute("style");
+        await freezeRealWorldDom(page);
+        const result = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 128, height: 128 }, {});
+        const owner = result.tree
+          .flatMap(function flat(node): typeof result.tree {
+            return [node, ...node.children.flatMap(flat)];
+          })
+          .find((node) => node.externalCssSvgRaster != null)?.externalCssSvgRaster;
+        // The stamp holds only the owner's 16x32 painted half: no text, shadow or marker.
+        expect(owner?.dataUri).toMatch(/^data:image\/png/);
+        expect(owner).toMatchObject({ x: 40, y: 0, width: 16, height: 32 });
+        expect(owner?.viewportSpace).toBeUndefined();
+        const output = await browser.newPage({ viewport: { width: 128, height: 128 } });
+        try {
+          await output.setContent(`<body style="margin:0">${elementTreeToSvg(result.tree, 128, 128, {})}`);
+          const captured = await sharp(await output.screenshot())
+            .removeAlpha()
+            .raw()
+            .toBuffer();
+          for (let y = 0; y < 32; y++)
+            for (let x = 40; x < 72; x++) expect(at(captured, x, y)).toEqual(at(before, x, y));
+        } finally {
+          await output.close();
+        }
+        expect(await page.locator("#box").getAttribute("style")).toBe(ownerStyle);
+        expect(
+          await page.evaluate(() =>
+            Array.from(document.querySelectorAll("*")).some((element) =>
+              element.getAttributeNames().some((name) => /csspaint/i.test(name)),
+            ),
+          ),
+        ).toBe(false);
+      } finally {
+        await page.close();
+      }
+    },
+  );
+  it.each([
+    { kind: "clip", transform: "rotate(8deg)" },
+    { kind: "mask", transform: "rotate(8deg)" },
+    { kind: "clip", transform: "translate(6px, 4px) scale(1.25)" },
+    { kind: "mask", transform: "translate(6px, 4px) scale(1.25)" },
+  ] as const)(
+    "keeps native $kind paint under a static ancestor $transform without applying it twice",
+    async ({ kind, transform }) => {
+      const page = await browser.newPage({ viewport: { width: 96, height: 96 } });
+      try {
+        await page.goto(`${origin}/?kind=${kind}&csp=blocked`);
+        await page.locator("#box").evaluate((element, transform) => {
+          const wrapper = document.createElement("div");
+          wrapper.style.cssText = `margin:20px;width:32px;transform:${transform}`;
+          element.replaceWith(wrapper);
+          wrapper.appendChild(element);
+        }, transform);
+        const before = await sharp(await page.screenshot())
+          .removeAlpha()
+          .raw()
+          .toBuffer();
+        await freezeRealWorldDom(page);
+        const result = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 96, height: 96 }, {});
+        const owner = result.tree
+          .flatMap(function flat(node): typeof result.tree {
+            return [node, ...node.children.flatMap(flat)];
+          })
+          .find((node) => node.externalCssSvgRaster != null)?.externalCssSvgRaster;
+        expect(owner?.dataUri).toMatch(/^data:image\/png/);
+        expect(owner?.viewportSpace).toBe(true);
+        const output = await browser.newPage({ viewport: { width: 96, height: 96 } });
+        try {
+          await output.setContent(`<body style="margin:0">${elementTreeToSvg(result.tree, 96, 96, {})}`);
+          const captured = await sharp(await output.screenshot())
+            .removeAlpha()
+            .raw()
+            .toBuffer();
+          // The inverse CTM cancels the re-applied ancestor transform, leaving
+          // only resampling at antialiased stamp edges; a double application
+          // moves or re-rotates the red stamp across hundreds of pixels.
+          let maxDelta = 0;
+          let changed = 0;
+          for (let pixel = 0; pixel < captured.length / 3; pixel++) {
+            let delta = 0;
+            for (let channel = 0; channel < 3; channel++)
+              delta = Math.max(delta, Math.abs(captured[pixel * 3 + channel] - before[pixel * 3 + channel]));
+            maxDelta = Math.max(maxDelta, delta);
+            if (delta > 4) changed++;
+          }
+          expect({ transform, maxDelta, changed }).toMatchObject({ transform });
+          expect(maxDelta).toBeLessThanOrEqual(transform.startsWith("rotate") ? 32 : 8);
+          // A rotated stamp's ~96-pixel antialiased perimeter is resampled once.
+          expect(changed).toBeLessThanOrEqual(transform.startsWith("rotate") ? 96 : 0);
+        } finally {
+          await output.close();
+        }
+      } finally {
+        await page.close();
+      }
+    },
+  );
+  it.each(["clipping", "3d-transform"] as const)(
     "refuses unsupported ancestor %s without changing source paint",
     async (effect) => {
       const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
@@ -320,10 +463,12 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
         await page.goto(`${origin}/?csp=blocked`);
         await page.locator("#box").evaluate((element, effect) => {
           const wrapper = document.createElement("div");
-          wrapper.style.cssText = effect === "clipping" ? "overflow:hidden;width:16px;height:16px" : "";
+          wrapper.style.cssText =
+            effect === "clipping"
+              ? "overflow:hidden;width:16px;height:16px"
+              : "transform:perspective(100px) rotateY(20deg)";
           element.replaceWith(wrapper);
           wrapper.appendChild(element);
-          if (effect === "text") wrapper.append("native ancestor text");
         }, effect);
         const before = await pixels(page);
         const { prime, tree } = await nativeOwner(page);

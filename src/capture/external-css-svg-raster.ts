@@ -18,6 +18,8 @@ export interface CssSvgIsolation {
   ancestors: Element[];
   /** Outside never-painted local definitions kept at their native style. */
   dependencies: Array<{ element: Element; styles: string }>;
+  /** The ancestor path paints direct text or markers, hidden via text channels. */
+  ancestorText: boolean;
 }
 type Identity = { key: string; token: string };
 interface AncestorPaint {
@@ -27,12 +29,18 @@ interface AncestorPaint {
   colors: string[];
   /** Ancestor alpha is neutralized for the stamp; the renderer re-applies it. */
   opacity: string;
+  /** Text-paint colors and shadow; empty unless the ancestor path paints text. */
+  text: string[];
 }
 function requireTransparentAncestors(facts: AncestorPaint[], message: string): void {
   if (
     facts.some(
       (fact) =>
         fact.opacity !== "1" ||
+        // text-shadow must be `none`; every color must be transparent.
+        fact.text.some((value) =>
+          /\d+(?:\.\d+)?px/.test(value) ? true : value !== "none" && !isTransparentBackground(value),
+        ) ||
         fact.backgroundImage !== "none" ||
         fact.boxShadow !== "none" ||
         fact.borderImageSource !== "none" ||
@@ -173,12 +181,24 @@ export async function rasterizeExternalCssSvgSurfaces(
             )
               throw new Error("external CSS native owner has unsupported exposed root scrollbars");
             const ancestors = new Set<Element>();
+            let transformedAncestor = false;
             for (let ancestor = owner.parentElement; ancestor != null; ancestor = ancestor.parentElement) {
               ancestors.add(ancestor);
               const style = getComputedStyle(ancestor);
+              // A static 2D ancestor transform is frozen by the walk and re-applied
+              // by the renderer's <g transform>; the stamp is a viewport-space crop
+              // placed through the inverse of that CTM. 3D and individual-property
+              // transforms are not part of that contract.
+              if (style.transform !== "none") transformedAncestor = true;
               if (
                 ancestor.getAnimations().length > 0 ||
-                style.transform !== "none" ||
+                /^matrix3d\(/.test(style.transform) ||
+                style.perspective !== "none" ||
+                style.transformStyle === "preserve-3d" ||
+                style.rotate !== "none" ||
+                style.scale !== "none" ||
+                style.translate !== "none" ||
+                style.offsetPath !== "none" ||
                 style.filter !== "none" ||
                 style.backdropFilter !== "none" ||
                 style.maskImage !== "none" ||
@@ -189,9 +209,8 @@ export async function rasterizeExternalCssSvgSurfaces(
                 style.zoom !== "1" ||
                 /paint|strict|content/.test(style.contain) ||
                 style.textDecorationLine !== "none" ||
-                Array.from(ancestor.childNodes).some(
-                  (node) => node.nodeType === Node.TEXT_NODE && (node.textContent ?? "").trim() !== "",
-                )
+                // An image marker cannot be made transparent through `color`.
+                (style.display.includes("list-item") && style.listStyleImage !== "none")
               )
                 throw new Error("external CSS native owner has unsupported ancestor effects or clipping");
             }
@@ -356,6 +375,7 @@ export async function rasterizeExternalCssSvgSurfaces(
                 styles: ["", "::before", "::after"].map((pseudo) => fingerprint(element, pseudo)),
               })),
               ancestors: [...ancestors],
+              ancestorText: false,
               dependencies: [...dependencies].map((element) => ({ element, styles: fingerprint(element, "") })),
             };
             // Publish ownership before any mutation, including a throwing setter.
@@ -366,19 +386,73 @@ export async function rasterizeExternalCssSvgSurfaces(
             // Hiding an ancestor can suppress an external SVG mask even after its
             // owner is re-shown. Keep native ancestor visibility and remove only
             // paint channels which cannot contribute to the owner's isolated stamp.
+            // Direct ancestor text, ::first-line/::first-letter and text markers
+            // paint through inherited text-paint channels; make them transparent
+            // on the ancestor path and pin the owner to its own computed values
+            // so nothing it or its subtree inherits changes.
+            // Only when the ancestor path paints text at all, so ordinary owners
+            // keep the exact pre-existing isolation.
+            const ancestorText = [...ancestors].some(
+              (ancestor) =>
+                getComputedStyle(ancestor).display.includes("list-item") ||
+                Array.from(ancestor.childNodes).some(
+                  (node) => node.nodeType === Node.TEXT_NODE && (node.textContent ?? "").trim() !== "",
+                ),
+            );
+            isolation.ancestorText = ancestorText;
+            // Hiding inherited text paint restyles the owner subtree, and a
+            // restyled external CSS mask whose bytes Chromium could not refetch
+            // stops painting (measured: the stamp comes back fully transparent).
+            // Clip paths survive the restyle; masks under ancestor text refuse.
+            if (
+              ancestorText &&
+              [owner, ...owner.querySelectorAll("*")].some((element) => getComputedStyle(element).maskImage !== "none")
+            )
+              throw new Error("external CSS native owner has unsupported ancestor text over a mask");
+            const textHide = ancestorText
+              ? ";color:transparent!important;-webkit-text-fill-color:transparent!important;-webkit-text-stroke-color:transparent!important;text-shadow:none!important;text-emphasis-color:transparent!important"
+              : "";
             for (const ancestor of ancestors) {
               const index = String(isolation.marked.length);
               rules.push(
-                `[${attribute}="${index}"]${show}{background:transparent!important;border-color:transparent!important;border-image:none!important;box-shadow:none!important;outline-color:transparent!important;opacity:1!important}`,
+                `[${attribute}="${index}"]${show}{background:transparent!important;border-color:transparent!important;border-image:none!important;box-shadow:none!important;outline-color:transparent!important;opacity:1!important${textHide}}`,
               );
               rules.push(
                 `[${attribute}="${index}"]${show}::before,[${attribute}="${index}"]${show}::after{visibility:hidden!important}`,
               );
+              if (ancestorText) {
+                rules.push(
+                  `[${attribute}="${index}"]${show}::first-line,[${attribute}="${index}"]${show}::first-letter{background:transparent!important${textHide}}`,
+                );
+                rules.push(`[${attribute}="${index}"]${show}::marker{color:transparent!important}`);
+              }
               isolation.marked.push({ element: ancestor, before: ancestor.getAttribute(attribute), owned: index });
               ancestor.setAttribute(attribute, index);
             }
+            // The owner keeps its own text paint. Colors equal to `color` are
+            // pinned as `currentcolor`, which inherits as a keyword like the
+            // initial value; any other difference is caught by the owner-subtree
+            // fingerprint check below and refuses.
+            const ownerText = getComputedStyle(owner);
+            const pinned = (
+              [
+                ["color", ownerText.color],
+                ["-webkit-text-fill-color", ownerText.webkitTextFillColor],
+                ["-webkit-text-stroke-color", ownerText.webkitTextStrokeColor],
+                ["text-shadow", ownerText.textShadow],
+                ["text-emphasis-color", ownerText.textEmphasisColor],
+              ] as const
+            )
+              .map(([name, value]) => {
+                if (/[;{}!]/.test(value)) throw new Error("external CSS native owner text paint is unsupported");
+                const pin =
+                  name !== "color" && name !== "text-shadow" && value === ownerText.color ? "currentcolor" : value;
+                return `${name}:${pin}!important`;
+              })
+              .join(";");
             for (const element of [owner, ...owner.querySelectorAll("*")]) {
               const index = String(isolation.marked.length);
+              if (element === owner && ancestorText) rules.push(`[${attribute}="${index}"]${show}{${pinned}}`);
               isolation.marked.push({ element, before: element.getAttribute(attribute), owned: index });
               element.setAttribute(attribute, index);
             }
@@ -413,6 +487,24 @@ export async function rasterizeExternalCssSvgSurfaces(
             for (const fact of isolation.dependencies)
               if (fingerprint(fact.element, "") !== fact.styles)
                 throw new Error("external CSS native isolation changed an outside local-definition dependency");
+            const textPaint = (element: Element, style: CSSStyleDeclaration): string[] => {
+              const firstLine = getComputedStyle(element, "::first-line");
+              const firstLetter = getComputedStyle(element, "::first-letter");
+              return [
+                style.color,
+                style.webkitTextFillColor,
+                style.webkitTextStrokeColor,
+                style.textEmphasisColor,
+                style.textShadow,
+                firstLine.color,
+                firstLine.webkitTextFillColor,
+                firstLine.textShadow,
+                firstLetter.color,
+                firstLetter.webkitTextFillColor,
+                firstLetter.textShadow,
+                getComputedStyle(element, "::marker").color,
+              ];
+            };
             const paint: AncestorPaint[] = [];
             for (const element of document.querySelectorAll("*")) {
               if (owner.contains(element) || dependencies.has(element)) continue;
@@ -431,6 +523,7 @@ export async function rasterizeExternalCssSvgSurfaces(
                     style.outlineColor,
                   ],
                   opacity: style.opacity,
+                  text: isolation.ancestorText ? textPaint(element, style) : [],
                 });
                 for (const pseudo of ["::before", "::after"])
                   if (getComputedStyle(element, pseudo).visibility !== "hidden")
@@ -441,12 +534,12 @@ export async function rasterizeExternalCssSvgSurfaces(
                 if (getComputedStyle(element, pseudo || null).visibility !== "hidden")
                   throw new Error("external CSS native isolation could not suppress foreign paint");
             }
-            return paint;
+            return { paint, transformed: transformedAncestor };
           },
           { ...identity, ownerToken: target.token, attribute },
         ),
       );
-      requireTransparentAncestors(beforePaint, "external CSS native isolation could not suppress ancestor paint");
+      requireTransparentAncestors(beforePaint.paint, "external CSS native isolation could not suppress ancestor paint");
       shadowGuard = await openCssSvgShadowGuard(page, { ...identity, ownerToken: target.token });
       const shot = await bounded(page.screenshot({ clip: viewport, omitBackground: true, type: "png", timeout: 5000 }));
       const afterPaint = await bounded(
@@ -480,6 +573,24 @@ export async function rasterizeExternalCssSvgSurfaces(
               )
                 throw new Error("external CSS native local-definition dependency changed during screenshot");
             }
+            const textPaint = (element: Element, style: CSSStyleDeclaration): string[] => {
+              const firstLine = getComputedStyle(element, "::first-line");
+              const firstLetter = getComputedStyle(element, "::first-letter");
+              return [
+                style.color,
+                style.webkitTextFillColor,
+                style.webkitTextStrokeColor,
+                style.textEmphasisColor,
+                style.textShadow,
+                firstLine.color,
+                firstLine.webkitTextFillColor,
+                firstLine.textShadow,
+                firstLetter.color,
+                firstLetter.webkitTextFillColor,
+                firstLetter.textShadow,
+                getComputedStyle(element, "::marker").color,
+              ];
+            };
             const paint: AncestorPaint[] = [];
             for (const element of document.querySelectorAll("*")) {
               if (selected[0].contains(element) || dependencies.has(element)) continue;
@@ -499,6 +610,7 @@ export async function rasterizeExternalCssSvgSurfaces(
                     style.outlineColor,
                   ],
                   opacity: style.opacity,
+                  text: state.isolation.ancestorText ? textPaint(element, style) : [],
                 });
               for (const pseudo of ancestor ? ["::before", "::after"] : ["", "::before", "::after"])
                 if (getComputedStyle(element, pseudo || null).visibility !== "hidden")
@@ -554,6 +666,10 @@ export async function rasterizeExternalCssSvgSurfaces(
         target.height = (height * viewport.height) / info.height;
         target.dataUri = `data:image/png;base64,${cropped.toString("base64")}`;
       }
+      // The crop is in viewport space; under a frozen ancestor transform its
+      // rectangle is not the owner's local box (culling must not treat it so).
+      if (beforePaint.transformed) target.viewportSpace = true;
+      else delete target.viewportSpace;
     } catch (error) {
       failed = true;
       primary = error;

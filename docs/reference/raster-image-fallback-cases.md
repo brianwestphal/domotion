@@ -197,8 +197,10 @@ its private journal; `src/capture/script/walker/element-capture.ts` records
 authenticated native subtree with Node bounds, source-preserving visibility,
 transparent alpha readback and retryable CAS cleanup. Ancestor opacity is
 neutralized in the stamp and re-applied by the renderer's ancestor groups
-(DM-N933MV); ancestor transforms, filters, clipping, text and active animation
-explicitly refuse (DM-VA1P9H).
+(DM-N933MV); ancestor 3D transforms, filters, clipping, masks under ancestor
+text and active animation explicitly refuse (DM-K48QDG). Static 2D ancestor transforms (viewport-space
+crop placed through the inverse CTM) and ancestor direct text over clip-path
+owners are supported (DM-VA1P9H).
 Same-document definitions outside the owner that its subtree references stay at
 native paint when they are never-painted SVG content (`<defs>`, `<symbol>`,
 resource containers); a directly painted dependency refuses (DM-F19PYG).

@@ -1110,7 +1110,8 @@
           "DM-FMYC9Q",
           "DM-CN257K",
           "DM-VA1P9H",
-          "DM-0A8SGG"
+          "DM-0A8SGG",
+          "DM-K48QDG"
         ],
         "code": [
           "src/capture/index.ts",
