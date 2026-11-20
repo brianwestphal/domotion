@@ -1,4 +1,11 @@
 import type { Page } from "@playwright/test";
+import { type PresentedFrameWait, waitForPresentedFrame } from "../capture/presented-frame.js";
+
+export {
+  DEFAULT_FRAME_TIMEOUT_MS,
+  type PresentedFrameWait,
+  waitForPresentedFrame,
+} from "../capture/presented-frame.js";
 
 /**
  * Screenshots for test and oracle harnesses that may run as the first capture
@@ -42,14 +49,6 @@ import type { Page } from "@playwright/test";
 export const EMPTY_SURFACE_SCREENSHOT = /Page\.captureScreenshot\): Unable to capture screenshot/;
 
 export const DEFAULT_SCREENSHOT_ATTEMPTS = 4;
-export const DEFAULT_FRAME_TIMEOUT_MS = 5_000;
-
-export interface PresentedFrameWait {
-  /** True when two animation frames ran before the deadline. */
-  presented: boolean;
-  /** Wall-clock time the wait took, in milliseconds. */
-  waitMs: number;
-}
 
 export interface EmptySurfaceAttempt extends PresentedFrameWait {
   attempt: number;
@@ -89,48 +88,6 @@ function warnEmptySurface(attempt: EmptySurfaceAttempt): void {
   console.warn(
     `[presented-frame screenshot] empty surface copy on attempt ${attempt.attempt} (presented=${attempt.presented}, frameWaitMs=${attempt.waitMs}): ${attempt.error.split("\n")[0]}`,
   );
-}
-
-/**
- * Wait, at most `timeoutMs`, for two animation frames to run in the page.
- *
- * The deadline is enforced from Node as well as in the page: a page whose
- * timers have been replaced (the real-world DOM freeze does this) or whose
- * `requestAnimationFrame` never calls back would otherwise hold the evaluation
- * open forever. An in-flight evaluation that loses the race is left to settle
- * on its own; its result is ignored.
- */
-export async function waitForPresentedFrame(
-  page: Pick<Page, "evaluate">,
-  timeoutMs = DEFAULT_FRAME_TIMEOUT_MS,
-): Promise<PresentedFrameWait> {
-  const started = Date.now();
-  const inPage = page.evaluate(
-    (deadline) =>
-      new Promise<boolean>((resolve) => {
-        const timer = setTimeout(() => resolve(false), deadline);
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            clearTimeout(timer);
-            resolve(true);
-          }),
-        );
-      }),
-    timeoutMs,
-  );
-  let nodeTimer: ReturnType<typeof setTimeout> | undefined;
-  const nodeDeadline = new Promise<boolean>((resolve) => {
-    nodeTimer = setTimeout(() => resolve(false), timeoutMs);
-  });
-  try {
-    const presented = await Promise.race([inPage, nodeDeadline]);
-    return { presented, waitMs: Date.now() - started };
-  } finally {
-    clearTimeout(nodeTimer);
-    // A losing evaluation may still reject later (for example when the page
-    // closes); it no longer has an observer.
-    inPage.catch(() => {});
-  }
 }
 
 /**

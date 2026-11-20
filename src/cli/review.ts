@@ -26,6 +26,7 @@ import { parseSvgIntrinsicSize } from "../animation/svg-meta.js";
 import { launchChromium } from "../capture/index.js";
 import { comparePngs } from "../review/compare-pngs.js";
 import { startReviewServer } from "../review/server.js";
+import { waitForPresentedFrame } from "../capture/presented-frame.js";
 import { installShutdownHandlers, openInBrowser, parsePort, runBin, UsageError } from "./common.js";
 
 const HELP = `svg-review — compare Domotion's actual.svg against expected.png
@@ -112,6 +113,10 @@ async function rasteriseSvg(
     throw new Error(`svg-review: couldn't determine SVG dimensions from ${svgPath}`);
   }
   await page.setViewportSize({ width: Math.ceil(dims.width), height: Math.ceil(dims.height) });
+  // This is the first capture of a page that may belong to a just-launched
+  // browser; copying the surface before the renderer has presented a frame
+  // fails with "Unable to capture screenshot" (see presented-frame.ts).
+  await waitForPresentedFrame(page);
   await page.screenshot({
     path: outPng,
     clip: { x: 0, y: 0, width: dims.width, height: dims.height },

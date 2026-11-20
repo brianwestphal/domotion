@@ -17,6 +17,8 @@ tickets:
     "DM-C3HJHY",
     "DM-R4Y02H",
     "DM-JS8CWX",
+    "DM-Z869QZ",
+    "DM-DPK3T8",
   ]
 code:
   [
@@ -24,6 +26,8 @@ code:
     "src/capture/snapshot-visibility-transitions.ts",
     "src/capture/webgl-output-freeze.ts",
     "src/capture/gpu-startup-barrier.ts",
+    "src/capture/presented-frame.ts",
+    "tests/presented-frame-production-policy.test.ts",
     "src/capture/gpu-startup-barrier.test.ts",
     "src/capture/gpu-startup-barrier.e2e.test.ts",
     "src/capture/lost-canvas-contexts.ts",
@@ -217,6 +221,41 @@ the failure it removed is a worker's first `getContext('webgl2')` returning
 null, which was not reproduced locally with or without the wait (35 fresh
 launches without either, 20 of them under full CPU load), so nothing shows the wait
 covers it.
+
+### A first capture before the first presented frame
+
+A separate first-page hazard is an error rather than a lost drawing.
+`page.screenshot()` on a just-launched browser's first page can fail with
+"Unable to capture screenshot" because the copy reaches viz before the
+renderer has a compositor frame sink. The mechanism and its Chromium source
+are in `src/capture/presented-frame.ts` and in
+[doc 66](66-ci-visual-tests.md#screenshot-capture-failure-evidence). When the
+copy succeeds, it shows the newly drawn frame, so this hazard produces an
+error, not a blank image.
+
+The following was measured on hosted macOS runners on 2026-11-20, with six
+browsers at once on three vCPUs, `setContent` and then one immediate capture:
+
+| case                                                | failures   |
+| --------------------------------------------------- | ---------- |
+| bare `chromium.launch`                              | 55 / 1,800 |
+| after the `launchChromium` GPU feature-info barrier | 24 / 1,800 |
+| a new page in a browser that was already running    | 0 / 1,800  |
+| after two animation frames                          | 0 / 1,200  |
+| the built `svg-to-image` bin                        | 0 / 900    |
+
+The bin is safe because its seek (`seekAnimationsToFrame`) already waits two
+frames. The GPU barrier therefore does not remove this race. Scratch pages
+opened during a capture are not exposed. A shipped capture is exposed only
+when it is the first capture of a fresh browser's first page and nothing
+before it has waited for a frame.
+
+Two shipped sites take that capture: `svg-review`'s rasterization of the
+actual SVG (`src/cli/review.ts`) and `domotion capture --debug`'s
+`expected.png`, taken before the capture script (`src/cli/capture.ts`). Both
+call `waitForPresentedFrame(page)` first. That is a bounded two-frame wait of
+at most 5 s, enforced from Node as well as in the page.
+`tests/presented-frame-production-policy.test.ts` holds both sites to it.
 
 ## Transform, clip, and device-pixel spaces
 

@@ -64,6 +64,7 @@ import {
   flagNumber,
 } from "./common.js";
 import { setupDebugBundle } from "./debug-bundle.js";
+import { waitForPresentedFrame } from "../capture/presented-frame.js";
 
 interface CaptureFlags {
   output?: string;
@@ -430,13 +431,16 @@ async function runCaptureExecution(parsed: ParsedCapture): Promise<void> {
       // keeps the debug artifact a faithful pre-capture reference for
       // svg-review (DM-946) to diff our SVG output against).
       if (debug && debugDir != null) {
-        await timed(log, "  debug: expected.png", () =>
-          page.screenshot({
+        await timed(log, "  debug: expected.png", async () => {
+          // The page's first capture, possibly soon after launch: wait for a
+          // presented frame so the surface copy is not empty (presented-frame.ts).
+          await waitForPresentedFrame(page);
+          return page.screenshot({
             clip: { x: clip[0], y: clip[1], width: clip[2], height: clip[3] },
             path: `${debugDir}/expected.png`,
             omitBackground: false,
-          }),
-        );
+          });
+        });
       }
       const tree = await timed(log, "  captured", () =>
         captureElementTree(

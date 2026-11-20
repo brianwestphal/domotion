@@ -587,13 +587,17 @@
           "DM-FTRBES",
           "DM-C3HJHY",
           "DM-R4Y02H",
-          "DM-JS8CWX"
+          "DM-JS8CWX",
+          "DM-Z869QZ",
+          "DM-DPK3T8"
         ],
         "code": [
           "src/capture/replaced-element-raster.ts",
           "src/capture/snapshot-visibility-transitions.ts",
           "src/capture/webgl-output-freeze.ts",
           "src/capture/gpu-startup-barrier.ts",
+          "src/capture/presented-frame.ts",
+          "tests/presented-frame-production-policy.test.ts",
           "src/capture/gpu-startup-barrier.test.ts",
           "src/capture/gpu-startup-barrier.e2e.test.ts",
           "src/capture/lost-canvas-contexts.ts",

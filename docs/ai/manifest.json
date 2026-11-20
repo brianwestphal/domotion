@@ -306,6 +306,8 @@
         "src/capture/snapshot-visibility-transitions.ts",
         "src/capture/webgl-output-freeze.ts",
         "src/capture/gpu-startup-barrier.ts",
+        "src/capture/presented-frame.ts",
+        "tests/presented-frame-production-policy.test.ts",
         "src/capture/gpu-startup-barrier.test.ts",
         "src/capture/gpu-startup-barrier.e2e.test.ts",
         "src/capture/lost-canvas-contexts.ts",
