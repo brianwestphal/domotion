@@ -94,6 +94,9 @@ function element(route: Route) {
         width: 60,
         height: 30,
         children: [],
+        // Every captured element carries its computed styles; the native pass
+        // reads `transform` to map a frozen transform's crop into the viewport.
+        styles: { transform: "none" },
         nativeControlRaster: { x: 19, y: 19, width: 62, height: 32, sourceNodeIndex: 0, selector: "#target" },
       })
     : capturedElement({
