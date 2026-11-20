@@ -5,7 +5,8 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9", "DM-WREGPJ", "DM-ZAXD0C"]
+tickets:
+  ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9", "DM-WREGPJ", "DM-ZAXD0C", "DM-JRG1BD"]
 code:
   [
     "src/font-family-stack.test.ts",
@@ -23,6 +24,9 @@ code:
     "tests/font-family-animation-provenance.e2e.test.ts",
     "src/capture/font-locale.ts",
     "src/capture/font-locale.test.ts",
+    "src/capture/renderer-default-locale.ts",
+    "src/capture/renderer-default-locale.test.ts",
+    "tests/renderer-default-locale.e2e.test.ts",
     "tests/computed-font-locale.e2e.test.ts",
     "src/capture/font-family-values.ts",
     "src/capture/font-family-values.test.ts",
@@ -195,8 +199,8 @@ computed `-webkit-locale` to agree with captured DOM language, or an explicitly
 decoded CSS locale string that the renderer can route (DM-PJG8E9); live
 consumption rechecks both bindings. `all:initial` can reset locale to `auto`
 despite `lang=ja`.
-That known mismatch retains its exact prior route with a warning (DM-PJG8E9,
-DM-3972FJ), without changing existing language metadata. Pseudos have their own bound facts;
+That known mismatch retains its exact prior family-type route with a warning
+(DM-PJG8E9), without changing existing language metadata. Pseudos have their own bound facts;
 unknown/blocked pseudo evidence cannot borrow a newly proved host standard type.
 Native query failure preserves an independently valid ZZR literal witness.
 
@@ -345,13 +349,57 @@ Pinned source authority:
 - [HTML XML-language priority over lang](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/html/html_element.cc#L445) and [language presentation declarations](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/dom/element.cc#L12550).
 - [FontDescription null locale uses LocaleOrDefault for script](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/platform/fonts/font_description.h#L298), [LayoutLocale default language](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/platform/text/layout_locale.cc#L294) and [renderer --lang authority](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/content/renderer/render_thread_impl.cc#L711).
 
-**Qualified boundary:** raw `auto`, unavailable and invalid locale data retain the
-prior language route and ESH's conservative family-type usability guard.
-DM-3972FJ owns authenticated renderer-default locale support. Navigator language
-comes from AcceptLanguages and Intl locale can be separately overridden;
-neither proves Blink's default font locale. Native custom Playwright locale `ja`
-changed both web-exposed values to Japanese while CSS `auto` still painted Times
-on the measured Mac. This repair does not claim that default-reset gap is solved.
+**Renderer default locale (DM-JRG1BD).** Computed `auto` is a null
+`FontDescription` locale, so Blink selects with `LayoutLocale::GetDefault()` →
+`DefaultLanguage()` → the renderer's own `--lang` switch
+(`content/renderer/render_thread_impl.cc:711-720`, Chromium 7d859f27). The browser
+appends `--lang=<GetApplicationLocale()>` to every renderer after the switches it
+propagates (`render_process_host_impl.cc:3757-3765`) and `base::CommandLine` keeps
+the last value (`base/command_line.cc:433-451`). `src/capture/renderer-default-locale.ts`
+reads that value: it takes the browser and renderer pids from
+`SystemInfo.getProcessInfo`, requires the browser to descend from this Node
+process and every renderer from the browser, reads each argv (macOS `ps`, Linux
+`/proc/<pid>/cmdline`, Windows `Win32_Process` through CIM, never a shell), takes
+the last `--lang`, canonicalizes `_` to `-` and an empty value to `en`, and
+requires all renderers to agree. Only the language value is kept. Capture writes
+it as `defaultFontLocale` beside every computed `auto` locale (elements and pseudo
+typography), the Page generic probe adds its script, and `fontSelectionLanguage`
+prefers it over DOM language for `auto` only. A connected/remote browser,
+unreadable argv, disagreement, or `DOMOTION_RENDERER_DEFAULT_LOCALE=0` leave it
+absent, which keeps the prior DOM-language route; old trees are unchanged.
+
+The locale reaches paint through the per-script generic settings on every
+platform: `FontSelector::FamilyNameFromSettings` reads
+`FontDescription::GetScript()` = `LocaleOrDefault().GetScript()`
+(`platform/fonts/font_selector.cc`, `font_description.h:299-302`), and
+`FontFallbackList::GetFontData` appends `-webkit-standard` after the author
+families (`font_fallback_list.cc:180-188`). On macOS, measured with launches at
+`--lang=ja` / `zh-TW` / `ko`, a no-`lang` Han run in `Times`, `Helvetica`,
+`sans-serif` or `initial` paints the script's standard face (Hiragino Kaku Gothic /
+PingFang TC / Apple SD Gothic Neo) and `serif` the script's serif face, while
+`CTFontCreateForString` itself receives no locale (`mac/font_cache_mac.mm:127-185,
+314-372`). Linux additionally passes `LocaleOrDefault()` to fontconfig and Windows
+to `LayoutLocale::GetDefault()`, both through the same `lang` route.
+
+**Platform status.** macOS and Windows (CIM) read the renderer argv in full; the
+e2e passes on both (Windows via the fidelity workflow). On Linux, renderers are
+forked from the zygote and retitle themselves inside the zygote's argv area, so
+`/proc/<pid>/cmdline` is truncated before the appended `--lang`; the authority
+refuses there and the DOM-language route stays. Linux also ignores `--lang` for
+the application locale: headless sets ICU from `l10n_util::GetApplicationLocale`
+(`headless_content_main_delegate.cc:178-181`), whose non-Apple, non-Windows branch
+reads the environment (`ui/base/l10n/l10n_util.cc:508-577`), and headless
+`GetApplicationLocale()` returns that ICU locale
+(`headless_content_browser_client.cc:317-319`); a measured utility process under
+`--lang=ja` carried `--lang=en-US@posix`.
+
+Navigator language comes from AcceptLanguages and Intl locale can be separately
+overridden (`Emulation.setLocaleOverride` changes ICU/V8 only); neither is Blink's
+default font locale, and neither is consulted. `tests/renderer-default-locale.e2e.test.ts`
+launches `--lang=ja`, `zh-TW` and `en_US` and checks the authenticated value, the
+captured routing, the generic primaries against Chromium's painted faces, and that
+removing the authority moves the rendering away from Chromium (macOS: 6.96% →
+4.84% for `ja`, 5.52% → 4.87% for `zh-TW`, unchanged for `en-US`).
 
 The bounded native regression records actual painted A faces, Range widths and
 fontkit advances for CSS inheritance/unset, authored overrides, variables and

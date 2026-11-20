@@ -5097,7 +5097,8 @@
           "DM-ESH89H",
           "DM-PJG8E9",
           "DM-WREGPJ",
-          "DM-ZAXD0C"
+          "DM-ZAXD0C",
+          "DM-JRG1BD"
         ],
         "code": [
           "src/font-family-stack.test.ts",
@@ -5115,6 +5116,9 @@
           "tests/font-family-animation-provenance.e2e.test.ts",
           "src/capture/font-locale.ts",
           "src/capture/font-locale.test.ts",
+          "src/capture/renderer-default-locale.ts",
+          "src/capture/renderer-default-locale.test.ts",
+          "tests/renderer-default-locale.e2e.test.ts",
           "tests/computed-font-locale.e2e.test.ts",
           "src/capture/font-family-values.ts",
           "src/capture/font-family-values.test.ts",
