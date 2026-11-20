@@ -25,7 +25,33 @@ The suite also exercises actual full capture after `freezeRealWorldDom`, includi
 
 The generated-pseudo path is independently unsafe: the styled-select variant cancels the original transition in `pseudo-fragment-cdp.ts:isolatePseudoSurface` before native decoration materialization. The exact unchanged published `6d4c7b72` control reproduces it. **DM-T8ZTSC** owns that repair; the strict witness remains `dm-t8ztsc-select-ownership.probe.ts`, intentionally outside ordinary E2E discovery. The partial-native qualification uses a file button without that independent option-checkmark route. Do not claim the original select path is repaired by this ticket.
 
-**DM-284W1M** holds qualification of pseudo, shadow/cross-document and non-document-timeline owners, pending/unresolved or modified effects, natural completion, concurrent edits, other affected transition properties and foreign runtime capabilities. Those cases are not covered by an arbitrary-animation atomicity guarantee. **DM-WRFW22** retains the unchanged strict hovered-number raster assertion and its independently reproduced missing-stamp investigation.
+**DM-284W1M** holds qualification of pseudo, shadow/cross-document and non-document-timeline owners, pending/unresolved or modified effects, natural completion, concurrent edits, other affected transition properties and foreign runtime capabilities. Those cases are not covered by an arbitrary-animation atomicity guarantee.
+
+DM-284W1M qualifies part of that list in `tests/snapshot-visibility-qualification.e2e.test.ts` against installed Chromium.
+
+Explicit refusals, with the source Animation, effect, frames, timing, time, events and attributes unchanged:
+
+- pseudo-element targets;
+- a CSSTransition moved to a non-document timeline;
+- author-replaced keyframes carrying another property.
+
+Qualified and restored exactly:
+
+- an author-modified duration/easing;
+- the ordinary paused owner.
+
+A running owner that finishes naturally during isolation fails closed with "ownership changed" and leaks no private animation.
+
+**The defect:** author-shadow owners are invisible. `Document.getAnimations()` lists only animations targeting the document's own tree scope (`DocumentAnimations::getAnimations(tree_scope)`, `core/animation/document_animations.cc:277-291`, Chromium `7d859f27`). The controller therefore neither qualifies nor refuses them. On the production native-control route, an author-shadow overlay with a paused visibility transition contaminates the raster guard (`[255,255,255,51]`) with no warning. The light-DOM overlay and a transition-free shadow overlay stay transparent. The test pins that exact defect value; **DM-J5V8WD** owns the repair.
+
+Still unqualified:
+
+- pending effects (not deterministically reachable from a page script; the controller's `animation.pending` refusal is unexercised);
+- cross-document iframe owners on the native/replaced routes;
+- concurrent authored edits during isolation;
+- non-visibility transition channels.
+
+**DM-WRFW22** retains the unchanged strict hovered-number raster assertion and its independently reproduced missing-stamp investigation.
 
 ## Evidence and validation
 
