@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2473", "DM-2475", "DM-WTSX24", "DM-S2EA2P", "SK-1091", "SK-1127"]
+tickets: ["DM-2473", "DM-2475", "DM-WTSX24", "DM-S2EA2P", "DM-PYF5QN", "SK-1091", "SK-1127"]
 code:
   [
     "src/capture/script/index.ts",
@@ -109,9 +109,27 @@ express either, so the capture walk freezes every static planar transform:
   rotation and skew always; translate, scale, `matrix()` and an affine
   `matrix3d()` (identity z row/column, no translateZ) unless a running CSS
   animation or transition owns a transform property, or a declared transition
-  with positive combined duration covers one. The walk writes `translate(0)`,
+  with positive combined duration covers one. The walk holds `translate(0)`,
   which keeps the containing block, measures the untransformed box, and records
   the composed transform; the renderer re-applies it as a `<g transform>`.
+- **How the identity is held** (`neutralizeTransformForFreeze`): an inline
+  write would lose to a running CSS animation (animation origin) and to any
+  transition (the transition origin outranks even `!important`;
+  `CascadeOrigin`, `core/css/resolver/cascade_origin.h:15-35`, Chromium
+  `7d859f27`), and, because it changes the base computed style, it would start
+  a declared transition and fire transition events on the page
+  (`CSSAnimations::CalculateTransitionUpdate`,
+  `core/animation/css/css_animations.cc:2954-3039`). The walk instead holds the
+  identity with a paused Web Animation, which replaces every CSS animation and
+  earlier script animation on the transform properties without touching the
+  base style, and detaches a running transition's effect from the element for
+  the window, then reattaches it with its timing unchanged. Only a property an
+  author `!important` declaration keeps from the override is written inline as
+  `!important`. So a rotation or skew that is mid-animation or mid-transition
+  freezes at its untransformed box and is applied once, and the capture fires
+  no transition or animation events. The Node-side neutralizer and the text
+  paint-geometry and collapsed-border CDP passes use the same helper (the last
+  two also flatten `perspective` and `transform-style`).
 - **Live** (`styles.transform: none`): animated/transitioned planar transforms,
   whose live rect is exact for the sampled frame, and projective planes owned by
   `transformSubtreeRaster`.

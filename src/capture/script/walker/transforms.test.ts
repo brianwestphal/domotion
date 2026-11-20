@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  neutralizeTransformForFreeze,
   resolveTranslateComponent,
   transformReferenceBox,
   transformWrapsAsAffine2D,
@@ -87,5 +88,126 @@ describe("effective zoom on a frozen transform", () => {
     expect(zoomTransformOrigin("20px 12px 4px", 0.5)).toBe("10px 6px 2px");
     expect(zoomTransformOrigin("7.5px 3.25px", 1)).toBe("7.5px 3.25px");
     expect(zoomTransformOrigin("50% 50%", 2)).toBe("50% 50%");
+  });
+});
+
+// A fake of the Web Animations and style surface the helper touches. Its
+// computed style follows Blink's cascade for these cases: an inline
+// `!important` value wins, then an author `!important` value, then a held
+// override animation, then a transition whose effect is attached, then the
+// author value.
+function fakeOwner(author: Record<string, string>, options: { important?: boolean; transition?: boolean } = {}) {
+  const inline = new Map<string, { value: string; priority: string }>();
+  let styleAttribute: string | null = null;
+  const events: string[] = [];
+  const overrides: { identity: Record<string, string>; held: boolean }[] = [];
+  const transitionEffect: { target: unknown } = { target: null };
+  const transition = { transitionProperty: "rotate", playState: "running", effect: transitionEffect };
+  const cssName = (key: string) => key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+  const computedValue = (name: string): string => {
+    const own = inline.get(name);
+    if (own != null && own.priority === "important") return own.value;
+    if (options.important && author[name] != null) return author[name];
+    for (const override of overrides) {
+      if (!override.held) continue;
+      for (const [key, value] of Object.entries(override.identity))
+        if (cssName(key) === name) return key === "transform" ? "matrix(1, 0, 0, 1, 0, 0)" : value;
+    }
+    if (name === "rotate" && options.transition && transitionEffect.target != null) return "12deg";
+    return author[name] ?? (name === "transform-style" ? "flat" : "none");
+  };
+  class FakeKeyframeEffect {
+    constructor(
+      public target: unknown,
+      public keyframes: Record<string, string>[],
+    ) {}
+  }
+  class FakeAnimation {
+    private entry: { identity: Record<string, string>; held: boolean };
+    constructor(effect: FakeKeyframeEffect) {
+      this.entry = { identity: effect.keyframes[0], held: false };
+      overrides.push(this.entry);
+    }
+    set currentTime(_time: number) {
+      this.entry.held = true;
+    }
+    cancel() {
+      this.entry.held = false;
+      events.push("override cancel");
+    }
+  }
+  const view = {
+    getComputedStyle: () => ({ getPropertyValue: computedValue }),
+    KeyframeEffect: FakeKeyframeEffect,
+    Animation: FakeAnimation,
+  };
+  const element = {
+    ownerDocument: { defaultView: view, timeline: {} },
+    getAnimations: () => (options.transition ? [transition] : []),
+    getAttribute: () => styleAttribute,
+    setAttribute: (_name: string, value: string) => (styleAttribute = value),
+    removeAttribute: () => (styleAttribute = null),
+    style: {
+      setProperty(name: string, value: string, priority: string) {
+        inline.set(name, { value, priority });
+        styleAttribute = Array.from(inline, ([key, entry]) => `${key}: ${entry.value} !${entry.priority};`).join(" ");
+      },
+      set cssText(_text: string) {
+        inline.clear();
+      },
+    },
+  };
+  transitionEffect.target = element;
+  return {
+    element: element as unknown as HTMLElement,
+    computedValue,
+    inline,
+    events,
+    transitionEffect,
+    styleAttribute: () => styleAttribute,
+  };
+}
+
+describe("neutralizeTransformForFreeze", () => {
+  it("holds the identity with an override animation and leaves the style attribute alone", () => {
+    const owner = fakeOwner({ transform: "matrix(0.98, 0.17, -0.17, 0.98, 0, 0)" });
+    const restore = neutralizeTransformForFreeze(owner.element);
+    expect(owner.computedValue("transform")).toBe("matrix(1, 0, 0, 1, 0, 0)");
+    expect(owner.inline.size).toBe(0);
+    restore();
+    expect(owner.computedValue("transform")).toBe("matrix(0.98, 0.17, -0.17, 0.98, 0, 0)");
+    expect(owner.styleAttribute()).toBeNull();
+    expect(owner.events).toEqual(["override cancel"]);
+  });
+
+  it("detaches a running transition for the window and reattaches it", () => {
+    const owner = fakeOwner({ rotate: "20deg" }, { transition: true });
+    expect(owner.computedValue("rotate")).toBe("12deg");
+    const restore = neutralizeTransformForFreeze(owner.element);
+    expect(owner.transitionEffect.target).toBeNull();
+    expect(owner.computedValue("rotate")).toBe("none");
+    restore();
+    expect(owner.transitionEffect.target).toBe(owner.element);
+    expect(owner.computedValue("rotate")).toBe("12deg");
+  });
+
+  it("writes only the properties an author !important declaration keeps from the override", () => {
+    const owner = fakeOwner({ transform: "matrix(0.98, 0.17, -0.17, 0.98, 0, 0)" }, { important: true });
+    const restore = neutralizeTransformForFreeze(owner.element);
+    expect(Array.from(owner.inline.keys())).toEqual(["transform"]);
+    expect(owner.computedValue("transform")).toBe("translate(0)");
+    restore();
+    expect(owner.styleAttribute()).toBeNull();
+    expect(owner.computedValue("transform")).toBe("matrix(0.98, 0.17, -0.17, 0.98, 0, 0)");
+  });
+
+  it("also flattens perspective and transform-style when asked", () => {
+    const owner = fakeOwner({ perspective: "400px", "transform-style": "preserve-3d" });
+    const restore = neutralizeTransformForFreeze(owner.element, true);
+    expect(owner.computedValue("perspective")).toBe("none");
+    expect(owner.computedValue("transform-style")).toBe("flat");
+    expect(owner.inline.size).toBe(0);
+    restore();
+    expect(owner.computedValue("transform-style")).toBe("preserve-3d");
   });
 });

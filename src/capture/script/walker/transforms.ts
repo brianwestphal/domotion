@@ -4,9 +4,9 @@
 // For elements with a non-`none` CSS transform, `getBoundingClientRect`
 // (and per-char Range rects, child rects, etc.) all return *post-transform*
 // viewport coordinates. Re-applying our own transform on top would
-// double-rotate. So when transform != none, we clear the inline transform
-// for the entire capture of this element (children + per-char text rects
-// included), then restore at the end. CSS transforms don't participate in
+// double-rotate. So when transform != none, we neutralize the transform
+// (neutralizeTransformForFreeze) for the entire capture of this element
+// (children + per-char text rects included), then restore at the end. CSS transforms don't participate in
 // layout, so this doesn't reflow the document. The renderer applies the
 // saved transform back via an SVG group wrapper. See SK-1134.
 //
@@ -267,10 +267,10 @@ export const parseAngleToDeg = (a: string): number => {
   return n;
 };
 
-// A running CSS animation or transition on the element's own transform
-// outranks the inline freeze in the cascade, and overriding it would mean
-// cancelling it. Such an element keeps the live-rect model, which reads the
-// animated rect exactly. Element.getAnimations() lists both CSS animations and
+// A running CSS animation or transition on the element's own planar
+// (non-rotating) transform keeps the live-rect model, which reads the animated
+// rect exactly. Rotation and skew freeze regardless; neutralizeTransformForFreeze
+// overrides an animation or transition without cancelling it. Element.getAnimations() lists both CSS animations and
 // CSS transitions; their keyframes name the animated longhands.
 //
 // A declared transition covering a transform property is equally disqualifying.
@@ -323,6 +323,101 @@ export const transformFreezes = (el: Element, cs: CSSStyleDeclaration): boolean 
     /\brotate\b/.test(effective) ||
     /\bskew/.test(effective)
   );
+};
+
+// Neutralize a freezing owner's transform so the walk (or a Node-side pass)
+// reads its untransformed box, and return the restore. With `flatten`, the
+// owner's `perspective` and `transform-style` are flattened too, for passes
+// that need the whole subtree in one plane. Self-contained, because Node-side
+// passes ship its source into the page (frozenTransformPredicateSource and
+// browserCallbackExpression).
+//
+// An inline `transform` write cannot do this when an animation or transition
+// owns the transform: Blink's cascade ranks author normal < animation <
+// author !important < transition (CascadeOrigin, Chromium 7d859f27
+// core/css/resolver/cascade_origin.h:15-35), so a running CSS animation
+// outranks it and a running transition outranks even `!important`. Changing
+// the inline value also changes the base computed style, which is what
+// transitions compare: a declared `transition: transform` starts a new
+// transition and the page receives transition events
+// (CSSAnimations::CalculateTransitionUpdate reads the after-change style's
+// transition list and the base computed style,
+// core/animation/css/css_animations.cc:2954-3039).
+//
+// The override is instead a paused Web Animation that holds the identity on
+// every listed property. It sits in the animation origin, so it never changes
+// the base style (no transition can start) and, being the newest script
+// animation, it replaces every CSS animation and earlier script animation on
+// those properties (Animation::HasLowerCompositeOrdering,
+// core/animation/effect_stack.cc:80-93). A running CSS transition sits above
+// it, so its effect is detached from the element for the window and
+// reattached afterwards; its timing is untouched, and no event fires. The
+// identity is `translate(0)`, not `none`, so the box stays the containing
+// block of its fixed-position descendants. A property the override does not
+// reach (an author `!important` declaration outranks animations) falls back to
+// an inline `!important` write of that property alone.
+export const neutralizeTransformForFreeze = (el: HTMLElement | SVGElement, flatten = false): (() => void) => {
+  const identity: Record<string, string> = {
+    transform: "translate(0)",
+    translate: "none",
+    rotate: "none",
+    scale: "none",
+  };
+  if (flatten) {
+    identity.perspective = "none";
+    identity.transformStyle = "flat";
+  }
+  const cssName = (property: string) => property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+  const doc = el.ownerDocument;
+  const view = doc.defaultView;
+  const detached: KeyframeEffect[] = [];
+  let override: Animation | null = null;
+  if (view != null && typeof el.getAnimations === "function") {
+    for (const animation of el.getAnimations()) {
+      const property = (animation as Animation & { transitionProperty?: unknown }).transitionProperty;
+      if (typeof property !== "string") continue;
+      if (!Object.keys(identity).some((key) => cssName(key) === property)) continue;
+      if (animation.playState === "idle" || animation.playState === "finished") continue;
+      const effect = animation.effect as KeyframeEffect | null;
+      if (effect == null || effect.target !== el) continue;
+      effect.target = null;
+      detached.push(effect);
+    }
+    try {
+      // Setting the current time of an idle animation pauses it with that hold
+      // time and no pending ready promise, so nothing is queued.
+      override = new view.Animation(
+        new view.KeyframeEffect(el, [identity, identity], { duration: 1, fill: "both" }),
+        doc.timeline,
+      );
+      override.currentTime = 0;
+    } catch {
+      override = null;
+    }
+  }
+  const cs = (view ?? window).getComputedStyle(el);
+  const unreached = Object.keys(identity).filter((key) => {
+    const value = cs.getPropertyValue(cssName(key));
+    if (key === "transform") return value !== "none" && value !== "matrix(1, 0, 0, 1, 0, 0)";
+    return value !== identity[key];
+  });
+  const savedStyle = unreached.length > 0 ? el.getAttribute("style") : undefined;
+  for (const key of unreached) el.style.setProperty(cssName(key), identity[key], "important");
+  return () => {
+    if (savedStyle !== undefined) {
+      if (savedStyle == null) {
+        // Chromium serializes a CSSOM-mutated inline style into the attribute
+        // lazily (Element::SynchronizeStyleAttributeInternal, Chromium 7d859f27
+        // core/dom/element.cc:12241); read it before removing so the pending
+        // sync cannot re-materialize `style=""`.
+        el.style.cssText = "";
+        void el.getAttribute("style");
+        el.removeAttribute("style");
+      } else el.setAttribute("style", savedStyle);
+    }
+    override?.cancel();
+    for (const effect of detached) effect.target = el;
+  };
 };
 
 // Computed `transform`, `translate` and `transform-origin` are serialized in
@@ -406,19 +501,11 @@ export const createTransformsHandler = () => {
     }
     const needsFreeze = transformFreezes(el, cs);
     if (needsFreeze) {
-      // Clear so getBoundingClientRect returns the untransformed layout box;
-      // the renderer re-applies the original transform.
-      const inlineTransform = el.style.transform;
-      const inlineRotate = el.style.rotate;
-      const inlineScale = el.style.scale;
-      const inlineTranslate = el.style.translate;
-      // Writing through CSSOM materializes a `style` attribute; an element
-      // that had none must not be left with an empty one.
-      const hadStyleAttribute = el.hasAttribute("style");
-      el.style.transform = "translate(0)";
-      el.style.rotate = "none";
-      el.style.scale = "none";
-      el.style.translate = "none";
+      // Neutralize so getBoundingClientRect returns the untransformed layout
+      // box; the renderer re-applies the original transform. This holds for an
+      // animated or transitioning rotation or skew too, which cannot take the
+      // live-rect path (its live rect is the rotated bounding box).
+      const restore = neutralizeTransformForFreeze(el);
       // Blink pivots and offsets the subtree from the box's rounded paint
       // offset; fold that shift into the matrix the renderer re-applies.
       const shift = registerFrozenPaintBase(el, originalTransform, cs);
@@ -436,11 +523,7 @@ export const createTransformsHandler = () => {
       } finally {
         releaseFrozenPaintBase(el);
         releasePaintTransformTranslation(el);
-        el.style.transform = inlineTransform;
-        el.style.rotate = inlineRotate;
-        el.style.scale = inlineScale;
-        el.style.translate = inlineTranslate;
-        if (!hadStyleAttribute && el.getAttribute("style") === "") el.removeAttribute("style");
+        restore();
       }
     }
     // An animated planar transform, or a projective one owned by the

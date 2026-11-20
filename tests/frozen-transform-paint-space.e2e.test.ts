@@ -21,16 +21,18 @@ beforeAll(async () => {
 });
 afterAll(async () => closeBrowserSafely(browser), 15_000);
 
+// `strict` counts every pixel whose RGBA differs at all.
 async function differingPixels(
   html: string,
   mutate?: (tree: CapturedElement[]) => void,
+  strict = false,
 ): Promise<{ count: number; svg: string; tree: CapturedElement[] }> {
   const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
   const out = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
   try {
     await page.setContent(`<style>body{margin:0;background:white;font:14px sans-serif}</style>${html}`);
     const native = await sharp(await page.screenshot())
-      .removeAlpha()
+      .ensureAlpha()
       .raw()
       .toBuffer();
     const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
@@ -38,17 +40,18 @@ async function differingPixels(
     const svg = elementTreeToSvg(tree, WIDTH, HEIGHT);
     await out.setContent(`<style>body{margin:0;background:white}</style>${svg}`);
     const actual = await sharp(await out.screenshot())
-      .removeAlpha()
+      .ensureAlpha()
       .raw()
       .toBuffer();
     let count = 0;
-    for (let offset = 0; offset < native.length; offset += 3) {
+    for (let offset = 0; offset < native.length; offset += 4) {
       const delta = Math.max(
         Math.abs(native[offset] - actual[offset]),
         Math.abs(native[offset + 1] - actual[offset + 1]),
         Math.abs(native[offset + 2] - actual[offset + 2]),
+        Math.abs(native[offset + 3] - actual[offset + 3]),
       );
-      if (delta > 40) count++;
+      if (delta > (strict ? 0 : 40)) count++;
     }
     return { count, svg, tree };
   } finally {
@@ -56,6 +59,15 @@ async function differingPixels(
     await out.close();
   }
 }
+
+const transformedOwner = (nodes: CapturedElement[]): CapturedElement | undefined => {
+  for (const node of nodes) {
+    if (node.styles.transform != null && node.styles.transform !== "none") return node;
+    const found = transformedOwner(node.children);
+    if (found) return found;
+  }
+  return undefined;
+};
 
 const container = (transform: string, content: string): string =>
   `<div style="margin:20px;transform:${transform};transform-origin:0 0;width:150px">${content}</div>`;
@@ -132,6 +144,109 @@ describe("frozen-transform paint space", () => {
     expect((await differingPixels(html)).count).toBe(0);
     // Negative control: the unzoomed computed matrix and origin misplace it.
     expect((await differingPixels(html, unzoomFrozen(zoom))).count).toBeGreaterThan(20);
+  });
+
+  // A running animation outranks an inline write in the cascade, and a running
+  // transition outranks even `!important` (CascadeOrigin, Chromium 7d859f27
+  // core/css/resolver/cascade_origin.h:15-35). The freeze must still read the
+  // untransformed box, or the renderer applies the rotation twice.
+  const rotatedBox = `position:absolute;left:60px;top:40px;width:80px;height:44px;background:#1d4ed8;transform-origin:50% 50%`;
+  it.each([
+    [
+      "a paused rotate animation at its midpoint",
+      `<style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(20deg)}}#t{${rotatedBox};animation:spin 2s linear infinite paused;animation-delay:-1s}</style><div id="t"></div>`,
+    ],
+    [
+      "a rotation with a declared transition",
+      `<style>#t{${rotatedBox};transform:rotate(10deg);transition:transform 1s}</style><div id="t"></div>`,
+    ],
+    ["a skew owned by a script animation", `<div id="t" style="${rotatedBox}"></div>`],
+    [
+      "an author !important rotation",
+      `<style>#t{${rotatedBox};transform:rotate(10deg) !important}</style><div id="t"></div>`,
+    ],
+  ])("freezes %s without applying it twice", async (name, html) => {
+    const script = name.includes("script animation")
+      ? `<script>document.getElementById("t").animate([{transform:"skewX(12deg)"},{transform:"skewX(12deg)"}],{duration:1e6}).pause()</script>`
+      : "";
+    const { count, tree } = await differingPixels(html + script, undefined, true);
+    expect(count).toBe(0);
+    // Activation control: the owner is recorded at its untransformed box. A
+    // freeze the cascade ignores records the rotated bounding box instead.
+    expect(transformedOwner(tree)).toMatchObject({ x: 60, y: 40, width: 80, height: 44 });
+  });
+
+  // The override animation is not copied when the walk clones an inline SVG
+  // root, so the clone must not carry the root's transform attribute too.
+  it("does not let a frozen inline SVG root's clone apply its transform again", async () => {
+    const html = `<svg style="position:absolute;left:60px;top:30px" width="80" height="60" viewBox="0 0 80 60" transform="rotate(20)"><rect width="80" height="24" fill="#ea580c"/><rect y="36" width="30" height="24" fill="#2563eb"/></svg>`;
+    const { count, tree } = await differingPixels(html);
+    // Counted at the default threshold: a strict comparison also counts the
+    // rotated content's edge coverage.
+    expect(count).toBe(0);
+    expect(transformedOwner(tree)?.svgContent).toMatch(/style="[^"]*transform: none/);
+    // Negative control: without the pinned identity the clone's attribute
+    // rotates the content a second time.
+    const unpinned = await differingPixels(html, (nodes) => {
+      const owner = transformedOwner(nodes);
+      if (owner?.svgContent != null) owner.svgContent = owner.svgContent.replace(/\btransform: none;?/, "");
+    });
+    expect(unpinned.count).toBeGreaterThan(100);
+  });
+
+  it("overrides a running transition without firing transition events or disturbing it", async () => {
+    const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
+    try {
+      await page.setContent(
+        `<style>#t{${rotatedBox};transform:rotate(5deg);transition:transform 100s linear}</style><div id="t"></div>`,
+      );
+      const before = await page.evaluate(async () => {
+        const target = document.getElementById("t")!;
+        const events: string[] = [];
+        (window as unknown as { events: string[] }).events = events;
+        for (const type of ["transitionrun", "transitionstart", "transitionend", "transitioncancel"])
+          target.addEventListener(type, () => events.push(type));
+        target.style.transform = "rotate(25deg)";
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const transition = target.getAnimations()[0];
+        // Hold it so its time and value can be compared exactly. A held
+        // transition still sits in the transition origin above the override.
+        transition.pause();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        events.length = 0;
+        return {
+          time: Number(transition.currentTime),
+          transform: getComputedStyle(target).transform,
+          state: transition.playState,
+        };
+      });
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: WIDTH, height: HEIGHT });
+      const frozen = transformedOwner(tree);
+      expect(frozen).toMatchObject({ x: 60, y: 40, width: 80, height: 44 });
+      expect(before.state).toBe("paused");
+      expect(frozen?.styles.transform).toBe(before.transform);
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const after = await page.evaluate(() => {
+        const target = document.getElementById("t")!;
+        const animations = target.getAnimations();
+        return {
+          events: (window as unknown as { events: string[] }).events,
+          count: animations.length,
+          time: Number(animations[0]?.currentTime),
+          transform: getComputedStyle(target).transform,
+          style: target.getAttribute("style"),
+        };
+      });
+      expect(after).toEqual({
+        events: [],
+        count: 1,
+        time: before.time,
+        transform: before.transform,
+        style: "transform: rotate(25deg);",
+      });
+    } finally {
+      await page.close();
+    }
   });
 
   it("resolves a percentage translate longhand against the border box", async () => {

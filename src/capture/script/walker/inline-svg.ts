@@ -363,6 +363,22 @@ const bakeRootSvgPresentation = (
   // root so transformed stroke/off-bounds ink keeps Chromium's boundary.
   const svgOverflow = cs.getPropertyValue("overflow").trim();
   if (svgOverflow !== "") clone.style.setProperty("overflow", svgOverflow);
+  // A frozen root's transform is held at the identity in the live page
+  // (neutralizeTransformForFreeze) while the renderer re-applies it around the
+  // clone, so the clone must not carry its `transform` attribute or inline
+  // transform style too. The hold is an override animation, which the clone
+  // does not inherit, so pin the live identity on the clone's own style.
+  const liveIdentity =
+    (cs.transform === "none" || cs.transform === "matrix(1, 0, 0, 1, 0, 0)") &&
+    cs.translate === "none" &&
+    cs.rotate === "none" &&
+    cs.scale === "none";
+  const carriesTransform =
+    el.hasAttribute("transform") ||
+    ["transform", "translate", "rotate", "scale"].some((prop) => clone.style.getPropertyValue(prop) !== "");
+  if (liveIdentity && carriesTransform) {
+    for (const prop of ["transform", "translate", "rotate", "scale"]) clone.style.setProperty(prop, "none");
+  }
 };
 
 // DM-778: detect whether the source's `fill` / `stroke` was driven

@@ -3,6 +3,7 @@
 import type { CDPSession, Frame, Page } from "@playwright/test";
 import { waitForCaptureAnimationFrames } from "./frame-scheduler.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
+import type { neutralizeTransformForFreeze as NeutralizeTransformForFreeze } from "./script/walker/transforms.js";
 import { withCdpSession } from "./cdp-lifecycle.js";
 import { createPageRegistry } from "./page-registry.js";
 import type { CapturedElement, CapturedTextPaintQuad, CaptureWarning } from "./types.js";
@@ -10,6 +11,9 @@ import { probeFailureWarning } from "./probe-failure.js";
 import { withTimeout } from "../utils/with-timeout.js";
 import { buildCapturedTextPaintGeometry, type ProtocolTextNodeGeometry } from "./text-fragment-geometry.js";
 import type { BlinkRangeFragmentProbe } from "./text-fragment-spans.js";
+
+// Defined in every evaluateInFrame scope (browserCallbackExpression).
+declare const neutralizeTransformForFreeze: typeof NeutralizeTransformForFreeze;
 
 interface FrameRow {
   sourceKey: string;
@@ -44,7 +48,7 @@ interface ProbeTreeElement extends CapturedElement {
 interface PageTextPaintRegistry {
   owners: HTMLElement[];
   textRows: Array<{ element: Element; textNode: Text }>;
-  snapshots: Array<{ owner: HTMLElement; styleAttribute: string | null }> | null;
+  snapshots: Array<{ owner: HTMLElement; styleAttribute: string | null; restore: () => void }> | null;
   factsByElement: Record<string, unknown>;
 }
 /** `globalThis` as the page callbacks see it: registries keyed by the probe key. */
@@ -251,24 +255,18 @@ async function mutateFrames(frames: readonly PreparedFrame[], key: string, neutr
           if (neutral) {
             registry.snapshots = [];
             for (const owner of registry.owners) {
-              registry.snapshots.push({ owner, styleAttribute: owner.getAttribute("style") });
-              owner.style.setProperty("transform", "matrix(1, 0, 0, 1, 0, 0)", "important");
-              owner.style.setProperty("translate", "none", "important");
-              owner.style.setProperty("rotate", "none", "important");
-              owner.style.setProperty("scale", "none", "important");
-              owner.style.setProperty("perspective", "none", "important");
-              owner.style.setProperty("transform-style", "flat", "important");
+              // An override animation, not an inline write: a running animation or
+              // transition outranks inline style, and an inline write starts a declared
+              // transition (neutralizeTransformForFreeze).
+              registry.snapshots.push({
+                owner,
+                styleAttribute: owner.getAttribute("style"),
+                restore: neutralizeTransformForFreeze(owner, true),
+              });
             }
           } else {
-            for (const snapshot of registry.snapshots ?? []) {
-              if (snapshot.styleAttribute == null) {
-                snapshot.owner.style.cssText = "";
-                const styleAttribute = snapshot.owner.getAttributeNode("style");
-                if (styleAttribute != null) snapshot.owner.removeAttributeNode(styleAttribute);
-              } else {
-                snapshot.owner.setAttribute("style", snapshot.styleAttribute);
-              }
-            }
+            const snapshots = registry.snapshots ?? [];
+            for (let index = snapshots.length - 1; index >= 0; index--) snapshots[index].restore();
             registry.snapshots = null;
           }
         },

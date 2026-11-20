@@ -23,6 +23,7 @@ import type { Page } from "@playwright/test";
 import { privateCaptureKey } from "./private-key.js";
 import {
   composeEffectiveTransform,
+  neutralizeTransformForFreeze,
   parseAngleToDeg,
   resolveTranslateComponent,
   transformFreezes,
@@ -32,8 +33,6 @@ import {
   transitionCoversTransform,
   TRANSFORM_PROPERTIES,
 } from "./script/walker/transforms.js";
-
-type SavedStyle = { element: HTMLElement | SVGElement; style: string | null };
 
 /** Source of the walker's freeze predicate and everything it calls, in one scope. */
 export function frozenTransformPredicateSource(): string {
@@ -47,6 +46,7 @@ export function frozenTransformPredicateSource(): string {
     `const transitionCoversTransform = (${transitionCoversTransform.toString()});`,
     `const transformIsAnimated = (${transformIsAnimated.toString()});`,
     `const transformFreezes = (${transformFreezes.toString()});`,
+    `const neutralizeTransformForFreeze = (${neutralizeTransformForFreeze.toString()});`,
   ].join("\n");
 }
 
@@ -60,10 +60,14 @@ export function frozenTransformPredicateSource(): string {
  */
 function evaluateWithFreezePredicate<Argument, Result>(
   page: Page,
-  callback: (argument: Argument, freezes: typeof transformFreezes) => Result,
+  callback: (
+    argument: Argument,
+    freezes: typeof transformFreezes,
+    neutralize: typeof neutralizeTransformForFreeze,
+  ) => Result,
   argument: Argument,
 ): Promise<Result> {
-  const expression = `((__name) => { ${frozenTransformPredicateSource()}\nreturn (${callback.toString()})(${JSON.stringify(argument)}, transformFreezes); })(function(target, value) { try { Object.defineProperty(target, "name", { value: value, configurable: true }); } catch {} return target; })`;
+  const expression = `((__name) => { ${frozenTransformPredicateSource()}\nreturn (${callback.toString()})(${JSON.stringify(argument)}, transformFreezes, neutralizeTransformForFreeze); })(function(target, value) { try { Object.defineProperty(target, "name", { value: value, configurable: true }); } catch {} return target; })`;
   return page.evaluate(expression) as Promise<Result>;
 }
 
@@ -89,8 +93,8 @@ export async function withFrozenTransformsNeutralized<T>(
   try {
     await evaluateWithFreezePredicate(
       page,
-      ({ key, ancestorsOf }: { key: string; ancestorsOf: FrozenAncestorScope | null }, freezes) => {
-        const saved: SavedStyle[] = [];
+      ({ key, ancestorsOf }: { key: string; ancestorsOf: FrozenAncestorScope | null }, freezes, neutralize) => {
+        const owners: (HTMLElement | SVGElement)[] = [];
         let candidates: Element[] = Array.from(document.querySelectorAll("*"));
         if (ancestorsOf != null) {
           const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[ancestorsOf.sourceNodeKey] as
@@ -105,17 +109,14 @@ export async function withFrozenTransformsNeutralized<T>(
         for (const element of candidates) {
           if (!(element instanceof HTMLElement || element instanceof SVGElement)) continue;
           if (!freezes(element, getComputedStyle(element))) continue;
-          saved.push({ element, style: element.getAttribute("style") });
+          owners.push(element);
         }
-        for (const { element } of saved) {
-          element.style.setProperty("transform", "translate(0)", "important");
-          element.style.setProperty("translate", "none", "important");
-          element.style.setProperty("rotate", "none", "important");
-          element.style.setProperty("scale", "none", "important");
-        }
-        (globalThis as typeof globalThis & Record<string, unknown>)[key] = saved;
+        // The walker's own neutralization: an override animation that leaves
+        // the base style (and so any declared transition) untouched.
+        const restores = owners.map((element) => neutralize(element));
+        (globalThis as typeof globalThis & Record<string, unknown>)[key] = restores;
         void document.documentElement.getBoundingClientRect();
-        return saved.length;
+        return restores.length;
       },
       { key, ancestorsOf: ancestorsOf ?? null },
     );
@@ -129,21 +130,8 @@ export async function withFrozenTransformsNeutralized<T>(
     await page
       .evaluate((key: string) => {
         const host = globalThis as typeof globalThis & Record<string, unknown>;
-        const saved = host[key] as SavedStyle[] | undefined;
-        for (let index = (saved?.length ?? 0) - 1; index >= 0; index--) {
-          const entry = saved![index];
-          if (entry.style == null) {
-            // Chromium serializes a CSSOM-mutated inline style into the
-            // attribute lazily (Element::SynchronizeStyleAttributeInternal,
-            // Chromium 7d859f27 core/dom/element.cc:12241).
-            // Removing the attribute while that sync is pending lets the next
-            // read re-materialize `style=""`, so empty the declaration and
-            // read the attribute (which synchronizes it) before removing it.
-            entry.element.style.cssText = "";
-            void entry.element.getAttribute("style");
-            entry.element.removeAttribute("style");
-          } else entry.element.setAttribute("style", entry.style);
-        }
+        const restores = host[key] as (() => void)[] | undefined;
+        for (let index = (restores?.length ?? 0) - 1; index >= 0; index--) restores![index]();
         delete host[key];
         void document.documentElement.getBoundingClientRect();
       }, key)

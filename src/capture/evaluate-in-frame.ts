@@ -1,4 +1,5 @@
 import type { Frame, Page } from "@playwright/test";
+import { neutralizeTransformForFreeze } from "./script/walker/transforms.js";
 
 /**
  * Evaluate a trusted browser callback with esbuild's keep-names helper scoped
@@ -36,7 +37,7 @@ export function browserCallbackExpression<Argument, Result>(
   if (args.length !== 0 && encodedArgument == null) {
     throw new Error("frame evaluation argument is not JSON-serializable");
   }
-  return `((__name) => { const browserImageNaturalSize = (${browserImageNaturalSize.toString()}); return (${callback.toString()})(${encodedArgument ?? ""}); })(function(target, value) { try { Object.defineProperty(target, "name", { value: value, configurable: true }); } catch {} return target; })`;
+  return `((__name) => { const browserImageNaturalSize = (${browserImageNaturalSize.toString()}); const neutralizeTransformForFreeze = (${neutralizeTransformForFreeze.toString()}); return (${callback.toString()})(${encodedArgument ?? ""}); })(function(target, value) { try { Object.defineProperty(target, "name", { value: value, configurable: true }); } catch {} return target; })`;
 }
 
 /** Shared browser-side decoder deadline for generated CSS images. */

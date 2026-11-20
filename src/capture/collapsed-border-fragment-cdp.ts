@@ -28,7 +28,11 @@ import {
   type CollapsedBorderSectionSourceEvidence,
 } from "./collapsed-border-fragment-record.js";
 import type { CaptureWarning } from "./types.js";
+import type { neutralizeTransformForFreeze as NeutralizeTransformForFreeze } from "./script/walker/transforms.js";
 import { probeFailureWarning } from "./probe-failure.js";
+
+// Defined in every evaluateInFrame scope (browserCallbackExpression).
+declare const neutralizeTransformForFreeze: typeof NeutralizeTransformForFreeze;
 
 interface SourceNodeMetadata {
   nodeIndex: number;
@@ -323,7 +327,7 @@ async function mutateTransforms(frames: readonly PreparedFrame[], key: string, n
                 string,
                 {
                   transformOwners: HTMLElement[];
-                  snapshots: Array<{ owner: HTMLElement; styleAttribute: string | null }> | null;
+                  snapshots: Array<{ owner: HTMLElement; styleAttribute: string | null; restore: () => void }> | null;
                 }
               >
           )[key];
@@ -331,22 +335,18 @@ async function mutateTransforms(frames: readonly PreparedFrame[], key: string, n
           if (neutral) {
             registry.snapshots = [];
             for (const owner of registry.transformOwners) {
-              registry.snapshots.push({ owner, styleAttribute: owner.getAttribute("style") });
-              owner.style.setProperty("transform", "matrix(1, 0, 0, 1, 0, 0)", "important");
-              owner.style.setProperty("translate", "none", "important");
-              owner.style.setProperty("rotate", "none", "important");
-              owner.style.setProperty("scale", "none", "important");
-              owner.style.setProperty("perspective", "none", "important");
-              owner.style.setProperty("transform-style", "flat", "important");
+              // An override animation, not an inline write: a running animation or
+              // transition outranks inline style, and an inline write starts a declared
+              // transition (neutralizeTransformForFreeze).
+              registry.snapshots.push({
+                owner,
+                styleAttribute: owner.getAttribute("style"),
+                restore: neutralizeTransformForFreeze(owner, true),
+              });
             }
           } else {
-            for (const snapshot of registry.snapshots ?? []) {
-              if (snapshot.styleAttribute == null) {
-                snapshot.owner.style.cssText = "";
-                const styleAttribute = snapshot.owner.getAttributeNode("style");
-                if (styleAttribute != null) snapshot.owner.removeAttributeNode(styleAttribute);
-              } else snapshot.owner.setAttribute("style", snapshot.styleAttribute);
-            }
+            const snapshots = registry.snapshots ?? [];
+            for (let index = snapshots.length - 1; index >= 0; index--) snapshots[index].restore();
             const exact = (registry.snapshots ?? []).every(
               ({ owner, styleAttribute }) => owner.getAttribute("style") === styleAttribute,
             );
