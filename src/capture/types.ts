@@ -579,6 +579,14 @@ export interface CapturedPseudoPaintStyle {
   transform: string;
   transformOrigin: string;
   zIndex?: number;
+  /**
+   * The pseudo's own box is a native stacking context
+   * (`LayoutObject::IsStackingContext`, read from the box's first
+   * DOMSnapshot `layout.stackingContexts` row in the record's epoch). For a
+   * non-positioned box this is `IsStacked`, so the renderer collects it into
+   * the owning context's z-order list. Absent when false or unknown.
+   */
+  stackingContext?: true;
 }
 
 /**

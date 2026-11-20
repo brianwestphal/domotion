@@ -115,7 +115,14 @@ export function collectPseudoStackingContexts(elements: readonly CapturedElement
       const treeOrder = ordinal++;
       result.recordOrder.set(record, treeOrder);
       if (opaquePath) continue;
-      if (!["relative", "absolute", "fixed", "sticky"].includes(record.paint.position)) continue;
+      // A generated box is stacked when positioned or when it is a native
+      // stacking context (LayoutObject::IsStacked; the DOMSnapshot fact
+      // recorded at capture, never a computed-style guess). Its z-index only
+      // applies when positioned or a flex/grid item (EffectiveZIndex,
+      // core/style/computed_style.h:794-798, Chromium 7d859f27).
+      const positioned = ["relative", "absolute", "fixed", "sticky"].includes(record.paint.position);
+      if (!positioned && record.paint.stackingContext !== true) continue;
+      const effectiveZ = positioned || flexGrid ? (record.paint.zIndex ?? 0) : 0;
       // Negative layers join the context's kNegativeZOrderChildren, which
       // paints beneath non-layer block backgrounds of the context's
       // foreground (a non-transferred body, any wrapper) and above the
@@ -133,7 +140,7 @@ export function collectPseudoStackingContexts(elements: readonly CapturedElement
         record,
         ancestors: chain,
         pseudo: record.pseudo,
-        paint: record.paint,
+        paint: effectiveZ === (record.paint.zIndex ?? 0) ? record.paint : { ...record.paint, zIndex: effectiveZ },
         treeOrder,
       };
       const entries = result.contexts.get(ownerContext) ?? [];

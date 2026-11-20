@@ -209,6 +209,16 @@ ownership and the separate preserve-3d path retain their prior behavior.
 
 ## Ancestor context admission (DM-NAG7AD)
 
+A non-positioned generated box that is a native stacking context (opacity,
+transform, filter, isolation, containment, a z-indexed flex/grid item, …) is
+stacked too (DM-SC2P4R). Capture reads `LayoutObject::IsStackingContext` from
+the pseudo node's first DOMSnapshot `layout.stackingContexts` row — the box
+itself, not its anonymous content children — into `paint.stackingContext`, and
+the collector admits it at `EffectiveZIndex` (the authored z for a flex/grid
+item, otherwise 0; `computed_style.h:794-798`, Chromium `7d859f27`). No
+computed-style guess promotes a record; an unflagged static `z-index` stays
+host-local. `mix-blend-mode` on generated boxes is not yet painted (DM-ESPA0W).
+
 Positioned source records of either sign now join the nearest real
 two-dimensional stacking context's paint list. Negative records (DM-C5GEMW)
 merge with the context's real negative children by effective z and tree order
