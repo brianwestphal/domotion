@@ -123,7 +123,11 @@ export function createNativeLogFilter(/** @type {(chunk: Buffer) => void} */ emi
  * @param {string} command
  * @param {string[]} args
  * @returns {Promise<{status: number | null; signal: NodeJS.Signals | null; interruptedBy: NodeJS.Signals | undefined; error: Error | undefined; diagnosticError: Error | undefined}>}
- * @param {{ logPath: string; lane: string; cwd?: string; env?: NodeJS.ProcessEnv; maxBytes?: number; forward?: import('node:stream').Writable }} options
+ * `flushTimeoutMs` bounds the final empty forwarding write after the child
+ * closes (default 2000). That bound times one write completion, so a loaded
+ * test host whose event loop gets no turn for ~2 s can exceed it; tests that
+ * are not about the bound pass a load-scaled one.
+ * @param {{ logPath: string; lane: string; cwd?: string; env?: NodeJS.ProcessEnv; maxBytes?: number; forward?: import('node:stream').Writable; flushTimeoutMs?: number }} options
  */
 export async function runWithNativeLog(command, args, options) {
   mkdirSync(dirname(options.logPath), { recursive: true });
@@ -182,11 +186,12 @@ export async function runWithNativeLog(command, args, options) {
       process.off("SIGTERM", onTerminate);
       try {
         const filtered = filter.finish();
+        const flushTimeoutMs = options.flushTimeoutMs ?? 2_000;
         await new Promise((done) => {
           const timer = setTimeout(() => {
-            diagnosticError ??= new Error("native diagnostic forwarding exceeded 2000ms");
+            diagnosticError ??= new Error(`native diagnostic forwarding exceeded ${flushTimeoutMs}ms`);
             done(undefined);
-          }, 2_000);
+          }, flushTimeoutMs);
           try {
             forward.write(Buffer.alloc(0), (error) => {
               clearTimeout(timer);

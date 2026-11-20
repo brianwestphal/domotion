@@ -46,7 +46,7 @@ In three loaded full runs the original tests failed as follows:
   CLI spawns (34.8 s).
 - `tests/e2e-native-logs.test.ts`: the 10 s `spawnSync` timeout on the runner
   chain (killed at 10.2 s), and the 2 s post-close forwarding bound in the
-  backpressure test, which is not attributed (see the last section).
+  backpressure test (see the last section).
 - `tests/real-world-browser-diagnostics.test.ts`: the 2 s `finalize()` bound
   in both stream tests (see below).
 
@@ -431,7 +431,7 @@ startup (up to 4.4 s loaded). They now wait for the child's `exit` (not
 never-closing-stream test still pins the bound itself. The production bound is
 unchanged.
 
-## Not attributed: the native-log forwarding flush
+## The native-log forwarding flush
 
 `runWithNativeLog()` waits up to 2 s after the child closes for forwarded
 output to flush, and the backpressure test asserts that this bound does not
@@ -445,9 +445,11 @@ test failed again in a fourth loaded run (6.0 s). The interval contains no
 load-scaled fixture work, so the expiry indicates that the test worker got no
 event-loop turn for about 2 s, which is plausible for a deprioritized process
 at that load but was not directly observed. No test
-change makes that interval independent of scheduling; doing so would mean
-changing the production bound (for example making it injectable, or measuring
-flush progress instead of wall time). That is a production decision, so the
-test is unchanged.
+change makes that interval independent of scheduling, so the bound is now an
+injectable `flushTimeoutMs` option whose default stays 2 s for the CI wrapper.
+The backpressure test, which is about forwarding and retention rather than the
+deadline, passes a load-scaled bound (`budgetForCpuWork`). A separate test pins
+the deadline itself with a destination that never completes the final flush
+write and a 50 ms bound.
 
 No retry, concurrency change or production timeout change was made.

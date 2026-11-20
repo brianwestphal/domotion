@@ -179,6 +179,10 @@ it("forwards under backpressure while keeping retention bounded", async () => {
     logPath: path,
     forward: output.stream,
     maxBytes: 64,
+    // This case is about forwarding and retention, not the flush deadline. The
+    // 2 s default times one write callback, which a host at load 40-105 missed
+    // three times while every forwarded write had already completed.
+    flushTimeoutMs: budgetForCpuWork(10),
   });
   expect(result.status).toBe(0);
   expect(result.diagnosticError).toBeUndefined();
@@ -190,6 +194,25 @@ it("forwards under backpressure while keeping retention bounded", async () => {
     retainedBytes: 64,
   });
   expect(output.stream.listenerCount("drain")).toBe(0);
+});
+
+it("reports a forwarding destination that never completes the final flush within its bound", async () => {
+  const path = join(temporary(), "stalled-flush.log");
+  const forward = new Writable({
+    write(chunk: Buffer, _encoding, done) {
+      // Complete every forwarded line; leave only the final empty flush pending.
+      if (chunk.length > 0) done();
+    },
+  });
+  const result = await runWithNativeLog(process.execPath, ["-e", "process.stderr.write('native error\\n')"], {
+    lane: "all",
+    logPath: path,
+    forward,
+    flushTimeoutMs: 50,
+  });
+  expect(result.status).toBe(0);
+  expect(result.diagnosticError?.message).toBe("native diagnostic forwarding exceeded 50ms");
+  expect(JSON.parse(readFileSync(`${path}.json`, "utf8"))).toMatchObject({ diagnosticFailure: true });
 });
 
 it("fails and closes the child when the forwarding destination fails", async () => {
