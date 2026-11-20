@@ -4,6 +4,7 @@ import {
   borderImageSpaceTiling,
   doubleBorderStripeGeometry,
   pixelSnappedBorderReferenceRect,
+  snappedBorderEdges,
   uniformDoubleBorderStripeBoxes,
   snapNinePieceDestinationGrid,
   findOffGridCollapsedCells,
@@ -752,5 +753,27 @@ describe("findOffGridCollapsedCells (DM-1151)", () => {
         { x: 101, y: 0, width: 100, height: 50 },
       ]),
     ).toEqual([false, false]);
+  });
+});
+
+describe("snappedBorderEdges", () => {
+  const box = { x: 20.5, y: 10.25, width: 20, height: 20 };
+  it("rounds the captured edges without a record", () => {
+    expect(snappedBorderEdges(box)).toEqual({ left: 21, top: 10, right: 41, bottom: 30 });
+  });
+  // Beneath a frozen scale the snap happens relative to that transform's box,
+  // so the record's deltas, not the captured coordinates, decide the edges.
+  it("applies the authenticated local-space deltas", () => {
+    const borderPaintSnap = { left: 0, top: 0.25, right: 0, bottom: 0.25, width: 20, height: 20 };
+    expect(snappedBorderEdges({ ...box, borderPaintSnap })).toEqual({
+      left: 20.5,
+      top: 10.5,
+      right: 40.5,
+      bottom: 30.5,
+    });
+  });
+  it("ignores a record made for a box of another size", () => {
+    const borderPaintSnap = { left: 0, top: 0.25, right: 0, bottom: 0.25, width: 20, height: 18 };
+    expect(snappedBorderEdges({ ...box, borderPaintSnap })).toEqual({ left: 21, top: 10, right: 41, bottom: 30 });
   });
 });

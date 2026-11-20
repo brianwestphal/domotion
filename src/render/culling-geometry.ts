@@ -17,7 +17,7 @@ import type { CapturedElement } from "../capture/types.js";
 import { hasPaintContainment } from "./containment.js";
 import { invertSvgAffine, multiplySvgAffine, type SvgAffineMatrix } from "../capture/svg-affine-freeze.js";
 import { parseBoxShadow } from "./box-shadow.js";
-import { parseCornerRadii } from "./borders.js";
+import { parseCornerRadii, snappedBorderEdges } from "./borders.js";
 import { parseColor } from "./colors.js";
 import {
   capturedBoxRespectsCssOverflow,
@@ -597,10 +597,7 @@ function ownGeometry(el: CapturedElement): {
     let center: RendererCullBox;
     let outer: RendererCullBox;
     // Mirror paintOutline's per-axis clamp of a negative offset (DM-GQJ8C4).
-    const snappedLeft = Math.round(el.x);
-    const snappedTop = Math.round(el.y);
-    const snappedRight = Math.round(el.x + el.width);
-    const snappedBottom = Math.round(el.y + el.height);
+    const { left: snappedLeft, top: snappedTop, right: snappedRight, bottom: snappedBottom } = snappedBorderEdges(el);
     const snappedWidth = snappedRight - snappedLeft;
     const snappedHeight = snappedBottom - snappedTop;
     if (!rounded) {

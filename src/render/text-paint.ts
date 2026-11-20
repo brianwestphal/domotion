@@ -584,7 +584,11 @@ export function paintText(
   buildBackgroundLayerDef: BackgroundLayerBuilder,
 ): void {
   const sourceEl = el;
-  const affine = prepareAffineTextPaint(el, ctx.emittedTextCtm.get(el));
+  const affine = prepareAffineTextPaint(
+    el,
+    ctx.emittedTextCtm.get(el),
+    ctx.geometricTextCtm == null ? ctx.emittedTextCtm.get(el) : ctx.geometricTextCtm.get(el),
+  );
   if (affine.failureReason != null) {
     // A present geometry record is authoritative. Re-entering the legacy
     // post-transform DOMRect route would silently double/misapply transforms.

@@ -39,6 +39,51 @@ export interface BorderReferenceRect {
  * Round the far edges independently instead of rounding width/height so a
  * fractional origin cannot move the opposite edge onto a different pixel.
  */
+/**
+ * The four rounded border-box edges Blink's box decorations start from
+ * (`ToPixelSnappedRect` of the local paint rect, edge by edge). With an
+ * authenticated `borderPaintSnap` the rounding happens in the box's local paint
+ * space — which differs from the captured coordinates beneath a frozen scale or
+ * rotation, or a live translation; without it, the captured edges are rounded.
+ */
+export interface BorderPaintSnapCarrier {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  borderPaintSnap?: { left: number; top: number; right: number; bottom: number; width: number; height: number };
+}
+
+/** The box's paint snap record, unless the box was derived with another size
+ * (a meter bar, a file-selector status, a replaced fallback span). */
+export function authenticBorderPaintSnap(el: BorderPaintSnapCarrier): BorderPaintSnapCarrier["borderPaintSnap"] {
+  const snap = el.borderPaintSnap;
+  return snap != null && snap.width === el.width && snap.height === el.height ? snap : undefined;
+}
+
+export function snappedBorderEdges(el: BorderPaintSnapCarrier): {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+} {
+  const snap = authenticBorderPaintSnap(el);
+  if (snap == null) {
+    return {
+      left: Math.round(el.x),
+      top: Math.round(el.y),
+      right: Math.round(el.x + el.width),
+      bottom: Math.round(el.y + el.height),
+    };
+  }
+  return {
+    left: el.x + snap.left,
+    top: el.y + snap.top,
+    right: el.x + el.width + snap.right,
+    bottom: el.y + el.height + snap.bottom,
+  };
+}
+
 export function pixelSnappedBorderReferenceRect(
   x: number,
   y: number,

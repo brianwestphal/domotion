@@ -61,6 +61,8 @@
 // src/capture/raster-viewport-space.ts and
 // src/capture/frozen-transform-neutralizer.ts.
 //
+import { registerFrozenPaintBase, releaseFrozenPaintBase } from "./border-paint-snap.js";
+
 // Detect whether a CSS computed `transform` matrix string contains rotation or
 // skew components. Pure-translate / pure-scale matrices have b=c=0 in the 2D
 // form `matrix(a, b, c, d, e, f)`; rotation/skew produces non-zero b or c.
@@ -318,12 +320,6 @@ export const transformFreezes = (el: Element, cs: CSSStyleDeclaration): boolean 
   );
 };
 
-// Elements whose transform is frozen for the duration of their subtree's
-// capture, mapped to the original effective transform. While frozen, their
-// computed transform reads as identity, so readers that must know what the
-// renderer re-applies (the border paint snap authority) consult this map.
-export const frozenTransformOwners = new WeakMap<Element, string>();
-
 export const createTransformsHandler = () => {
   // Computed styles of elements whose planar transform stayed live (animated),
   // so threadFrozenTransform records `none` for them.
@@ -367,11 +363,17 @@ export const createTransformsHandler = () => {
       el.style.rotate = "none";
       el.style.scale = "none";
       el.style.translate = "none";
-      frozenTransformOwners.set(el, originalTransform);
+      // Blink pivots and offsets the subtree from the box's rounded paint
+      // offset; fold that shift into the matrix the renderer re-applies.
+      const shift = registerFrozenPaintBase(el, originalTransform, cs);
+      const paintTransform =
+        shift.x === 0 && shift.y === 0
+          ? originalTransform
+          : new DOMMatrix().translate(shift.x, shift.y).multiply(new DOMMatrix(originalTransform)).toString();
       try {
-        return captureInner(el, cs, originalTransform, cs.transformOrigin);
+        return captureInner(el, cs, paintTransform, cs.transformOrigin);
       } finally {
-        frozenTransformOwners.delete(el);
+        releaseFrozenPaintBase(el);
         el.style.transform = inlineTransform;
         el.style.rotate = inlineRotate;
         el.style.scale = inlineScale;

@@ -81,12 +81,13 @@ describe("normal box-shadow pixel-snapped border contour", () => {
     bl: { h: 5, v: 5 },
     uniform: true,
   };
-  const box = (snap?: ShadowBox["borderPaintSnap"]): ShadowBox => ({
+  type Deltas = Omit<NonNullable<ShadowBox["borderPaintSnap"]>, "width" | "height">;
+  const box = (snap?: Deltas, width = 20, height = 20): ShadowBox => ({
     x: 20.5,
     y: 20.5,
-    width: 20,
-    height: 20,
-    borderPaintSnap: snap,
+    width,
+    height,
+    borderPaintSnap: snap == null ? undefined : { ...snap, width, height },
     styles: {
       boxShadow: "rgb(255, 0, 0) 4px 0px 0px 0px",
       backgroundColor: "rgba(0, 0, 0, 0)",
@@ -119,6 +120,11 @@ describe("normal box-shadow pixel-snapped border contour", () => {
     expect(ctx.defsParts[0]).toContain('x="21" y="21" width="20" height="20"');
   });
 
+  it("ignores a record describing a box of another size (a derived box)", () => {
+    const ctx = paintNormal({ ...box(snapHalf), width: 18 }, SHARP);
+    expect(ctx.svgParts[0]).toContain('x="24.5" y="20.5"');
+  });
+
   it("keeps the captured geometry when the paint space is not authenticated", () => {
     const ctx = paintNormal(box(undefined), SHARP);
     expect(ctx.svgParts[0]).toContain('x="24.5" y="20.5"');
@@ -138,12 +144,12 @@ describe("normal box-shadow pixel-snapped border contour", () => {
   it("keeps a nonzero snapped size of at least one pixel (SnapSizeToPixel)", () => {
     // 20.125 + 0.25 rounds both edges to 20, but a 0.25px box keeps 1px.
     const tiny = { source: "blink-pixel-snapped-border-v1", left: -0.125, top: 0, right: -0.375, bottom: 0 } as const;
-    const contour = shadowBorderContour({ ...box(tiny), x: 20.125, width: 0.25 }, SHARP);
+    const contour = shadowBorderContour({ ...box(tiny, 0.25), x: 20.125 }, SHARP);
     expect(contour.x).toBe(20);
     expect(contour.width).toBe(1);
     // An empty box stays empty.
     const empty = { source: "blink-pixel-snapped-border-v1", left: -0.125, top: 0, right: -0.125, bottom: 0 } as const;
-    expect(shadowBorderContour({ ...box(empty), x: 20.125, width: 0 }, SHARP).width).toBe(0);
+    expect(shadowBorderContour({ ...box(empty, 0), x: 20.125 }, SHARP).width).toBe(0);
   });
 
   // PixelSnappedContouredInnerBorder (contoured_border_geometry.cc:207-255,
@@ -152,9 +158,7 @@ describe("normal box-shadow pixel-snapped border contour", () => {
   // inset by the same widths.
   it("derives the inset clip from the snapped outer edges and integer borders", () => {
     const bordered: ShadowBox = {
-      ...box(snapHalf),
-      width: 24,
-      height: 24,
+      ...box(snapHalf, 24, 24),
       styles: {
         ...box().styles,
         borderTopWidth: "2px",
@@ -233,7 +237,7 @@ describe("normal box-shadow pixel-snapped border contour", () => {
   it("constrains radii against the snapped rect (FloatRoundedRect::ConstrainRadii)", () => {
     const big: CornerRadii = { ...ROUND5, tl: { h: 15, v: 15 }, tr: { h: 15, v: 15 } };
     const shrink = { source: "blink-pixel-snapped-border-v1", left: 0.5, top: 0.5, right: -0.5, bottom: 0.5 } as const;
-    const contour = shadowBorderContour({ ...box(shrink), width: 30 }, big);
+    const contour = shadowBorderContour(box(shrink, 30), big);
     expect(contour.width).toBe(29);
     expect(contour.corners.tl.h).toBeCloseTo(14.5, 10);
     expect(contour.corners.br.h).toBeCloseTo((5 * 29) / 30, 10);

@@ -5,7 +5,8 @@ kind: "investigation"
 status: "current"
 owners: ["paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ", "DM-8N1VB2", "DM-B73YF5", "DM-TFN8RD"]
+tickets:
+  ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ", "DM-8N1VB2", "DM-B73YF5", "DM-TFN8RD", "DM-S2EA2P"]
 code:
   [
     "src/render/box-shadow-paint.ts",
@@ -131,10 +132,12 @@ pixels (sharp: 80).
 
 That snap happens in local paint space, before any transform or scroll
 translation, so the capture does not round viewport coordinates. For a box with
-a `box-shadow`, `src/capture/script/walker/border-paint-snap.ts` records
-`borderPaintSnap` — signed deltas from the captured border-box edges to the
-snapped edges, so a later whole-tree translation keeps it valid — only when the
-local paint space is authenticated:
+a `box-shadow`, a visible border or an outline,
+`src/capture/script/walker/border-paint-snap.ts` records `borderPaintSnap` —
+signed deltas from the captured border-box edges to the snapped edges, plus the
+box size they describe (a derived box of another size ignores them), so a later
+whole-tree translation keeps it valid — only when the local paint space is
+authenticated:
 
 - every element in the composed ancestor chain (self included) has an identity
   or pure 2D translation transform; subpixel accumulation survives those
@@ -147,17 +150,23 @@ local paint space is authenticated:
 
 Static planar transforms are frozen by the capture walk (the box is measured
 untransformed and the renderer re-applies the transform as a wrapper), so they
-add nothing to the translation sum: the box's own frozen transform never
-matters, because its border snaps at its rounded paint offset either way, and a
-frozen pure-translation ancestor keeps the subpixel accumulation. A frozen
-non-translation ancestor (scale, rotate, skew, general matrix) does not:
-`CanPropagateSubpixelAccumulation` drops the accumulation beneath it, so its
-descendants snap relative to its rounded offset and get no record. The walk's
-`frozenTransformOwners` map tells the snap which ancestors are frozen.
+add nothing to the translation sum, and a frozen pure-translation ancestor keeps
+the subpixel accumulation. On an axis where a frozen transform drops it (a
+scale, rotation, skew or general matrix, a `will-change` transform, or paint
+isolation; `CanPropagateSubpixelAccumulation`), Blink paints that box at local 0
+of its rounded paint-offset translation, and its descendants relative to its
+box. The walk folds that rounding into the wrapper matrix (doc 06, "Rounded
+paint-offset translation") and registers the box as the local origin on those
+axes, so the record measures each box relative to the nearest such ancestor
+(the box itself included), and the border, outline, focus-ring and shadow
+painters read the snapped edges from it (`snappedBorderEdges`). A frozen
+transform whose own paint offset cannot be authenticated folds nothing and its
+descendants get no record.
 
 Everything else fails closed — no record, and the renderer keeps the captured
 geometry: live (animated) scale/rotate/skew/3D transforms, including a live
-rotated capture root, motion paths, `will-change` transform-family
+rotated capture root, motion paths, and — on a box that is not itself a frozen
+transform — `will-change` transform-family
 properties (`kPreventingSubpixelAccumulationReasons`), paint or style+layout
 containment and `content-visibility` (`NeedsIsolationNodes`, `:570-589`), sticky
 positioning, a captured box that differs from the live border box (a fieldset

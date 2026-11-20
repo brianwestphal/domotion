@@ -280,14 +280,29 @@ it.each([
     snap: [0.5, 0.5, 0.5, 0.5],
   },
   // A static transform is frozen (captured untransformed, re-applied as a
-  // wrapper); the box's own border still snaps at its rounded paint offset.
-  { name: "own scale transform", extra: "margin:20.5px;transform:scale(2)", wrap: "", snap: [0.5, 0.5, 0.5, 0.5] },
+  // wrapper). Under a scale Blink drops the subpixel accumulation, so the box
+  // paints at local 0 of its rounded paint-offset translation (the rounding is
+  // folded into the wrapper matrix) and its own edges need no further snap.
+  { name: "own scale transform", extra: "margin:20.5px;transform:scale(2)", wrap: "", snap: [0, 0, 0, 0] },
   { name: "rotated live ancestor", extra: "margin:20.5px", wrap: "transform:rotate(10deg)", snap: null },
-  // Below a frozen non-translation transform Blink drops the subpixel
-  // accumulation (CanPropagateSubpixelAccumulation), so descendants fail closed;
-  // a frozen pure translation keeps it.
-  { name: "frozen scaled ancestor", extra: "margin:20.5px", wrap: "", mid: "transform:scale(1.5)", snap: null },
-  { name: "frozen rotated ancestor", extra: "margin:20.5px", wrap: "", mid: "transform:rotate(10deg)", snap: null },
+  // Below such a transform descendants snap relative to its box: #mid sits at
+  // x 0 / y 20.5 (the child's top margin collapses through it), so the child's
+  // local x is 20.5 and its local y is 0. A frozen pure translation keeps the
+  // accumulation instead.
+  {
+    name: "frozen scaled ancestor",
+    extra: "margin:20.5px",
+    wrap: "",
+    mid: "transform:scale(1.5)",
+    snap: [0.5, 0, 0.5, 0],
+  },
+  {
+    name: "frozen rotated ancestor",
+    extra: "margin:20.5px",
+    wrap: "",
+    mid: "transform:rotate(10deg)",
+    snap: [0.5, 0, 0.5, 0],
+  },
   {
     name: "frozen translated ancestor",
     extra: "margin:20.5px",

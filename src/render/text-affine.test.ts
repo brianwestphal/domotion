@@ -144,6 +144,19 @@ describe("source-owned affine text paint", () => {
     expect(map.get(child)).toBeNull();
   });
 
+  // Blink paints a non-translation transform's subtree from its rounded paint
+  // offset; the capture folds that rounding into the matrix. Protocol quads are
+  // DOM geometry, so the residual is taken against the matrix without it.
+  it("separates the folded paint-offset rounding from the geometric matrix", () => {
+    const el = base();
+    el.styles.transform = "matrix(1.5, 0, 0, 1.5, 0.25, -0.5)";
+    el.styles.transformPaintShift = [0.25, -0.5];
+    expect(emittedElementTextAffine(el)).toEqual([1.5, 0, 0, 1.5, -69.75, -30.5]);
+    expect(emittedElementTextAffine(el, true)).toEqual([1.5, 0, 0, 1.5, -70, -30]);
+    const geometric = buildEmittedTextCtmMap([el], true).get(el);
+    expect(geometric).toEqual([1.5, 0, 0, 1.5, -70, -30]);
+  });
+
   it("fails closed for a singular emitted plane and never scalarizes rotation", () => {
     const el = base();
     el.styles.transform = "matrix(0, 1, -1, 0, 0, 0)";

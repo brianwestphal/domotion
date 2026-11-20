@@ -51,15 +51,22 @@ describeBrowser("transformed flex descendant logical geometry", () => {
             )) as Record<string, Rect>;
             const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: 520, height: 440 });
             // Static transforms are frozen: the captured box is local and the
-            // emitted CTM (ancestor and own transforms) maps it to the live rect.
+            // emitted CTM (ancestor and own transforms) maps it to the live rect
+            // — plus the paint-only rounding of the host's paint offset. Blink
+            // paints a non-translation transform's subtree from its ROUNDED paint
+            // offset (ToRoundedVector2d, paint_property_tree_builder.cc:748 at
+            // Chromium 7d859f27, with the subpixel accumulation dropped,
+            // :652-686), which getBoundingClientRect does not model: the host's
+            // 31.25px offset paints 0.25px up and left of the DOM geometry.
+            const paintShift = scale === 1 ? 0 : Math.round(31.25) - 31.25;
             const space = createRasterViewportSpace(tree);
             for (const id of ["a", "b"]) {
               const captured = find(tree, id)!;
               const local = { x: captured.x, y: captured.y, width: captured.width, height: captured.height };
               const ctm = space.frozenCtm(captured);
               const mapped = ctm == null ? local : mapRectThroughAffine(local, ctm);
-              expect(mapped.x).toBeCloseTo(live[id].x, 3);
-              expect(mapped.y).toBeCloseTo(live[id].y, 3);
+              expect(mapped.x).toBeCloseTo(live[id].x + paintShift, 3);
+              expect(mapped.y).toBeCloseTo(live[id].y + paintShift, 3);
               expect(mapped.width).toBeCloseTo(live[id].width, 3);
               expect(mapped.height).toBeCloseTo(live[id].height, 3);
             }
@@ -67,8 +74,8 @@ describeBrowser("transformed flex descendant logical geometry", () => {
             for (const id of ["a", "b"]) {
               const box = await rendered.locator(`.anim-${id}`).boundingBox();
               expect(box).not.toBeNull();
-              expect(box!.x).toBeCloseTo(live[id].x, 1);
-              expect(box!.y).toBeCloseTo(live[id].y, 1);
+              expect(box!.x).toBeCloseTo(live[id].x + paintShift, 1);
+              expect(box!.y).toBeCloseTo(live[id].y + paintShift, 1);
               expect(box!.width).toBeCloseTo(live[id].width, 1);
               expect(box!.height).toBeCloseTo(live[id].height, 1);
             }

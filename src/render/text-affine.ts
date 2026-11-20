@@ -73,8 +73,13 @@ function parseComputedAffine(transform: string | undefined): CapturedTextPaintAf
   return matrix.every(Number.isFinite) ? matrix : null;
 }
 
-/** Exact matrix emitted by the renderer's static CSS-transform wrapper. */
-export function emittedElementTextAffine(el: CapturedElement): CapturedTextPaintAffine | null {
+/**
+ * Exact matrix emitted by the renderer's static CSS-transform wrapper. With
+ * `geometric`, the paint-offset rounding folded into the wrapper
+ * (`styles.transformPaintShift`) is removed, giving the DOM-geometry matrix
+ * that Range/protocol quads are measured in.
+ */
+export function emittedElementTextAffine(el: CapturedElement, geometric = false): CapturedTextPaintAffine | null {
   if (el.projectiveTransform != null) {
     const projective = el.projectiveTransform;
     // A captured projective plane is not necessarily non-affine. Perspective
@@ -100,8 +105,11 @@ export function emittedElementTextAffine(el: CapturedElement): CapturedTextPaint
     ];
     return affine.every(Number.isFinite) ? affine : null;
   }
-  const matrix = parseComputedAffine(el.styles.transform);
-  if (matrix == null) return null;
+  const parsed = parseComputedAffine(el.styles.transform);
+  if (parsed == null) return null;
+  const shift = geometric ? el.styles.transformPaintShift : undefined;
+  const matrix: CapturedTextPaintAffine =
+    shift == null ? parsed : [parsed[0], parsed[1], parsed[2], parsed[3], parsed[4] - shift[0], parsed[5] - shift[1]];
   if (textAffineEquals(matrix, IDENTITY_TEXT_AFFINE)) return IDENTITY_TEXT_AFFINE;
   const origin = (el.styles.transformOrigin ?? "").trim().split(/\s+/);
   const parsedX = Number.parseFloat(origin[0] ?? "");
@@ -118,10 +126,11 @@ export function emittedElementTextAffine(el: CapturedElement): CapturedTextPaint
  */
 export function buildEmittedTextCtmMap(
   roots: readonly CapturedElement[],
+  geometric = false,
 ): WeakMap<CapturedElement, CapturedTextPaintAffine | null> {
   const output = new WeakMap<CapturedElement, CapturedTextPaintAffine | null>();
   const visit = (el: CapturedElement, parent: CapturedTextPaintAffine | null): void => {
-    const own = emittedElementTextAffine(el);
+    const own = emittedElementTextAffine(el, geometric);
     const current = parent == null || own == null ? null : multiplyTextAffine(parent, own);
     output.set(el, current);
     for (const child of el.children ?? []) visit(child, current);
@@ -245,6 +254,13 @@ export interface PreparedAffineTextPaint {
 export function prepareAffineTextPaint(
   el: CapturedElement,
   emittedCtm: CapturedTextPaintAffine | null | undefined,
+  /**
+   * The same CTM without the folded paint-offset rounding. The fragments'
+   * paint matrix comes from protocol (DOM-geometry) quads, so the residual is
+   * taken against it; the emitted wrappers then add Blink's rounding to the
+   * text exactly as to the boxes around it.
+   */
+  geometricCtm: CapturedTextPaintAffine | null | undefined = emittedCtm,
 ): PreparedAffineTextPaint {
   const geometry = el.textPaintGeometry;
   if (geometry == null) return { element: el };
@@ -256,7 +272,7 @@ export function prepareAffineTextPaint(
   }
   const paintMatrix = onePaintMatrix(geometry);
   if (paintMatrix == null) return { element: el, failureReason: "text fragments do not share one affine paint plane" };
-  const inverse = emittedCtm == null ? null : invertTextAffine(emittedCtm);
+  const inverse = emittedCtm == null || geometricCtm == null ? null : invertTextAffine(geometricCtm);
   if (inverse == null) return { element: el, failureReason: "emitted text ancestor matrix is singular" };
   const fragmentsBySegment = new Map(geometry.fragments.map((fragment) => [fragment.textSegmentIndex, fragment]));
   for (const [index, segment] of (neutral.textSegments ?? []).entries()) {

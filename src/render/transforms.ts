@@ -20,8 +20,8 @@
  * callers use `isProjectiveCssTransform` to fail closed (see doc 162).
  */
 
-/** Decimal places for emitted SVG coordinates (translate/origin) vs. the matrix scale/rotation terms (which need more to avoid visible drift). */
-const COORD_PRECISION = 2;
+/** Decimal places for emitted SVG coordinates (translate/origin) vs. the matrix scale/rotation terms. Coordinates keep the LayoutUnit 1/64 grid exactly: a two-decimal origin or translation moved fractional-offset wrappers by up to 0.005px, enough to move a glyph across a subpixel-position bin. */
+const COORD_PRECISION = 6;
 const MATRIX_PRECISION = 5;
 
 export function cssTransformToSvg(transform: string | undefined, originX: number, originY: number): string {

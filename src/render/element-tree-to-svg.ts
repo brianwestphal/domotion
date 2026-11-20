@@ -333,6 +333,8 @@ export interface PaintCtx {
   advanceClipIdx(n: number): void;
   /** Static SVG CTM already surrounding each text branch (DM-2470). */
   emittedTextCtm: ReturnType<typeof buildEmittedTextCtmMap>;
+  /** The same CTM without the folded paint-offset rounding (DOM geometry). */
+  geometricTextCtm?: ReturnType<typeof buildEmittedTextCtmMap>;
   /** Static SVG CTM open around each element before its own wrapper. */
   emittedParentCtm: ReturnType<typeof buildEmittedParentCtmMap>;
 }
@@ -1775,6 +1777,7 @@ function buildRenderState(
       clipIdx += n;
     },
     emittedTextCtm: buildEmittedTextCtmMap(elements),
+    geometricTextCtm: buildEmittedTextCtmMap(elements, true),
     emittedParentCtm: buildEmittedParentCtmMap(elements),
   };
   // Form-control gradient defs (SK-1224) — renderFormControl pushes

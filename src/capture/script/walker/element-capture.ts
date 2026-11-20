@@ -11,7 +11,7 @@
 
 import { computeFieldsetLegendBox } from "./fieldset-legend.js";
 import { captureLegacyClipRect } from "./legacy-clip.js";
-import { captureBorderPaintSnap } from "./border-paint-snap.js";
+import { captureBorderPaintSnap, frozenPaintShift } from "./border-paint-snap.js";
 import { detectInlineFragments } from "./fragmentation.js";
 import { captureInlineSvg } from "./inline-svg.js";
 import { captureImageElement } from "./image-elements.js";
@@ -545,12 +545,23 @@ export const createElementCapture = () => {
       warn: d.warn,
     });
     if (legacyClipRect != null) captured.legacyClipRect = legacyClipRect;
+    const paintShift = frozenPaintShift(el);
+    if (paintShift != null && captured.styles.transform !== "none") {
+      captured.styles.transformPaintShift = [paintShift.x, paintShift.y];
+    }
     // The deltas describe the live border box, so a box whose captured
     // geometry was adjusted away from it (a fieldset's legend notch) has none.
+    // Only boxes whose decorations snap (shadow, border, outline) carry it.
+    const paintsSnappedDecoration =
+      (cs.boxShadow != null && cs.boxShadow !== "" && cs.boxShadow !== "none") ||
+      (["Top", "Right", "Bottom", "Left"] as const).some(
+        (side) =>
+          (parseFloat(cs[`border${side}Width`]) || 0) > 0 &&
+          !/^(none|hidden)$/.test(cs[`border${side}Style`] ?? "none"),
+      ) ||
+      ((cs.outlineStyle ?? "none") !== "none" && (parseFloat(cs.outlineWidth) || 0) > 0);
     if (
-      cs.boxShadow != null &&
-      cs.boxShadow !== "" &&
-      cs.boxShadow !== "none" &&
+      paintsSnappedDecoration &&
       captured.x === rect.left - vp.x &&
       captured.y === rect.top - vp.y &&
       captured.width === rect.width &&

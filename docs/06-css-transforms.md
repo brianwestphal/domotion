@@ -5,11 +5,12 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2473", "DM-2475", "DM-WTSX24", "SK-1091", "SK-1127"]
+tickets: ["DM-2473", "DM-2475", "DM-WTSX24", "DM-S2EA2P", "SK-1091", "SK-1127"]
 code:
   [
     "src/capture/script/index.ts",
     "src/capture/script/walker/transforms.ts",
+    "src/capture/script/walker/border-paint-snap.ts",
     "src/capture/raster-viewport-space.ts",
     "src/capture/frozen-transform-neutralizer.ts",
     "src/render/element-tree-to-svg.ts",
@@ -143,6 +144,50 @@ after the walk sees the transformed paint. Each producer uses one of two routes:
 Known gaps: a backdrop-filter target or root composite under a neutralized
 rotated ancestor that also sits inside a frozen translate/scale keeps the older
 local route.
+
+### Rounded paint-offset translation (DM-S2EA2P)
+
+A transformed box gets a PaintOffsetTranslation of its **rounded** paint offset
+(`ToRoundedVector2d`, `core/paint/paint_property_tree_builder.cc:748`, Chromium
+`7d859f27`), and its transform origin is resolved from the box's local rect
+(`ComputeReferenceBox` → `fragment.LocalRect()`,
+`core/layout/transform_utils.cc:38-40`). The fractional remainder survives as
+"subpixel accumulation" only on an axis the transform leaves alone
+(`CanPropagateSubpixelAccumulation`, `:652-686`: identity or translation keeps
+both axes, a scale keeps the axes whose factor is 1, anything else and a
+`will-change` transform keep neither; paint isolation resets it, `:744-749`).
+On an axis that drops it, the box and its whole subtree paint `d = round(P) − P`
+further along before the transform, and the transform pivots there too. That
+is `T(d)` composed in front of the matrix, so the walk folds `d` into the frozen
+matrix's translation (`registerFrozenPaintBase` in
+`src/capture/script/walker/border-paint-snap.ts`) and records it as
+`styles.transformPaintShift`. Every CTM consumer then agrees with paint.
+DOM geometry (`getBoundingClientRect`, Range and protocol quads) does not include
+`d`: the text-affine residual is taken against the CTM without it
+(`buildEmittedTextCtmMap(…, true)`), and the transformed-flex e2e expects the
+emitted boxes at the live rect plus `d`. `P` must be authenticated by the same
+rules as the border paint snap (doc 277); otherwise nothing is folded.
+
+Box decorations then snap in that local space: the border paint snap record
+(`borderPaintSnap`, now captured for boxes with a shadow, border or outline)
+measures each box relative to the nearest frozen transform that drops the
+accumulation, and the border, outline, focus-ring and shadow painters read their
+snapped edges from it (`snappedBorderEdges`). Transform translations and origins
+are written with six decimals so the 1/64 grid survives; two decimals moved a
+fractional wrapper by up to 0.005px, enough to move a glyph across a subpixel
+bin.
+
+Native full-RGBA controls (`tests/frozen-transform-paint-offset.e2e.test.ts`):
+fractional scaled and rotated backgrounds, shadow, border, outline, rounded and
+double borders, `will-change` and `contain: paint` scales, and a child border
+under a fractional scaled parent are byte-exact on macOS. On the 27 html-test
+fixtures that use translate or scale, 7 improve (21-transform-2d 1.03% → 0.13%,
+21-deep-transform-origin 1.58% → 0.91%, 32-real-world-pricing-table 12.58% →
+9.48%), 18 are unchanged, and 22-deep-filter-paint-bounds moves 1.147% →
+1.227%: its rotated, drop-shadowed box gains geometric accuracy but its text
+inside the filter differs more (follow-up DM-6AX9BY). 13-deep-anchor-positioning moves by 0.00007 with an identical error total. Backgrounds are still not
+pixel-snapped, which is a separate pre-existing gap visible on axes that keep
+the accumulation (DM-6A9J20).
 
 ## Follow-ups to file
 

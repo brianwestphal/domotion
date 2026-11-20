@@ -13,6 +13,7 @@ import { parseBoxShadow } from "./box-shadow.js";
 import { formatNumberLoose, r } from "./format.js";
 import { parseColor, colorStr } from "./colors.js";
 import {
+  authenticBorderPaintSnap,
   constrainCornerRadiiToRect,
   insetCornerRadii,
   outsetCornerRadiiWithCoverageCorrection,
@@ -60,7 +61,7 @@ export interface ShadowContour {
  * that rect as `borderPaintSnap`; without it the captured geometry is kept.
  */
 export function shadowBorderContour(el: ShadowBox, corners: CornerRadii): ShadowContour {
-  const snap = el.borderPaintSnap;
+  const snap = authenticBorderPaintSnap(el);
   if (snap == null) return { x: el.x, y: el.y, width: el.width, height: el.height, corners };
   const x = el.x + snap.left,
     y = el.y + snap.top;
@@ -87,7 +88,7 @@ export function shadowBorderContour(el: ShadowBox, corners: CornerRadii): Shadow
  */
 export function shadowInnerBorderContour(el: ShadowBox, corners: CornerRadii): ShadowContour {
   const width = (value: string | undefined) => parseFloat(value ?? "0") || 0;
-  const snap = el.borderPaintSnap;
+  const snap = authenticBorderPaintSnap(el);
   if (snap == null) {
     const l = width(el.styles.borderLeftWidth),
       r = width(el.styles.borderRightWidth),

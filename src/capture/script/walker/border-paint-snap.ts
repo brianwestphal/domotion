@@ -42,16 +42,15 @@
 // Self-contained: this runs inside the page via CAPTURE_SCRIPT.
 
 import type { CapturedBorderPaintSnap } from "../../types.js";
-import { frozenTransformOwners } from "./transforms.js";
 
-const isPureTranslationMatrix = (transform: string): boolean => {
-  try {
-    const m = new DOMMatrix(transform);
-    return m.is2D && m.a === 1 && m.b === 0 && m.c === 0 && m.d === 1;
-  } catch {
-    return false;
-  }
-};
+/**
+ * Frozen transforms whose subtree is being captured: `{x, y}` holds the box's
+ * untransformed viewport origin on each axis that drops the subpixel
+ * accumulation (null where it propagates); "unauthenticated" when that
+ * transform's own paint offset could not be established.
+ */
+const frozenPaintBases = new WeakMap<Element, { x: number | null; y: number | null } | "unauthenticated">();
+const frozenPaintShifts = new WeakMap<Element, { x: number; y: number }>();
 
 const composedParent = (node: Element): Element | null => {
   const slot = (node as HTMLElement).assignedSlot;
@@ -104,6 +103,137 @@ const preventsSubpixelAccumulation = (cs: CSSStyleDeclaration): boolean =>
   /\b(transform|translate|scale|rotate)\b/.test(cs.willChange ?? "auto");
 
 /**
+ * Which axes keep the subpixel accumulation through a transform
+ * (`CanPropagateSubpixelAccumulation`, paint_property_tree_builder.cc:652-686):
+ * both for identity or a translation, per axis for a scale-or-translation
+ * (only where the scale is 1), neither otherwise or under a `will-change`
+ * transform-family property (`kPreventingSubpixelAccumulationReasons`).
+ */
+export const subpixelPropagation = (transform: string, willChange: string): { x: boolean; y: boolean } => {
+  if (/\b(transform|translate|scale|rotate)\b/.test(willChange)) return { x: false, y: false };
+  let m: DOMMatrix;
+  try {
+    m = new DOMMatrix(transform);
+  } catch {
+    return { x: false, y: false };
+  }
+  if (!m.is2D || m.b !== 0 || m.c !== 0) return { x: false, y: false };
+  return { x: m.a === 1, y: m.d === 1 };
+};
+
+/**
+ * The local paint offset of a box whose live (or frozen-untransformed) border
+ * rect is `rect`, or undefined when it cannot be authenticated. Below a
+ * non-propagating frozen transform the offset is relative to that transform's
+ * own box (Blink resets the paint offset there, :758-776); elsewhere it is the
+ * viewport rect minus the live translations, up to whole pixels. With
+ * `includeSelf`, the box's own frozen transform counts (its box paints at local
+ * 0); without it the offset is the one the transform's paint-offset
+ * translation rounds.
+ */
+export const localPaintOffset = (
+  el: Element,
+  rect: { left: number; top: number },
+  includeSelf: boolean,
+): { x: number; y: number } | undefined => {
+  const view = el.ownerDocument?.defaultView;
+  if (view == null) return undefined;
+  if (view.devicePixelRatio !== 1) return undefined;
+  if (view.visualViewport != null && view.visualViewport.scale !== 1) return undefined;
+  let tx = 0,
+    ty = 0,
+    zoom = 1;
+  let localX: number | null = null,
+    localY: number | null = null;
+  for (let node: Element | null = el; node != null; node = composedParent(node)) {
+    const cs = view.getComputedStyle(node);
+    zoom *= parseFloat(cs.zoom) || 1;
+    const base = node === el && !includeSelf ? undefined : frozenPaintBases.get(node);
+    if (base === "unauthenticated") return undefined;
+    if (base != null) {
+      if (localX == null && base.x != null) localX = rect.left - tx - base.x;
+      if (localY == null && base.y != null) localY = rect.top - ty - base.y;
+      if (localX != null && localY != null) break;
+    }
+    if (cs.position === "sticky") return undefined;
+    if (cs.offsetPath != null && cs.offsetPath !== "" && cs.offsetPath !== "none") return undefined;
+    // The box's own compositing or isolation only matters once its own
+    // paint-offset translation applies (includeSelf); without it, P is the
+    // offset that translation rounds.
+    if ((node !== el || includeSelf) && (preventsSubpixelAccumulation(cs) || isolatesPaintOffset(cs))) return undefined;
+    // A frozen transform reads as identity here (the rect below it is already
+    // untransformed); a live one must be a pure translation.
+    const translation = pureTranslation(cs);
+    if (translation == null) return undefined;
+    tx += translation.x;
+    ty += translation.y;
+    // A descendant's own scroll offset moves its contents, not itself.
+    if (node !== el && (!Number.isInteger(node.scrollLeft) || !Number.isInteger(node.scrollTop))) return undefined;
+  }
+  if (zoom !== 1) return undefined;
+  if (localX == null || localY == null) {
+    const scroller = el.ownerDocument.scrollingElement;
+    if (scroller != null && (!Number.isInteger(scroller.scrollLeft) || !Number.isInteger(scroller.scrollTop))) {
+      return undefined;
+    }
+  }
+  // Re-quantize to the LayoutUnit 1/64 grid so float translation round-off
+  // cannot move a half-pixel edge across the rounding boundary.
+  const quantize = (value: number) => Math.round(value * 64) / 64;
+  return { x: quantize(localX ?? rect.left - tx), y: quantize(localY ?? rect.top - ty) };
+};
+
+/**
+ * Register a frozen transform's paint-offset basis and return the translation
+ * to fold into the matrix the renderer re-applies. Blink rounds the box's paint
+ * offset into a PaintOffsetTranslation (`ToRoundedVector2d`, :748) and resolves
+ * the transform origin from the box's local rect (`ComputeReferenceBox` →
+ * `fragment.LocalRect()`, core/layout/transform_utils.cc:38-40). On an axis that
+ * keeps the subpixel accumulation that changes nothing; on one that drops it,
+ * the whole subtree paints `round(P) - P` further along before the transform,
+ * which is `T(d)` composed before the matrix about the renderer's layout-based
+ * origin. Unauthenticated bases fold nothing and make descendants fail closed.
+ */
+export const registerFrozenPaintBase = (
+  el: Element,
+  transform: string,
+  cs: CSSStyleDeclaration,
+): { x: number; y: number } => {
+  // Paint isolation resets the paint offset outright (:744-749).
+  const propagation = isolatesPaintOffset(cs)
+    ? { x: false, y: false }
+    : subpixelPropagation(transform, cs.willChange ?? "auto");
+  if (propagation.x && propagation.y) {
+    frozenPaintBases.set(el, { x: null, y: null });
+    return { x: 0, y: 0 };
+  }
+  const rect = el.getBoundingClientRect();
+  const offset = localPaintOffset(el, rect, false);
+  if (offset == null) {
+    frozenPaintBases.set(el, "unauthenticated");
+    return { x: 0, y: 0 };
+  }
+  frozenPaintBases.set(el, {
+    x: propagation.x ? null : Math.round(rect.left * 64) / 64,
+    y: propagation.y ? null : Math.round(rect.top * 64) / 64,
+  });
+  const shift = {
+    x: propagation.x ? 0 : Math.round(offset.x) - offset.x,
+    y: propagation.y ? 0 : Math.round(offset.y) - offset.y,
+  };
+  if (shift.x !== 0 || shift.y !== 0) frozenPaintShifts.set(el, shift);
+  return shift;
+};
+
+export const releaseFrozenPaintBase = (el: Element): void => {
+  frozenPaintBases.delete(el);
+  frozenPaintShifts.delete(el);
+};
+
+/** The paint-offset rounding folded into a frozen transform being captured. */
+export const frozenPaintShift = (el: Element): { x: number; y: number } | undefined => frozenPaintShifts.get(el);
+
+/**
  * The captured border box's Blink pixel-snapped paint edges, or undefined when
  * the local paint space cannot be authenticated from the live page.
  */
@@ -112,47 +242,17 @@ export const captureBorderPaintSnap = (
   rect: { left: number; top: number; width: number; height: number },
   effectiveZoom: number,
 ): CapturedBorderPaintSnap | undefined => {
-  const view = el.ownerDocument?.defaultView;
-  if (view == null) return undefined;
-  if (view.devicePixelRatio !== 1) return undefined;
-  if (view.visualViewport != null && view.visualViewport.scale !== 1) return undefined;
   if (effectiveZoom !== 1) return undefined;
-  let tx = 0,
-    ty = 0;
-  for (let node: Element | null = el; node != null; node = composedParent(node)) {
-    const cs = view.getComputedStyle(node);
-    if (cs.position === "sticky") return undefined;
-    if (cs.offsetPath != null && cs.offsetPath !== "" && cs.offsetPath !== "none") return undefined;
-    if (preventsSubpixelAccumulation(cs) || isolatesPaintOffset(cs)) return undefined;
-    // A frozen transform reads as identity here and the captured rect is
-    // already untransformed below it. Its own box still snaps at the rounded
-    // paint offset, but under a non-translation ancestor transform Blink drops
-    // the subpixel accumulation (`CanPropagateSubpixelAccumulation`), so
-    // descendants snap relative to that ancestor's rounded offset: fail closed.
-    const frozen = frozenTransformOwners.get(node);
-    if (frozen != null && node !== el && !isPureTranslationMatrix(frozen)) return undefined;
-    const translation = pureTranslation(cs);
-    if (translation == null) return undefined;
-    tx += translation.x;
-    ty += translation.y;
-    // A descendant's own scroll offset moves its contents, not itself.
-    if (node !== el && (!Number.isInteger(node.scrollLeft) || !Number.isInteger(node.scrollTop))) return undefined;
-  }
-  const scroller = el.ownerDocument.scrollingElement;
-  if (scroller != null && (!Number.isInteger(scroller.scrollLeft) || !Number.isInteger(scroller.scrollTop))) {
-    return undefined;
-  }
-  // Local paint space up to whole pixels: undo the summed post-snap
-  // translations and return each edge's LayoutUnit::Round delta there
+  const local = localPaintOffset(el, rect, true);
+  if (local == null) return undefined;
+  // Each edge's LayoutUnit::Round delta in local paint space
   // (translation-invariant). LayoutUnit::Round (layout_unit.h:294-297) equals
   // Math.round on the 1/64 grid, and `round(x) + SnapSizeToPixelAllowingZero(
   // w, x)` (:815-818) is `round(x + w)`, so an edge delta serves both the
   // outer snap and every integer-outset snap derived from it; the renderer
   // applies SnapSizeToPixel's nonzero-size rule (:805-813) where Blink does.
-  // Re-quantize to the 1/64 grid so float translation round-off cannot move a
-  // half-pixel edge across the rounding boundary.
-  const localLeft = Math.round((rect.left - tx) * 64) / 64,
-    localTop = Math.round((rect.top - ty) * 64) / 64;
+  const localLeft = local.x,
+    localTop = local.y;
   const localRight = localLeft + rect.width,
     localBottom = localTop + rect.height;
   return {
@@ -161,5 +261,7 @@ export const captureBorderPaintSnap = (
     top: Math.round(localTop) - localTop,
     right: Math.round(localRight) - localRight,
     bottom: Math.round(localBottom) - localBottom,
+    width: rect.width,
+    height: rect.height,
   };
 };

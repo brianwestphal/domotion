@@ -1333,6 +1333,15 @@ export interface CapturedStyles {
   rootOverflowY?: string;
   /** CSS transform-origin resolved to pixel pair (e.g. `60px 30px`). Defaults to '50% 50%' = bbox center. */
   transformOrigin?: string;
+  /**
+   * Paint-offset rounding already folded into `transform`'s translation: Blink
+   * paints a non-translation transform's subtree from its ROUNDED paint offset
+   * (`ToRoundedVector2d`, core/paint/paint_property_tree_builder.cc:748 at
+   * Chromium 7d859f27, with the subpixel accumulation dropped, :652-686).
+   * DOM geometry (Range quads, getBoundingClientRect) does not include it, so
+   * a consumer comparing against DOM geometry subtracts it. Absent when zero.
+   */
+  transformPaintShift?: [number, number];
   /** DM-587: true when the live CSS transform was non-none at capture
    *  time. We record `transform: 'none'` in this struct (because captured
    *  rects are in live viewport coords post-transforms and the renderer
@@ -2041,6 +2050,9 @@ export interface CapturedBorderPaintSnap {
   top: number;
   right: number;
   bottom: number;
+  /** The border-box size the deltas describe; a derived box of another size ignores them. */
+  width: number;
+  height: number;
 }
 
 export interface CapturedElement {

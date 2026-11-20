@@ -13,10 +13,15 @@ import {
   contouredRectIntersectionPaths,
   doubleBorderStripeGeometry,
   blinkCurvedDashPathLength,
-  pixelSnappedBorderReferenceRect,
+  snappedBorderEdges,
   uniformDoubleBorderStripeBoxes,
   type CornerRadii,
 } from "./borders.js";
+
+const snappedReferenceRect = (el: Parameters<typeof snappedBorderEdges>[0]) => {
+  const edges = snappedBorderEdges(el);
+  return { x: edges.left, y: edges.top, width: edges.right - edges.left, height: edges.bottom - edges.top };
+};
 import { paintThinDottedLine } from "./outline-paint.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 import type { PaintCtx } from "./element-tree-to-svg.js";
@@ -326,9 +331,7 @@ function paintUniformDoubleBorder(
   // both uniform-double stripe contours from integer outsets of that reference.
   // Collapsed borders have separate table-grid ownership and intentionally keep
   // the already shared, unsnapped grid edge.
-  const reference = collapse
-    ? { x: el.x, y: el.y, width: el.width, height: el.height }
-    : pixelSnappedBorderReferenceRect(el.x, el.y, el.width, el.height);
+  const reference = collapse ? { x: el.x, y: el.y, width: el.width, height: el.height } : snappedReferenceRect(el);
   const {
     strokeWidth: strokeW,
     outerInset,
@@ -374,10 +377,11 @@ function paintUniformDashedDottedBorder(
   // instead of 3 antialiased rows. Skip when border-collapse:collapse
   // because shared edges between adjacent cells must use the same
   // (un-rounded) coords to overlap exactly. DM-403/405.
-  const bL = collapse ? el.x : Math.round(el.x);
-  const bT = collapse ? el.y : Math.round(el.y);
-  const bR = collapse ? el.x + el.width : Math.round(el.x + el.width);
-  const bB = collapse ? el.y + el.height : Math.round(el.y + el.height);
+  const snapped = snappedBorderEdges(el);
+  const bL = collapse ? el.x : snapped.left;
+  const bT = collapse ? el.y : snapped.top;
+  const bR = collapse ? el.x + el.width : snapped.right;
+  const bB = collapse ? el.y + el.height : snapped.bottom;
   // Corner trim along the side's axis. Two reasons it applies:
   //   • Thick dotted: Chromium's `DrawLineWithStyle` moves the
   //     line endpoints IN by width/2 before stroking round-dotted
@@ -503,10 +507,11 @@ function paintUniformSolidBorder(
   // edges to integers (matching Chrome's per-edge `round`), then add
   // the half-stroke offset. Skip when collapse=true so shared cell
   // edges still overlap exactly. DM-403/405/406/407/410.
-  const boxLeft = collapse ? el.x : Math.round(el.x);
-  const boxTop = collapse ? el.y : Math.round(el.y);
-  const boxRight = collapse ? el.x + el.width : Math.round(el.x + el.width);
-  const boxBottom = collapse ? el.y + el.height : Math.round(el.y + el.height);
+  const snapped = snappedBorderEdges(el);
+  const boxLeft = collapse ? el.x : snapped.left;
+  const boxTop = collapse ? el.y : snapped.top;
+  const boxRight = collapse ? el.x + el.width : snapped.right;
+  const boxBottom = collapse ? el.y + el.height : snapped.bottom;
   const dash = closedDashArray(
     bt.style,
     bt.w,
@@ -1127,10 +1132,11 @@ export function paintPerSideBorder(
   // collapsed table cells share their borders with neighbors and rounding
   // would split the shared edge between two integer rows. DM-403/405/407.
   const roundEdges = !collapse;
-  const bxL = roundEdges ? Math.round(el.x) : el.x;
-  const bxT = roundEdges ? Math.round(el.y) : el.y;
-  const bxR = roundEdges ? Math.round(el.x + el.width) : el.x + el.width;
-  const bxB = roundEdges ? Math.round(el.y + el.height) : el.y + el.height;
+  const snapped = snappedBorderEdges(el);
+  const bxL = roundEdges ? snapped.left : el.x;
+  const bxT = roundEdges ? snapped.top : el.y;
+  const bxR = roundEdges ? snapped.right : el.x + el.width;
+  const bxB = roundEdges ? snapped.bottom : el.y + el.height;
   // One record per side keeps its centerline, miter clip, and double-stroke
   // normals together. The clockwise order also owns rounded wedge indexing.
   const sides: SideGeometry[] = [

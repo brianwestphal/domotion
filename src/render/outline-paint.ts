@@ -9,6 +9,7 @@ import {
   conicMeasuredLength,
   parseCornerRadii,
   roundedRectPath,
+  snappedBorderEdges,
   type CornerRadii,
 } from "./borders.js";
 import {
@@ -147,10 +148,7 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
     // 6b5a1b80); a near-zero alpha still quantizes to visible pixels.
     if (ocolor != null && ocolor.a > 0) {
       const offset = parseFloat(el.styles.outlineOffset ?? "0") || 0;
-      const snappedLeft = Math.round(el.x);
-      const snappedTop = Math.round(el.y);
-      const snappedRight = Math.round(el.x + el.width);
-      const snappedBottom = Math.round(el.y + el.height);
+      const { left: snappedLeft, top: snappedTop, right: snappedRight, bottom: snappedBottom } = snappedBorderEdges(el);
       // DM-GQJ8C4: clamp a negative offset per axis, as Blink does, instead of
       // letting it invert the outline rect.
       const clamp = adjustedOutlineOffset(snappedRight - snappedLeft, snappedBottom - snappedTop, offset);
@@ -1061,10 +1059,11 @@ function skRRectRadii(w: number, h: number, c: CornerRadii): CornerRadii {
 export function focusRingStrokes(el: CapturedElement): FocusRingStroke[] {
   const ring = el.styles.focusRing;
   if (ring == null) return [];
-  const left = Math.round(el.x),
-    top = Math.round(el.y);
-  const width = Math.round(el.x + el.width) - left,
-    height = Math.round(el.y + el.height) - top;
+  const edges = snappedBorderEdges(el);
+  const left = edges.left,
+    top = edges.top;
+  const width = edges.right - left,
+    height = edges.bottom - top;
   if (width <= 0 || height <= 0) return [];
   const base = parseCornerRadii(el.styles, el.width, el.height);
   // ComputedStyle::HasBorderRadius, gated by the origin facts of step 1.
@@ -1225,10 +1224,7 @@ function paintSolidContouredOutline(
  * axis outset (ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets,
  * FloatRoundedRect::Radii::Outset, chromium 6b5a1b80). */
 function outlineContours(el: CapturedElement, offset: number) {
-  const left = Math.round(el.x),
-    top = Math.round(el.y);
-  const right = Math.round(el.x + el.width),
-    bottom = Math.round(el.y + el.height);
+  const { left, top, right, bottom } = snappedBorderEdges(el);
   const clamp = adjustedOutlineOffset(right - left, bottom - top, Math.round(offset));
   const radii = parseCornerRadii(el.styles, el.width, el.height);
   const contour = (outsetX: number, outsetY: number) => {
@@ -1292,10 +1288,7 @@ function paintCurvedDashedDottedOutline(
 ): string[] {
   const width = Math.round(ow);
   const outset = Math.round(offset) + width;
-  const left = Math.round(el.x),
-    top = Math.round(el.y);
-  const right = Math.round(el.x + el.width),
-    bottom = Math.round(el.y + el.height);
+  const { left, top, right, bottom } = snappedBorderEdges(el);
   // DM-2PSXZV: per-corner (and elliptical) radii, each nonzero component
   // grown by the contour's outset, as the solid contour does.
   const base = parseCornerRadii(el.styles, el.width, el.height);
