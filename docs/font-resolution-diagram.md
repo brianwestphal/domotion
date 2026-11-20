@@ -725,6 +725,21 @@ with the helper's native glyph bounds before the file fallback. FreeType uses
 `sxHeight` / `sCapHeight`, else the hinted `x` / `H` outline top; DirectWrite
 uses OS/2 v2 here. `ch` and `ic` read the advances of `0` and U+6C34.
 
+Image-owned faces may carry the `size-adjust` and `ascent-override` /
+`descent-override` / `line-gap-override` descriptors once the painted used-face
+witness admits them (`src/capture/image-svg-font-witness.ts`; see
+[doc 274](274-dynamic-svg-image-fonts.md)). The selected instance is mapped
+back to its declaring face by buffer identity (`registerWebfont` keeps the
+caller's `Buffer` as `webfontBuffer`). `size-adjust` makes every metric the
+face's metric at `ComputedSize * size_adjust`
+(`FontDescription::SizeAdjustedFontDescription`, `font_description.cc:292-306`);
+a variable instance with `size-adjust` stays unresolved because optical sizing
+keeps the specified size. A complete override set replaces `LineSpacing` with
+the rounded overridden components (`overriddenLineSpacing`, from
+`MetricsOverriddenFontData` and `AscentDescentWithHacks`); a partial set, or a
+Linux descent that rounds down where FreeType may borrow a pixel from the
+ascent, leaves `lh` unresolved.
+
 For normal `lh` / `rlh`, macOS first asks `darwinNormalLineSpacing`
 (`packages/text-engine/src/render/darwin-normal-line-spacing.ts`) for optional
 `coreTextMetrics`: CoreText ascent/descent/leading at the actual Float32 CSS

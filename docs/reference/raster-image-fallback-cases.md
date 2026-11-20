@@ -456,6 +456,13 @@ These also emit `<image>` tags but **aren't fallbacks** — they're the renderer
   image until attribute-selector and `attr()` identity is authenticated
   (DM-SV4B1M). Stylesheet-only authenticated names remain vector; a caller's
   same-named font never supplies the image's metrics.
+  Image-owned faces whose use is decided inside the image document
+  (`font-display: fallback`, several `src` entries, or metric descriptors)
+  stay raster for font-dependent root metrics unless the painted used-face
+  witness (`src/capture/image-svg-font-witness.ts`) shows the image painted
+  exactly Domotion's selected source. `font-display: optional` always stays
+  raster there, and so do `local()` and non-`data:` sources
+  ([doc 274](../274-dynamic-svg-image-fonts.md), DM-3P65HE).
 
 - `background-image: url(...)` — author-supplied raster.
 - `list-style-image: url(...)`, marker images (`::marker`).

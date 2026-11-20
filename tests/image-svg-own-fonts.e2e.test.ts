@@ -35,6 +35,9 @@ const fixture = (source: string, complete = true): CapturedElement =>
     children: [],
     imageSrc: `data:image/svg+xml,${encodeURIComponent(source)}`,
     brokenImageFallback: { source: { complete, naturalWidth: complete ? 90 : 0 } },
+    width: 90,
+    height: 40,
+    styles: { objectFit: "fill", objectPosition: "50% 50%" },
   });
 
 describe("image-owned font metric evidence", () => {
@@ -294,7 +297,9 @@ describe("image-owned font metric evidence", () => {
     }
   });
 
-  it.each(["font-display:optional", "font-display:fallback", "size-adjust:120%", "font-style:oblique 30deg"])(
+  // fallback and metric descriptors are admitted through the painted
+  // used-face witness (tests/image-svg-font-witness.e2e.test.ts).
+  it.each(["font-display:optional", "font-style:oblique 30deg"])(
     "retains raster for unproven %s",
     async (descriptor) => {
       const page = await browser.newPage();

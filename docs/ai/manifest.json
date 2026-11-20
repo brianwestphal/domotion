@@ -4584,6 +4584,8 @@
         "src/render/svg-inline.ts",
         "src/render/svg-image-own-fonts.ts",
         "src/capture/image-svg-fonts.ts",
+        "src/capture/image-svg-font-witness.ts",
+        "tests/image-svg-font-witness.e2e.test.ts",
         "tests/image-svg-own-fonts.e2e.test.ts",
         "tests/img-svg-dynamic-font-names.e2e.test.ts",
         "tests/img-svg-root-sheet-font.e2e.test.ts"

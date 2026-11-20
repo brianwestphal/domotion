@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { fontSourceMap, type FontInstance } from "./font-instance.js";
-import { isolatedPrimaryFontMetrics, normalLineSpacing, parseVdmxStrike } from "./isolated-primary-font-metrics.js";
+import {
+  isolatedPrimaryFontMetrics,
+  normalLineSpacing,
+  overriddenLineSpacing,
+  parseVdmxStrike,
+} from "./isolated-primary-font-metrics.js";
 import {
   registerWebfont,
   snapshotFontRegistrations,
@@ -17,6 +22,32 @@ import { fontkit, isFontkitCollection } from "./fontkit-facade.js";
 describe("isolated image-owned primary faces", () => {
   const data = readFileSync(new URL("../../assets/fonts/fixture/DomotionFixtureMono-Regular.ttf", import.meta.url));
   const request = { fontFamily: '"Owned Metric", serif', fontSize: 20, fontWeight: 400, italic: false };
+  it("applies size-adjust as the used size and keeps the original face identity", () => {
+    const plain = isolatedPrimaryFontMetrics({
+      ...request,
+      fontSize: 30,
+      fontFaces: [{ family: "Owned Metric", data }],
+    });
+    const adjusted = isolatedPrimaryFontMetrics({
+      ...request,
+      fontFaces: [{ family: "Owned Metric", data, sizeAdjust: 1.5 }],
+    });
+    expect(plain?.zeroWidth).not.toBeNull();
+    expect(adjusted).toEqual(plain);
+  });
+  it("derives LineSpacing from a complete override set and leaves a partial one unresolved", () => {
+    const full = isolatedPrimaryFontMetrics({
+      ...request,
+      fontFaces: [{ family: "Owned Metric", data, ascentOverride: 0.8, descentOverride: 0.2, lineGapOverride: 0.1 }],
+    });
+    expect(full?.lineSpacing).toBe(22);
+    const partial = isolatedPrimaryFontMetrics({
+      ...request,
+      fontFaces: [{ family: "Owned Metric", data, ascentOverride: 0.8 }],
+    });
+    expect(partial?.lineSpacing).toBeNull();
+    expect(partial?.zeroWidth).toBe(full?.zeroWidth);
+  });
   it("groups fractional descriptors after Blink's quarter-unit quantization", () => {
     const wider = buildVariableHintedFont({ firstCodePoint: 0x30, withOs2: true, aXMax: 650 });
     const actual = isolatedPrimaryFontMetrics({
@@ -185,5 +216,27 @@ describe("Windows normal line spacing", () => {
       },
     } as FontInstance;
     expect(normalLineSpacing(typo, 16, "win32")).toBeNull();
+  });
+});
+
+describe("overriddenLineSpacing", () => {
+  const font = { familyName: "Owned" } as unknown as FontInstance;
+  const times = { familyName: "Times" } as unknown as FontInstance;
+  const all = { ascentOverride: 0.8, descentOverride: 0.2, lineGapOverride: 0.1 };
+  it("rounds each overridden component like AscentDescentWithHacks", () => {
+    expect(overriddenLineSpacing(font, 20, "darwin", all)).toBe(16 + 4 + 2);
+    expect(overriddenLineSpacing(font, 21, "win32", all)).toBe(17 + 4 + 2);
+  });
+  it("adds the macOS Times/Helvetica/Courier ascent adjustment by family name", () => {
+    expect(overriddenLineSpacing(times, 20, "darwin", all)).toBe(16 + 3 + 4 + 2);
+    expect(overriddenLineSpacing(times, 20, "win32", all)).toBe(22);
+  });
+  it("leaves Linux's subpixel descent borrow and partial or invalid sets unresolved", () => {
+    expect(overriddenLineSpacing(font, 20, "linux", all)).toBe(22);
+    // 21 * 0.2 = 4.2 rounds down, where Linux may borrow from the ascent.
+    expect(overriddenLineSpacing(font, 21, "linux", all)).toBeNull();
+    expect(overriddenLineSpacing(font, 20, "darwin", { ascentOverride: 0.8, descentOverride: 0.2 })).toBeNull();
+    expect(overriddenLineSpacing(font, 20, "darwin", { ...all, lineGapOverride: -1 })).toBeNull();
+    expect(overriddenLineSpacing(font, 20, "aix", all)).toBeNull();
   });
 });

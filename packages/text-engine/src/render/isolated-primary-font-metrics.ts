@@ -62,6 +62,13 @@ export interface IsolatedFontFace {
   style?: string;
   stretch?: string;
   unicodeRange?: Array<[number, number]>;
+  /** The `size-adjust` descriptor as a multiplier (absent = 100%). */
+  sizeAdjust?: number;
+  /** The `ascent-override` / `descent-override` / `line-gap-override`
+   *  descriptors as fractions of the used font size (absent = normal). */
+  ascentOverride?: number;
+  descentOverride?: number;
+  lineGapOverride?: number;
 }
 
 /**
@@ -521,7 +528,12 @@ export function isolatedPrimaryFontMetrics(request: IsolatedPrimaryFontRequest):
     const cache = new Map<FontInstance, IsolatedPrimaryFontMetrics | null>();
     const metrics = (font: FontInstance | null): IsolatedPrimaryFontMetrics | null => {
       if (font == null) return null;
-      if (!cache.has(font)) cache.set(font, isolatedFaceMetrics(font, request));
+      if (!cache.has(font)) {
+        // registerWebfont keeps the caller's Buffer as the instance's
+        // webfontBuffer, so identity names the declaring face exactly.
+        const face = request.fontFaces?.find((candidate) => candidate.data === font.webfontBuffer);
+        cache.set(font, face == null ? isolatedFaceMetrics(font, request) : overriddenFaceMetrics(font, request, face));
+      }
       return cache.get(font) ?? null;
     };
     const first = metrics(primary);
@@ -537,6 +549,69 @@ export function isolatedPrimaryFontMetrics(request: IsolatedPrimaryFontRequest):
   } finally {
     restoreFontRegistrations(saved);
   }
+}
+
+/**
+ * A face's metric descriptors, applied as Blink applies them after selection
+ * (`CSSFontFace::GetFontData`, `core/css/css_font_face.cc:139-190`, Chromium
+ * 7d859f27):
+ * - `size-adjust` scales the used size before font data is created
+ *   (`FontDescription::SizeAdjustedFontDescription`, `font_description.cc:
+ *   292-306`: `AdjustedSize = ComputedSize * size_adjust`), so every primary
+ *   metric is the face's metric at the scaled size. Optical sizing still uses
+ *   the specified size, which this path cannot separate for a variable
+ *   instance, so a variable face with `size-adjust` stays unresolved.
+ * - `ascent-override` / `descent-override` / `line-gap-override` replace Skia's
+ *   ascent, descent and leading for `LineSpacing` only, through
+ *   `MetricsOverriddenFontData` with subpixel ascent/descent off
+ *   (`simple_font_data.cc:320-325, 165-175`; `font_metrics.cc:54-148`). With all
+ *   three present the sum needs no platform metric. A partial override still
+ *   mixes in the native component, so it stays unresolved. Linux borrows one
+ *   pixel from the ascent when the descent rounds down under subpixel
+ *   positioning (`font_metrics.cc:122-131`); that render-style input is not
+ *   in this request, so that case stays unresolved too.
+ */
+function overriddenFaceMetrics(
+  font: FontInstance,
+  request: IsolatedPrimaryFontRequest,
+  face: IsolatedFontFace,
+): IsolatedPrimaryFontMetrics | null {
+  const { sizeAdjust, ascentOverride, descentOverride, lineGapOverride } = face;
+  if (sizeAdjust == null && ascentOverride == null && descentOverride == null && lineGapOverride == null)
+    return isolatedFaceMetrics(font, request);
+  if (sizeAdjust != null && (!(sizeAdjust >= 0) || !Number.isFinite(sizeAdjust))) return null;
+  if (sizeAdjust != null && sizeAdjust !== 1 && font._appliedVariationAxes != null) return null;
+  const size =
+    sizeAdjust == null ? request.fontSize : Math.fround(Math.fround(request.fontSize) * Math.fround(sizeAdjust));
+  if (!(size > 0)) return null;
+  const base = isolatedFaceMetrics(font, { ...request, fontSize: size });
+  if (base == null) return null;
+  if (ascentOverride == null && descentOverride == null && lineGapOverride == null) return base;
+  return { ...base, lineSpacing: overriddenLineSpacing(font, size, hostPlatform(), face) };
+}
+
+/** `LineSpacing` from a complete ascent/descent/line-gap override set. */
+export function overriddenLineSpacing(
+  font: FontInstance,
+  size: number,
+  platform: string,
+  face: Pick<IsolatedFontFace, "ascentOverride" | "descentOverride" | "lineGapOverride">,
+): number | null {
+  const { ascentOverride, descentOverride, lineGapOverride } = face;
+  if (ascentOverride == null || descentOverride == null || lineGapOverride == null) return null;
+  if (![ascentOverride, descentOverride, lineGapOverride].every((v) => Number.isFinite(v) && v >= 0)) return null;
+  const f = Math.fround;
+  // SkScalarRoundToScalar(x) is floor(x + 0.5); lroundf rounds half away from
+  // zero, which is the same for these non-negative values.
+  const rawDescent = f(f(size) * f(descentOverride));
+  let ascent = Math.floor(f(f(size) * f(ascentOverride)) + 0.5);
+  const descent = Math.floor(rawDescent + 0.5);
+  if (platform === "linux" && descent < rawDescent) return null;
+  if (platform !== "darwin" && platform !== "linux" && platform !== "win32") return null;
+  const familyName = (font as FontInstance & { familyName?: string }).familyName;
+  if (platform === "darwin" && (familyName === "Times" || familyName === "Helvetica" || familyName === "Courier"))
+    ascent += Math.floor(f(f(ascent + descent) * f(0.15)) + 0.5);
+  return ascent + descent + Math.floor(f(f(size) * f(lineGapOverride)) + 0.5);
 }
 
 function isolatedFaceMetrics(

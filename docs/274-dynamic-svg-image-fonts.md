@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA", "DM-AZY7MZ"]
+tickets: ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA", "DM-AZY7MZ", "DM-3P65HE"]
 code:
   [
     "src/render/svg-image-font-shorthand.ts",
@@ -19,6 +19,8 @@ code:
     "src/render/svg-inline.ts",
     "src/render/svg-image-own-fonts.ts",
     "src/capture/image-svg-fonts.ts",
+    "src/capture/image-svg-font-witness.ts",
+    "tests/image-svg-font-witness.e2e.test.ts",
     "tests/image-svg-own-fonts.e2e.test.ts",
     "tests/img-svg-dynamic-font-names.e2e.test.ts",
     "tests/img-svg-root-sheet-font.e2e.test.ts",
@@ -117,9 +119,61 @@ and font resources are load-blocking (`Resource::IsLoadEventBlockingResourceType
 and `ResourceFetcher::StartLoad`). Root font-unit conversion consults the primary
 font during style conversion (`CSSToLengthConversionData::FontSizes`).
 `RemoteFontFaceSource::UpdatePeriod` never enters the failure period for
-`font-display:auto/block/swap`; those modes are admitted. `optional/fallback`
-can retain a fallback after bytes load, so detached validation alone cannot
-authorize them.
+`font-display:auto/block/swap`; a single valid `data:` source in those modes is
+admitted on that proof alone. `optional/fallback` can retain a fallback after
+bytes load, so detached validation alone cannot authorize them.
+
+### Painted used-face witness
+
+Faces whose use is decided inside the image document need a browser witness
+(`src/capture/image-svg-font-witness.ts`, DM-3P65HE): `font-display: fallback`,
+a `src` list with more than one entry, and the `size-adjust`,
+`ascent-override`, `descent-override` and `line-gap-override` descriptors. On
+a scratch page of the capture context, the witness renders in `<img>` boxes of
+the captured content size and object-fit:
+
+- the candidate: the image source as captured;
+- a loaded reference: every face reduced to Domotion's selected source, with
+  `font-display: block`;
+- an absent reference: every `@font-face` removed;
+- for each multi-source face, the candidate without its selected entry.
+
+The faces are admitted only when the candidate's element screenshot is
+byte-identical to the loaded reference, differs from the absent reference, and
+every removal variant differs from the candidate. A face that changes no paint
+(no text and no face-dependent geometry) leaves the references identical, so it
+is not admitted. A witness that cannot render, such as a zero-sized box, admits
+nothing.
+
+Source selection follows `CSSFontFace::Load` / `GetFontData`
+(`core/css/css_font_face.cc:155-200, 247-271`, Chromium `7d859f27`): sources
+are tried in order and a source that fails to load is popped. The CSSOM `src`
+value already omits entries whose `format()` / `tech()` the parser rejects
+(`CSSFontFaceSrcValue::IsSupportedFormat`, `css_font_face_src_value.cc:85-99`,
+adds only the legacy `.eot` URL check). Capture validates each `data:` entry
+with a detached `FontFace` and selects the first that loads. `local()` and
+non-`data:` entries are not modeled here and keep the image raster.
+
+`font-display: optional` stays raster. `RemoteFontFaceSource::ComputePeriod`
+(`remote_font_face_source.cc:113-136`) enters the failure period once rendering
+has begun unless the font finished from the memory cache, finished before
+rendering began, or no paint was requested while it was pending. An SVG
+document begins rendering when its document element is inserted
+(`Document::ChildrenChanged`, `document.cc:1265-1274`; only HTML documents have
+render-blocking resources, `document.cc:9034-9037`), before a `<style>` child
+can start a fetch. The memory-cache and pending-paint conditions are not
+ordered by the source, so the outcome is not deterministic. Chromium 147 on
+macOS painted the fallback in every witness run.
+
+Metric descriptors follow `CSSFontFace::GetFontData`. `size-adjust` makes every
+primary metric the face's metric at `ComputedSize * size_adjust`
+(`FontDescription::SizeAdjustedFontDescription`, `font_description.cc:292-306`).
+A complete ascent/descent/line-gap override set replaces `LineSpacing`
+(`MetricsOverriddenFontData`; `font_metrics.cc:54-148`). A partial override set
+leaves `lh` unresolved, and so does a Linux descent that rounds down, where
+FreeType may borrow a pixel from the ascent. A variable face with
+`size-adjust` stays unresolved, because optical sizing keeps the specified
+size.
 
 Native metrics retain platform-specific authority. macOS queries the owned
 buffer with resolved axes and requires `nameMatchedInFile`, rejecting a helper
@@ -130,8 +184,8 @@ platforms. Missing native ex/cap evidence, unsupported bitmap/VDMX cases and
 unknown variable line metrics remain unresolved rather than borrowing a face.
 
 Conditional or layered face groups, media/title-selected or foreign/inert style sets,
-local or multiple source candidates, metric override
-descriptors, angled oblique capability groups, variable slnt-axis faces and failure-period display modes
+`local()` and non-`data:` source candidates, `font-display: optional`,
+angled oblique capability groups and variable slnt-axis faces
 remain conservative (DM-WE2R1V). Existing unsupported root variation/stretch
 properties retain their raster behavior. General text fallback's separate
 descriptor-before-range defect is DM-7QQPJA; this change only corrects the

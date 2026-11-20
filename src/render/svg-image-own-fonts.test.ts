@@ -3,6 +3,7 @@ import {
   authenticatedImageFonts,
   imageFontDigest,
   imageOwnFontSheets,
+  rewriteImageFontFaces,
   type ImageOwnFontContext,
 } from "./svg-image-own-fonts.js";
 
@@ -57,5 +58,45 @@ describe("image-owned font evidence", () => {
     context.faces[0].data = Buffer.from("changed").toString("base64");
     expect(authenticatedImageFonts(source, context)).toBeNull();
     expect(authenticatedImageFonts(source)).toBeNull();
+  });
+});
+
+describe("rewriteImageFontFaces", () => {
+  it("edits faces in imageOwnFontSheets order and refuses a source it rejects", () => {
+    const source = `<svg><style>@font-face{font-family:A;src:url(data:a)} .x{fill:red} @font-face{font-family:B;src:url(data:b)}</style></svg>`;
+    const seen: string[] = [];
+    const out = rewriteImageFontFaces(source, (index, rule) => {
+      seen.push(`${index}:${rule.toString()}`);
+      return index === 0 ? null : "@font-face{font-family:C;src:url(data:c)}";
+    });
+    expect(seen).toEqual([
+      "0:@font-face{font-family:A;src:url(data:a)}",
+      "1:@font-face{font-family:B;src:url(data:b)}",
+    ]);
+    expect(out).not.toContain("font-family:A");
+    expect(out).toContain("font-family:C");
+    expect(out).toContain(".x{fill:red}");
+    expect(
+      rewriteImageFontFaces(`<svg><style media="print">@font-face{font-family:A}</style></svg>`, () => null),
+    ).toBeNull();
+  });
+  it("rejects negative or non-finite metric descriptors in evidence", () => {
+    const data = Buffer.from("font-data");
+    const context: ImageOwnFontContext = {
+      authority: "chromium-svg-image-fonts-v1",
+      sourceSha256: imageFontDigest("<svg/>"),
+      faces: [
+        {
+          family: "A",
+          unicodeRange: [[0, 0x10ffff]],
+          data: data.toString("base64"),
+          sha256: imageFontDigest(data),
+          sizeAdjust: 1.5,
+        },
+      ],
+    };
+    expect(authenticatedImageFonts("<svg/>", context)?.[0].sizeAdjust).toBe(1.5);
+    context.faces[0].ascentOverride = -0.1;
+    expect(authenticatedImageFonts("<svg/>", context)).toBeNull();
   });
 });

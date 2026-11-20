@@ -17,6 +17,12 @@ export interface ImageOwnFontContext {
     style?: string;
     stretch?: string;
     unicodeRange: Array<[number, number]>;
+    /** Metric descriptors (fractions; absent = 100% / normal). Admitted only
+     *  with a painted used-face witness (`image-svg-font-witness.ts`). */
+    sizeAdjust?: number;
+    ascentOverride?: number;
+    descentOverride?: number;
+    lineGapOverride?: number;
   }>;
 }
 
@@ -68,6 +74,43 @@ export function imageOwnFontSheets(source: string): { source: string; faces: str
   return invalid || faces.length > 64 ? null : { source: normalized, faces };
 }
 
+/**
+ * Rewrite the `@font-face` rules of a source `imageOwnFontSheets` accepted, in
+ * the same order as its `faces`. `edit` returns the replacement rule text, or
+ * null to remove the rule. Used to build the same-source references the
+ * painted used-face witness compares against.
+ */
+export function rewriteImageFontFaces(
+  source: string,
+  edit: (index: number, rule: postcss.AtRule) => string | null,
+): string | null {
+  const normalized = imageOwnFontSheets(source);
+  if (normalized == null) return null;
+  let index = 0;
+  let failed = false;
+  const out = replaceImageStyleSheets(normalized.source, ({ open, css: raw, close }) => {
+    const css = xmlStyleText(raw);
+    if (css == null) {
+      failed = true;
+      return open + raw + close;
+    }
+    try {
+      const sheet = postcss.parse(css);
+      sheet.walkAtRules((rule) => {
+        if (rule.name.toLowerCase() !== "font-face") return;
+        const replacement = edit(index++, rule);
+        if (replacement == null) rule.remove();
+        else rule.replaceWith(postcss.parse(replacement).nodes);
+      });
+      return open + serializeImageStyleText(sheet.toString(), true) + close;
+    } catch {
+      failed = true;
+      return open + raw + close;
+    }
+  });
+  return failed || index !== normalized.faces.length ? null : out;
+}
+
 /** Missing, stale or malformed evidence cannot authorize isolated font metrics. */
 export function authenticatedImageFonts(source: string, context?: ImageOwnFontContext): IsolatedFontFace[] | null {
   if (
@@ -83,6 +126,8 @@ export function authenticatedImageFonts(source: string, context?: ImageOwnFontCo
     const data = Buffer.from(face.data, "base64");
     bytes += data.length;
     if (bytes > 16 * 1024 * 1024 || imageFontDigest(data) !== face.sha256) return null;
+    for (const metric of [face.sizeAdjust, face.ascentOverride, face.descentOverride, face.lineGapOverride])
+      if (metric != null && !(Number.isFinite(metric) && metric >= 0)) return null;
     out.push({ ...face, data });
   }
   return out;
