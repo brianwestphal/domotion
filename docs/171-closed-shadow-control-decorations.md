@@ -227,7 +227,9 @@ isolation frame for all non-overlapping candidates:
    parent and next sibling. Restore it to that exact slot immediately.
 5. Verify interaction state, host/part quads, node identity, every inline-style
    restoration, exact select sibling slot, and active element. Any mismatch is
-   a required warning and no bitmap is emitted.
+   a required warning and no bitmap is emitted. Visibility on a custom element
+   is applied as an effect instead of an inline write, so isolation never runs
+   its `style` callbacks (see doc 167, "Custom-element visibility isolation").
 6. Crop at the captured DPR with a transparent one-CSS-pixel guard. Reject
    invalid alpha, overlapping owners, viewport/clip disagreement, or ink which
    reaches an unclipped guard edge.

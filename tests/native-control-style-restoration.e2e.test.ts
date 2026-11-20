@@ -1,4 +1,5 @@
 import type { Browser, Page } from "@playwright/test";
+import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { captureElementTreeWithWarnings, launchChromium } from "../src/capture/index.js";
 import { rasterizeNativeControlSurfaces } from "../src/capture/native-control-raster.js";
@@ -16,13 +17,16 @@ const styles = [
   { name: "absent", attribute: "", callbacks: 0 },
   { name: "empty", attribute: ' style=""', callbacks: 0 },
   { name: "literal", attribute: ' style=" COLOR : red ; --note:  one  ; "', callbacks: 0 },
-  // Restoring a literal does not undo callbacks from a required override.
-  // DM-Q4J4JG owns removing this remaining author-runtime mutation.
+  // An explicit inline `visibility:visible!important` outranks every author
+  // stylesheet, so isolation hides this guard through a transition-priority
+  // effect instead of its style attribute (DM-Q4J4JG): no callbacks.
   {
     name: "explicit visible",
     attribute: ' style="visibility:visible!important; COLOR : red ; --note:  one  ; "',
-    callbacks: 2,
+    callbacks: 0,
   },
+  // A stylesheet `!important` also defeats a plain script animation.
+  { name: "sheet-important visible", attribute: ' class="visible-important"', callbacks: 0 },
 ] as const;
 const profiles = [
   { name: "full", controls: "<button></button><button></button>", feature: "native-control-raster" },
@@ -35,7 +39,7 @@ const profiles = [
 
 async function setup(page: Page, attribute: string, controls: string): Promise<void> {
   await page.setContent(
-    `<style>html,body{margin:0;background:white}x-containment-guard,span,button{display:block;contain:layout;width:40px;height:20px}button,select{margin:8px}</style><x-containment-guard${attribute}></x-containment-guard><span></span><span></span>${controls}`,
+    `<style>html,body{margin:0;background:white}.visible-important{visibility:visible!important}x-containment-guard,span,button{display:block;contain:layout;width:40px;height:20px}button,select{margin:8px}</style><x-containment-guard${attribute}></x-containment-guard><span></span><span></span>${controls}`,
   );
   await observeGuard(page);
 }
@@ -99,6 +103,7 @@ describe("native control source style restoration (DM-D8Y3WJ)", () => {
         expect(after.constructed).toBe(1);
         expect(after.connected).toBe(1);
         expect(after.styles - before.styles).toBe(callbacks);
+        expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
         expect(await page.screenshot()).toEqual(paint);
         expect(capture.warnings.filter((warning) => warning.feature === profile.feature)).toEqual([]);
         const rasters = walk(capture.tree)
@@ -111,23 +116,27 @@ describe("native control source style restoration (DM-D8Y3WJ)", () => {
       }
     });
 
-    it(`restores attributes after failed ${profile.name} readback`, async () => {
-      const page = await browser.newPage({ viewport });
-      try {
-        await setup(page, styles[2].attribute, profile.controls);
-        const before = await state(page);
-        const original = page.screenshot.bind(page);
-        page.screenshot = async (options) => {
-          if (options?.omitBackground === true) throw new Error("D8 forced isolation readback failure");
-          return original(options);
-        };
-        const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
-        expect(await state(page)).toEqual(before);
-        expect(capture.warnings.some((warning) => warning.feature === profile.feature)).toBe(true);
-      } finally {
-        await page.close();
-      }
-    });
+    it.each([styles[2], styles[3]])(
+      `restores $name attributes after failed ${profile.name} readback`,
+      async ({ attribute }) => {
+        const page = await browser.newPage({ viewport });
+        try {
+          await setup(page, attribute, profile.controls);
+          const before = await state(page);
+          const original = page.screenshot.bind(page);
+          page.screenshot = async (options) => {
+            if (options?.omitBackground === true) throw new Error("D8 forced isolation readback failure");
+            return original(options);
+          };
+          const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+          expect(await state(page)).toEqual(before);
+          expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+          expect(capture.warnings.some((warning) => warning.feature === profile.feature)).toBe(true);
+        } finally {
+          await page.close();
+        }
+      },
+    );
   }
 
   it("keeps the original touching-button source fixture exact without claiming its overlapping stamps", async () => {
@@ -210,6 +219,139 @@ describe("native control source style restoration (DM-D8Y3WJ)", () => {
       expect(image.nativeControlRaster?.dataUri).toBeUndefined();
       expect(image.nativeControlRaster?.empty).toBeUndefined();
       expect(image.nativeControlRaster?.sourceNodeIndex).toBeUndefined();
+    } finally {
+      await page.close();
+    }
+  });
+});
+
+// DM-Q4J4JG: isolation hid explicitly visible custom elements by writing their
+// style attribute, which ran observed-`style` attributeChangedCallbacks twice.
+// Custom elements now take an effect-owned visibility instead.
+describe("custom-element visibility isolation without attribute writes (DM-Q4J4JG)", () => {
+  type IsolationObservation = { visibility: string; style: string | null; animations: number; alpha: number };
+
+  /** Record the guard's state and its painted alpha in the actual isolation readback. */
+  async function observeIsolation(page: Page): Promise<IsolationObservation[]> {
+    const seen: IsolationObservation[] = [];
+    const original = page.screenshot.bind(page);
+    page.screenshot = async (options) => {
+      if (options?.omitBackground !== true) return original(options);
+      const guard = await page.evaluate(() => {
+        const node = document.querySelector("x-containment-guard")!;
+        const rect = node.getBoundingClientRect();
+        return {
+          visibility: getComputedStyle(node).visibility,
+          style: node.getAttribute("style"),
+          animations: node.getAnimations().length,
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        };
+      });
+      const frame = await original(options);
+      const { data, info } = await sharp(frame).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      let alpha = 0;
+      for (let y = Math.ceil(guard.rect.y); y < Math.floor(guard.rect.y + guard.rect.height); y++)
+        for (let x = Math.ceil(guard.rect.x); x < Math.floor(guard.rect.x + guard.rect.width); x++)
+          alpha = Math.max(alpha, data[(y * info.width + x) * info.channels + 3]);
+      seen.push({ visibility: guard.visibility, style: guard.style, animations: guard.animations, alpha });
+      return frame;
+    };
+    return seen;
+  }
+
+  for (const profile of profiles) {
+    it(`hides a painted explicit-visible guard in the ${profile.name} isolation frame without callbacks`, async () => {
+      const page = await browser.newPage({ viewport });
+      try {
+        await page.setContent(
+          `<style>html,body{margin:0;background:white}x-containment-guard{background:red}x-containment-guard,span,button{display:block;contain:layout;width:40px;height:20px}button,select{margin:8px}</style><x-containment-guard${styles[3].attribute}></x-containment-guard><span></span>${profile.controls}`,
+        );
+        await observeGuard(page);
+        const before = await state(page);
+        const seen = await observeIsolation(page);
+        const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+        // A full-control capture without a supplied source image first reads
+        // one unmodified transparent source frame; the last readback is isolation.
+        expect(seen.length).toBe(profile.name === "full" ? 2 : 1);
+        // The tier-2 transition-priority effect hides it; the attribute is untouched.
+        expect(seen.at(-1)).toEqual({ visibility: "hidden", style: before.style, animations: 1, alpha: 0 });
+        expect(await state(page)).toEqual(before);
+        expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+        expect(capture.warnings.filter((warning) => warning.feature === profile.feature)).toEqual([]);
+      } finally {
+        await page.close();
+      }
+    });
+  }
+
+  it("falls back to the inline write when an author visibility animation suppresses transition priority", async () => {
+    // css_animations.cc CalculateTransitionActiveInterpolations erases
+    // transition-priority values for any property a default-priority animation
+    // on the element animates, so neither effect tier can take the value here.
+    const page = await browser.newPage({ viewport });
+    try {
+      await page.setContent(
+        `<style>html,body{margin:0;background:white}@keyframes keep{from,to{visibility:visible}}x-containment-guard{background:red;animation:keep 100s infinite}x-containment-guard,span,button{display:block;contain:layout;width:40px;height:20px}button{margin:8px}</style><x-containment-guard${styles[3].attribute}></x-containment-guard><span></span>${profiles[0].controls}`,
+      );
+      await observeGuard(page);
+      const before = await state(page);
+      const seen = await observeIsolation(page);
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+      const after = await state(page);
+      const isolation = seen.at(-1)!;
+      expect(seen).toHaveLength(2);
+      expect(isolation.visibility).toBe("hidden");
+      expect(isolation.alpha).toBe(0);
+      expect(isolation.style).not.toBe(before.style);
+      expect(after.style).toBe(before.style);
+      // The fallback still costs the two callbacks the inline write always did.
+      expect(after.styles - before.styles).toBe(2);
+      expect(
+        await page.evaluate(() => document.getAnimations().map((animation) => animation.constructor.name)),
+      ).toEqual(["CSSAnimation"]);
+      expect(capture.warnings.filter((warning) => warning.feature === "native-control-raster")).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("re-shows a customized built-in target without its style callbacks", async () => {
+    const page = await browser.newPage({ viewport });
+    try {
+      await page.setContent(
+        '<style>html,body{margin:0;background:white}button{display:block;width:40px;height:20px;margin:8px}</style><button is="x-guarded-button"></button><button></button>',
+      );
+      await page.evaluate(() => {
+        const state = { styles: 0 };
+        customElements.define(
+          "x-guarded-button",
+          class extends HTMLButtonElement {
+            static get observedAttributes() {
+              return ["style"];
+            }
+            attributeChangedCallback() {
+              state.styles++;
+            }
+          },
+          { extends: "button" },
+        );
+        Object.defineProperty(window, "__q4State", { value: state });
+      });
+      const markup = () => page.evaluate(() => document.documentElement.outerHTML);
+      const callbacks = () =>
+        page.evaluate(() => (window as typeof window & { __q4State: { styles: number } }).__q4State.styles);
+      const before = { markup: await markup(), callbacks: await callbacks() };
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+      expect(await markup()).toBe(before.markup);
+      expect(await callbacks()).toBe(before.callbacks);
+      const rasters = walk(capture.tree)
+        .map((node) => node.nativeControlRaster)
+        .filter((raster) => raster != null);
+      expect(rasters).toHaveLength(2);
+      // The customized built-in and the plain button paint the same native stamp.
+      expect(rasters[0].dataUri).toBeDefined();
+      expect(rasters[0].dataUri).toBe(rasters[1].dataUri);
+      expect(capture.warnings.filter((warning) => warning.feature === "native-control-raster")).toEqual([]);
     } finally {
       await page.close();
     }

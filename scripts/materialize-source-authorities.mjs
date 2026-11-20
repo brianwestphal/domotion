@@ -16,8 +16,14 @@ export const SOURCE_AUTHORITY_PINS = Object.freeze({
 // These files are read by unit/drift tests but are more specific than the
 // directory-level authority references in tools/semantic-coverage.json.
 export const DIRECT_SOURCE_FILES = Object.freeze([
+  "external/chromium/third_party/blink/renderer/core/animation/css/css_animations.cc",
+  "external/chromium/third_party/blink/renderer/core/animation/effect_stack.cc",
+  "external/chromium/third_party/blink/renderer/core/animation/keyframe_effect.cc",
+  "external/chromium/third_party/blink/renderer/core/animation/keyframe_effect.h",
   "external/chromium/third_party/blink/renderer/core/css/css_font_selector.cc",
   "external/chromium/third_party/blink/renderer/core/css/font_face_cache.cc",
+  "external/chromium/third_party/blink/renderer/core/css/resolver/cascade_origin.h",
+  "external/chromium/third_party/blink/renderer/core/css/resolver/cascade_priority.h",
   "external/chromium/third_party/blink/renderer/core/css/resolver/scoped_style_resolver.cc",
   "external/chromium/third_party/blink/renderer/core/css/style_rule_font_feature_values.cc",
   "external/chromium/third_party/blink/renderer/platform/fonts/font_variant_alternates.cc",

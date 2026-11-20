@@ -4132,11 +4132,14 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2456", "DM-2458"],
+        "tickets": ["DM-2456", "DM-2458", "DM-Q4J4JG"],
         "code": [
           "src/capture/native-control-raster.test.ts",
           "src/capture/native-control-raster.ts",
+          "src/capture/snapshot-visibility-override.test.ts",
+          "src/capture/snapshot-visibility-transitions.ts",
           "tests/native-control-source-frame.e2e.test.ts",
+          "tests/native-control-style-restoration.e2e.test.ts",
           "tests/raster-fallback-content.e2e.test.ts"
         ],
         "aliases": ["docs/167-native-control-source-frame-rasters.md", "doc-167"]

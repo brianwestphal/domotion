@@ -444,7 +444,10 @@ const isolateDecorationsInPage = ({
   const helpers = {
     set(element: HTMLElement, property: string, value: string): void {
       visibility.assertMutable(element, property);
-      if (property === "visibility") visibility.paint(element, value);
+      // A transition owner keeps its inline declaration; a custom element
+      // takes an effect-owned value instead, so isolation never runs its
+      // style-attribute callbacks (DM-Q4J4JG).
+      if (property === "visibility" && !visibility.paint(element, value) && visibility.override(element, value)) return;
       if (
         element.style.getPropertyValue(property) === value &&
         element.style.getPropertyPriority(property) === "important"

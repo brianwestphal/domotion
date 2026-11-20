@@ -2903,7 +2903,10 @@
       "code": [
         "src/capture/native-control-raster.test.ts",
         "src/capture/native-control-raster.ts",
+        "src/capture/snapshot-visibility-override.test.ts",
+        "src/capture/snapshot-visibility-transitions.ts",
         "tests/native-control-source-frame.e2e.test.ts",
+        "tests/native-control-style-restoration.e2e.test.ts",
         "tests/raster-fallback-content.e2e.test.ts"
       ],
       "file": "167-native-control-source-frame-rasters.md"

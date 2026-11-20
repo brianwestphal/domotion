@@ -15,6 +15,12 @@ export interface SnapshotVisibilityState {
   start(): void;
   assertMutable(node: Element, property: string): void;
   paint(node: Element, visibility: string): boolean;
+  /**
+   * Apply an isolation visibility to a custom element without writing its
+   * `style` attribute. Returns false when the caller must keep its inline write
+   * (not a custom element, or no native effect could take the value).
+   */
+  override(node: Element, visibility: string): boolean;
   paintTarget(): void;
   restore(): void;
 }
@@ -39,6 +45,26 @@ export async function suppressSnapshotVisibilityTransitions(
       const getFrames = KeyframeEffect.prototype.getKeyframes,
         getTiming = AnimationEffect.prototype.getTiming;
       const getComputedTiming = AnimationEffect.prototype.getComputedTiming;
+      const setTarget = Object.getOwnPropertyDescriptor(KeyframeEffect.prototype, "target")?.set;
+      const getAnimations = Element.prototype.getAnimations;
+      // Custom-element visibility overrides need the same native surface, plus
+      // the effect retargeting and per-element animation readers. Unlike the
+      // active-transition owner above, a missing native API is not an error:
+      // `override` then reports false and the caller keeps its inline write.
+      const overrideNative = [
+        Animation,
+        KeyframeEffect,
+        pause,
+        cancel,
+        setFrames,
+        updateTiming,
+        setEffect,
+        setTime,
+        setTarget,
+        getAnimations,
+      ].every(
+        (value) => typeof value === "function" && Function.prototype.toString.call(value).includes("[native code]"),
+      );
       const active = document
         .getAnimations()
         .filter(
@@ -129,6 +155,10 @@ export async function suppressSnapshotVisibilityTransitions(
       const rules: string[] = [];
       let started = false;
       let closed = false;
+      // Capture-owned custom-element visibility overrides, and the lazily
+      // cloned transition-priority effect that the second override tier copies.
+      const overrides: Array<{ node: Element; animation: Animation }> = [];
+      let transitionTemplate: KeyframeEffect | null | undefined;
       const rememberOwned = (owner: (typeof owners)[number], animation: Animation, time: number) => {
         const effect = animation.effect as KeyframeEffect;
         owner.owned.set(animation, {
@@ -219,6 +249,17 @@ export async function suppressSnapshotVisibilityTransitions(
               }
             }
           }
+          for (let index = overrides.length - 1; index >= 0; index--) {
+            const { node, animation } = overrides[index];
+            try {
+              cancel.call(animation);
+              if (getAnimations.call(node).includes(animation))
+                failures.push(new Error("snapshot visibility override survived cancellation"));
+            } catch (error) {
+              failures.push(error);
+            }
+          }
+          overrides.length = 0;
         }
         for (const owner of owners) void getComputedStyle(owner.node).visibility;
         verify();
@@ -364,6 +405,85 @@ export async function suppressSnapshotVisibilityTransitions(
           setEffect!.call(owner.paint, clone);
           rememberOwned(owner, owner.paint, 0.5);
           return true;
+        },
+        override(node: Element, visibility: string) {
+          if (closed) throw new Error("snapshot visibility owner is closed");
+          if (!started) throw new Error("snapshot visibility owner has not started");
+          // Only a custom element can run author code synchronously when its
+          // style attribute changes (attributeChangedCallback for an observed
+          // `style`). Every other node keeps the caller's exact inline write.
+          if (!(node instanceof HTMLElement || node instanceof SVGElement)) return false;
+          if (!node.localName.includes("-") && !node.hasAttribute("is")) return false;
+          if (!overrideNative || owners.some((owner) => owner.node === node)) return false;
+          if (getComputedStyle(node).visibility === visibility) return true;
+          const frames = [{ visibility }, { visibility }];
+          const hold = (animation: Animation, time: number): boolean => {
+            setTime!.call(animation, time);
+            pause.call(animation);
+            overrides.push({ node, animation });
+            if (getComputedStyle(node).visibility === visibility) return true;
+            overrides.pop();
+            cancel.call(animation);
+            return false;
+          };
+          // Tier 1: a script animation sits in Blink's kAnimation origin
+          // (css/resolver/cascade_origin.h), above every normal author
+          // declaration and composited after CSS animations.
+          if (
+            hold(
+              new NativeAnimation(new NativeEffect(node, frames, { duration: 1, fill: "both" }), document.timeline),
+              0,
+            )
+          )
+            return true;
+          // Tier 2: an author `!important` (inline or sheet) outranks kAnimation,
+          // and the inline bit outranks every layer (cascade_priority.h), so no
+          // stylesheet reaches it either. Only kTransition sorts above author
+          // importance. KeyframeEffect::Create(source) copies the source's
+          // priority (keyframe_effect.cc), and a CSS transition's effect has
+          // kTransitionPriority until it is cancelled or finished, so clone one
+          // from a private probe's own transition before removing the probe.
+          if (transitionTemplate === undefined) {
+            transitionTemplate = null;
+            const probe = document.createElement("div");
+            probe.style.cssText =
+              "position:fixed;left:0;top:0;width:0;height:0;overflow:hidden;contain:strict;pointer-events:none;visibility:visible;transition:visibility 100000s linear 0s";
+            try {
+              document.documentElement.append(probe);
+              void getComputedStyle(probe).visibility;
+              probe.style.visibility = "hidden";
+              const transition = getAnimations
+                .call(probe)
+                .find(
+                  (animation) => animation instanceof CSSTransition && animation.transitionProperty === "visibility",
+                );
+              if (transition?.effect instanceof KeyframeEffect)
+                transitionTemplate = new NativeEffect(transition.effect);
+            } finally {
+              // Removal cancels the probe's own transition; its queued events
+              // dispatch to the detached probe and never reach the document.
+              probe.remove();
+            }
+          }
+          if (transitionTemplate == null) return false;
+          const clone = new NativeEffect(transitionTemplate);
+          setFrames.call(clone, frames);
+          updateTiming.call(clone, {
+            duration: 1,
+            delay: 0,
+            endDelay: 0,
+            iterations: 1,
+            iterationStart: 0,
+            direction: "normal",
+            easing: "linear",
+            fill: "both",
+          });
+          setTarget!.call(clone, node);
+          // Same private base-Animation rebinding as the transition paint owner
+          // above, which drops the event delegate copied from the probe.
+          const animation = new NativeAnimation(new NativeEffect(node, [], { duration: 1 }), document.timeline);
+          setEffect!.call(animation, clone);
+          return hold(animation, 0.5);
         },
         paintTarget(this: SnapshotVisibilityState) {
           const target = document.querySelector("[data-domotion-snapshot-target]");

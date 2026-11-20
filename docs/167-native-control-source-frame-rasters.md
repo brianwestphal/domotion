@@ -5,12 +5,15 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2456", "DM-2458"]
+tickets: ["DM-2456", "DM-2458", "DM-Q4J4JG"]
 code:
   [
     "src/capture/native-control-raster.test.ts",
     "src/capture/native-control-raster.ts",
+    "src/capture/snapshot-visibility-override.test.ts",
+    "src/capture/snapshot-visibility-transitions.ts",
     "tests/native-control-source-frame.e2e.test.ts",
+    "tests/native-control-style-restoration.e2e.test.ts",
     "tests/raster-fallback-content.e2e.test.ts",
   ]
 aliases: ["docs/167-native-control-source-frame-rasters.md", "doc-167"]
@@ -64,7 +67,9 @@ never one screenshot per control:
    propagated html/body canvas background is made transparent. All mutations
    are restored in reverse order. Live nodes are correlated through the
    private pre-existing DOM-object registry, not marker attributes that could
-   activate author selectors.
+   activate author selectors. Visibility on a custom element is owned by an
+   effect rather than its `style` attribute; see
+   [Custom-element visibility isolation](#custom-element-visibility-isolation).
 3. For static controls, the isolated frame owns alpha. A source-frame RGB pixel
    is copied only when both source and isolation alpha equal 255, which proves
    that no backdrop can contribute to that pixel. Transparent and antialiased
@@ -87,6 +92,70 @@ zero rectangles, empty intersections, non-uniform source scaling, out-of-range
 pixel crops, malformed RGBA, and incoherent source/isolation dimensions. A
 successful all-transparent crop is recorded as `empty`, because Chromium has
 proved that clipping/state produced no visible native pixels.
+
+## Custom-element visibility isolation
+
+Isolation hides by visibility, and both native raster owners
+(`native-control-raster.ts` and `native-control-decoration-raster.ts`) used to
+write every isolation visibility as an inline `!important` declaration. An
+autonomous custom element or customized built-in (`is=`) that observes `style`
+runs `attributeChangedCallback` synchronously on that write and again on the
+exact-literal restore. Restoring the attribute cannot undo what the callback
+did. An inheriting custom element needs no write: its hidden ancestor already
+hides it, and the restore path keeps absent and literal `style` attributes
+exact. An element that declares `visibility: visible !important` itself still
+needs an override.
+
+No stylesheet can supply that override. In Blink's cascade, the inline-style
+bit sorts above every layer and specificity
+(`css/resolver/cascade_priority.h`, Chromium `7d859f27`), so an author inline
+`!important` beats any author stylesheet `!important`. Only the transition
+origin sorts above author importance (`css/resolver/cascade_origin.h`).
+
+`SnapshotVisibilityState.override` (in `snapshot-visibility-transitions.ts`)
+therefore applies a custom element's isolation visibility as a capture-owned
+effect, in two tiers:
+
+1. A paused native script `Animation` with `fill: both`. It sits in the
+   animation origin, above every normal author declaration and composited
+   after CSS animations. This is enough unless the author's declaration is
+   `!important`.
+2. Otherwise, a transition-priority effect.
+   `KeyframeEffect::Create(source)` copies the source effect's priority
+   (`animation/keyframe_effect.cc`). A CSS transition's effect keeps
+   `kTransitionPriority` until it is cancelled or finished
+   (`animation/css/css_animations.cc`). The owner starts a `visibility`
+   transition on a private probe `<div>`, clones its effect, and then removes
+   the probe in the same synchronous evaluation. Queued transition events
+   dispatch to the detached probe. Each override is a clone of that template,
+   retargeted and rebound through a private base `Animation`, in the same way
+   as the active-transition paint owner. The tier-1 animation is cancelled
+   first, because Blink drops transition-priority values for a property that a
+   default-priority animation on the same element also animates
+   (`CalculateTransitionActiveInterpolations`).
+
+Every override is cancelled when the visibility owner is disposed. An override
+that survives cancellation fails that restore and invalidates the crops.
+
+If neither tier takes, `override` returns false and the caller keeps the
+inline write, so no healthy control is refused. This happens when an author
+CSS animation of `visibility` on the same element erases the transition tier,
+or when the page has replaced the native animation APIs. These fallbacks still
+cost the two callbacks.
+
+Elements other than custom elements keep the exact inline path. Snapshot
+transition owners keep their existing paint-owner path.
+
+Known residual boundaries:
+
+- Non-visibility host neutralization in the decoration owner (background,
+  border, shadow, text fill) stays inline. Author-origin background and border
+  flags select Blink's menulist painter, so a customized built-in control host
+  still receives those callbacks.
+- The snapshot transition owner still writes an inline `transition` list on
+  any element that declares a visibility transition.
+- The tier-2 probe is one child-list insertion and removal, which a
+  `MutationObserver` on the document can see.
 
 ## Failure behavior
 
