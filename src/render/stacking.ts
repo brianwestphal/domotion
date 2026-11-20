@@ -373,7 +373,16 @@ export function gatherStackingContextChildren(
       // before step-5 content, then walks that content in tree order. Hoisting
       // a flex item into the root inline bucket loses that tree order: an
       // overflowing early item paints over text in later flow siblings.
-      if (positioned || flexGridItemSC || (isFloat && !floatHoistBlocked)) {
+      // A non-positioned stacking context (opacity, transform, filter,
+      // isolation, will-change, containment, …) is a stacked layer too, so
+      // Blink collects it into the nearest stacking context's z-order list
+      // through every non-stacking-context ancestor, at EffectiveZIndex 0
+      // unless z-index applies (PaintLayerStackingNode::CollectLayers,
+      // core/paint/paint_layer_stacking_node.cc:328-373; LayoutObject::
+      // IsStacked, core/layout/layout_object.h:695-730; Chromium 7d859f27).
+      // An overflow-only scroller is not stacked and stays in flow (DM-673).
+      const nonPositionedSC = !positioned && establishesStackingContext(c, childParentDisplay) && !isOverflowOnlySC(c);
+      if (positioned || flexGridItemSC || nonPositionedSC || (isFloat && !floatHoistBlocked)) {
         out.push(c);
         hoistedOut.add(c);
         // DM-712 / DM-687: a flex/grid item hoisted because of its explicit
@@ -731,7 +740,11 @@ export function paintOrderBuckets(
     const flt = c.styles.float ?? "none";
     const zRaw = c.styles.zIndex;
     const positioned = pos != null && pos !== "static";
-    const z = zRaw === "auto" || zRaw === "" || zRaw == null ? NaN : parseInt(zRaw, 10);
+    // `ComputedStyle::EffectiveZIndex` (core/style/computed_style.h:794-798,
+    // Chromium 7d859f27): an authored z-index only applies to positioned
+    // boxes and flex/grid items; any other stacked box sorts at 0.
+    const zApplies = positioned || isFlexGrid || paintAsZSorted?.has(c) === true;
+    const z = !zApplies || zRaw === "auto" || zRaw === "" || zRaw == null ? NaN : parseInt(zRaw, 10);
     // DM-939: per CSS 2.1 Appendix E step 6 a non-positioned element that
     // STILL establishes a stacking context (transform, opacity < 1,
     // filter, mix-blend-mode, mask, clip-path, isolation, will-change, …)

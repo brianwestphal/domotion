@@ -6423,7 +6423,7 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2596", "DM-5YF0BB", "DM-F42BPG", "DM-D8Y3WJ"],
+        "tickets": ["DM-2596", "DM-5YF0BB", "DM-F42BPG", "DM-D8Y3WJ", "DM-T0CE2X"],
         "code": [
           "src/capture/script/walker/transforms.ts",
           "src/render/element-tree-to-svg.ts",

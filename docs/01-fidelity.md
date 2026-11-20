@@ -286,7 +286,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 ### Stacking
 
 - [x] z-index for positioned siblings (paint order sorted: negative, base, auto/0, positive)
-- [~] Nested stacking contexts (trapped z-index inside opacity/transform context) — flattened; may paint above outside sibling
+- [x] Nested stacking contexts — a non-positioned stacking context (opacity, transform, filter, isolation, …) joins the nearest stacking context's z-order list through static ancestors at z 0, as Blink's `PaintLayerStackingNode::CollectLayers` does; its own z-indexed descendants stay trapped inside it (DM-T0CE2X).
 - [x] Float paint order (CSS 2.1 Appendix E step 4), context-wide. A stacking context is painted in the spec's phases rather than in document order: every in-flow block-level descendant's background + border (step 3), then every non-positioned float (step 4), then all in-flow inline content — text, inline boxes, replaced content (step 5), then the positioned / stacking-context children (steps 6-7). Steps 3-5 span the whole context, so:
   - A float paints **above** the background of any block-level sibling, including ones that follow it in document order (the "float overflows its zero-height wrapper, later section's background covers it" case).
   - A float paints **below** every piece of inline content in the context — its own parent's text and any other paragraph's text. This is what `shape-outside` needs: shrinking the exclusion area below the float's border box makes the wrapped text legitimately overlap the painted float, and the overlapping text has to win z whichever paragraph it belongs to.
