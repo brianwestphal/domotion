@@ -22,6 +22,7 @@ tickets:
     "DM-GX7XNJ",
     "DM-PH6EK3",
     "DM-9B7A6G",
+    "DM-0TRG51",
   ]
 code:
   [
@@ -627,6 +628,37 @@ Limits:
   accumulator with no AA clip, the inset() clip is off by up to 18 alpha, while
   `<rect rx>` is exact. Unequal-radius backgrounds, borders and clips therefore
   keep their paths; see the follow-up filed from DM-PH6EK3.
+
+## Positive-inset contour eligibility (DM-0TRG51)
+
+`PaintInsetBoxShadow` (`box_painter_base.cc:526-580`, Chromium `7d859f27`)
+builds its hole as `ContouredRect(FloatRoundedRect(inner, radii),
+bounds.GetCornerCurvature())`, clips with `ClipContouredRect(bounds)` and fills
+`FillRectWithContouredHole`, so a `corner-shape` reaches both the clip and the
+hole. `PaintInsetBoxShadowWithBorderRect` (`:388-406`) sends a `border-shape`
+to `PaintInsetBoxShadowForBorderShape`. The shadow producer reads neither,
+and nothing warns.
+
+Measured on macOS for a 20×20 transparent box at (20,20) with
+`inset 0 0 0 3px red` (full RGBA, identical for direct and container capture):
+
+| Contour                           | Differing pixels |
+| --------------------------------- | ---------------: |
+| `8px / 4px`, `8px 0 3px 5px`      |                0 |
+| radius 5, `superellipse(1)`       |                0 |
+| radius 5, `corner-shape:bevel`    |     48 (max 255) |
+| radius 5, `corner-shape:squircle` |     24 (max 255) |
+| radius 5, `corner-shape:notch`    |     54 (max 255) |
+| radius 5, `superellipse(3)`       |      13 (max 19) |
+| `border-shape:circle(50%)`        |    204 (max 255) |
+
+Elliptical and unequal round insets therefore need no change. Inset-only
+selected roots were admitted through non-round contours, so
+`shadowOnlyRootIsAdmissible` now refuses any shadow-only root whose curved
+corner has a non-round `corner-shape`, or that has a `border-shape`. A corner
+with a zero radius has no curvature and stays admitted. The container route
+keeps the inexact producer output until the producer draws ContouredRect
+curvature and border shapes.
 
 ## Blurred shadows (DM-RRWR8E)
 

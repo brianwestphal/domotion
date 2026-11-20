@@ -17,6 +17,7 @@ tickets:
     "DM-09GQAV",
     "DM-7P69DC",
     "DM-9B7A6G",
+    "DM-0TRG51",
     "DM-HZPAYY",
     "DM-1C56DE",
   ]
@@ -148,8 +149,8 @@ selection (`tests/capture-selected-shadow-root.e2e.test.ts`).
 `shadowOnlyRootIsAdmissible` (`src/capture/shadow-root-admission.ts`) refuses a
 blurred normal layer, or a blurred inset mixed with a normal one (DM-RRWR8E:
 `SkMaskFilter` blur versus `feGaussianBlur`, 443 pixels for `4px 4px 4px`),
-and a normal layer through a non-round curved `corner-shape` or a
-`border-shape`, neither of which the producer draws. Fractional or transformed roots stay refused. Fragmented
+and any list, inset-only included (DM-0TRG51), through a non-round curved
+`corner-shape` or a `border-shape`, neither of which the producer draws. Fractional or transformed roots stay refused. Fragmented
 clone/slice shadows paint per fragment with Blink's sides ([doc 277](../277-shadow-contour-authority.md#fragmented-box-shadows-dm-4rgp8y), DM-4RGP8Y).
 
 DM-H49Z50 and DM-HZPAYY own

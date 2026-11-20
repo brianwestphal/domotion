@@ -109,6 +109,9 @@ const hardShadows: Array<[string, string, string]> = [
   ["hard-unequal", "4px 4px 0 red", "border-radius:8px 0 3px 5px"],
   ["hard-mixed-unequal", "inset 0 0 0 3px blue,4px 4px 0 rgba(255,0,0,.5)", "border-radius:8px 0 3px 5px"],
   ["hard-pill", "4px 4px 0 red", "border-radius:50%"],
+  ["inset-elliptical", "inset 0 0 0 3px red", "border-radius:8px/4px"],
+  ["inset-unequal", "inset 0 0 0 3px red", "border-radius:8px 0 3px 5px"],
+  ["inset-offset-unequal", "inset 2px 2px 0 red", "border-radius:8px 0 3px 5px"],
   ["hard-sharp-corner-shape", "4px 4px 0 red", "corner-shape:bevel"],
   ["hard-superellipse-round", "4px 4px 0 red", "border-radius:5px;corner-shape:superellipse(1)"],
 ];
@@ -160,6 +163,11 @@ it.each([
   ["4px 4px 0 red", "border-radius:5px;corner-shape:bevel"],
   ["4px 4px 0 red", "border-radius:5px;corner-shape:squircle"],
   ["4px 4px 0 red", "border-shape:circle(50%)"],
+  ["inset 0 0 0 3px red", "border-radius:5px;corner-shape:bevel"],
+  ["inset 0 0 0 3px red", "border-radius:5px;corner-shape:squircle"],
+  ["inset 0 0 0 3px red", "border-radius:5px;corner-shape:notch"],
+  ["inset 0 0 0 3px red", "border-radius:5px;corner-shape:superellipse(3)"],
+  ["inset 0 0 0 3px red", "border-shape:circle(50%)"],
   ["4px 4px 0 red", "margin:.5px"],
   ["4px 4px 0 red", "transform:translateX(1px)"],
 ])("keeps existing selected-root flattening outside verified shadow scope: %s %s", async (shadow, extra) => {

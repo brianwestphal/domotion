@@ -6356,7 +6356,8 @@
           "DM-4RGP8Y",
           "DM-GX7XNJ",
           "DM-PH6EK3",
-          "DM-9B7A6G"
+          "DM-9B7A6G",
+          "DM-0TRG51"
         ],
         "code": [
           "src/render/box-shadow-paint.ts",
@@ -6557,6 +6558,7 @@
           "DM-09GQAV",
           "DM-7P69DC",
           "DM-9B7A6G",
+          "DM-0TRG51",
           "DM-HZPAYY",
           "DM-1C56DE"
         ],

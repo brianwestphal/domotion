@@ -46,8 +46,13 @@ export function curvedCornerShapes(read: (property: string) => string): string[]
  * A `corner-shape` other than `round` on a curved corner turns the contour
  * into a ContouredRect path (`ContouredRect::GetCornerCurvature`), and a
  * `border-shape` paints the normal shadow from `BorderShapePainter::OuterPath`
- * (`box_painter_base.cc:316-325, 357-367`). The shadow producer draws neither,
- * so a list with a normal layer is refused there. Pass `curvedCornerShapes`
+ * (`box_painter_base.cc:316-325, 357-367`). The inset path carries the same
+ * curvature into `ClipContouredRect` and `FillRectWithContouredHole`
+ * (`:526-580`) and sends a border-shape to `PaintInsetBoxShadowForBorderShape`
+ * (`:397-401`). The shadow producer draws neither, so every list is refused
+ * there, inset-only included: a positive inset through a `bevel`, `squircle`
+ * or `notch` corner differs natively at 24-54 pixels (DM-0TRG51), while
+ * elliptical and unequal round insets are exact. Pass `curvedCornerShapes`
  * of the root and its computed `border-shape` ("" when unsupported). */
 export function shadowOnlyRootIsAdmissible(
   shadows: readonly BoxShadow[],
@@ -55,8 +60,7 @@ export function shadowOnlyRootIsAdmissible(
   borderShape: string,
 ): boolean {
   if (shadows.length === 0) return false;
-  if (shadows.every((shadow) => shadow.inset)) return true;
   if (cornerShapes.some((shape) => shape !== "" && shape !== "round")) return false;
   if (borderShape !== "" && borderShape !== "none") return false;
-  return shadows.every((shadow) => shadow.blur === 0);
+  return shadows.every((shadow) => shadow.inset) || shadows.every((shadow) => shadow.blur === 0);
 }

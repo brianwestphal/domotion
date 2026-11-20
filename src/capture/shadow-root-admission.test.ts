@@ -28,6 +28,12 @@ describe("shadowOnlyRootIsAdmissible", () => {
     expect(admits("4px 4px 0 red", ["round", "round"])).toBe(true);
     expect(admits("4px 4px 0 red", [""])).toBe(true);
   });
+  it("refuses an inset-only list drawn through a non-round curved corner or a border-shape", () => {
+    expect(admits("inset 0 0 0 3px red", ["bevel"])).toBe(false);
+    expect(admits("inset 0 0 0 3px red", ["round", "squircle"])).toBe(false);
+    expect(admits("inset 0 0 0 3px red", [], "circle(50%)")).toBe(false);
+    expect(admits("inset 0 0 0 3px red", ["round"])).toBe(true);
+  });
   it("refuses a normal layer drawn through a border-shape", () => {
     expect(admits("4px 4px 0 red", [], "circle(50%)")).toBe(false);
     expect(admits("4px 4px 0 red", [], "")).toBe(true);
