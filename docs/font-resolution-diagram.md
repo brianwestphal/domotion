@@ -3588,7 +3588,9 @@ Blink's default locale — the launched renderer's last `--lang`, authenticated
 from the process tree (`src/capture/renderer-default-locale.ts`, DM-JRG1BD) and
 recorded as `defaultFontLocale`; it reaches every platform through the per-script
 generic settings and the appended `-webkit-standard` family, plus fontconfig's
-`FC_LANG` on Linux and `GetDefault()` on Windows. Old trees and an
+`FC_LANG` on Linux and `GetDefault()` on Windows. Capture-side bitmap-glyph raster
+span selection and the standard-family-type usability gate use the same
+language (DM-XWGRJC). Old trees and an
 unauthenticated renderer continue through their prior language route. The
 Page-owned generic probe includes explicit computed locale scripts from its
 existing flattened DOMSnapshot and the renderer default locale's script. See

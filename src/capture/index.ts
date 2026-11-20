@@ -2354,7 +2354,11 @@ async function captureElementTreeWithWarningsInternal(
       await reverifyAnimationFrame();
       effectiveAppearance = await captureEffectiveAppearanceFacts(page, viewport);
       await reverifyAnimationFrame();
-      fontFamilyDeclarations = await captureFontFamilyDeclarationFacts(page);
+      // The standard family type is routable for `auto` only with the same
+      // authenticated default locale annotateDefaultFontLocale records below.
+      fontFamilyDeclarations = await captureFontFamilyDeclarationFacts(page, {
+        defaultFontLocale: "locale" in rendererLocale ? rendererLocale.locale : undefined,
+      });
       await reverifyAnimationFrame();
       scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles, {
         sourceImagePath: opts?.rasterizeFromImagePath,
@@ -2365,7 +2369,9 @@ async function captureElementTreeWithWarningsInternal(
       await reverifyAnimationFrame();
       collapsedBorderFragmentProbe = await prepareCollapsedBorderFragmentRecords(page, selector);
       await reverifyAnimationFrame();
-      pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport);
+      pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport, {
+        defaultFontLocale: "locale" in rendererLocale ? rendererLocale.locale : undefined,
+      });
       await reverifyAnimationFrame();
       insetRootShadowContext = await prepareInsetRootShadowContext(page, selector);
       await reverifyAnimationFrame();
@@ -2428,6 +2434,9 @@ async function captureElementTreeWithWarningsInternal(
     }
     try {
       const typed = assertCapturedTreeShape(result) as { tree: CapturedElement[]; warnings: CaptureWarning[] };
+      // Annotate before any capture-side font selection (bitmap-glyph raster
+      // spans) so it sees the same `auto` locale the renderer will.
+      if ("locale" in rendererLocale) annotateDefaultFontLocale(typed.tree, rendererLocale.locale);
       await replacedMediaTransaction?.bindCapturedOwners(typed.tree);
       const warnings = typed.warnings ?? [];
       warnings.push(...(fontFamilyDeclarations?.warnings ?? []));
@@ -2546,7 +2555,6 @@ async function captureElementTreeWithWarningsInternal(
         const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
         for (const root of typed.tree) root.sessionGenericFamilies = captured;
       }
-      if ("locale" in rendererLocale) annotateDefaultFontLocale(typed.tree, rendererLocale.locale);
       resetLastCaptureWarnings(warnings);
       return {
         tree: typed.tree,

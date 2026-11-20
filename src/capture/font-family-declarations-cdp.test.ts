@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { describe, expect, it, vi } from "vitest";
-import { captureFontFamilyDeclarationFacts } from "./font-family-declarations-cdp.js";
+import { captureFontFamilyDeclarationFacts, standardFamilyLocaleRoutable } from "./font-family-declarations-cdp.js";
 
 function harness(failure?: string, options: { value?: string; fontLocale?: string; language?: string } = {}) {
   const send = vi.fn(async (method: string, params?: Record<string, unknown>): Promise<unknown> => {
@@ -165,13 +165,17 @@ describe("extended native family provenance lifecycle", () => {
 
 describe("computed locale standard-family usability (DM-PJG8E9)", () => {
   it.each([
-    { fontLocale: '\"ja\"', usable: true },
-    { fontLocale: "auto", usable: false },
+    { fontLocale: '\"ja\"', usable: true, defaultFontLocale: undefined },
+    { fontLocale: "auto", usable: false, defaultFontLocale: undefined },
+    // DM-XWGRJC: an authenticated renderer default is the locale Blink selects
+    // the standard family with for `auto`, and capture records it on the tree.
+    { fontLocale: "auto", usable: true, defaultFontLocale: "ja" },
+    { fontLocale: '\"ko\"', usable: true, defaultFontLocale: "ja" },
   ])(
-    "keeps classification separate from explicit/default locale authority: $fontLocale",
-    async ({ fontLocale, usable }) => {
+    "keeps classification separate from explicit/default locale authority: $fontLocale (default $defaultFontLocale)",
+    async ({ fontLocale, usable, defaultFontLocale }) => {
       const h = harness(undefined, { value: "initial", fontLocale, language: "en" });
-      const probe = await captureFontFamilyDeclarationFacts(h.page);
+      const probe = await captureFontFamilyDeclarationFacts(h.page, { defaultFontLocale });
       const install = h.send.mock.calls.find(
         ([method, params]) =>
           method === "Runtime.callFunctionOn" && (params?.arguments as unknown[] | undefined)?.length === 4,
@@ -187,4 +191,18 @@ describe("computed locale standard-family usability (DM-PJG8E9)", () => {
       expect(h.detach).toHaveBeenCalledOnce();
     },
   );
+});
+
+describe("standardFamilyLocaleRoutable (DM-XWGRJC)", () => {
+  it.each([
+    ['"ja"', "en", undefined, true],
+    ['""', "en", undefined, true],
+    ["auto", "", undefined, true],
+    ["auto", "ja", undefined, false],
+    ["auto", "ja", "ja", true],
+    ["auto", "ja", "en-US", true],
+    [undefined, "ja", "ja", false],
+  ] as const)("locale %s, DOM %s, default %s -> %s", (fontLocale, language, defaultFontLocale, expected) => {
+    expect(standardFamilyLocaleRoutable(fontLocale, language, defaultFontLocale)).toBe(expected);
+  });
 });

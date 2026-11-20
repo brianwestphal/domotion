@@ -7,6 +7,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { launchChromium, captureElementTreeWithWarnings } from "../src/capture/index.js";
 import * as familyDeclarations from "../src/capture/font-family-declarations-cdp.js";
 import { capturedFontFamilyCss } from "../src/font-family-stack.js";
+import { fontSelectionLanguage } from "../src/capture/font-locale.js";
+import { rendererDefaultLocaleForPage } from "../src/capture/renderer-default-locale.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { getFontInstance, resolveFontKey, withRenderTextMode } from "../src/render/font-resolution.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
@@ -37,13 +39,16 @@ const fixtures = [
   { id: "override-concrete", type: "concrete" },
   { id: "pseudo-host", type: "concrete" },
   { id: "pseudo-animated", type: "standard" },
-  { id: "locale-auto", type: "standard", parent: true, usable: false },
+  // `all:initial` under lang="ja" computes font-locale auto, so Blink selects
+  // the standard family with its default locale. Routable exactly when capture
+  // authenticated that default (DM-XWGRJC); the DOM language "ja" is not it.
+  { id: "locale-auto", type: "standard", parent: true, usable: "renderer-default" },
 ] as const;
 const flat = (nodes: CapturedElement[]): CapturedElement[] => nodes.flatMap((n) => [n, ...flat(n.children)]);
 const hash = (input: Buffer | string) => createHash("sha256").update(input).digest("hex");
-async function capture(page: import("@playwright/test").Page, literalOnly: boolean) {
+async function capture(page: import("@playwright/test").Page, literalOnly: boolean, defaultFontLocale?: string) {
   const original = familyDeclarations.captureFontFamilyDeclarationFacts;
-  const probe = await original(page, { literalOnly });
+  const probe = await original(page, { literalOnly, defaultFontLocale });
   let facts: Record<string, unknown>;
   try {
     facts = await page.evaluate(
@@ -69,7 +74,7 @@ async function capture(page: import("@playwright/test").Page, literalOnly: boole
   // provider with its explicit legacy mode. Browser/CDP/scheduler behavior is unchanged.
   const spy = vi
     .spyOn(familyDeclarations, "captureFontFamilyDeclarationFacts")
-    .mockImplementation((target) => original(target, { literalOnly }));
+    .mockImplementation((target, options) => original(target, { ...options, literalOnly }));
   try {
     const result = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: W, height: H });
     expect(spy).toHaveBeenCalledOnce();
@@ -188,46 +193,51 @@ describe("CSS-wide/substituted initial-name type (DM-ESH89H)", () => {
           await native.detach();
         }
         evidence.native = nativeRows;
-        const legacy = await capture(page, true),
-          current = await capture(page, false);
+        const authority = await rendererDefaultLocaleForPage(page);
+        const defaultFontLocale = "locale" in authority ? authority.locale : undefined;
+        evidence.rendererDefaultLocale = authority;
+        // Linux renderer argv is not authenticated yet (zygote retitling).
+        if (process.platform !== "linux") expect(defaultFontLocale).toBeDefined();
+        const usable = (fixture: (typeof fixtures)[number]) =>
+          !("usable" in fixture) || (fixture.usable === "renderer-default" && defaultFontLocale != null);
+        const legacy = await capture(page, true, defaultFontLocale),
+          current = await capture(page, false, defaultFontLocale);
         evidence.legacyFacts = legacy.facts;
         evidence.currentFacts = current.facts;
         evidence.warnings = current.warnings;
-        expect(current.warnings).toHaveLength(2);
-        expect(current.warnings.some((w) => w.detail.includes("DM-PJG8E9"))).toBe(true);
+        expect(current.warnings).toHaveLength(defaultFontLocale == null ? 2 : 1);
+        expect(current.warnings.some((w) => w.detail.includes("DM-PJG8E9"))).toBe(defaultFontLocale == null);
         expect(current.warnings.some((w) => w.detail.includes("interpolated family lost original type"))).toBe(true);
         expect(current.facts["locale-auto"]).toMatchObject({
           familyType: "standard",
-          familyTypeUsable: false,
+          familyTypeUsable: defaultFontLocale != null,
           familyTypeLocale: "auto",
           familyTypeLanguage: "ja",
         });
+        const owner = (tree: CapturedElement[], id: string) =>
+          flat(tree).find((n) => n.text.trim().endsWith(`漢 ${id}`));
         const stacks = (tree: CapturedElement[]) =>
-          Object.fromEntries(
-            fixtures.map((f) => [
-              f.id,
-              flat(tree).find((n) => n.text.trim().endsWith(`漢 ${f.id}`))?.styles.fontFamilyStack,
-            ]),
-          );
+          Object.fromEntries(fixtures.map((f) => [f.id, owner(tree, f.id)?.styles.fontFamilyStack]));
         const before = stacks(legacy.tree),
           after = stacks(current.tree);
         evidence.legacyStacks = before;
         evidence.currentStacks = after;
         for (const fixture of fixtures) {
           expect(after[fixture.id]?.genericFamily, fixture.id).toBe(
-            "usable" in fixture && fixture.usable === false
-              ? before[fixture.id]?.genericFamily
-              : fixture.type === "standard"
-                ? "standard"
-                : "none",
+            !usable(fixture) ? before[fixture.id]?.genericFamily : fixture.type === "standard" ? "standard" : "none",
           );
-          if ("usable" in fixture && fixture.usable === false) {
+          if (!usable(fixture)) {
             expect(after[fixture.id]).toEqual(before[fixture.id]);
             continue;
           }
           const nativeRow = nativeRows.find((row) => row.id === fixture.id)!;
           const actual = after[fixture.id]!;
-          const key = resolveFontKey(capturedFontFamilyCss("", actual), "ja");
+          // Select with the language the renderer will: the authenticated
+          // default for `auto`, the explicit locale otherwise ("ja" here).
+          const key = resolveFontKey(
+            capturedFontFamilyCss("", actual),
+            fontSelectionLanguage(owner(current.tree, fixture.id)!.styles),
+          );
           const font = getFontInstance(key, 400, 32);
           expect(font!.postscriptName, fixture.id).toBe(
             (nativeRow.painted as { postScriptName: string }).postScriptName,

@@ -6,7 +6,18 @@ status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
 tickets:
-  ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9", "DM-WREGPJ", "DM-ZAXD0C", "DM-JRG1BD"]
+  [
+    "DM-2518",
+    "DM-VY5DHJ",
+    "DM-JQ57WW",
+    "DM-N80HJW",
+    "DM-ESH89H",
+    "DM-PJG8E9",
+    "DM-WREGPJ",
+    "DM-ZAXD0C",
+    "DM-JRG1BD",
+    "DM-XWGRJC",
+  ]
 code:
   [
     "src/font-family-stack.test.ts",
@@ -195,12 +206,15 @@ both serialize distinct initial/concrete descriptions to the same concrete name.
 
 Facts use the existing private per-element key, with separate standard/concrete
 classification and renderer usability. Standard adoption requires authenticated
-computed `-webkit-locale` to agree with captured DOM language, or an explicitly
-decoded CSS locale string that the renderer can route (DM-PJG8E9); live
-consumption rechecks both bindings. `all:initial` can reset locale to `auto`
-despite `lang=ja`.
-That known mismatch retains its exact prior family-type route with a warning
-(DM-PJG8E9), without changing existing language metadata. Pseudos have their own bound facts;
+computed `-webkit-locale` to agree with captured DOM language, an explicitly
+decoded CSS locale string that the renderer can route (DM-PJG8E9), or computed
+`auto` with an authenticated renderer default locale, which capture records on
+the same element as `defaultFontLocale` (DM-XWGRJC,
+`standardFamilyLocaleRoutable`); live consumption rechecks both bindings.
+`all:initial` can reset locale to `auto` despite `lang=ja`, and Blink then
+selects the standard family with its default locale, not DOM language. Without
+an authenticated default that mismatch retains its exact prior family-type
+route with a warning (DM-PJG8E9), without changing existing language metadata. Pseudos have their own bound facts;
 unknown/blocked pseudo evidence cannot borrow a newly proved host standard type.
 Native query failure preserves an independently valid ZZR literal witness.
 
@@ -330,7 +344,10 @@ field and retain their previous rendering route.
 `fontSelectionLanguage()` decodes only a complete explicit CSS string, including
 escapes and an explicit empty string, for font selection, shaping, emphasis,
 vertical decoration and generated pseudo font paths. The same route governs
-pseudo glyph bitmap representation checks. Initial-name family facts may adopt
+the capture-side bitmap-glyph raster span selection for element text and pseudo
+glyph bitmap representation checks (DM-XWGRJC): capture records
+`defaultFontLocale` before the element raster pass, and hands the authenticated
+default to the pseudo probe, which runs before that annotation. Initial-name family facts may adopt
 a proven standard type under an explicit CSS locale even if it differs from DOM
 language. Their live computed locale and original DOM-language binding are still
 checked. No text-engine public API signature changes or blanket locale overrides
@@ -396,6 +413,8 @@ reads the environment (`ui/base/l10n/l10n_util.cc:508-577`), and headless
 Navigator language comes from AcceptLanguages and Intl locale can be separately
 overridden (`Emulation.setLocaleOverride` changes ICU/V8 only); neither is Blink's
 default font locale, and neither is consulted. `tests/renderer-default-locale.e2e.test.ts`
+(with `tests/renderer-default-locale-consumers.e2e.test.ts` for the raster-span
+and standard-family consumers under `--lang=ja`)
 launches `--lang=ja`, `zh-TW` and `en_US` and checks the authenticated value, the
 captured routing, the generic primaries against Chromium's painted faces, and that
 removing the authority moves the rendering away from Chromium (macOS: 6.96% →
