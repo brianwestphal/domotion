@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { captureElementTree, launchChromium, type CapturedElement } from "../src/index.js";
+import { createRasterViewportSpace } from "../src/capture/raster-viewport-space.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
 import { setRenderTextMode } from "../src/render/text-to-path.js";
@@ -140,11 +141,17 @@ describeBrowser("DM-2446: logical, computed, and paint font sizes", () => {
       expect(paintScale(cancel)).toBeCloseTo(0.5, 5);
       expect(paintScale(nestedTransform)).toBeCloseTo(2, 5);
       expect(paintScale(mixed)).toBeCloseTo(1.25, 5);
+      // Static transforms are frozen: text geometry is captured in the
+      // element's local plane, and the emitted CTM maps it to the live range.
+      const space = createRasterViewportSpace(tree);
       for (const [id, node] of Object.entries({ zoom, transform, cancel, nestedZoom, nestedTransform, mixed })) {
-        expect(node.textLeft).toBeCloseTo(ranges[id].left, 6);
-        expect(node.textTop).toBeCloseTo(ranges[id].top, 6);
+        const [a, b, c, d, e, f] = space.frozenCtm(node) ?? [1, 0, 0, 1, 0, 0];
+        const toViewport = (x: number, y: number) => ({ x: a * x + c * y + e, y: b * x + d * y + f });
+        const origin = toViewport(node.textLeft!, node.textTop!);
+        expect(origin.x).toBeCloseTo(ranges[id].left, 6);
+        expect(origin.y).toBeCloseTo(ranges[id].top, 6);
         if (node.textSegments?.[0].xOffsets?.[0] != null) {
-          expect(node.textSegments[0].xOffsets[0]).toBeCloseTo(ranges[id].left, 6);
+          expect(toViewport(node.textSegments[0].xOffsets[0], node.textTop!).x).toBeCloseTo(ranges[id].left, 6);
         }
       }
       setRenderTextMode("paths");
