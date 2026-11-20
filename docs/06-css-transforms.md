@@ -139,7 +139,9 @@ after the walk sees the transformed paint. Each producer uses one of two routes:
   `withFrozenTransformsNeutralized` sets exactly the frozen set (the walker's
   own predicate, shipped into the page as source) to `translate(0)` while a
   pass runs, so CDP box models and screenshots come back in local space.
-  Replaced-element snapshots and the broken-image UA fallback facts use it.
+  Replaced-element snapshots, the broken-image UA fallback facts and the
+  closed-shadow input value-text quads use it, so a statically rotated or
+  scaled input's value top is authorized by the same plane the walk measured.
 
 Known gaps: a backdrop-filter target or root composite under a neutralized
 rotated ancestor that also sits inside a frozen translate/scale keeps the older

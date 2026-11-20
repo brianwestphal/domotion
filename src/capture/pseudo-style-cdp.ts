@@ -24,6 +24,7 @@
  */
 
 import type { CDPSession, Page } from "@playwright/test";
+import { withFrozenTransformsNeutralized } from "./frozen-transform-neutralizer.js";
 import { privateCaptureKey } from "./private-key.js";
 import { browserCallbackExpression } from "./evaluate-in-frame.js";
 import {
@@ -621,7 +622,7 @@ export async function captureResolvedControlPseudoStyles(
   const hostObjectIdsByNode = new Map<number, string>();
   const hostObjectIds = new Set<string>();
   const authorStyleSheetIds = new Set<string>();
-  const inputValueTextQuads = new Map<number, (number[][] | null)[]>();
+  const inputValueTextNodes = new Map<number, number[]>();
   const inputValueHosts = new Map<number, CdpNode>();
   let nextHostId = 1;
 
@@ -755,21 +756,11 @@ export async function captureResolvedControlPseudoStyles(
         // which cannot be recovered from a 1.2em `line-height: normal`
         // estimate without half-pixel drift.
         if (uaHost.nodeName === "INPUT" && node.nodeName === "#text" && node.nodeValue !== "") {
-          const measured = await session
-            .send("DOM.getContentQuads", {
-              backendNodeId: node.backendNodeId,
-            })
-            .catch(() => null);
-          // A refused or empty quad list is not a painted label, so it never
-          // counts as a candidate. The case that matters is a filled input's
-          // placeholder: Blink keeps its `#placeholder` div with inline
-          // `display: none` (`TextControlElement::UpdatePlaceholderVisibility`,
-          // text_control_element.cc:295-307 at 7d859f27), and CDP answers its
-          // text with no quads. It is recorded as `null` so a host whose only
-          // text was refused names that rejection instead of vanishing.
-          const candidates = inputValueTextQuads.get(uaHost.nodeId) ?? [];
-          candidates.push(measured?.quads != null && measured.quads.length > 0 ? measured.quads : null);
-          inputValueTextQuads.set(uaHost.nodeId, candidates);
+          // The quads are measured after the walk over the tree, in the
+          // frozen-transform plane (see below).
+          const textNodes = inputValueTextNodes.get(uaHost.nodeId) ?? [];
+          textNodes.push(node.backendNodeId);
+          inputValueTextNodes.set(uaHost.nodeId, textNodes);
           inputValueHosts.set(uaHost.nodeId, uaHost);
         }
         const kind = controlPseudoKindForNode(attributesOf(node), uaHost.nodeName, attributesOf(uaHost), node.nodeName);
@@ -860,26 +851,45 @@ export async function captureResolvedControlPseudoStyles(
     };
     await visit(documentResult.root as CdpNode, null);
 
-    for (const [hostNodeId, candidates] of inputValueTextQuads) {
-      const host = inputValueHosts.get(hostNodeId);
-      if (host == null) continue;
-      // Multiple labels (file/temporal compound controls) never authorize a
-      // value top, so skip the host quad round trip for them.
-      const hostMeasured =
-        candidates.filter((quads) => quads != null).length === 1
-          ? await session
-              .send("DOM.getContentQuads", {
-                backendNodeId: host.backendNodeId,
-              })
-              .catch(() => null)
-          : null;
-      // Rejections are stored too: the walker keeps its line-height estimate
-      // for these hosts and reports the named reason as a capture warning.
-      await storeInputValueGeometry(
-        hostNodeId,
-        classifyInputValueTextGeometry(hostMeasured?.quads ?? null, candidates),
-      );
-    }
+    // The capture walk measures each input in its frozen-transform plane: the
+    // untransformed box that the renderer later wraps in the static transform.
+    // CDP content quads are final viewport geometry, so measure them with
+    // exactly that frozen set neutralized; both sides then describe the same
+    // border box and the walker's host-size check still detects a relayout.
+    await withFrozenTransformsNeutralized(page, async () => {
+      for (const [hostNodeId, textNodes] of inputValueTextNodes) {
+        const host = inputValueHosts.get(hostNodeId);
+        if (host == null) continue;
+        const candidates: (number[][] | null)[] = [];
+        for (const backendNodeId of textNodes) {
+          const measured = await session.send("DOM.getContentQuads", { backendNodeId }).catch(() => null);
+          // A refused or empty quad list is not a painted label, so it never
+          // counts as a candidate. The case that matters is a filled input's
+          // placeholder: Blink keeps its `#placeholder` div with inline
+          // `display: none` (`TextControlElement::UpdatePlaceholderVisibility`,
+          // text_control_element.cc:295-307 at 7d859f27), and CDP answers its
+          // text with no quads. It is recorded as `null` so a host whose only
+          // text was refused names that rejection instead of vanishing.
+          candidates.push(measured?.quads != null && measured.quads.length > 0 ? measured.quads : null);
+        }
+        // Multiple labels (file/temporal compound controls) never authorize a
+        // value top, so skip the host quad round trip for them.
+        const hostMeasured =
+          candidates.filter((quads) => quads != null).length === 1
+            ? await session
+                .send("DOM.getContentQuads", {
+                  backendNodeId: host.backendNodeId,
+                })
+                .catch(() => null)
+            : null;
+        // Rejections are stored too: the walker keeps its line-height estimate
+        // for these hosts and reports the named reason as a capture warning.
+        await storeInputValueGeometry(
+          hostNodeId,
+          classifyInputValueTextGeometry(hostMeasured?.quads ?? null, candidates),
+        );
+      }
+    });
 
     // `::-webkit-resizer` has no UA-shadow DOM node: Blink resolves its style
     // on demand and assigns it to an anonymous LayoutCustomScrollbarPart.

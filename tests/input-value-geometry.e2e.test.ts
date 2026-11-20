@@ -38,9 +38,19 @@ describe("closed-shadow input value geometry warnings", () => {
     ).toEqual([]);
   });
 
-  it("names a rotated host's rejected quad", async () => {
+  it("authorizes a rotated host: its quad is measured in the same frozen plane as the walk", async () => {
+    // A static rotation is frozen: the walk measures the untransformed box and
+    // the CDP quads are read with the same transforms neutralized.
+    expect(
+      await geometryWarnings(`<input id="rotated" style="top:40px;transform:rotate(12deg)" value="Rotated">`),
+    ).toEqual([]);
+  });
+
+  it("names a projective host's rejected quad", async () => {
+    // A projective plane stays live (its raster owns it), so its quad is not
+    // axis-aligned.
     const warnings = await geometryWarnings(
-      `<input id="rotated" style="top:40px;transform:rotate(12deg)" value="Rotated">`,
+      `<input id="rotated" style="top:40px;transform:perspective(200px) rotateY(40deg)" value="Rotated">`,
     );
     expect(warnings).toEqual([
       {
