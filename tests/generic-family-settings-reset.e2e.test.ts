@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Browser, Page } from "@playwright/test";
 import { launchChromium, captureElementTree } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { reassertPlaywrightMacFontFamilies } from "../tools/font-conformance.js";
 
 // A Page's generic font families come from Playwright's per-page
 // `Page.setFontFamilies` overlay, laid over Chromium's WebPreferences. Any
@@ -96,6 +97,10 @@ describe("generic-family Settings across captures on one Page", () => {
   it("records what Chrome paints after a WebPreferences push resets the Page's families", async () => {
     const page = await newPage();
     try {
+      // A hosted-macOS host reset (docs/198) may already have replaced
+      // Playwright's overlay with WebPreferences' table, which would leave no
+      // push to observe. Reinstall the overlay so the push below is visible.
+      if (process.platform === "darwin") await reassertPlaywrightMacFontFamilies(page);
       const before = await recordedSansSerif(page);
       expect(before).toBe(await paintedSansSerif(page));
       const cdp = await page.context().newCDPSession(page);
