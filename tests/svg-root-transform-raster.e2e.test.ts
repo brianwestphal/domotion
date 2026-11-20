@@ -27,8 +27,10 @@ describe.each([false, true])("SVG root source-paint ownership (flatten=%s)", (fl
     {
       name: "undecidable root selector",
       css: "",
+      // Since the HTML-identity pass accepts ident-only pseudos such as
+      // :lang(), this selector reaches root-transform analysis, which cannot
+      // decide it and keeps the raster with the same visible warning.
       sheet: "svg:lang(en){transform:translateX(5px)}",
-      selectorIdentityRefusal: true,
     },
   ])("keeps source raster for $name", async (entry) => {
     const original = source(entry.css, "sheet" in entry ? entry.sheet : "", "attrs" in entry ? entry.attrs : "");
@@ -59,17 +61,11 @@ describe.each([false, true])("SVG root source-paint ownership (flatten=%s)", (fl
       expect(output).toContain("<image ");
       expect(output).toMatch(/href="data:image\/svg\+xml/);
       expect(output).not.toContain("data-domotion-image-root");
-      if ("selectorIdentityRefusal" in entry) {
-        // The shared selector grammar refuses :lang() before transform
-        // analysis. That path retains the image without a transform warning.
-        expect(warnings.filter((warning) => warning.feature === "svg-image-root-transform")).toEqual([]);
-      } else {
-        expect(
-          warnings.some(
-            (warning) => warning.feature === "svg-image-root-transform" && warning.detail.includes("raster fallback"),
-          ),
-        ).toBe(true);
-      }
+      expect(
+        warnings.some(
+          (warning) => warning.feature === "svg-image-root-transform" && warning.detail.includes("raster fallback"),
+        ),
+      ).toBe(true);
       await page.setContent(
         `<body style="margin:0;background:white"><img src="data:image/svg+xml,${encodeURIComponent(output)}" style="display:block;width:100px;height:80px"></body>`,
       );
