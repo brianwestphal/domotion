@@ -7,7 +7,10 @@ import {
   SK_ROOT2_OVER_2,
   blinkCurvedDashPathLength,
   conicMeasuredLength,
+  contouredOutsetRectPath,
+  outsetCornerRadiiWithCoverageCorrection,
   parseCornerRadii,
+  parseCornerShapeCurvature,
   roundedRectPath,
   snappedBorderEdges,
   type CornerRadii,
@@ -365,7 +368,8 @@ export interface FocusRingStroke {
   radii: CornerRadii;
   strokeWidth: number;
   color: string;
-  /** A multi-fragment ring's corner-rounded region boundary (DM-7NN5E6). */
+  /** A multi-fragment ring's corner-rounded region boundary (DM-7NN5E6), or
+   * a single rect's non-round `corner-shape` contour (DM-SB1TAQ). */
   path?: string;
 }
 
@@ -1053,8 +1057,9 @@ function skRRectRadii(w: number, h: number, c: CornerRadii): CornerRadii {
  * set (`GetFocusRingCornerRadii`, :755-803): an authored border radius grown
  * by the integer outline-offset with every component raised to at least W;
  * otherwise, for an unstyled native control, its NativeTheme part radius
- * (DM-7FBK91); otherwise W everywhere. The ring is a single rounded rect, so Skia's
- * radius scale-down applies (`DrawFocusRingRect` → `drawRRect`).
+ * (DM-7FBK91); otherwise W everywhere. A round ring is a single rounded rect, so
+ * Skia's radius scale-down applies (`DrawFocusRingRect` → `drawRRect`). A
+ * non-round corner-shape ring is a ContouredRect path instead (DM-SB1TAQ).
  */
 export function focusRingStrokes(el: CapturedElement): FocusRingStroke[] {
   const ring = el.styles.focusRing;
@@ -1065,11 +1070,24 @@ export function focusRingStrokes(el: CapturedElement): FocusRingStroke[] {
   const width = edges.right - left,
     height = edges.bottom - top;
   if (width <= 0 || height <= 0) return [];
+  // ComputeCornerRadii goes through ContouredBorderGeometry, which drops the
+  // radius of a degenerate corner shape; HasBorderRadius reads the style.
   const base = parseCornerRadii(el.styles, el.width, el.height);
+  const styled = parseCornerRadii(
+    {
+      ...el.styles,
+      cornerTopLeftShape: undefined,
+      cornerTopRightShape: undefined,
+      cornerBottomRightShape: undefined,
+      cornerBottomLeftShape: undefined,
+    },
+    el.width,
+    el.height,
+  );
   // ComputedStyle::HasBorderRadius, gated by the origin facts of step 1.
   const authored =
     ring.corners.borderRadiusEligible &&
-    [base.tl, base.tr, base.br, base.bl].some((corner) => corner.h > 0 || corner.v > 0);
+    [styled.tl, styled.tr, styled.br, styled.bl].some((corner) => corner.h > 0 || corner.v > 0);
   const grow = (corner: { h: number; v: number }) => ({
     h: Math.max(ring.ringWidth, corner.h > 0 ? Math.max(0, corner.h + ring.outlineOffset) : 0),
     v: Math.max(ring.ringWidth, corner.v > 0 ? Math.max(0, corner.v + ring.outlineOffset) : 0),
@@ -1134,13 +1152,61 @@ export function focusRingStrokes(el: CapturedElement): FocusRingStroke[] {
       pathAt(ring.ringOffset, ring.innerColor),
     ].filter((stroke): stroke is FocusRingStroke => stroke != null);
   }
+  // PaintFocusRing's curvature: round where the ring's corner radius is empty,
+  // otherwise the corner-shape exponent (outline_painter.cc:908-919).
+  const empty = (corner: { h: number; v: number }) => corner.h <= 0 || corner.v <= 0;
+  const exponent = (corner: { h: number; v: number }, shape: string | undefined) =>
+    empty(corner) ? 2 : parseCornerShapeCurvature(shape);
+  const curvature = {
+    tl: exponent(radii.tl, el.styles.cornerTopLeftShape),
+    tr: exponent(radii.tr, el.styles.cornerTopRightShape),
+    br: exponent(radii.br, el.styles.cornerBottomRightShape),
+    bl: exponent(radii.bl, el.styles.cornerBottomLeftShape),
+  };
+  const contoured = Object.values(curvature).some((value) => value !== 2);
   const at = (offset: number, color: string): FocusRingStroke => {
     const clamp = adjustedOutlineOffset(width, height, offset);
     const w = width + clamp.horizontal * 2,
       h = height + clamp.vertical * 2;
+    const x = left - clamp.horizontal,
+      y = top - clamp.vertical;
+    if (contoured) {
+      // DM-SB1TAQ: a non-round corner shape is a ContouredRect path
+      // (PaintSingleFocusRing, outline_painter.cc:829-845, Chromium 7d859f27).
+      // The right-angle rect, already outset by the offset, is outset AGAIN by
+      // the same clamped offset with corner correction (ShadowContourFollows-
+      // Border is stable: FloatRoundedRect::OutsetWithCornerCorrection, the
+      // coverage-factor radii), and aligned to the once-outset origin rect.
+      const contour = outsetCornerRadiiWithCoverageCorrection(
+        radii,
+        clamp.vertical,
+        clamp.horizontal,
+        clamp.vertical,
+        clamp.horizontal,
+        w,
+        h,
+      );
+      const cx = x - clamp.horizontal,
+        cy = y - clamp.vertical,
+        cw = w + clamp.horizontal * 2,
+        ch = h + clamp.vertical * 2;
+      const path = contouredOutsetRectPath(cx, cy, cw, ch, {
+        ...contour,
+        uniform: false,
+        curvature,
+        originRadii: { tl: radii.tl, tr: radii.tr, br: radii.br, bl: radii.bl },
+        contourInsets: {
+          top: -clamp.vertical,
+          right: -clamp.horizontal,
+          bottom: -clamp.vertical,
+          left: -clamp.horizontal,
+        },
+      });
+      if (path != null) return { x: cx, y: cy, w: cw, h: ch, radii: contour, strokeWidth, color, path };
+    }
     return {
-      x: left - clamp.horizontal,
-      y: top - clamp.vertical,
+      x,
+      y,
       w,
       h,
       radii: skRRectRadii(w, h, radii),
@@ -1165,12 +1231,20 @@ function paintFocusRing(el: CapturedElement, indent: string): string[] {
       "focus ring on a native control without cascade-origin facts cannot choose between authored and NativeTheme part radii",
     );
   }
-  const curvature = parseCornerRadii(el.styles, el.width, el.height).curvature;
-  if (curvature != null && Object.values(curvature).some((exponent) => exponent !== 2)) {
+  const shaped = [
+    el.styles.cornerTopLeftShape,
+    el.styles.cornerTopRightShape,
+    el.styles.cornerBottomRightShape,
+    el.styles.cornerBottomLeftShape,
+  ].some((shape) => parseCornerShapeCurvature(shape) !== 2);
+  const strokes = focusRingStrokes(el);
+  const fragmented = (el.inlineFragments?.length ?? 0) > 1;
+  if (shaped && (fragmented || strokes.some((stroke) => stroke.path == null))) {
+    // Fragmented rings, and negative offsets, where Blink intersects paths.
     renderWarn("focus-ring", "focus ring with a non-round corner-shape is painted with round corners");
   }
   const out: string[] = [];
-  for (const stroke of focusRingStrokes(el)) {
+  for (const stroke of strokes) {
     const color = parseColor(stroke.color);
     if (color == null || color.a <= 0) continue;
     out.push(

@@ -24,6 +24,7 @@ tickets:
     "DM-KA85VS",
     "DM-1110JP",
     "DM-6FFGSY",
+    "DM-SB1TAQ",
     "DM-2PSXZV",
     "DM-DBGKAG",
     "DM-F77PN8",
@@ -201,6 +202,57 @@ rects (`DrawPlatformFocusRing`, `platform_focus_ring.cc`):
   grown by the outline-offset, with every component raised to at least `W`.
   Skia's radius scale-down then applies.
 - **Collapsing offsets.** A ring whose clamped rect is empty paints nothing.
+
+**Non-round `corner-shape` (DM-SB1TAQ).** A single-rect ring whose curvature is
+not round is a `ContouredRect` path, not an SkRRect (`PaintSingleFocusRing`,
+`outline_painter.cc:829-845`, Chromium 7d859f27). Each corner's curvature is the
+`corner-shape` exponent, or round where that ring radius is empty (`:908-919`).
+Blink builds the path in three steps:
+
+1. **Origin rect.** The offset rect with the ring radii, as for a round ring.
+2. **Contour.** That rect outset _again_ by the same clamped offset.
+   `ShadowContourFollowsBorder` is stable at the pin, so the radii grow by the
+   coverage-factor correction (`FloatRoundedRect::OutsetWithCornerCorrection`),
+   without Skia's scale-down.
+3. **Path.** Since the contour contains its origin, `PathBuilder::AddContouredRect`
+   aligns each corner to the origin (`Corner::AlignedToOrigin`). It then mitres
+   the corner out to the contour's edges, along the line from the corner's
+   quadratic control point through its start or end (`path_builder.cc:273-325`).
+   With a zero offset, origin and contour coincide and the path is the plain
+   contour.
+
+`contouredOutsetRectPath` transcribes that. Several details follow from
+Blink's float and exponent arithmetic, and they apply to every contoured
+corner Domotion draws, not only to focus rings:
+
+- **Exponents.** `corner-shape` keywords use `Superellipse::Exponent`, which
+  clamps the parameter to ±16. `notch` is therefore 2^-16 and `square` is 2^16.
+- **Degenerate shapes.** A shape whose parameter is at least 16 (`square`)
+  has no radius: `CalcRadiiFor` zeroes it (`contoured_border_geometry.cc:27-47`).
+  A focus ring still raises that corner to the minimum radius `W`.
+- **Corners built from the rect** keep the raw exponent. Only exactly
+  `kStraight` (1000) draws as two lines, so `superellipse(12)` and a focus
+  ring's `square` corner are superellipse cubics.
+- **Aligned corners** are clamped as floats (`ClampCurvature`), which makes
+  `notch` `0.001f`.
+- **Concave corners.** `Corner::Inverse` divides in float, so an aligned notch
+  inverts to 999.99994, not `kStraight`, and is drawn as cubics. An unaligned
+  notch (2^-16) inverts past `kStraight`, is clamped to it, and stays straight.
+
+The e2e suite (`tests/focus-ring.e2e.test.ts`) matches native exactly on:
+
+- bevel, squircle and scoop rings;
+- a ring with a `corner-shape` but no radius;
+- a bevel ring on a sharp corner;
+- a ring mixing `square`, `superellipse(12)`, bevel and scoop corners;
+- a bevel ring at `outline-offset: 3px`;
+- a mixed squircle/notch/bevel/round ring.
+
+A negative control asserts that the corner shape changes the native ring.
+
+A negative offset makes the contour an inset, which Blink builds by path
+intersection. Such a ring, and a corner-shape ring around a wrapped inline,
+keeps round corners and warns.
 
 A wrapped inline element has one outline rect per line fragment (DM-7NN5E6).
 `PaintSingleFocusRing` unions them (`ComputeRightAnglePath`, each rect outset by

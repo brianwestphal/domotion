@@ -284,12 +284,14 @@ describe("corner-shape contours (DM-2315)", () => {
     );
 
   it("maps CSS keywords and custom parameters through Blink Superellipse::Exponent", () => {
-    expect(parseCornerShapeCurvature("notch")).toBeCloseTo(1 / 1000);
+    // Notch()/Square() are -/+infinity, and Exponent() clamps the parameter
+    // to ±16 (superellipse.h, Chromium 7d859f27).
+    expect(parseCornerShapeCurvature("notch")).toBe(2 ** -16);
     expect(parseCornerShapeCurvature("scoop")).toBe(0.5);
     expect(parseCornerShapeCurvature("bevel")).toBe(1);
     expect(parseCornerShapeCurvature("round")).toBe(2);
     expect(parseCornerShapeCurvature("squircle")).toBe(4);
-    expect(parseCornerShapeCurvature("square")).toBe(1000);
+    expect(parseCornerShapeCurvature("square")).toBe(2 ** 16);
     expect(parseCornerShapeCurvature("superellipse(3)")).toBe(8);
     expect(parseCornerShapeCurvature("superellipse(-2)")).toBe(0.25);
   });
@@ -308,6 +310,29 @@ describe("corner-shape contours (DM-2315)", () => {
     expect(roundedRectPath(0, 0, 120, 80, shaped("notch"))).not.toMatch(/[AC]/);
   });
 
+  // CalcRadiiFor (contoured_border_geometry.cc:27-47, Chromium 7d859f27)
+  // drops the radius of a degenerate shape (superellipse parameter >= 16).
+  it("gives a degenerate corner shape no radius", () => {
+    const corners = parseCornerRadii(
+      {
+        borderTopLeftRadius: "8px",
+        borderTopRightRadius: "8px",
+        borderBottomRightRadius: "8px",
+        cornerTopLeftShape: "square",
+        cornerTopRightShape: "superellipse(16)",
+      },
+      40,
+      40,
+    );
+    expect(corners.tl).toEqual({ h: 0, v: 0 });
+    expect(corners.tr).toEqual({ h: 0, v: 0 });
+    expect(corners.br).toEqual({ h: 8, v: 8 });
+    const almost = parseCornerRadii({ borderTopLeftRadius: "8px", cornerTopLeftShape: "superellipse(12)" }, 40, 40);
+    expect(almost.tl).toEqual({ h: 8, v: 8 });
+    // A raw exponent of 4096 is not kStraight: the superellipse cubics stay.
+    expect(roundedRectPath(0, 0, 40, 40, almost)).toMatch(/C/);
+  });
+
   it("keeps physical corner shapes independent", () => {
     const corners = parseCornerRadii(
       {
@@ -323,7 +348,7 @@ describe("corner-shape contours (DM-2315)", () => {
       100,
       100,
     );
-    expect(corners.curvature).toEqual({ tl: 1, tr: 2, br: 4, bl: 0.001 });
+    expect(corners.curvature).toEqual({ tl: 1, tr: 2, br: 4, bl: 2 ** -16 });
     const d = roundedRectPath(0, 0, 100, 100, corners);
     expect(d).toContain("A20,20");
     expect(d.match(/C/g)).toHaveLength(2);
@@ -430,10 +455,29 @@ describe("inset ContouredRect intersections (DM-2317)", () => {
     }
   });
 
-  it("retains line-only notch constraints", () => {
+  // An aligned corner is clamped to kNotch as a float, and Inverse() divides
+  // in float: 1 / 0.001f is 999.99994, not kStraight, so AddCurvedCorner
+  // draws superellipse cubics (path_builder.cc:64-100, Chromium 7d859f27).
+  it("draws aligned notch corners as near-straight superellipse cubics", () => {
     const paths = contouredRectIntersectionPaths(6, 9, 77, 88, insetShape("notch"));
     expect(paths).toHaveLength(4);
-    expect(paths!.every((path) => !/[AC]/.test(path))).toBe(true);
+    expect(paths!.every((path) => /C/.test(path) && !/A/.test(path))).toBe(true);
+  });
+
+  it("keeps an unaligned notch corner straight (its raw exponent inverts past kStraight)", () => {
+    const d = roundedRectPath(
+      0,
+      0,
+      100,
+      100,
+      parseCornerRadii(
+        { borderRadius: "20px", cornerTopLeftShape: "notch", cornerBottomRightShape: "notch" },
+        100,
+        100,
+      ),
+    );
+    expect(d.match(/A/g)).toHaveLength(2);
+    expect(d).not.toMatch(/C/);
   });
 
   it("does not perturb the ordinary round single-path contract", () => {

@@ -267,16 +267,32 @@ export type CornerRadii = {
 const ROUND_CURVATURE = 2;
 const STRAIGHT_CURVATURE = 1000;
 const NOTCH_CURVATURE = 1 / STRAIGHT_CURVATURE;
+/** `Superellipse::IsDegenerate`: parameter ≥ kHighCurvatureThreshold (16). */
+const DEGENERATE_CURVATURE = Math.pow(2, 16);
+/** `CornerCurvature::kNotch` as the float Blink stores (`1 / kStraight`). */
+const NOTCH_CURVATURE_F = Math.fround(NOTCH_CURVATURE);
+
+/**
+ * The curvature a `ContouredRect::Corner` holds after its clamping constructor
+ * (`ClampCurvature`, contoured_rect.h, Chromium 7d859f27), in float. Corners
+ * built from a rect keep the raw exponent; `AlignedToOrigin` and `Inverse`
+ * build clamped ones.
+ */
+function clampCornerCurvature(curvature: number): number {
+  return Math.min(STRAIGHT_CURVATURE, Math.max(NOTCH_CURVATURE_F, Math.fround(curvature)));
+}
 
 /** Blink `Superellipse::Exponent()` (`2^parameter`, clamped to ±16). */
 export function parseCornerShapeCurvature(value: string | undefined): number {
   const keyword: Record<string, number> = {
-    notch: NOTCH_CURVATURE,
+    // Superellipse::Notch()/Square() are -/+infinity; Exponent() clamps the
+    // parameter to ±16 (core/style/superellipse.h, Chromium 7d859f27).
+    notch: Math.pow(2, -16),
     scoop: 0.5,
     bevel: 1,
     round: ROUND_CURVATURE,
     squircle: 4,
-    square: STRAIGHT_CURVATURE,
+    square: Math.pow(2, 16),
   };
   const normalized = (value ?? "round").trim().toLowerCase();
   if (keyword[normalized] != null) return keyword[normalized];
@@ -328,6 +344,14 @@ export function parseCornerRadii(
     const fallback = parseFloat(styles.borderRadius) || 0;
     tl = tr = br = bl = { h: fallback, v: fallback };
   }
+  // A degenerate corner shape (superellipse parameter ≥ 16, e.g. `square`)
+  // has no radius at all (ContouredBorderGeometry CalcRadiiFor,
+  // contoured_border_geometry.cc:27-47, Chromium 7d859f27).
+  const degenerate = (shape: string | undefined) => parseCornerShapeCurvature(shape) >= DEGENERATE_CURVATURE;
+  if (degenerate(styles.cornerTopLeftShape)) tl = { h: 0, v: 0 };
+  if (degenerate(styles.cornerTopRightShape)) tr = { h: 0, v: 0 };
+  if (degenerate(styles.cornerBottomRightShape)) br = { h: 0, v: 0 };
+  if (degenerate(styles.cornerBottomLeftShape)) bl = { h: 0, v: 0 };
   // CSS corner-overlap scale-down: if rTL.h + rTR.h > width, scale all by
   // width / (rTL.h + rTR.h) (and similarly for the other three edges). We
   // take the smallest f across the four edges and apply it once.
@@ -766,21 +790,33 @@ function superellipseControls(
   ];
 }
 
-function cornerCommands(start: Point, outer: Point, end: Point, center: Point, rawCurvature: number): string[] {
-  let curvature = Math.max(NOTCH_CURVATURE, Math.min(STRAIGHT_CURVATURE, rawCurvature));
-  const concave = curvature < 1;
+function cornerCommands(
+  start: Point,
+  outer: Point,
+  end: Point,
+  center: Point,
+  rawCurvature: number,
+  fmt: (n: number) => string = r,
+): string[] {
+  // AddCurvedCorner (path_builder.cc:64-100, Chromium 7d859f27) draws a
+  // concave corner as its Inverse(): the curvature is inverted in float and
+  // then clamped, so an aligned notch (already clamped to kNotch) inverts to
+  // 999.99994. A convex corner built from the rect keeps its raw exponent
+  // (`square` is 2^16). Only exactly kStraight is drawn as two lines; anything
+  // else above round is the superellipse cubic pair.
+  const concave = rawCurvature < 1;
+  const curvature = concave ? clampCornerCurvature(Math.fround(1 / Math.fround(rawCurvature))) : rawCurvature;
   if (concave) {
-    curvature = 1 / curvature;
     [outer, center] = [center, outer];
   }
   const map = (v: Point): Point => mapCornerPoint({ start, outer, end, center, curvature }, v);
-  const point = (v: Point) => `${r(v.x)},${r(v.y)}`;
-  if (curvature >= STRAIGHT_CURVATURE) return [`L${point(start)}`, `L${point(outer)}`, `L${point(end)}`];
+  const point = (v: Point) => `${fmt(v.x)},${fmt(v.y)}`;
+  if (curvature === STRAIGHT_CURVATURE) return [`L${point(start)}`, `L${point(outer)}`, `L${point(end)}`];
   if (curvature === 1) return [`L${point(start)}`, `L${point(end)}`];
   if (curvature === ROUND_CURVATURE) {
     const radiusX = Math.abs(start.x - end.x),
       radiusY = Math.abs(start.y - end.y);
-    return [`L${point(start)}`, `A${r(radiusX)},${r(radiusY)} 0 0 ${concave ? 0 : 1} ${point(end)}`];
+    return [`L${point(start)}`, `A${fmt(radiusX)},${fmt(radiusY)} 0 0 ${concave ? 0 : 1} ${point(end)}`];
   }
   const [p1, p2, p3] = superellipseControls(curvature);
   const q1 = map(p1),
@@ -830,7 +866,7 @@ function alignedCorner(
     outer: add(origin.outer, v2, v3),
     end: add(origin.end, v3, v4),
     center: add(origin.center, v4, v1),
-    curvature: origin.curvature,
+    curvature: clampCornerCurvature(origin.curvature),
   };
 }
 
@@ -915,6 +951,97 @@ function contouredCornerGeometries(
     tlCorner = alignedCorner(tlCorner, originTl, inset.left, inset.top);
   }
   return { tl: tlCorner, tr: trCorner, br: brCorner, bl: blCorner };
+}
+
+/**
+ * Chromium `PathBuilder::AddContouredRect` for an outset ContouredRect, whose
+ * target rect contains its origin rect (platform/geometry/path_builder.cc:
+ * 273-325, Chromium 7d859f27). Each corner is aligned to the origin
+ * (`Corner::AlignedToOrigin`), so its curve no longer starts on the target's
+ * edges; the path mitres it out to them along the line from the corner's
+ * quadratic control point through its start/end. `c.contourInsets` are the
+ * (non-positive) insets from the origin rect to (x, y, w, h), and
+ * `c.originRadii` its radii. Without an origin (or with zero insets) it is the
+ * single-path branch. Returns null for an inset contour, which Blink builds by
+ * path intersection.
+ */
+export function contouredOutsetRectPath(x: number, y: number, w: number, h: number, c: CornerRadii): string | null {
+  const inset = c.contourInsets;
+  if (inset != null && (inset.top > 0 || inset.right > 0 || inset.bottom > 0 || inset.left > 0)) return null;
+  const single =
+    c.originRadii == null ||
+    inset == null ||
+    (inset.top === 0 && inset.right === 0 && inset.bottom === 0 && inset.left === 0);
+  const corners = contouredCornerGeometries(
+    x,
+    y,
+    w,
+    h,
+    single ? { ...c, originRadii: undefined, contourInsets: undefined } : c,
+  );
+  // Blink builds the path in float; one decimal would move a corner by up to
+  // 0.05px, so the contour keeps four.
+  const f = (n: number) => formatNumberLoose(n, 4);
+  // ContouredRect::Corner::QuadraticControlPoint (contoured_rect.cc).
+  const quadraticControlPoint = (corner: CornerGeometry): Point => {
+    let k = corner.curvature;
+    let geometry = corner;
+    if (k < 1) {
+      k = clampCornerCurvature(Math.fround(1 / Math.fround(k)));
+      geometry = { ...corner, outer: corner.center, center: corner.outer, curvature: k };
+    }
+    if (k >= ROUND_CURVATURE) return geometry.outer;
+    const control = 2 * Math.pow(0.5, 1 / k) - 0.5;
+    return mapCornerPoint(geometry, { x: control, y: control });
+  };
+  const isEmpty = (corner: CornerGeometry) =>
+    (corner.outer.x === corner.start.x && corner.outer.y === corner.start.y) ||
+    (corner.end.x === corner.outer.x && corner.end.y === corner.outer.y);
+  type Line = { p1: Point; p2: Point };
+  // gfx::LineF::IntersectionWith (infinite lines) and Normal().
+  const intersect = (a: Line, b: Line): Point | null => {
+    const ax = a.p2.x - a.p1.x,
+      ay = a.p2.y - a.p1.y;
+    const bx = b.p2.x - b.p1.x,
+      by = b.p2.y - b.p1.y;
+    const denom = ax * by - ay * bx;
+    if (denom === 0) return null;
+    const param = ((b.p1.x - a.p1.x) * by - (b.p1.y - a.p1.y) * bx) / denom;
+    return { x: a.p1.x + ax * param, y: a.p1.y + ay * param };
+  };
+  const miter = (corner: CornerGeometry, edge: Line, ref: Point): Point => {
+    const through = isEmpty(corner)
+      ? { x: ref.x + (edge.p1.y - edge.p2.y), y: ref.y + (edge.p2.x - edge.p1.x) }
+      : quadraticControlPoint(corner);
+    return intersect(edge, { p1: through, p2: ref }) ?? ref;
+  };
+  const top: Line = { p1: { x, y }, p2: { x: x + w, y } };
+  const bottom: Line = { p1: { x, y: y + h }, p2: { x: x + w, y: y + h } };
+  const left: Line = { p1: { x, y }, p2: { x, y: y + h } };
+  const right: Line = { p1: { x: x + w, y }, p2: { x: x + w, y: y + h } };
+  const point = (p: Point) => `${f(p.x)},${f(p.y)}`;
+  const curve = (corner: CornerGeometry) =>
+    cornerCommands(corner.start, corner.outer, corner.end, corner.center, corner.curvature, f);
+  const { tr, br, bl, tl } = corners;
+  if (single) {
+    // DrawAsSinglePath: origin == target, the corners need no mitre.
+    return [`M${point(tr.start)}`, ...curve(tr), ...curve(br), ...curve(bl), ...curve(tl), "Z"].join(" ");
+  }
+  return [
+    `M${point(miter(tr, top, tr.start))}`,
+    ...curve(tr),
+    `L${point(miter(tr, right, tr.end))}`,
+    `L${point(miter(br, right, br.start))}`,
+    ...curve(br),
+    `L${point(miter(br, bottom, br.end))}`,
+    `L${point(miter(bl, bottom, bl.start))}`,
+    ...curve(bl),
+    `L${point(miter(bl, left, bl.end))}`,
+    `L${point(miter(tl, left, tl.start))}`,
+    ...curve(tl),
+    `L${point(miter(tl, top, tl.end))}`,
+    "Z",
+  ].join(" ");
 }
 
 /**

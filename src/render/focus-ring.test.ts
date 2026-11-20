@@ -79,6 +79,50 @@ describe("focusRingStrokes", () => {
   });
 });
 
+// DM-SB1TAQ: a non-round corner-shape ring is Blink's ContouredRect path
+// (PaintSingleFocusRing, outline_painter.cc:829-845, Chromium 7d859f27).
+describe("focusRingStrokes with a corner-shape", () => {
+  const bevel = {
+    borderTopLeftRadius: "6px",
+    borderTopRightRadius: "6px",
+    borderBottomRightRadius: "6px",
+    borderBottomLeftRadius: "6px",
+    cornerTopLeftShape: "bevel",
+    cornerTopRightShape: "bevel",
+    cornerBottomRightShape: "bevel",
+    cornerBottomLeftShape: "bevel",
+  };
+
+  it("draws a zero-offset ring as the single contour path", () => {
+    const [, inner] = focusRingStrokes(focused(ring(), bevel));
+    expect(inner).toMatchObject({ x: 20, y: 20, w: 20, h: 20 });
+    expect(inner.path).toBe("M34,20 L34,20 L40,26 L40,34 L34,40 L26,40 L20,34 L20,26 L26,20 Z");
+  });
+
+  it("outsets the offset rect again and mitres its aligned corners to the edges", () => {
+    // Outer ring: offset 1 makes the 19..41 right-angle rect (the origin), and
+    // the contour is that rect outset by 1 again, 18..42.
+    const [outer] = focusRingStrokes(focused(ring(), bevel));
+    expect(outer).toMatchObject({ x: 18, y: 18, w: 24, h: 24 });
+    // Each bevel starts off the edge (aligned to the origin) and is mitred out.
+    expect(outer.path).toMatch(/^M35\.4142,18 L35\.7071,18\.2929 L41\.7071,24\.2929 L42,24\.5858 /);
+  });
+
+  it("gives a degenerate (square) corner the minimum radius with its raw exponent", () => {
+    const [, inner] = focusRingStrokes(focused(ring(), { borderTopLeftRadius: "8px", cornerTopLeftShape: "square" }));
+    // ComputeCornerRadii drops the square corner's radius, SetMinimumRadius
+    // restores W, and the 2^16 exponent is not kStraight, so it stays a curve.
+    expect(inner.radii.tl).toEqual({ h: 3, v: 3 });
+    expect(inner.path).toMatch(/C/);
+  });
+
+  it("keeps round corners on the SkRRect stroke and negative offsets on round corners", () => {
+    expect(focusRingStrokes(focused(ring(), { borderRadius: "6px" })).every((s) => s.path == null)).toBe(true);
+    const strokes = focusRingStrokes(focused(ring({ ringOffset: -3, outlineOffset: -3 }), bevel));
+    expect(strokes.every((stroke) => stroke.path == null)).toBe(true);
+  });
+});
+
 // DM-7FBK91: GetFocusRingCornerRadii (outline_painter.cc:755-803, chromium
 // 6b5a1b80) gives an unstyled native control its NativeTheme part radius.
 describe("focus ring corner source", () => {

@@ -30,6 +30,32 @@ const cases = [
   { name: "collapsing negative offset", css: "outline:2px auto red;outline-offset:-10px", bg: "white" },
   { name: "elliptical radius", css: "outline:2px auto red;border-radius:10px/4px", bg: "white" },
   { name: "zoom", css: "outline:2px auto red;zoom:2", bg: "black" },
+  // DM-SB1TAQ: a non-round corner-shape ring is Blink's ContouredRect path:
+  // the offset rect outset again, its corners aligned to it and mitred out.
+  { name: "bevel corner-shape", css: "outline:2px auto red;border-radius:8px;corner-shape:bevel", bg: "white" },
+  { name: "squircle corner-shape", css: "outline:2px auto red;border-radius:8px;corner-shape:squircle", bg: "white" },
+  { name: "scoop corner-shape", css: "outline:2px auto red;border-radius:10px 4px;corner-shape:scoop", bg: "white" },
+  {
+    name: "bevel corner-shape with an offset",
+    css: "outline:2px auto red;outline-offset:3px;border-radius:6px;corner-shape:bevel",
+    bg: "white",
+  },
+  { name: "corner-shape without a radius", css: "outline:2px auto red;corner-shape:bevel", bg: "white" },
+  {
+    name: "corner-shape on a sharp corner",
+    css: "outline:2px auto red;border-radius:8px 0;corner-shape:bevel",
+    bg: "white",
+  },
+  {
+    name: "degenerate and high-curvature corner-shapes",
+    css: "outline:2px auto red;border-radius:8px;corner-shape:square superellipse(12) bevel scoop",
+    bg: "white",
+  },
+  {
+    name: "mixed corner-shapes with an offset",
+    css: "outline:2px auto red;outline-offset:3px;border-radius:6px 2px 9px 0;corner-shape:squircle notch bevel round",
+    bg: "black",
+  },
 ];
 
 it.each(cases)("matches native paint: $name", async ({ css, bg, focus, scheme }) => {
@@ -59,6 +85,26 @@ it.each(cases)("matches native paint: $name", async ({ css, bg, focus, scheme })
   } finally {
     await page.close();
     await output.close();
+  }
+});
+
+// Negative control for the corner-shape cases above: natively the shape moves
+// the ring, so matching it is not matching a round ring.
+it("paints a corner-shape focus ring differently from a round one natively", async () => {
+  const page = await browser.newPage({ viewport });
+  try {
+    const shot = async (css: string) => {
+      await page.setContent(`<style>body{margin:0;background:white}</style><div style="${BOX};${css}"></div>`);
+      return sharp(await page.screenshot())
+        .removeAlpha()
+        .raw()
+        .toBuffer();
+    };
+    const round = await shot("outline:2px auto red;outline-offset:3px;border-radius:6px");
+    const bevel = await shot("outline:2px auto red;outline-offset:3px;border-radius:6px;corner-shape:bevel");
+    expect(bevel.equals(round)).toBe(false);
+  } finally {
+    await page.close();
   }
 });
 
