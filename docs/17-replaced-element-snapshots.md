@@ -184,11 +184,47 @@ the screenshot shows what Chromium had painted, and the drawing is gone.
 target, which responds once that feature info is initialized
 (`src/capture/gpu-startup-barrier.ts`; normally about 30 ms, bounded at 5 s).
 After the change, 72 of 72 fresh launches kept their first page's canvas, while
-unpatched launches lost it in 12 of 20. A browser launched with
-`--use-angle=swiftshader` lost nothing (0 of 20), which points at the automatic
-GPU backend's startup fallback. `src/capture/gpu-startup-barrier.e2e.test.ts`
+unpatched launches lost it in 12 of 20. `src/capture/gpu-startup-barrier.e2e.test.ts`
 launches ten fresh browsers and fails if any first-page canvas is lost; without
 the barrier it failed in 3 of 10 launches.
+
+The loss comes from Chromium's software-compositing fallback (Chromium
+7d859f27). In headless Chromium the browser compositor cannot create GPU
+contexts and calls `VizProcessTransportFactory::DisableGpuCompositing`, which
+tells every registered compositing-mode watcher to fall back to software
+(`compositing_mode_reporter_impl.cc`). A renderer's watcher answers with
+`RenderThreadImpl::CompositingModeFallbackToSoftware` → `gpu_->LoseChannel()`,
+and losing the GPU channel loses its shared-image canvases. A renderer has no
+watcher if it launched with `--disable-gpu-compositing`, which the browser adds
+when `GpuDataManagerImpl::IsGpuCompositingDisabled()` is already true
+(`render_process_host_impl.cc`). On macOS arm64 the feature info moves the
+browser's GPU mode from hardware Graphite to `SOFTWARE_GL`
+(`GpuDataManagerImplPrivate::UpdateGpuFeatureInfo` → `FallBackToNextGpuMode`),
+so after the wait the first page's renderer launches in software compositing
+(6 of 6 with the wait, 0 of 6 without). `--disable-software-compositing-fallback`
+turns the fallback into a fatal error and crashed every launch with or without
+the wait, so the wait does not prevent the fallback; it only keeps the
+renderer from being subscribed to it. `--use-angle=swiftshader` avoided the
+loss differently: GPU compositing then stays enabled and no fallback occurs.
+
+On Linux (the CI Playwright container, x64 and arm64) and on Windows (GitHub
+`windows-latest`), no first-page canvas was lost with or without the wait (10
+of 10 each), and the e2e test passes. There the first page's renderer starts
+in GPU compositing mode even after the wait (no `--disable-gpu-compositing`, so
+the feature info has not made `IsGpuCompositingDisabled()` true; why has not
+been read in source), and the fallback still runs, during page creation and
+before the document's canvas exists. (The renderer's arguments were read on
+Windows from the process table and in the arm64 container through
+`--renderer-cmd-prefix`; Linux process titles are truncated.) The wait therefore changes nothing on
+those hosts (it resolves in 2–3 ms on Linux), and the e2e test cannot fail
+there for this cause.
+
+`cc/raster/zero_copy_raster_buffer_provider.cc` can leave a tile undrawn when
+it fails to create a mappable shared image, but only for a renderer in GPU
+compositing mode (`!is_software_`). Zero-copy upload is the default only on
+macOS (`IsZeroCopyUploadEnabled` in `content/browser/gpu/compositor_util.cc`),
+and there a renderer launched after the wait is in software compositing, so
+that branch is unreachable for pages created through `launchChromium`.
 
 A browser that the caller launches or connects to itself does not pass through
 `launchChromium`, and the capture cannot repair it: the wait has to happen
