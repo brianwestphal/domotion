@@ -258,8 +258,23 @@ coordinate contract. Root-only setup leaves authored nested SVG flex
 layouts unchanged. Native landscape/square/portrait geometry, nested-flex,
 pan/crop and paused-source roundtrip cases protect this boundary in
 `tests/scrubber-natural-size.e2e.test.ts`.
-Small footer-only differences remain separately unclassified; stage identity
-must not be reported as whole-page pixel identity.
+Stage identity must not be reported as whole-page pixel identity: a small
+footer-only residual remains, and it is native raster history rather than a
+layout or source difference. On native macOS Chromium 147.0.7727.15 it is 80
+pixels (17 in a footer-only clip) with a maximum channel delta of 1, all at the
+bottom rounded-corner antialiasing of the row-2 toolbar buttons (7px radius,
+1px border, top at y=856.406, bottom edge at y=890). Every button rect, border,
+radius, shadow and background is identical before and after the round trip.
+Any single viewport resize produces it (height-only or width-only), and the
+returned state is stable: a second round trip, a forced repaint of the document
+and a page that loaded at 1440×844 and was then resized to 1440×900 all match
+the returned state, while a freshly loaded 1440×900 page matches the original.
+So the same paint inputs rasterize two ways depending on the page's resize
+history. `cc` sizes GPU raster tiles from the viewport at the layer's last
+property push (`cc/layers/picture_layer.cc:62`,
+`cc/layers/tile_size_calculator.cc:162-215`, rev 7d859f27), which is a
+candidate mechanism, but a document repaint did not restore the original state,
+so the native mechanism is unproved. No scrubber change follows from it.
 
 The exact native Chromium source at
 [`6b5a1b80`](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/layout/svg/layout_svg_text.cc#218)
