@@ -1,0 +1,35 @@
+# TEMPORARY throwaway-branch workflow (never merged): hosted-macOS repro for
+# the capture API's first raster screenshot on a just-launched browser.
+name: tmp capture API first-capture repro
+on:
+  push:
+    branches: [tmp/screenshot-capture-api-repro]
+jobs:
+  repro:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.21.0", cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install chromium
+      - name: captureElementTreeWithWarnings right after setContent
+        run: node .github/tmp-repro3/probe.mjs
+        env: { ARM: capture, ITERATIONS: "500", PARALLEL: "6", OUT: "repro-capture-${{ matrix.shard }}.jsonl" }
+      - name: captureElementTreeWithDebug right after setContent
+        run: node .github/tmp-repro3/probe.mjs
+        env: { ARM: capture-debug, ITERATIONS: "500", PARALLEL: "6", OUT: "repro-capturedebug-${{ matrix.shard }}.jsonl" }
+      - name: two animation frames, then captureElementTreeWithWarnings
+        run: node .github/tmp-repro3/probe.mjs
+        env: { ARM: capture-raf, ITERATIONS: "500", PARALLEL: "6", OUT: "repro-captureraf-${{ matrix.shard }}.jsonl" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: repro3-${{ matrix.shard }}
+          path: "*.jsonl"
