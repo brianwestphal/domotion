@@ -6,7 +6,18 @@ status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
 tickets:
-  ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9", "DM-WREGPJ", "DM-ZAXD0C", "DM-JRG1BD"]
+  [
+    "DM-2518",
+    "DM-VY5DHJ",
+    "DM-JQ57WW",
+    "DM-N80HJW",
+    "DM-ESH89H",
+    "DM-PJG8E9",
+    "DM-WREGPJ",
+    "DM-ZAXD0C",
+    "DM-JRG1BD",
+    "DM-D8RS5E",
+  ]
 code:
   [
     "src/font-family-stack.test.ts",
@@ -31,6 +42,7 @@ code:
     "src/capture/font-family-values.ts",
     "src/capture/font-family-values.test.ts",
     "tests/font-family-css-wide-provenance.e2e.test.ts",
+    "tests/font-family-tree-order.e2e.test.ts",
     "src/capture/font-family-default.e2e.test.ts",
     "packages/text-engine/src/font-family-stack.test.ts",
     "packages/text-engine/src/font-family-stack.ts",
@@ -242,10 +254,54 @@ join all stay unknown. `tests/font-family-animation-provenance.e2e.test.ts`
 proves each admitted case against natively painted static `initial` and
 same-named concrete controls, with a negative control that breaks the join.
 
-Assigned-slot/author-shadow inheritance, nested or anonymous layer identity,
-scoped/starting rules and injected sheets whose author/user origin is not exposed,
+### Tree contexts and nested layers
+
+Declarations from different tree scopes are ordered as Blink orders them. The
+resolver does not use a single document order for them.
+`StyleResolver::MatchAuthorRules` (`style_resolver.cc:1039-1047`, Chromium
+7d859f27) collects author rules in this order:
+
+1. `:host` rules from the element's own shadow root (`:716-730`).
+2. `::slotted` rules from each assigned slot's scope, deepest slot first (`:773-799`).
+3. The element's own scope, together with its style attribute (`:892-913`).
+4. `::part` and shadow-pseudo rules from the enclosing scopes, outward (`:915-1037`).
+
+Each group calls `BeginAddingAuthorRulesForTreeScope`, which assigns the next
+`tree_order` (`match_result.cc:85-90`). `CascadePriority` compares `tree_order`
+directly below origin and importance, and `EncodeTreeOrder` flips it for
+important declarations (`cascade_priority.h`). So for normal declarations the
+outer context wins, and for `!important` ones the inner context wins.
+`ForLayerComparison` keeps tree order, so `revert-layer` keeps it too.
+
+`nativeFontFamilyType` derives each scope's ordered tree-scope list from the
+pierced DOM (`treeContextFor` in `font-family-cascade-cdp.ts`). It walks the
+inheritance chain along the flat tree: a slotted node continues at its assigned
+slot, and a shadow root's children continue at the host, as the inspector's
+`inherited` list does. A light-DOM child of a shadow host that is not assigned to
+a slot is refused, because it is not in the flat tree.
+
+The inspector lists rules in collection order. `PseudoCSSRulesForElement` runs
+`MatchAuthorRules`, `SortAndTransferMatchedRules` appends each group in turn
+(`element_rule_collector.cc:1235-1255`), and `originTreeScopeNodeId` is that
+group's scope (`element_rule_collector.h:212-215`). A list whose scopes step
+back to an earlier tree context is therefore refused, not reinterpreted.
+
+A rule's `@layer` names are resolved against the layer tree from
+`CSS.getLayersForNode`. Nested blocks and dotted names concatenate into one path.
+Order is the post-order numbering of `ComputeLayerOrder`
+(`cascade_layer_map.cc:40-47`), which the inspector reproduces
+(`inspector_css_agent.cc:1261-1325`). That layer map belongs to one tree scope.
+A layered rule from another scope, a rule in an anonymous layer, and an escaped
+layer name are refused. Elements of a user-agent shadow tree are refused,
+because `ScopedResolverFor` can report a different scope than the group's tree
+order there. `tests/font-family-tree-order.e2e.test.ts` checks `::slotted`,
+`:host !important`, `::part`, flat-tree inheritance and nested-layer cases
+against natively painted faces. It also checks that reversing the inspector's
+rule list is refused.
+
+Scoped/starting rules and injected sheets whose author/user origin is not exposed,
 unsupported direct functions, unproved `all` substitution and transition-driven
-family type remain explicit unknowns (DM-RRAX58, DM-D8RS5E). No broader cascade
+family type remain explicit unknowns (DM-RRAX58). No broader cascade
 parity is claimed. Inheritance is capped at 64 scopes, computed style at 4,096 properties,
 and substitution at 64 KiB/32 nested levels/256 expansions. New native reads have
 Node bounds; late reads cannot start another query or install a family fact.

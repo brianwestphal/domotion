@@ -355,7 +355,14 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > the family cascade is classified by its authored keyframe — Blink applies that
 > CSSValue itself — chosen by a transcription of Blink's keyframe sampler and
 > joined to the Blink-resolved `cssKeyframesRules` or specified WAAPI keyframes
-> (DM-ZAXD0C); transitions, pseudo targets and tree/layer authority remain
+> (DM-ZAXD0C). Declarations from different tree scopes (`:host`,
+> `::slotted`, `::part`) are ordered by Blink's `tree_order`, which the
+> resolver derives from the pierced DOM. Normal declarations let the outer
+> context win and important ones the inner (`cascade_priority.h`
+> `EncodeTreeOrder`). Inheritance follows the flat tree through assigned
+> slots, and nested or dotted `@layer` names resolve to the native post-order
+> layer numbering (DM-D8RS5E). Transitions, pseudo targets, anonymous layers,
+> layered rules from another tree scope, and user-agent shadow trees remain
 > unknown (DM-RRAX58). See doc213 for the exact bounded contract.
 > Genuine initial routing remains enabled with unrelated opaque sheets. Facts
 > use removed private expandos and released CDP object groups, never authored

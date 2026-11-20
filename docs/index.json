@@ -5122,7 +5122,8 @@
           "DM-PJG8E9",
           "DM-WREGPJ",
           "DM-ZAXD0C",
-          "DM-JRG1BD"
+          "DM-JRG1BD",
+          "DM-D8RS5E"
         ],
         "code": [
           "src/font-family-stack.test.ts",
@@ -5147,6 +5148,7 @@
           "src/capture/font-family-values.ts",
           "src/capture/font-family-values.test.ts",
           "tests/font-family-css-wide-provenance.e2e.test.ts",
+          "tests/font-family-tree-order.e2e.test.ts",
           "src/capture/font-family-default.e2e.test.ts",
           "packages/text-engine/src/font-family-stack.test.ts",
           "packages/text-engine/src/font-family-stack.ts",

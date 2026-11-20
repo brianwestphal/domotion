@@ -42,10 +42,38 @@ export interface NativeFamilyLayers {
   order: number;
   subLayers?: NativeFamilyLayers[];
 }
-export interface FamilyCascadeContext {
+/**
+ * The tree contexts one element's author rules can come from, in Blink's
+ * cascade tree order. `StyleResolver::MatchAuthorRules`
+ * (core/css/resolver/style_resolver.cc:1039-1047, Chromium 7d859f27) collects
+ * `:host` rules from the element's own shadow root, then `::slotted` rules from
+ * each assigned slot's tree scope with the deepest slot first (:773-799), then
+ * the element's own scope with its style attribute (:892-913), then `::part`
+ * and shadow-pseudo rules from the enclosing scopes outward (:915-1037). Every
+ * group starts with `BeginAddingAuthorRulesForTreeScope`, which gives it the
+ * next `tree_order` (match_result.cc:85-90), and `CascadePriority` compares
+ * `tree_order` right below origin and importance, flipped for important
+ * declarations (cascade_priority.h `EncodeTreeOrder`): a later scope wins for
+ * normal declarations and an earlier one for important declarations.
+ */
+export interface FamilyTreeContext {
+  /** Tree-scope root backend node ids, lowest `tree_order` first. */
+  treeScopes: readonly number[];
+  /** The element's own tree scope, the one `layers` and inline style belong to. */
+  elementScope: number;
+  /** `CSS.getLayersForNode` for an element of `elementScope`: that scope's
+   * `CascadeLayerMap`, numbered as `ComputeLayerOrder` does
+   * (cascade_layer_map.cc:40-47; inspector_css_agent.cc:1261-1325). */
   layers: NativeFamilyLayers;
-  /** Only a single authenticated document tree is admitted by this resolver. */
+}
+export interface FamilyCascadeContext {
+  /** The element's tree scope's layers, used for every scope without a `treeContexts` entry. */
+  layers: NativeFamilyLayers;
+  /** The single document tree scope assumed for every scope without a `treeContexts` entry. */
   treeScopeId: number;
+  /** Per matched scope (the element, then each inherited ancestor in the
+   * flat tree), the tree contexts its author rules may come from. */
+  treeContexts?: ReadonlyArray<FamilyTreeContext | undefined>;
   resolve(value: string, shorthand: boolean, scope: number): Promise<FamilyValue>;
   /** Native animation authority for a scope whose cascade winner is an
    * animation. `base` means every animation layer currently applies a neutral
@@ -62,6 +90,8 @@ interface Candidate {
   important: boolean;
   origin: Origin;
   inline: boolean;
+  /** Blink's `tree_order` (0 for every non-author origin). */
+  tree: number;
   layer: number;
   order: number;
 }
@@ -74,16 +104,48 @@ const major = (c: Candidate) =>
       : c.important
         ? { author: 5, user: 6, ua: 7, hint: 5 }[c.origin]
         : naturalOrigin(c.origin);
-const layerKey = (c: Candidate) => [naturalOrigin(c.origin), Number(c.inline), c.layer];
+// `CascadePriority::ForLayerComparison` keeps origin, tree order, inline-ness
+// and layer order with importance removed (cascade_priority.h).
+const layerKey = (c: Candidate) => [naturalOrigin(c.origin), c.tree, Number(c.inline), c.layer];
 const compareKeys = (a: number[], b: number[]) => {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];
   return 0;
 };
-const compare = (a: Candidate, b: Candidate) =>
-  compareKeys(
-    [major(a), Number(a.inline), a.important ? -a.layer : a.layer, a.order],
-    [major(b), Number(b.inline), b.important ? -b.layer : b.layer, b.order],
-  );
+// CascadePriority bit order: origin/importance, then tree order (high bits),
+// then inline style, layer order and position (low bits). Tree and layer order
+// are flipped for important declarations.
+const priority = (c: Candidate) => [
+  major(c),
+  c.important ? -c.tree : c.tree,
+  Number(c.inline),
+  c.important ? -c.layer : c.layer,
+  c.order,
+];
+const compare = (a: Candidate, b: Candidate) => compareKeys(priority(a), priority(b));
+
+/** Resolve a rule's enclosing `@layer` names (outermost first, as the
+ * inspector lists them) to the native layer order. Nested blocks and dotted
+ * names concatenate into one path (`@layer a { @layer b.c }` is `a.b.c`), and
+ * the canonical map merges equal named paths, so a named path is unique. An
+ * anonymous layer has no name to look up, and a name with an escape cannot be
+ * split reliably, so both are refused. */
+function layerOrderForRule(layers: NativeFamilyLayers, texts: ReadonlyArray<{ text?: string }>): number | undefined {
+  const path: string[] = [];
+  for (const { text } of texts) {
+    if (text == null || text === "" || text.includes("\\")) return undefined;
+    for (const segment of text.split(".")) {
+      if (segment === "") return undefined;
+      path.push(segment);
+    }
+  }
+  let level: NativeFamilyLayers | undefined = layers;
+  for (const segment of path) {
+    const matches: NativeFamilyLayers[] = (level?.subLayers ?? []).filter((layer) => layer.name === segment);
+    if (matches.length !== 1) return undefined;
+    level = matches[0];
+  }
+  return level !== layers && level != null && Number.isSafeInteger(level.order) ? level.order : undefined;
+}
 const clean = (value: string) => value.replace(/\/\*[\s\S]*?\*\//g, " ").trim();
 export function canonicalFamily(
   style: FamilyStyle | undefined,
@@ -138,29 +200,34 @@ export async function resolveMatchedFontFamilyType(
   context: FamilyCascadeContext,
 ): Promise<FamilyResolution> {
   if (!Number.isSafeInteger(context.treeScopeId)) return { reason: "unavailable tree-scope identity" };
-  const layers = new Map<string, number>();
-  if (!Number.isSafeInteger(context.layers.order)) return { reason: "unavailable native layer order" };
-  for (const layer of context.layers.subLayers ?? []) {
-    if (layer.subLayers?.length || !layer.name || layers.has(layer.name) || !Number.isSafeInteger(layer.order))
-      return { reason: "unsupported nested or anonymous layer authority" };
-    layers.set(layer.name, layer.order);
-  }
   const scopes = [matched, ...(matched.inherited ?? [])];
   if (scopes.length > 64) return { reason: "font inheritance depth exceeds budget" };
   for (let index = 0; index < scopes.length; index++) {
     const scope = scopes[index];
     if (!Array.isArray(scope.matchedCSSRules)) return { reason: "incomplete matched font rules" };
+    const tree: FamilyTreeContext = context.treeContexts?.[index] ?? {
+      treeScopes: [context.treeScopeId],
+      elementScope: context.treeScopeId,
+      layers: context.layers,
+    };
+    if (!Number.isSafeInteger(tree.layers.order)) return { reason: "unavailable native layer order" };
+    const elementTree = tree.treeScopes.indexOf(tree.elementScope);
+    if (elementTree < 0 || new Set(tree.treeScopes).size !== tree.treeScopes.length)
+      return { reason: "unavailable tree-scope identity" };
     const candidates: Candidate[] = [];
     let order = 0;
+    let lastAuthorTree = -1;
     const add = (
       style: FamilyStyle | undefined,
       origin: Origin,
       inline = false,
-      layer = context.layers.order,
+      layer = tree.layers.order,
+      treeOrder = 0,
     ): string | undefined => {
       const entries = canonicalFamily(style);
       if (typeof entries === "string") return entries;
-      for (const entry of entries) candidates.push({ ...entry, origin, inline, layer, order: order++ });
+      for (const entry of entries)
+        candidates.push({ ...entry, origin, inline, tree: treeOrder, layer, order: order++ });
     };
     let reason = add(scope.attributesStyle, "hint");
     for (const { rule } of scope.matchedCSSRules) {
@@ -185,21 +252,38 @@ export async function resolveMatchedFontFamilyType(
         reason = "unsupported stylesheet origin";
         break;
       }
-      if (origin !== "ua" && rule.originTreeScopeNodeId !== context.treeScopeId) {
-        reason = "unproved font tree-scope order";
-        break;
+      let treeOrder = 0;
+      if (origin !== "ua") {
+        treeOrder = rule.originTreeScopeNodeId == null ? -1 : tree.treeScopes.indexOf(rule.originTreeScopeNodeId);
+        if (treeOrder < 0) {
+          reason = "unproved font tree-scope order";
+          break;
+        }
+        // The inspector lists rules in collection order
+        // (`PseudoCSSRulesForElement` runs `MatchAuthorRules`, and
+        // `SortAndTransferMatchedRules` appends each tree-scope group in
+        // turn; element_rule_collector.cc:1235-1255). A list that steps back
+        // to an earlier tree context contradicts the derived order.
+        if (treeOrder < lastAuthorTree) {
+          reason = "matched font rule order contradicts tree order";
+          break;
+        }
+        lastAuthorTree = treeOrder;
       }
-      let layer = context.layers.order;
+      let layer = tree.layers.order;
       if (rule.layers?.length) {
-        if (rule.layers.length !== 1 || !rule.layers[0].text || !layers.has(rule.layers[0].text)) {
+        // `layers` is the CascadeLayerMap of the element's own tree scope only.
+        const resolved = treeOrder === elementTree ? layerOrderForRule(tree.layers, rule.layers) : undefined;
+        if (resolved == null) {
           reason = "unproved font layer identity";
           break;
         }
-        layer = layers.get(rule.layers[0].text)!;
+        layer = resolved;
       }
-      reason = add(rule.style, origin, false, layer);
+      reason = add(rule.style, origin, false, layer, treeOrder);
     }
-    reason ??= add(scope.inlineStyle, "author", true);
+    // The style attribute joins the element scope's group (style_resolver.cc:892-913).
+    reason ??= add(scope.inlineStyle, "author", true, tree.layers.order, elementTree);
     for (const animation of scope.animationStyles ?? []) reason ??= add(animation.style, "animation");
     reason ??= add(scope.transitionsStyle, "transition");
     if (reason) return { reason };

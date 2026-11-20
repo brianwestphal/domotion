@@ -138,19 +138,59 @@ describe("canonical initial-name family cascade (DM-ESH89H)", () => {
     m.matchedCSSRules![0].rule!.style!.cssProperties![0].important = true;
     expect(await resolve(m)).toEqual({ type: "standard" });
   });
-  it("refuses incomplete, composed or nested/anonymous layer authority", async () => {
+  it("refuses incomplete identity and a rule in an anonymous layer", async () => {
     expect(await resolve({})).toMatchObject({ reason: expect.any(String) });
     const m = scope("Times");
     m.matchedCSSRules![0].rule!.originTreeScopeNodeId = 99;
     expect(await resolve(m)).toEqual({ reason: "unproved font tree-scope order" });
-    expect(
-      await resolve(scope("Times"), { layers: { name: "outer", order: 1, subLayers: [{ name: "", order: 0 }] } }),
-    ).toMatchObject({ reason: expect.any(String) });
-    expect(
-      await resolve(scope("Times"), {
-        layers: { name: "outer", order: 2, subLayers: [{ name: "x", order: 1, subLayers: [{ name: "y", order: 0 }] }] },
-      }),
-    ).toMatchObject({ reason: expect.any(String) });
+    const anonymous = {
+      name: "outer",
+      order: 2,
+      subLayers: [
+        { name: "", order: 0 },
+        { name: "", order: 1 },
+      ],
+    };
+    // An unused anonymous layer does not affect unlayered rules…
+    expect(await resolve(scope("Times"), { layers: anonymous })).toEqual({ type: "concrete" });
+    // …but a rule inside one cannot be placed.
+    const inAnonymous = scope("Times");
+    inAnonymous.matchedCSSRules![0].rule!.layers = [{ text: "" }];
+    expect(await resolve(inAnonymous, { layers: anonymous })).toEqual({ reason: "unproved font layer identity" });
+    const missing = scope("Times");
+    missing.matchedCSSRules![0].rule!.layers = [{ text: "absent" }];
+    expect(await resolve(missing)).toEqual({ reason: "unproved font layer identity" });
+  });
+  it("orders nested and dotted layers by the native post-order numbering", async () => {
+    // @layer a { @layer b {…} } @layer a.c {…} @layer a {…}: b=0, c=1, a=2, outer=3
+    // (ComputeLayerOrder, cascade_layer_map.cc:40-47).
+    const layers = {
+      name: "implicit outer layer",
+      order: 3,
+      subLayers: [
+        {
+          name: "a",
+          order: 2,
+          subLayers: [
+            { name: "b", order: 0 },
+            { name: "c", order: 1 },
+          ],
+        },
+      ],
+    };
+    const m = scope("initial", "Times", "initial");
+    m.matchedCSSRules![0].rule!.layers = [{ text: "a" }];
+    m.matchedCSSRules![1].rule!.layers = [{ text: "a.c" }];
+    m.matchedCSSRules![2].rule!.layers = [{ text: "a" }, { text: "b" }];
+    // a (order 2) beats a.c (1) and a.b (0) for normal declarations.
+    expect(await resolve(m, { layers })).toEqual({ type: "standard" });
+    // With a.b's value concrete and a's removed, a.c still beats a.b.
+    const n = scope("Times", "initial");
+    n.matchedCSSRules![0].rule!.layers = [{ text: "a" }, { text: "b" }];
+    n.matchedCSSRules![1].rule!.layers = [{ text: "a.c" }];
+    expect(await resolve(n, { layers })).toEqual({ type: "standard" });
+    for (const row of n.matchedCSSRules!) row.rule!.style!.cssProperties![0].important = true;
+    expect(await resolve(n, { layers })).toEqual({ type: "concrete" });
   });
 });
 
@@ -200,4 +240,70 @@ it("resolves an inherited substitution in its parent context", async () => {
       },
     ),
   ).toEqual({ type: "concrete" });
+});
+
+describe("tree-context order across shadow scopes", () => {
+  // Shapes from Chromium 147: a slotted span and a shadow host, each matched by
+  // a rule from the shadow root (scope 11) and one from the document (scope 5).
+  const rule = (scopeId: number, value: string, important = false, layers?: Array<{ text: string }>) => ({
+    rule: {
+      origin: "regular",
+      originTreeScopeNodeId: scopeId,
+      style: { cssProperties: [{ name: "font-family", value, important }] },
+      ...(layers != null ? { layers } : {}),
+    },
+  });
+  const layers = { name: "implicit outer layer", order: 0 };
+  // ::slotted and :host rules come from the shadow root, which precedes the
+  // element's own document scope in tree order.
+  const treeContexts = [{ treeScopes: [11, 5], elementScope: 5, layers }];
+  it("lets the later (outer) scope win for normal declarations", async () => {
+    expect(await resolve({ matchedCSSRules: [rule(11, "initial"), rule(5, "Courier")] }, { treeContexts })).toEqual({
+      type: "concrete",
+    });
+    expect(await resolve({ matchedCSSRules: [rule(11, "Courier"), rule(5, "initial")] }, { treeContexts })).toEqual({
+      type: "standard",
+    });
+  });
+  it("lets the earlier (inner) scope win for important declarations", async () => {
+    expect(
+      await resolve({ matchedCSSRules: [rule(11, "initial", true), rule(5, "Arial", true)] }, { treeContexts }),
+    ).toEqual({ type: "standard" });
+    // Importance still outranks tree order.
+    expect(await resolve({ matchedCSSRules: [rule(11, "initial"), rule(5, "Arial", true)] }, { treeContexts })).toEqual(
+      { type: "concrete" },
+    );
+  });
+  it("puts the style attribute in the element scope's group", async () => {
+    const inlineStyle = { cssProperties: [{ name: "font-family", value: "initial" }] };
+    // The inline style shares the document rule's tree order and wins as inline.
+    expect(
+      await resolve({ matchedCSSRules: [rule(11, "Courier"), rule(5, "Courier")], inlineStyle }, { treeContexts }),
+    ).toEqual({ type: "standard" });
+    // An element inside the shadow root: a document ::part rule is a later
+    // group than the element scope, so it beats the inline style.
+    expect(
+      await resolve(
+        { matchedCSSRules: [rule(5, "Courier")], inlineStyle },
+        { treeContexts: [{ treeScopes: [11, 5], elementScope: 11, layers }] },
+      ),
+    ).toEqual({ type: "concrete" });
+  });
+  it("negative control: a reordered rule list is refused, not reinterpreted", async () => {
+    expect(await resolve({ matchedCSSRules: [rule(5, "Courier"), rule(11, "initial")] }, { treeContexts })).toEqual({
+      reason: "matched font rule order contradicts tree order",
+    });
+  });
+  it("refuses a scope outside the element's tree contexts and a layered rule from another scope", async () => {
+    expect(await resolve({ matchedCSSRules: [rule(12, "Courier")] }, { treeContexts })).toEqual({
+      reason: "unproved font tree-scope order",
+    });
+    const layered = { name: "implicit outer layer", order: 1, subLayers: [{ name: "a", order: 0 }] };
+    expect(
+      await resolve(
+        { matchedCSSRules: [rule(11, "Courier", false, [{ text: "a" }])] },
+        { treeContexts: [{ treeScopes: [11, 5], elementScope: 5, layers: layered }] },
+      ),
+    ).toEqual({ reason: "unproved font layer identity" });
+  });
 });
