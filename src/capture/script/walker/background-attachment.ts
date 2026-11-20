@@ -200,8 +200,10 @@ export const createBackgroundAttachmentHandler = ({
       source: "blink-box-background-paint-context-v1",
       fixedToViewport: needsFixed ? fixedToViewport(el) : false,
       layoutViewport: {
-        x: -vp.x,
-        y: -vp.y,
+        // `0 - v`, not `-v`: an unscrolled viewport would otherwise record -0,
+        // which a JSON round-trip of the captured tree turns into 0.
+        x: 0 - vp.x,
+        y: 0 - vp.y,
         // Root clientHeight may expose the stitched document height when the
         // root box itself is unconstrained. The layout viewport never exceeds
         // innerWidth/innerHeight; client* is only the scrollbar-excluding cap.
