@@ -153,7 +153,12 @@ describe("offscreen WebGL preflight", () => {
         const before = await Promise.all(page.frames().map((frame) => frame.evaluate(() => [scrollX, scrollY])));
         const ticks = await page.evaluate(() => (window as unknown as { ticks: number }).ticks);
         states.push(await canvasSourceState(canvas, "before offscreen presentation"));
-        expect(await primeOffscreenCanvases(page)).toEqual({ primed: 1, failed: 0, skipped: 0 });
+        // Blink throttles the fully hidden cross-origin frame (hidden for
+        // throttling and cross-origin to the main frame), so no request can
+        // activate its paint; the preflight reports it skipped, not primed.
+        expect(await primeOffscreenCanvases(page)).toEqual(
+          kind === "cross-origin" ? { primed: 0, failed: 0, skipped: 1 } : { primed: 1, failed: 0, skipped: 0 },
+        );
         expect(await Promise.all(page.frames().map((frame) => frame.evaluate(() => [scrollX, scrollY])))).toEqual(
           before,
         );

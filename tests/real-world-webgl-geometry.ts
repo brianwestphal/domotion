@@ -86,6 +86,27 @@ export function mapPolygon(matrix: Homography, points: Polygon): Polygon | null 
   return mapped.every((p) => Number.isFinite(p.x + p.y)) ? mapped : null;
 }
 
+/**
+ * Whether Blink renders this chain under hidden-frame throttling.
+ *
+ * Chromium 7d859f27 `FrameView::UpdateViewportIntersection` marks a child frame
+ * `hidden_for_throttling` when its owner's intersection with the implicit root
+ * (the main frame's layout viewport, no margins) is empty and its frame rect
+ * is not. `LocalFrameView::CanThrottleRendering` throttles such a frame only
+ * when it is cross-origin to the nearest main frame, and a throttled frame
+ * throttles its whole subtree (`CanThrottleRenderingForPropagation`). A canvas
+ * under any such frame is never painted, so a screenshot request succeeds
+ * without source paint.
+ */
+export function chainIsRenderThrottled(
+  frames: readonly { visible: Polygon; crossOriginToMain: boolean }[],
+  root: GeometryRect,
+): boolean {
+  return frames.some(
+    (frame) => frame.crossOriginToMain && intersectPolygons(frame.visible, rectPolygon(root)).length === 0,
+  );
+}
+
 /** Sutherland–Hodgman in the authenticated common viewport, before any screenshot AABB. */
 export function intersectPolygons(subject: Polygon, clip: Polygon): Polygon {
   if (subject.length < 3 || clip.length < 3) return [];

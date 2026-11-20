@@ -975,9 +975,31 @@ Projection and paint activation have separate evidence. Default native
 HeadlessChrome 147 revision `6b5a1b80…` returned blank tight **and broad** screenshots
 for a fully hidden cross-origin frame whose source bitmap was red; the same
 source painted with a partly visible owner and a wholly offscreen canvas.
-DM-PCT7GR tracks that pre-existing presentation gap. The `primed` counter retains
-its existing successful-request meaning and is not a paint certificate. Native
-cross-origin/OOPIF projection positives therefore use partly visible owners and
+
+That frame was render-throttled. The cause is in the pinned Chromium source
+(`7d859f27`):
+
+- `FrameView::UpdateViewportIntersection` marks a child frame
+  `hidden_for_throttling` when its owner's `ReplacedContentRect` has an empty
+  intersection with the main frame's layout viewport. No margin is applied
+  (`IntersectionGeometry` `kForFrameViewportIntersection`).
+- `LocalFrameView::CanThrottleRendering` throttles that frame only when it is
+  `IsCrossOriginToNearestMainFrame`, meaning the frame's origin cannot access
+  the top origin.
+- `CanThrottleRenderingForPropagation` then throttles the frame's whole
+  subtree.
+
+No public control un-throttles one frame without moving it into view, so
+discovery reports canvases under such a frame as `skipped` instead of
+spending a request that cannot activate their paint (DM-PCT7GR). For each
+frame on a canvas's chain, the rule takes its owner's projected content box,
+intersects it with every enclosing clip and with the main frame's layout
+viewport, and requires positive area. The origin relationship is read through
+the binding access check to `top.document`, which uses the same
+`SecurityOrigin::CanAccess` predicate, so opaque-origin identity,
+`document.domain` and universal access decide it as Blink does. `primed`
+still counts successful requests; it no longer counts throttled frames. Native
+cross-origin/OOPIF projection positives use partly visible owners and
 establish the child's own natural rAF progression while the canvas remains
 wholly offscreen, then assert actual red pixels in the bounded production
 screenshot. Fully hidden

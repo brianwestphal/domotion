@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  chainIsRenderThrottled,
   contentQuad,
   intersectPolygons,
   mapPolygon,
@@ -129,5 +130,31 @@ describe("authenticated preflight plane geometry", () => {
         { ...page, documentWidth: 10, documentHeight: 10 },
       ),
     ).toBeNull();
+  });
+
+  it("reports a chain render-throttled exactly when a hidden frame on it is cross-origin to the main frame", () => {
+    const root = { x: 0, y: 0, width: 100, height: 100 };
+    const hidden = rectPolygon({ x: 10, y: 150, width: 40, height: 40 });
+    const visible = rectPolygon({ x: 10, y: 80, width: 40, height: 40 });
+    // Touching the root edge has zero intersection area: Blink's IsEmpty().
+    const touching = rectPolygon({ x: 10, y: 100, width: 40, height: 40 });
+    expect(chainIsRenderThrottled([{ visible: hidden, crossOriginToMain: true }], root)).toBe(true);
+    expect(chainIsRenderThrottled([{ visible: touching, crossOriginToMain: true }], root)).toBe(true);
+    expect(chainIsRenderThrottled([{ visible: hidden, crossOriginToMain: false }], root)).toBe(false);
+    expect(chainIsRenderThrottled([{ visible: visible, crossOriginToMain: true }], root)).toBe(false);
+    // A hidden cross-origin ancestor throttles its whole subtree, whatever the
+    // nearer frame's own origin or visibility.
+    expect(
+      chainIsRenderThrottled(
+        [
+          { visible: visible, crossOriginToMain: false },
+          { visible: hidden, crossOriginToMain: true },
+        ],
+        root,
+      ),
+    ).toBe(true);
+    // An owner clipped away entirely (empty polygon) is hidden too.
+    expect(chainIsRenderThrottled([{ visible: [], crossOriginToMain: true }], root)).toBe(true);
+    expect(chainIsRenderThrottled([], root)).toBe(false);
   });
 });

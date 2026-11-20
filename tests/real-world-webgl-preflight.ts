@@ -1,7 +1,12 @@
 import type { Page } from "@playwright/test";
 import { evaluateInFrame } from "../src/capture/evaluate-in-frame.js";
 import { PreflightFrameGeometry } from "./real-world-webgl-frame-geometry.js";
-import { intersectPolygons, offscreenPolygonClip, MAX_CANVAS_CLIP_SIDE } from "./real-world-webgl-geometry.js";
+import {
+  chainIsRenderThrottled,
+  intersectPolygons,
+  offscreenPolygonClip,
+  MAX_CANVAS_CLIP_SIDE,
+} from "./real-world-webgl-geometry.js";
 
 /** Small, fixed budget: one offscreen screenshot can trigger a full WebGL readback. */
 const MAX_CANVASES = 8;
@@ -21,6 +26,12 @@ interface Clip extends Rect {
 }
 
 interface PageMetrics extends Rect {
+  /**
+   * The main frame's layout viewport (scrollbars excluded): Blink's
+   * frame-intersection root. Discovery always measures it; pure clip callers
+   * do not need it.
+   */
+  layoutViewport?: Rect;
   scrollX: number;
   scrollY: number;
   documentWidth: number;
@@ -70,6 +81,12 @@ async function discoverCanvasClips(
     y: 0,
     width: window.innerWidth,
     height: window.innerHeight,
+    layoutViewport: {
+      x: 0,
+      y: 0,
+      width: (document.scrollingElement ?? document.documentElement).clientWidth,
+      height: (document.scrollingElement ?? document.documentElement).clientHeight,
+    },
     scrollX: window.scrollX,
     scrollY: window.scrollY,
     documentWidth: Math.max(
@@ -93,6 +110,12 @@ async function discoverCanvasClips(
             const clips: Clip[] = [];
             let skipped = projected.skipped;
             for (const candidate of projected.candidates) {
+              // A hidden cross-origin frame is render-throttled: no request can
+              // activate its paint without moving it into view (DM-PCT7GR).
+              if (chainIsRenderThrottled(candidate.frames, metrics.layoutViewport ?? metrics)) {
+                skipped++;
+                continue;
+              }
               let visible = candidate.polygon;
               for (const clip of candidate.clips) visible = intersectPolygons(visible, clip);
               if (visible.length < 3) {
@@ -137,7 +160,11 @@ async function discoverCanvasClips(
 }
 
 export interface CanvasPreflightResult {
-  /** Successful bounded capture requests; fully hidden cross-origin paint activation is not authenticated (DM-PCT7GR). */
+  /**
+   * Successful bounded capture requests. Canvases under a render-throttled
+   * (fully hidden, cross-origin) frame are counted as skipped instead, because
+   * a request there succeeds without source paint.
+   */
   primed: number;
   failed: number;
   skipped: number;
@@ -155,8 +182,9 @@ export interface CanvasPreflightFailure {
  * Child-frame browser-owned content quads are projected through authenticated
  * local-root homographies and clipped as polygons by every enclosing frame.
  * Unproved camera/clip authority is explicitly skipped (DM-GQNPEN).
- * Screenshot success alone is not a paint witness for fully hidden cross-origin
- * frames; that existing presentation limitation is tracked by DM-PCT7GR.
+ * Screenshot success alone is not a paint witness: Blink throttles a fully
+ * hidden cross-origin frame, so canvases under one are reported as skipped
+ * rather than spending a request that cannot activate their paint.
  * The caller has already taken its reference screenshot. The capture context
  * is closed after the job, so this CDP session and its effects are job-scoped.
  */

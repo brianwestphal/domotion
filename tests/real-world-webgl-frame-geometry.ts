@@ -31,6 +31,13 @@ interface BrowserRegistry {
 }
 interface PreparedFrame {
   token: string;
+  /**
+   * Whether this frame's script is denied access to the top document. The
+   * binding access check is SecurityOrigin::CanAccess, the same predicate as
+   * Frame::IsCrossOriginToNearestMainFrame, so opaque-origin identity,
+   * document.domain and universal access all decide it as Blink does.
+   */
+  crossOriginToMain: boolean;
   canvases: ElementFacts[];
 }
 interface GeometryRoot {
@@ -38,9 +45,17 @@ interface GeometryRoot {
   session: CDPSession;
   contexts: Set<number>;
 }
+/** One child frame on a canvas's chain, as Blink's frame throttling sees it. */
+export interface ChainFrameExposure {
+  /** The owner's content box after every enclosing clip, in main-frame viewport coordinates. */
+  visible: Polygon;
+  /** Frame::IsCrossOriginToNearestMainFrame, read through the binding access check to the top document. */
+  crossOriginToMain: boolean;
+}
 export interface ProjectedCanvas {
   polygon: Polygon;
   clips: Polygon[];
+  frames: ChainFrameExposure[];
 }
 
 /** Scoped public-CDP registry; no attributes, styles, scroll, animation or WebGL state are changed. */
@@ -259,6 +274,14 @@ export class PreflightFrameGeometry {
           Object.defineProperty(globals, key, { value: registry, configurable: true });
           return {
             token,
+            crossOriginToMain: (() => {
+              try {
+                void window.top?.document;
+                return false;
+              } catch {
+                return true;
+              }
+            })(),
             canvases: Array.from(document.querySelectorAll("canvas"))
               .filter((canvas) => {
                 const s = getComputedStyle(canvas),
@@ -461,6 +484,7 @@ export class PreflightFrameGeometry {
         }
       };
       await addClips(frame, facts.clips);
+      const exposures: Array<{ start: number; crossOriginToMain: boolean }> = [];
       for (
         let ancestor: Frame | null = frame;
         supported && ancestor?.parentFrame();
@@ -476,11 +500,21 @@ export class PreflightFrameGeometry {
           supported = false;
           break;
         }
+        exposures.push({ start: clips.length, crossOriginToMain: (await this.prepare(ancestor)).crossOriginToMain });
         clips.push(projected);
         await addClips(ancestor.parentFrame()!, owner.facts.clips);
       }
-      if (supported) candidates.push({ polygon, clips });
-      else skipped++;
+      if (!supported) {
+        skipped++;
+        continue;
+      }
+      // Each owner's own content box is clipped by every clip recorded after
+      // it: its overflow-clip ancestors and every enclosing frame above it.
+      const frames = exposures.map(({ start, crossOriginToMain }) => ({
+        visible: clips.slice(start + 1).reduce((visible, clip) => intersectPolygons(visible, clip), clips[start]),
+        crossOriginToMain,
+      }));
+      candidates.push({ polygon, clips, frames });
     }
     return { candidates, skipped };
   }

@@ -233,7 +233,7 @@ it.each([
     parentPerspective: true,
     outerStyle: "transform-box:stroke-box",
   },
-  // DM-PCT7GR tracks fully hidden cross-origin activation; these hosts stay partly visible while canvases are wholly offscreen.
+  // A fully hidden cross-origin frame is render-throttled and reported skipped (below); these hosts stay partly visible while canvases are wholly offscreen.
   { kind: "cross-origin-rotation", transform: "rotate(35deg)", cross: true, partlyVisibleHost: true },
   { kind: "nested-projective", transform: "rotate(25deg)", nested: true, cross: true, partlyVisibleHost: true },
   {
@@ -278,6 +278,28 @@ it.each([
         ),
       ).toBe(true);
     }
+  } finally {
+    observed.restore();
+    await page.close();
+  }
+});
+
+// Blink throttles a frame whose owner has no viewport intersection when it is
+// cross-origin to the main frame, and the whole subtree below it
+// (LocalFrameView::CanThrottleRendering, FrameView::UpdateViewportIntersection,
+// Chromium 7d859f27). A request there succeeds with no source paint, so these
+// report skipped. The same-origin "rotation" and partly visible
+// "cross-origin-rotation" cases above are the positive controls.
+it.each([
+  { kind: "hidden-cross-origin", transform: "rotate(35deg)", cross: true },
+  { kind: "hidden-nested-cross-origin", transform: "rotate(25deg)", cross: true, nested: true },
+])("reports a canvas under a fully hidden cross-origin frame as skipped ($kind)", async (fixture) => {
+  const page = await browser.newPage({ viewport: { width: 200, height: 140 } });
+  const observed = observeCaptures(page);
+  try {
+    await installFixture(page, fixture.transform, fixture);
+    expect(await primeOffscreenCanvases(page)).toEqual({ primed: 0, failed: 0, skipped: 1 });
+    expect(observed.captures).toHaveLength(0);
   } finally {
     observed.restore();
     await page.close();
