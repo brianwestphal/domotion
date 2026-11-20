@@ -1802,7 +1802,8 @@
           "DM-6SVH1W",
           "DM-NTN9EK",
           "DM-0MT3TS",
-          "DM-817Y5J"
+          "DM-817Y5J",
+          "DM-DB865E"
         ],
         "code": [
           "tests/e2e-setup.ts",
@@ -1810,6 +1811,11 @@
           "tests/e2e-browser-evidence.test.ts",
           "tests/e2e-browser-evidence.e2e.test.ts",
           "tests/e2e-host-sampler.global.ts",
+          "tests/e2e-child-evidence.ts",
+          "tests/e2e-child-evidence-preload.mjs",
+          "tests/e2e-child-evidence-tap.mjs",
+          "tests/e2e-child-evidence.test.ts",
+          "tests/e2e-child-evidence.e2e.test.ts",
           "src/test-support/presented-frame-screenshot.ts",
           "tests/presented-frame-screenshot.test.ts",
           "tests/presented-frame-screenshot.e2e.test.ts",

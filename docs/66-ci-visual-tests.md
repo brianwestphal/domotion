@@ -36,6 +36,7 @@ tickets:
     "DM-NTN9EK",
     "DM-0MT3TS",
     "DM-817Y5J",
+    "DM-DB865E",
   ]
 code:
   [
@@ -44,6 +45,11 @@ code:
     "tests/e2e-browser-evidence.test.ts",
     "tests/e2e-browser-evidence.e2e.test.ts",
     "tests/e2e-host-sampler.global.ts",
+    "tests/e2e-child-evidence.ts",
+    "tests/e2e-child-evidence-preload.mjs",
+    "tests/e2e-child-evidence-tap.mjs",
+    "tests/e2e-child-evidence.test.ts",
+    "tests/e2e-child-evidence.e2e.test.ts",
     "src/test-support/presented-frame-screenshot.ts",
     "tests/presented-frame-screenshot.test.ts",
     "tests/presented-frame-screenshot.e2e.test.ts",
@@ -533,11 +539,33 @@ with clean stderr points at host contention. Clean stderr and an idle host
 leave the cause unattributed. Chromium logs at its default verbosity here, so
 an empty ring is not proof that no surface error occurred.
 
-Coverage limits: browsers launched in a child process, such as the built CLI
-that some E2E files spawn, are not tapped. Browsers spawned directly rather
-than through Playwright's launcher are also not tapped, for example the
-real-world broker browser, which keeps its own `owned-*.log` diagnostics. The
-ring keeps only the newest 200 lines per browser. A failure outside a test or
+- **Child processes.** Node children of an E2E worker are covered too. One
+  example is the built CLI that some files run with
+  `spawnSync(process.execPath, …)`. The setup appends
+  `--import tests/e2e-child-evidence-preload.mjs` (as an absolute path) to
+  `NODE_OPTIONS`. It also sets
+  `DOMOTION_E2E_CHILD_EVIDENCE=1` and pins `DOMOTION_E2E_EVIDENCE_DIR` to the
+  worker's absolute evidence directory, so a child running in a temporary
+  working directory still writes where the artifact upload looks. The child
+  installs the same launcher tap and watches its own stdout and stderr. If
+  either names `Unable to capture screenshot`, the child writes one
+  `screenshot-failure-…` file at exit, with a `test: child: <argv>` header,
+  and prints an `[e2e-evidence] child pid …` line. A passing child writes
+  nothing. `tests/e2e-child-evidence.e2e.test.ts` proves the failing case and
+  the passing case against a real Chromium launch. The preload's tap
+  (`tests/e2e-child-evidence-tap.mjs`) is plain JavaScript. Registering a
+  TypeScript loader such as tsx in every child switched the child's stderr
+  pipe to non-blocking mode: the svg-to-video ffmpeg stub's own
+  `fs.writeSync(2, …)` then failed with EAGAIN. For the same reason, the tap
+  wraps `process.stdout` and `process.stderr` only when the child first uses
+  them.
+
+Coverage limits: a child spawned with an environment that drops
+`NODE_OPTIONS`, a non-Node child, and a child killed by SIGKILL are not
+covered. Browsers spawned directly rather than through Playwright's launcher
+are not tapped either, for example the real-world broker browser, which keeps
+its own `owned-*.log` diagnostics. The ring keeps only the newest 200 lines
+per browser. A failure outside a test or
 suite hook, such as an unhandled rejection, does not trigger a dump.
 `tests/e2e-browser-evidence.e2e.test.ts` proves the hook end to end. It runs a
 nested E2E process whose test throws the DevTools message by hand after a real
