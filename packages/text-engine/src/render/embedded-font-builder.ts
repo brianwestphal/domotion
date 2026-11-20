@@ -100,6 +100,13 @@ export interface HintedSource {
    *  font-resolution's FontSourceInfo so the resolver's return value can be
    *  passed through unchanged. */
   variationAxes?: Record<string, number> | null;
+  /**
+   * The source's bytes when it has no on-disk file: a registered `@font-face`
+   * webfont (`webfontHintedSourceFor`). `path` is then the buffer's content id
+   * (`webfont#<sha256>`), which keeps the per-glyph identity check and the
+   * guard memos keyed on the exact bytes. Absent ⇒ read `path` from disk.
+   */
+  data?: Buffer;
 }
 
 /**
@@ -478,7 +485,9 @@ export function trackGlyphInEmbedFont(
     entry.hintedSourceDisqualificationReasons.add("source-axis-disagreement");
   }
   entry.hintedSourceDisqualified = entry.hintedSourceDisqualificationReasons.size > 0;
-  if (glyphSource?.faceIndex != null) {
+  // A webfont source (in-memory bytes) is reported through `webfontSources`
+  // below; it is not an on-disk face for the embedding-permission notice.
+  if (glyphSource?.faceIndex != null && glyphSource.data == null) {
     const faceKey = hintedOutlineGuardKey(glyphSource.path, glyphSource.faceIndex);
     if (!entry.sourceFaces.has(faceKey)) entry.sourceFaces.set(faceKey, glyphSource);
   }
@@ -705,7 +714,7 @@ function buildGlyfFontForEntry(entry: BuilderEntry, instanceKey: string): Buffer
       if (hintedOutlineGuard(entry.hintedSource.path, srcFaceIndex) === false) {
         throw new Error("source has no subsettable outlines (memoized)");
       }
-      const bytes = readFileSync(entry.hintedSource.path);
+      const bytes = entry.hintedSource.data ?? readFileSync(entry.hintedSource.path);
       // Remember the source fsType from this same read, so an svg2ttf fallback
       // below (`withSourceFsType`) never reads the file a second time.
       sourceFsTypeMemo.set(
@@ -816,7 +825,7 @@ function withSourceFsType(
   webfontSources: ReadonlyMap<string, WebfontEmbeddingSource>,
 ): Buffer {
   let fsType: number | null = null;
-  if (source?.faceIndex != null) fsType = sourceFaceFsType(source.path, source.faceIndex);
+  if (source?.faceIndex != null) fsType = sourceFaceFsType(source.path, source.faceIndex, source.data);
   else if (source == null && webfontSources.size === 1) {
     // A webfont entry has no file source; its one `@font-face` face's
     // permission bits come from fontkit's decoded OS/2 table.
@@ -832,12 +841,12 @@ function withSourceFsType(
  * megabytes. The hb-subset attempt seeds the memo from the bytes it already
  * read, so the common path never reads a file for this.
  */
-function sourceFaceFsType(path: string, faceIndex: number): number | null {
+function sourceFaceFsType(path: string, faceIndex: number, data?: Buffer): number | null {
   const key = hintedOutlineGuardKey(path, faceIndex);
   let fsType = sourceFsTypeMemo.get(key);
   if (fsType === undefined) {
     try {
-      fsType = sfntOs2FsType(readFileSync(path), faceIndex);
+      fsType = sfntOs2FsType(data ?? readFileSync(path), faceIndex);
     } catch {
       fsType = null;
     }
@@ -957,6 +966,59 @@ export function webfontEmbeddingSourceFor(
   };
   webfontEmbeddingSources.set(buffer, source);
   return source;
+}
+
+/**
+ * The hinting-preserving subset source for a run font resolved through the
+ * webfont registry, or null for any other font.
+ *
+ * Chromium paints an `@font-face` face from that face's own (OTS-sanitized)
+ * `glyf` bytes. Rebuilding the subset from captured outlines with svg2ttf is a
+ * lossy re-encoding: svg2ttf 6.1.0 drops on-curve points lying within 1.1 font
+ * units of the midpoint of their off-curve neighbors (`lib/ttf.js`
+ * `interpolate(contours, 1.1)`) and near-collinear points within 0.3 units
+ * (`simplify(contours, 0.3)`), so a glyph's outline moves by up to half a unit
+ * and its antialiased coverage changes. Subsetting the retained buffer keeps
+ * the source outline and hinting program byte-for-byte, exactly as for a
+ * file-backed face.
+ *
+ * Only a single-face TrueType/OpenType sfnt qualifies. WOFF (WOFF2 is already
+ * decoded at capture) is not something hb-subset opens, and a collection
+ * names no member for an `@font-face` src (the same refusal as
+ * `webfontShapingFace`); both stay on the svg2ttf build as before. A variable
+ * webfont is pinned at the axis location `applyVariationAxes` resolved for the
+ * instance — the same value the HarfBuzz shaping face uses.
+ */
+export function webfontHintedSourceFor(
+  font:
+    | {
+        webfontBuffer?: Buffer;
+        postscriptName?: string | null;
+        familyName?: string | null;
+        _appliedVariationAxes?: Record<string, number>;
+        "OS/2"?: unknown;
+      }
+    | null
+    | undefined,
+): HintedSource | null {
+  if (font == null) return null;
+  font = hbShapingBaseOf(font);
+  const buffer = font.webfontBuffer;
+  if (buffer == null || buffer.length < 4) return null;
+  const magic = buffer.readUInt32BE(0);
+  // 0x00010000 = TrueType, 'true' = Apple TrueType, 'OTTO' = CFF OpenType (the
+  // builder's outline guard sends CFF on to svg2ttf). Anything else — 'wOFF',
+  // 'ttcf' — keeps the svg2ttf build.
+  if (magic !== 0x00010000 && magic !== 0x74727565 && magic !== 0x4f54544f) return null;
+  const id = webfontEmbeddingSourceFor(font)?.id;
+  if (id == null) return null;
+  return {
+    path: id,
+    postscriptName: typeof font.postscriptName === "string" ? font.postscriptName : undefined,
+    faceIndex: 0,
+    variationAxes: font._appliedVariationAxes ?? null,
+    data: buffer,
+  };
 }
 
 /**

@@ -29,7 +29,12 @@ import { computedFontSize } from "./font-instance.js";
 import type { DarwinFontCacheOptions } from "./darwin-font-data-lifetime.js";
 import { esc as escAttr, formatNumberLoose } from "./format.js";
 import { visualTextSemantics } from "./text-semantics.js";
-import { trackGlyphInEmbedFont, webfontEmbeddingSourceFor } from "./embedded-font-builder.js";
+import {
+  trackGlyphInEmbedFont,
+  webfontEmbeddingSourceFor,
+  webfontHintedSourceFor,
+  type HintedSource,
+} from "./embedded-font-builder.js";
 import { OBLIQUE_SHEAR, resolveFakeBoldTextPaint, type FakeBoldSvgPaintPass } from "./embolden-outline.js";
 // DM-1984: the two "does this face need a synthetic bold / oblique?" predicates
 // live in one module because BOTH render modes ask them. Re-exported below so
@@ -4028,7 +4033,9 @@ function buildEmbeddedRunSegment(
   // the builder pins the subset to that location — hb applies the same gvar
   // deltas fontkit's getVariation did, so the instanced subset's outlines
   // match what this run shaped with (and hinting survives instancing).
-  // Webfont instances return null here (no backing file) and keep svg2ttf.
+  // Webfont instances have no backing file; the walk below hands the builder
+  // the retained `@font-face` bytes instead (`webfontHintedSourceFor`), so a
+  // webfont subset keeps its source outlines rather than svg2ttf's re-encoding.
   const ordinaryTextRendering = embeddedSystemFontTextRendering(
     hostPlatform(),
     srcInfo != null,
@@ -4053,7 +4060,7 @@ function buildEmbeddedRunSegment(
     useNativeCursivePlacement: cursive.useNativeCursivePlacement,
     nativeCursiveOriginCss: cursive.nativeCursiveOriginCss,
     instanceKey,
-    hintedSource: srcInfo,
+    hintedSource: srcInfo ?? webfontHintedSourceFor(run.font),
     webfontSource: webfontEmbeddingSourceFor(run.font),
     shearFactor,
     targetStrikeCommandsBySize,
@@ -4094,7 +4101,7 @@ interface EmbeddedGlyphWalkPlan {
   useNativeCursivePlacement: boolean;
   nativeCursiveOriginCss: number;
   instanceKey: string;
-  hintedSource: ReturnType<typeof getFontSourceInfo>;
+  hintedSource: HintedSource | null;
   webfontSource: ReturnType<typeof webfontEmbeddingSourceFor>;
   shearFactor: number;
   targetStrikeCommandsBySize: Map<number, Map<number, PathCommand[]>> | null;

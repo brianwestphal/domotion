@@ -2723,12 +2723,23 @@
         "status": "current",
         "owners": ["rendering"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2623", "DM-2626", "DM-2627", "DM-2632", "DM-2643", "DM-2652", "DM-2662", "DM-2663"],
+        "tickets": [
+          "DM-2623",
+          "DM-2626",
+          "DM-2627",
+          "DM-2632",
+          "DM-2643",
+          "DM-2652",
+          "DM-2662",
+          "DM-2663",
+          "DM-FC9VGC"
+        ],
         "code": [
           ".github/workflows/visual-tests.yml",
           "packages/text-engine/src/render/embedded-font-builder.test.ts",
           "packages/text-engine/src/render/embedded-font-builder.ts",
           "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
+          "packages/text-engine/src/render/embedded-font-webfont-subset.test.ts",
           "src/render/embedded-font-snapshot.test.ts",
           "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
           "packages/text-engine/src/render/font-resolution.ts",
@@ -2745,6 +2756,7 @@
           "packages/text-engine/src/render/text-to-path.test.ts",
           "packages/text-engine/src/render/text-to-path.ts",
           "tests/linux-target-strike-small-caps.e2e.test.ts",
+          "tests/webfont-embedded-subset.e2e.test.ts",
           "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp",
           "tools/linux-terminal-mask-oracle.ts"
         ],

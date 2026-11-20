@@ -1818,6 +1818,7 @@
         "packages/text-engine/src/render/embedded-font-builder.test.ts",
         "packages/text-engine/src/render/embedded-font-builder.ts",
         "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
+        "packages/text-engine/src/render/embedded-font-webfont-subset.test.ts",
         "src/render/embedded-font-snapshot.test.ts",
         "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
         "packages/text-engine/src/render/font-resolution.ts",
@@ -1834,6 +1835,7 @@
         "packages/text-engine/src/render/text-to-path.test.ts",
         "packages/text-engine/src/render/text-to-path.ts",
         "tests/linux-target-strike-small-caps.e2e.test.ts",
+        "tests/webfont-embedded-subset.e2e.test.ts",
         "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp",
         "tools/linux-terminal-mask-oracle.ts"
       ],

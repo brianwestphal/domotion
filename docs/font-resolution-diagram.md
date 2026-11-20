@@ -2798,8 +2798,8 @@ flowchart TD
   E11 --> E12["source-owned partial/boundary group<br/>reason + degraded spans; no visible &lt;text&gt;"]
   E7 --> ET{"Every effective glyph size has an exact<br/>Linux target-strike tuple?<br/>upright · normal stretch · auto · no stroke"}
   ET -->|"yes + helper topology match"| E13["one strike-keyed subset per effective size<br/>helper design x + FT LIGHT hinted y<br/>(size × 64)-upem svg2ttf · geometricPrecision"]
-  ET -->|"no / helper unavailable"| E8{"entry pure?<br/>(one sfnt · one NAMED member index ·<br/>one axis location ·<br/>no synthetic bake · has glyf)"}
-  E8 -->|"yes"| E9["hinted hb-subset of ORIGINAL file<br/>RETAIN_GIDS + pin axes + PUA cmap<br/>(keeps cvt/fpgm/prep + glyph bytecode)"]
+  ET -->|"no / helper unavailable"| E8{"entry pure?<br/>(one sfnt file or sfnt webfont buffer ·<br/>one NAMED member index ·<br/>one axis location ·<br/>no synthetic bake · has glyf)"}
+  E8 -->|"yes"| E9["hinted hb-subset of ORIGINAL file / webfont bytes<br/>RETAIN_GIDS + pin axes + PUA cmap<br/>(keeps cvt/fpgm/prep + glyph bytecode)"]
   E8 -->|"no / failure"| E10["svg2ttf rebuild from outlines (unhinted)"]
 ```
 
@@ -2939,7 +2939,9 @@ still fall back to svg2ttf when the source cannot be subset safely.
    faux-oblique bakes, per-glyph helper outlines, CFF/CFF2 faces (the
    bundled wasm silently drops `CFF ` — an outline-less subset fails Chrome's
    OTS) and outline-less sources (PingFang `hvgl`) — both guarded by
-   `sfntHasSubsettableOutlines` — plus webfont buffers, mixed entries, an
+   `sfntHasSubsettableOutlines` — plus WOFF or `ttcf` webfont buffers (a
+   single-face sfnt webfont is hb-subset from its retained `@font-face` bytes,
+   `webfontHintedSourceFor`), mixed entries, an
    **unnameable member index** (`FontSourceInfo.faceIndex === null`, below), or
    any hb-subset failure.
 

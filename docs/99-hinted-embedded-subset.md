@@ -5,13 +5,14 @@ kind: "contract"
 status: "current"
 owners: ["rendering"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2623", "DM-2626", "DM-2627", "DM-2632", "DM-2643", "DM-2652", "DM-2662", "DM-2663"]
+tickets: ["DM-2623", "DM-2626", "DM-2627", "DM-2632", "DM-2643", "DM-2652", "DM-2662", "DM-2663", "DM-FC9VGC"]
 code:
   [
     ".github/workflows/visual-tests.yml",
     "packages/text-engine/src/render/embedded-font-builder.test.ts",
     "packages/text-engine/src/render/embedded-font-builder.ts",
     "packages/text-engine/src/render/embedded-font-snapshot.test.ts",
+    "packages/text-engine/src/render/embedded-font-webfont-subset.test.ts",
     "src/render/embedded-font-snapshot.test.ts",
     "packages/text-engine/src/render/font-resolution-cache-reset.test.ts",
     "packages/text-engine/src/render/font-resolution.ts",
@@ -28,6 +29,7 @@ code:
     "packages/text-engine/src/render/text-to-path.test.ts",
     "packages/text-engine/src/render/text-to-path.ts",
     "tests/linux-target-strike-small-caps.e2e.test.ts",
+    "tests/webfont-embedded-subset.e2e.test.ts",
     "packages/text-engine/tools/linux-glyph-extractor/src/main.cpp",
     "tools/linux-terminal-mask-oracle.ts",
   ]
@@ -155,7 +157,8 @@ free upgrade, not a fix.
 
 An embedded entry takes the hinted path only while **every** glyph in it:
 
-- came from ONE openable sfnt file (same path + TTC `faceIndex`),
+- came from ONE openable sfnt source (same path + TTC `faceIndex`; for an
+  `@font-face` webfont, the same retained buffer — see below),
 - at ONE axis location (`variationAxes` deep-equal),
 - was not outline-synthesized (no faux-oblique `shearPathCommands` bake — that
   outline exists nowhere in the source file). Faux-bold is paint-owned and
@@ -178,8 +181,44 @@ render.
 
 **Stays on svg2ttf by design:** faux-oblique bakes, per-glyph native-helper
 outlines (glyphs fontkit couldn't decode), CFF/CFF2 faces, native-only
-no-`glyf` fonts (PingFang `hvgl`), webfont buffers (no on-disk file is recorded
-for them).
+no-`glyf` fonts (PingFang `hvgl`), and webfont buffers that are WOFF (WOFF2 is
+decoded at capture) or a `ttcf` collection.
+
+### `@font-face` webfonts: subset from the retained buffer
+
+A webfont has no on-disk file, so the run hands the builder the registry's
+retained `@font-face` bytes instead (`webfontHintedSourceFor`, wired at the
+embedded run walk in `text-to-path.ts`). The source is identified by
+the bytes' content id (`webfont#<sha256>`), so the per-glyph identity check and
+the guard memos stay keyed on the exact bytes, and two different buffers mixed
+into one entry still disqualify it (`source-axis-disagreement`). It uses face
+index 0, and the axis location is the instance's `_appliedVariationAxes`, the
+same value `webfontShapingFace` shapes with. The svg2ttf fallback reads the
+`fsType` it restates from those bytes, and the embedding-permission notice
+still reports the face once as a webfont, not as a file.
+
+Why this matters even on macOS, where hinting is inert: svg2ttf is not a
+lossless outline encoder. svg2ttf 6.1.0 (`lib/ttf.js`) runs
+`simplify(contours, 0.3)` twice and then `interpolate(contours, 1.1)`. The
+first drops near-collinear points, and the second drops every on-curve point
+within 1.1 font units of the midpoint of its off-curve neighbors. Measured on
+Chromium 147 / macOS with DomotionFixtureMono `000` at 20px: the zero's dot
+contour has on-curve `(240,368)` and `(360,368)` between off-curve `y=340` and
+`y=395`. svg2ttf turned them into implied points at `y=367.5`, so one
+antialiased pixel per glyph differed from Chromium's DOM paint by 2 levels
+(3 pixels in all). These controls isolate the subset bytes as the only
+variable:
+
+| comparison with Chromium's DOM paint                           | differing pixels |
+| -------------------------------------------------------------- | ---------------- |
+| SVG `<text>` with the original webfont bytes, same x/y         | 0                |
+| HTML span using the svg2ttf subset                             | 3 (max Δ 2)      |
+| SVG `<text>` with an hb-subset of the webfont bytes + PUA cmap | 0                |
+
+So this was a source mismatch, not the rasterization floor.
+`tests/webfont-embedded-subset.e2e.test.ts` pins the exact full-RGBA match
+together with the svg2ttf negative control and the original-bytes raster
+control.
 
 ### Linux exact target-strike exceptions (DM-2623 / DM-2626 / DM-2627 / DM-2652 / DM-2662)
 
@@ -368,6 +407,10 @@ addressing, TTC faceIndex resolution — see the git history for the details).
 
 ## Test coverage
 
+`packages/text-engine/src/render/embedded-font-webfont-subset.test.ts` covers the
+webfont source (content identity, WOFF/`ttcf` refusal, byte-identical `glyf`
+record, mixed-buffer disqualification, `fsType`, and the svg2ttf point-drop
+negative control) with the bundled DomotionFixtureMono face.
 `packages/text-engine/src/render/hb-subset.test.ts` + the hinted-branch cases in
 `packages/text-engine/src/render/embedded-font-builder.test.ts` run against fonts **synthesized from
 scratch** (`packages/text-engine/src/render/synth-test-fonts.ts`): a static hinted TTF with known
