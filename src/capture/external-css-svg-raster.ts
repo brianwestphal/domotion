@@ -16,6 +16,8 @@ export interface CssSvgIsolation {
   rules: string;
   ownerFacts: Array<{ element: Element; styles: string[] }>;
   ancestors: Element[];
+  /** Outside never-painted local definitions kept at their native style. */
+  dependencies: Array<{ element: Element; styles: string }>;
 }
 type Identity = { key: string; token: string };
 interface AncestorPaint {
@@ -191,43 +193,133 @@ export async function rasterizeExternalCssSvgSurfaces(
               )
                 throw new Error("external CSS native owner has unsupported ancestor effects or clipping");
             }
+            // Same-document resource definitions outside the owner would be hidden
+            // with foreign paint. Keep their transitive closure at its native
+            // style instead, but only when it is content Blink never paints
+            // directly, so no foreign visible paint can enter the stamp.
+            const here = new URL(document.URL);
+            here.hash = "";
+            // DecodeUrlEscapeSequences(kUtf8OrIsomorphic), url/url_util.cc:833-891
+            // at pin 7d859f27 (Node twin: src/capture/blink-url-fragment.ts).
+            const decode = (input: string): string => {
+              const source = new TextEncoder().encode(input);
+              const bytes: number[] = [];
+              const hex = (byte: number) => /[0-9a-f]/i.test(String.fromCharCode(byte));
+              for (let index = 0; index < source.length; index++) {
+                if (
+                  source[index] === 0x25 &&
+                  index + 2 < source.length &&
+                  hex(source[index + 1]) &&
+                  hex(source[index + 2])
+                ) {
+                  bytes.push(parseInt(String.fromCharCode(source[index + 1], source[index + 2]), 16));
+                  index += 2;
+                } else bytes.push(source[index]);
+              }
+              try {
+                return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Uint8Array.from(bytes));
+              } catch {
+                return bytes.map((byte) => String.fromCharCode(byte)).join("");
+              }
+            };
+            // CSSUrlData::IsLocal (css_url_data.cc:231-234) and
+            // SVGURLReferenceResolver (svg_uri_reference.cc:89-111): local when
+            // the specified URL starts with '#' or equals the document URL.
+            const localTarget = (raw: string): Element | null => {
+              let url: URL;
+              try {
+                url = new URL(raw, document.baseURI);
+              } catch {
+                return null;
+              }
+              const fragment = url.hash.slice(1);
+              url.hash = "";
+              if ((!raw.startsWith("#") && url.href !== here.href) || fragment === "") return null;
+              return document.getElementById(decode(fragment));
+            };
+            const urls = (value: string): string[] =>
+              [...value.matchAll(/url\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|([^)\s]*))\s*\)/gi)].map((match) =>
+                (match[1] ?? match[2] ?? match[3]).replace(/\\(.)/g, "$1"),
+              );
+            const referenceProperties = [
+              "clip-path",
+              "mask-image",
+              "filter",
+              "fill",
+              "stroke",
+              "marker-start",
+              "marker-mid",
+              "marker-end",
+            ];
+            // SVGURIReference::LegacyHrefString (svg_uri_reference.cc:82-87): href wins over xlink:href.
+            const hrefOwners = new Set([
+              "use",
+              "lineargradient",
+              "radialgradient",
+              "pattern",
+              "feimage",
+              "textpath",
+              "mpath",
+            ]);
+            // LayoutSVGHiddenContainer paints nothing: <defs>, <symbol> and every
+            // LayoutSVGResourceContainer (layout_svg_hidden_container.h:29-52,
+            // layout_svg_resource_container.h:45, svg_defs_element.cc:31-33).
+            const neverPainted = new Set([
+              "defs",
+              "symbol",
+              "clippath",
+              "mask",
+              "pattern",
+              "marker",
+              "filter",
+              "lineargradient",
+              "radialgradient",
+            ]);
+            const dependencies = new Set<Element>();
+            const pending: Element[] = [];
+            const requireDependency = (target: Element | null): void => {
+              if (target == null || owner.contains(target) || dependencies.has(target) || pending.includes(target))
+                return;
+              if (ancestors.has(target) || target.contains(owner))
+                throw new Error("external CSS native owner has an outside local-definition dependency containing it");
+              let hidden = false;
+              for (let node: Element | null = target; node != null && !hidden; node = node.parentElement)
+                hidden = node instanceof SVGElement && neverPainted.has(node.localName.toLowerCase());
+              if (!(target instanceof SVGElement) || !hidden)
+                throw new Error(
+                  "external CSS native owner has an unsupported directly painted outside local-definition dependency",
+                );
+              pending.push(target);
+            };
+            const scanReferences = (element: Element, pseudos: string[]): void => {
+              for (const pseudo of pseudos) {
+                const computed = getComputedStyle(element, pseudo || null);
+                for (const name of referenceProperties)
+                  for (const raw of urls(computed.getPropertyValue(name))) requireDependency(localTarget(raw));
+              }
+              if (element instanceof SVGElement && hrefOwners.has(element.localName.toLowerCase())) {
+                const href =
+                  element.getAttribute("href") ?? element.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+                if (href != null) requireDependency(localTarget(href));
+              }
+            };
             for (const element of [owner, ...owner.querySelectorAll("*")]) {
               const style = getComputedStyle(element);
               if (style.backdropFilter !== "none" || style.mixBlendMode !== "normal")
                 throw new Error("external CSS native owner requires backdrop compositing");
-              // A definition outside the owner would be hidden with foreign
-              // paint. Until resource dependencies have their own isolation
-              // contract, refuse instead of silently changing that mask/filter.
-              const here = new URL(document.URL);
-              here.hash = "";
-              for (const pseudo of ["", "::before", "::after"]) {
-                const computed = getComputedStyle(element, pseudo || null);
-                for (const name of [
-                  "clip-path",
-                  "mask-image",
-                  "filter",
-                  "fill",
-                  "stroke",
-                  "marker-start",
-                  "marker-mid",
-                  "marker-end",
-                ]) {
-                  for (const match of computed
-                    .getPropertyValue(name)
-                    .matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/gi)) {
-                    const url = new URL(match[1] ?? match[2] ?? match[3], document.baseURI);
-                    const fragment = decodeURIComponent(url.hash.slice(1));
-                    url.hash = "";
-                    const definition =
-                      url.href === here.href && fragment !== "" ? document.getElementById(fragment) : null;
-                    if (definition != null && !owner.contains(definition))
-                      throw new Error(
-                        "external CSS native owner has an unsupported outside local-definition dependency",
-                      );
-                  }
-                }
+              scanReferences(element, ["", "::before", "::after"]);
+            }
+            // Transitive closure; the visited set terminates cycles and shared defs.
+            while (pending.length > 0) {
+              const root = pending.pop()!;
+              for (const element of [root, ...root.querySelectorAll("*")]) {
+                if (dependencies.has(element)) continue;
+                dependencies.add(element);
+                scanReferences(element, [""]);
               }
             }
+            if (dependencies.size > 4096)
+              throw new Error("external CSS native owner local-definition dependency budget exceeded");
             for (const element of document.querySelectorAll("*")) {
               for (const pseudo of ["", "::before", "::after"]) {
                 const style = getComputedStyle(element, pseudo || null);
@@ -262,6 +354,7 @@ export async function rasterizeExternalCssSvgSurfaces(
                 styles: ["", "::before", "::after"].map((pseudo) => fingerprint(element, pseudo)),
               })),
               ancestors: [...ancestors],
+              dependencies: [...dependencies].map((element) => ({ element, styles: fingerprint(element, "") })),
             };
             // Publish ownership before any mutation, including a throwing setter.
             state.isolation = isolation;
@@ -287,6 +380,17 @@ export async function rasterizeExternalCssSvgSurfaces(
               isolation.marked.push({ element, before: element.getAttribute(attribute), owned: index });
               element.setAttribute(attribute, index);
             }
+            // A dependency inherits `hidden` from its hidden foreign ancestors,
+            // so pin each element's own native visibility explicitly.
+            for (const element of dependencies) {
+              const visibility = getComputedStyle(element).visibility;
+              if (!/^(visible|hidden|collapse)$/.test(visibility))
+                throw new Error("external CSS native dependency visibility is unsupported");
+              const index = String(isolation.marked.length);
+              rules.push(`[${attribute}="${index}"]${show}{visibility:${visibility}!important}`);
+              isolation.marked.push({ element, before: element.getAttribute(attribute), owned: index });
+              element.setAttribute(attribute, index);
+            }
             isolation.text = rules.join("\n");
             sheet.textContent = isolation.text;
             try {
@@ -304,9 +408,12 @@ export async function rasterizeExternalCssSvgSurfaces(
                 )
               )
                 throw new Error("external CSS native isolation changed inherited owner paint");
+            for (const fact of isolation.dependencies)
+              if (fingerprint(fact.element, "") !== fact.styles)
+                throw new Error("external CSS native isolation changed an outside local-definition dependency");
             const paint: AncestorPaint[] = [];
             for (const element of document.querySelectorAll("*")) {
-              if (owner.contains(element)) continue;
+              if (owner.contains(element) || dependencies.has(element)) continue;
               if (ancestors.has(element)) {
                 const style = getComputedStyle(element);
                 paint.push({
@@ -357,9 +464,22 @@ export async function rasterizeExternalCssSvgSurfaces(
               ancestors.some((element, index) => element !== state.isolation!.ancestors[index])
             )
               throw new Error("external CSS paint ancestry changed during screenshot");
+            const dependencies = new Set(state.isolation.dependencies.map((fact) => fact.element));
+            for (const fact of state.isolation.dependencies) {
+              const style = getComputedStyle(fact.element);
+              if (
+                !fact.element.isConnected ||
+                fact.element.ownerDocument !== document ||
+                Array.from(fact.element.children).some((child) => !dependencies.has(child)) ||
+                Array.from(style)
+                  .map((name) => `${name}:${style.getPropertyValue(name)}`)
+                  .join("\n") !== fact.styles
+              )
+                throw new Error("external CSS native local-definition dependency changed during screenshot");
+            }
             const paint: AncestorPaint[] = [];
             for (const element of document.querySelectorAll("*")) {
-              if (selected[0].contains(element)) continue;
+              if (selected[0].contains(element) || dependencies.has(element)) continue;
               const ancestor = ancestors.includes(element);
               const style = getComputedStyle(element);
               if (ancestor)

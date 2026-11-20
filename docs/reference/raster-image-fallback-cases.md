@@ -197,6 +197,9 @@ its private journal; `src/capture/script/walker/element-capture.ts` records
 authenticated native subtree with Node bounds, source-preserving visibility,
 transparent alpha readback and retryable CAS cleanup. Unsupported ancestor
 compositing, clipping, text and active animation explicitly refuse (DM-N933MV).
+Same-document definitions outside the owner that its subtree references stay at
+native paint when they are never-painted SVG content (`<defs>`, `<symbol>`,
+resource containers); a directly painted dependency refuses (DM-F19PYG).
 
 Emit: `src/render/element-tree-to-svg.ts` emits one atomic PNG or a proven empty
 surface. Generated pseudo descendants, child native controls and replaced

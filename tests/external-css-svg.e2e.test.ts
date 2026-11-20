@@ -306,33 +306,123 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
       await page.close();
     }
   });
-  it("refuses a visible local mask dependency outside the native owner instead of hiding it", async () => {
-    const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
-    try {
+  describe("outside local-definition dependencies of a native owner", () => {
+    // `defs` is markup for an SVG appended to <body>; `child` is the inline style of
+    // a blue child appended inside the native (CSP-blocked) owner #box.
+    const OUTSIDE_MASK =
+      '<mask id="outside-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="8" height="32" fill="white"/></mask>';
+    async function arrange(page: Page, defs: string, child: string, svgStyle = "") {
       await page.goto(`${origin}/?csp=blocked`);
-      await page.evaluate(() => {
-        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svg.setAttribute("width", "0");
-        svg.setAttribute("height", "0");
-        svg.innerHTML =
-          '<defs><mask id="outside-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="8" height="32" fill="white"/></mask></defs>';
-        document.body.appendChild(svg);
-        const child = document.createElement("div");
-        child.style.cssText = "width:32px;height:32px;background:blue;mask-image:url(#outside-mask)";
-        document.querySelector("#box")!.appendChild(child);
-      });
+      await page.evaluate(
+        ({ defs, child, svgStyle }) => {
+          const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          svg.setAttribute("width", "0");
+          svg.setAttribute("height", "0");
+          if (svgStyle !== "") svg.setAttribute("style", svgStyle);
+          svg.innerHTML = defs;
+          document.body.appendChild(svg);
+          const element = document.createElement("div");
+          element.style.cssText = `width:32px;height:32px;background:blue;${child}`;
+          document.querySelector("#box")!.appendChild(element);
+        },
+        { defs, child, svgStyle },
+      );
+    }
+    async function expectNativeParity(page: Page, probe: { x: number; rgb: number[] }) {
       const before = await pixels(page);
+      // Native discriminator: the outside definition really shapes the blue child.
       expect([...before.subarray((16 * 64 + 4) * 3, (16 * 64 + 4) * 3 + 3)]).toEqual([0, 0, 255]);
-      const { prime, tree } = await nativeOwner(page);
+      expect([...before.subarray((16 * 64 + probe.x) * 3, (16 * 64 + probe.x) * 3 + 3)]).toEqual(probe.rgb);
+      await freezeRealWorldDom(page);
+      const styles = await page.evaluate(() => document.querySelectorAll("style").length);
+      const result = await captureElementTreeWithWarnings(page, "body", viewport, {});
+      expect(
+        result.warnings
+          .filter((warning) => warning.feature === "external-css-svg-raster")
+          .map((warning) => warning.detail),
+      ).toEqual(["external CSS SVG bytes unavailable; the authenticated native owner retains its painted clip/mask"]);
+      const owner = result.tree
+        .flatMap((node) => [node, ...node.children])
+        .find((node) => node.externalCssSvgRaster != null);
+      expect(owner?.externalCssSvgRaster?.dataUri).toMatch(/^data:image\/png/);
+      const output = await browser.newPage({ viewport: { width: 64, height: 64 } });
       try {
-        await expect(prime.rasterize(tree, viewport)).rejects.toThrow("outside local-definition dependency");
+        await output.setContent(`<body style="margin:0">${elementTreeToSvg(result.tree, 64, 64, {})}`);
+        expect((await pixels(output)).equals(before)).toBe(true);
       } finally {
-        await prime.dispose();
+        await output.close();
       }
       expect((await pixels(page)).equals(before)).toBe(true);
-    } finally {
-      await page.close();
+      // Exact cleanup: no isolation marker or stylesheet survives.
+      expect(await page.evaluate(() => document.querySelectorAll("style").length)).toBe(styles);
+      expect(
+        await page.evaluate(() =>
+          Array.from(document.querySelectorAll("*")).some((element) =>
+            element.getAttributeNames().some((name) => /cssvgpaint|csspaint/i.test(name)),
+          ),
+        ),
+      ).toBe(false);
     }
+    it.each([
+      ["literal", "mask-image:url(#outside-mask)"],
+      ["percent-encoded", "mask-image:url(#outside%2Dmask)"],
+    ])("keeps a %s outside mask at native paint", async (_, child) => {
+      const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
+      try {
+        await arrange(page, `<defs>${OUTSIDE_MASK}</defs>`, child);
+        // (12,16): masked out of the blue child, so the red owner shows through.
+        await expectNativeParity(page, { x: 12, rgb: [255, 0, 0] });
+      } finally {
+        await page.close();
+      }
+    });
+    it("follows a transitive, shared and cyclic closure without exposing a visible foreign sibling", async () => {
+      const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
+      try {
+        await arrange(
+          page,
+          // The mask paints via a gradient defined in a second <defs>, references
+          // itself (a cycle Blink ignores), and shares its SVG with a visible green
+          // rect which must stay hidden during the native stamp.
+          '<defs><mask id="outside-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="8" height="32" fill="url(#grad)" mask="url(#outside-mask)"/></mask></defs>' +
+            '<defs><linearGradient id="grad"><stop offset="0" stop-color="white"/></linearGradient></defs>' +
+            '<rect x="40" y="40" width="20" height="20" fill="green"/>',
+          "mask-image:url(#outside-mask)",
+          "position:absolute;left:0;top:0;width:64px;height:64px",
+        );
+        await page.evaluate(() => {
+          const shared = document.createElement("div");
+          shared.style.cssText = "width:32px;height:32px;background:blue;mask-image:url(#outside-mask)";
+          document.querySelector("#box > div")!.after(shared);
+        });
+        const before = await pixels(page);
+        expect([...before.subarray((48 * 64 + 48) * 3, (48 * 64 + 48) * 3 + 3)]).toEqual([0, 128, 0]);
+        await expectNativeParity(page, { x: 12, rgb: [255, 0, 0] });
+      } finally {
+        await page.close();
+      }
+    });
+    it("refuses a directly painted outside dependency instead of revealing or hiding it", async () => {
+      const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
+      try {
+        await arrange(
+          page,
+          '<defs><mask id="outside-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><use href="#painted"/></mask></defs><rect id="painted" width="8" height="32" fill="white"/>',
+          "mask-image:url(#outside-mask)",
+        );
+        const before = await pixels(page);
+        expect([...before.subarray((16 * 64 + 4) * 3, (16 * 64 + 4) * 3 + 3)]).toEqual([0, 0, 255]);
+        const { prime, tree } = await nativeOwner(page);
+        try {
+          await expect(prime.rasterize(tree, viewport)).rejects.toThrow("directly painted outside local-definition");
+        } finally {
+          await prime.dispose();
+        }
+        expect((await pixels(page)).equals(before)).toBe(true);
+      } finally {
+        await page.close();
+      }
+    });
   });
   it("refuses a potential visibility transition before changing source animation state", async () => {
     const page = await browser.newPage();

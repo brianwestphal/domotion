@@ -22,6 +22,7 @@ tickets:
     "DM-HSABGR",
     "DM-C6YH8W",
     "DM-FMYC9Q",
+    "DM-CN257K",
   ]
 code:
   [
@@ -240,10 +241,28 @@ refuses root body/html owners, animated/transitioning owners, backdrop blending,
 and ancestors with transformed/composited/clipped paint, propagated decoration
 or direct text. Potential isolation transitions, exposed root scrollbars and
 inherited paint changes also refuse; owner computed paint must remain unchanged
-through isolation/readback. These legitimate unsupported cases are tracked by DM-N933MV;
-local SVG resource definitions outside the native owner remain DM-F19PYG.
-Auxiliary readable-response identity is a separate investigation, DM-HSABGR;
-this repair does not establish that any successful refetch equals selected native bytes.
+through isolation/readback. These legitimate unsupported cases are tracked by DM-N933MV.
+
+Same-document definitions outside the owner (DM-F19PYG) keep their native
+paint. The owner subtree's `clip-path`, `mask-image`, `filter`, `fill`,
+`stroke` and marker URLs, and `href`/`xlink:href` on SVG `use`, gradient,
+`pattern`, `feImage`, `textPath` and `mpath` elements, are resolved with Blink's
+local-reference rule (a `#`-prefixed or same-document URL, decoded with
+`kUtf8OrIsomorphic`; `css_url_data.cc:231-234`, `svg_uri_reference.cc:89-111`).
+The transitive closure of each target's subtree is followed with a visited set,
+so shared and cyclic definitions terminate. Every target must be, or sit
+inside, content Blink never paints directly — `<defs>`, `<symbol>` or a
+resource container, all `LayoutSVGHiddenContainer`
+(`layout_svg_hidden_container.h:29-52`). Those elements are excluded from the
+hide rule and pinned to their own computed `visibility`, since they would
+otherwise inherit `hidden` from a hidden foreign `<svg>`; their full computed
+style must be unchanged after isolation and after readback, their subtree may
+not gain children, and foreign siblings in the same SVG stay verified hidden.
+A directly painted target (for example a rendered `<rect>` reached through a
+mask's `<use>`), an HTML target, or one containing the owner still refuses.
+Auxiliary readable-response identity is a separate investigation, DM-HSABGR:
+a no-store resource that varies by request destination is captured with the
+auxiliary bytes (follow-up DM-CN257K gates that path on paint equivalence).
 the refusal is not support parity. SVG-use redirect admission remains the
 separate DM-N8EYNT caller policy. Native controls cover frozen clip/mask pixels,
 generated layers, overlap, scrolled viewports, real missing resources, exact rollback,
