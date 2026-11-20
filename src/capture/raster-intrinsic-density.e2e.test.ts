@@ -39,6 +39,7 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
       const screenshots: Buffer[] = [];
       const emittedImages: string[] = [];
       const dimensions: { w: number; h: number }[] = [];
+      let lastTree: CapturedElement[] = [];
       for (const responsive of [false, true]) {
         await page.setContent(
           `<body style="margin:0"><img src="${uri}" ${responsive ? `srcset="${uri} 396w" sizes="390px"` : ""} style="position:absolute;left:16px;top:104.484375px;width:358px;height:525.234375px;object-fit:cover"></body>`,
@@ -55,6 +56,7 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
         dimensions.push(image!.imageIntrinsic!);
         expect(image?.imageDecodedIntrinsic).toEqual({ w: 396, h: 581 });
         emittedImages.push(/<image\b[^>]*>/.exec(elementTreeToSvgInner(tree, 390, 844))?.[0] ?? "");
+        lastTree = tree;
       }
       expect(dimensions).toEqual([
         { w: 396, h: 581 },
@@ -65,7 +67,30 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
       expect(screenshots[1]).toEqual(screenshots[0]);
       expect(emittedImages[0]).not.toBe("");
       expect(emittedImages[1]).toBe(emittedImages[0]);
-      expect(emittedImages[1]).toContain('height="525.2"');
+      // ImagePainter::PaintIntoRect (core/paint/image_painter.cc:205-239,
+      // Chromium 7d859f27) draws into ToPixelSnappedRect of the cover rect
+      // (y 104.484375 rounds to 104; bottom 629.71875 rounds to 630), not the
+      // fractional DOM content box, independent of any paint isolation. The
+      // unchanged native-screenshot arm above is the reference: the snapped
+      // emission must reproduce it exactly (the fractional one did not).
+      expect(emittedImages[1]).toMatch(/ y="104" width="358" height="526"/);
+      const meanError = async (tree: CapturedElement[]) => {
+        await page.setContent(`<style>body{margin:0}</style>${elementTreeToSvg(tree, 390, 844)}`);
+        await page.waitForTimeout(50);
+        const [a, b] = await Promise.all(
+          [await page.screenshot(), screenshots[0]].map((png) => sharp(png).removeAlpha().raw().toBuffer()),
+        );
+        let total = 0;
+        for (let i = 0; i < a.length; i++) total += Math.abs(a[i] - b[i]);
+        return total / a.length;
+      };
+      const snapped = await meanError(lastTree);
+      forEachElement(lastTree, (element) => {
+        delete element.imagePaintBasis;
+      });
+      const fractional = await meanError(lastTree);
+      expect(snapped).toBe(0);
+      expect(fractional).toBeGreaterThan(0);
     } finally {
       await page.close();
     }
@@ -310,15 +335,17 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
           expect(image.imageIntrinsic, sizes).toEqual(dom);
           expect(image.imageLayoutNatural, sizes).toEqual(natural);
           expect(warnings.filter((warning) => warning.feature === "raster-intrinsic-ratio")).toEqual([]);
-          // The SVG paints the unsnapped object rect; Chromium paints its pixel
-          // snap (ImagePainter::PaintIntoRect, ToPixelSnappedRect), so native
-          // extents are the natural size rounded through snapped edges.
-          expect(Math.abs(rendered.w - natural.w), sizes).toBeLessThan(0.05);
-          expect(Math.abs(rendered.h - natural.h), sizes).toBeLessThan(0.05);
+          // Chromium paints the pixel snap of the fractional object rect
+          // (ImagePainter::PaintIntoRect, ToPixelSnappedRect,
+          // core/paint/image_painter.cc:205-239, Chromium 7d859f27). The SVG
+          // now emits the same snap from the image's local paint basis, so its
+          // extents match native rather than the unsnapped natural size.
+          expect(Math.abs(rendered.w - native.w), sizes).toBeLessThan(0.05);
+          expect(Math.abs(rendered.h - native.h), sizes).toBeLessThan(0.05);
           expect(Math.abs(native.w - natural.w), sizes).toBeLessThan(1);
           expect(Math.abs(native.h - natural.h), sizes).toBeLessThan(1);
           // Negative control: the truncated DOM integers paint a different size.
-          expect(Math.abs(legacy.w - natural.w) + Math.abs(legacy.h - natural.h), sizes).toBeGreaterThan(0.15);
+          expect(Math.abs(legacy.w - native.w) + Math.abs(legacy.h - native.h), sizes).toBeGreaterThan(0.15);
         }
       } finally {
         await generated.close();
