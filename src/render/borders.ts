@@ -370,6 +370,24 @@ export function outsetCornerRadiiForShadow(c: CornerRadii, spread: number): Corn
   };
 }
 
+/** FloatRoundedRect::ConstrainRadii against a (pixel-snapped) rectangle: scale
+ * every radius by one factor when adjacent radii overflow a side. Radii that
+ * already fit are returned unchanged. */
+export function constrainCornerRadiiToRect(c: CornerRadii, width: number, height: number): CornerRadii {
+  let factor = 1;
+  for (const [sum, limit] of [
+    [c.tl.h + c.tr.h, width],
+    [c.bl.h + c.br.h, width],
+    [c.tl.v + c.bl.v, height],
+    [c.tr.v + c.br.v, height],
+  ] as const) {
+    if (sum > 0 && sum > limit) factor = Math.min(factor, Math.max(0, limit) / sum);
+  }
+  if (factor >= 1) return c;
+  const scale = (p: CornerRadiusPair): CornerRadiusPair => ({ h: p.h * factor, v: p.v * factor });
+  return { ...c, tl: scale(c.tl), tr: scale(c.tr), br: scale(c.br), bl: scale(c.bl) };
+}
+
 /** Blink FloatRoundedRect::Radii::OutsetWithCornerCorrection. Margin-box
  * corners use the CSS corner-shaping correction independently per axis so a
  * small radius approaches a sharp corner continuously instead of simply

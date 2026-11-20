@@ -11,6 +11,7 @@
 
 import { computeFieldsetLegendBox } from "./fieldset-legend.js";
 import { captureLegacyClipRect } from "./legacy-clip.js";
+import { captureBorderPaintSnap } from "./border-paint-snap.js";
 import { detectInlineFragments } from "./fragmentation.js";
 import { captureInlineSvg } from "./inline-svg.js";
 import { captureImageElement } from "./image-elements.js";
@@ -543,6 +544,20 @@ export const createElementCapture = () => {
       warn: d.warn,
     });
     if (legacyClipRect != null) captured.legacyClipRect = legacyClipRect;
+    // The deltas describe the live border box, so a box whose captured
+    // geometry was adjusted away from it (a fieldset's legend notch) has none.
+    if (
+      cs.boxShadow != null &&
+      cs.boxShadow !== "" &&
+      cs.boxShadow !== "none" &&
+      captured.x === rect.left - vp.x &&
+      captured.y === rect.top - vp.y &&
+      captured.width === rect.width &&
+      captured.height === rect.height
+    ) {
+      const borderPaintSnap = captureBorderPaintSnap(el, rect, d.effectiveZoomFor(el));
+      if (borderPaintSnap != null) captured.borderPaintSnap = borderPaintSnap;
+    }
     return assembleCaptureResultPhase({
       captured,
       el,

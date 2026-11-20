@@ -1484,6 +1484,8 @@ function paintCustomScrollbarVectorPart(
   const rect = item.part.rect;
   const fake: CapturedElement = {
     ...owner,
+    // The owner's border paint snap does not describe this scrollbar part.
+    borderPaintSnap: undefined,
     x: rect.x,
     y: rect.y,
     width: rect.width,
@@ -1600,6 +1602,7 @@ function paintResizeHandle(
     const border = customResizerBorder(custom.border, zoom);
     const shadowElement = {
       ...el,
+      borderPaintSnap: undefined,
       x: handle.x,
       y: handle.y,
       width: handle.width,
@@ -4672,6 +4675,8 @@ function renderElement(
           y: tableGridRect.y,
           width: tableGridRect.width,
           height: tableGridRect.height,
+          // The snap deltas describe the captured border box, not the grid.
+          borderPaintSnap: undefined,
         };
   // Border-radius resolution (SK-1093 / DM-300): per-corner longhand values
   // come from the capture as "h v" axis-pair strings (e.g. "30px 30px" or

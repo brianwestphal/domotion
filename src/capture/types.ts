@@ -2029,6 +2029,15 @@ export interface CapturedBrokenImageFallback {
   selector?: string;
 }
 
+/** Signed deltas from the captured border-box edges to Blink's snapped paint edges, in CSS px. */
+export interface CapturedBorderPaintSnap {
+  source: "blink-pixel-snapped-border-v1";
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
 export interface CapturedElement {
   /**
    * DM-2351: generic-family settings observed from the same Chromium page as
@@ -2300,6 +2309,17 @@ export interface CapturedElement {
    * Absent for `auto`, and for transformed or zoomed owners (warned).
    */
   legacyClipRect?: { x: number; y: number; width: number; height: number };
+  /**
+   * Blink's pixel-snapped border paint rectangle
+   * (`ContouredBorderGeometry::PixelSnappedContouredBorder`) as signed deltas
+   * from the captured border-box edges. Captured only for a box with a
+   * `box-shadow`, and only when its local paint space is authenticated from
+   * the live page (identity or pure-translation transform chain, integral
+   * scroll offsets, unit DPR and zoom, no paint isolation); see
+   * `src/capture/script/walker/border-paint-snap.ts`. Absent otherwise, and
+   * the renderer then paints from the captured geometry.
+   */
+  borderPaintSnap?: CapturedBorderPaintSnap;
   /**
    * The `prefersReducedMotion` / `inForcedColors` Settings an `<img>`'s SVG
    * image document copies from the renderer's first ordinary page

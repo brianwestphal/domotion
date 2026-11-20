@@ -13,6 +13,7 @@ import { parseBoxShadow } from "./box-shadow.js";
 import { r } from "./format.js";
 import { parseColor, colorStr } from "./colors.js";
 import {
+  constrainCornerRadiiToRect,
   insetCornerRadii,
   outsetCornerRadiiForShadow,
   roundedRectPath,
@@ -37,11 +38,36 @@ export interface ShadowBox {
     CapturedElement["styles"],
     "boxShadow" | "borderTopWidth" | "borderRightWidth" | "borderBottomWidth" | "borderLeftWidth"
   > & { backgroundColor?: string; display?: string };
+  borderPaintSnap?: CapturedElement["borderPaintSnap"];
 }
 
-export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners: CornerRadii, indent: string): void {
+/**
+ * The border contour normal shadows are painted from. Blink's
+ * `BoxPainterBase::PaintNormalBoxShadow` (core/paint/box_painter_base.cc:294,
+ * Chromium 7d859f27) starts from `PixelSnappedContouredBorder`, whose rect is
+ * `ToPixelSnappedRect(paint_rect)` in local paint space and whose radii are
+ * resolved against the unsnapped size, then constrained to the snapped rect
+ * (contoured_border_geometry.cc:136-140, 178-185). The capture authenticates
+ * that rect as `borderPaintSnap`; without it the captured geometry is kept.
+ */
+export function shadowBorderContour(
+  el: ShadowBox,
+  corners: CornerRadii,
+): { x: number; y: number; width: number; height: number; corners: CornerRadii } {
+  const snap = el.borderPaintSnap;
+  if (snap == null) return { x: el.x, y: el.y, width: el.width, height: el.height, corners };
+  const x = el.x + snap.left,
+    y = el.y + snap.top;
+  const width = el.x + el.width + snap.right - x,
+    height = el.y + el.height + snap.bottom - y;
+  return { x, y, width, height, corners: constrainCornerRadiiToRect(corners, width, height) };
+}
+
+export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners: CornerRadii, indent: string): void {
   // A display:contents element has no box for BoxPainterBase to decorate.
   if (el.styles.display === "contents") return;
+  const border = shadowBorderContour(el, sourceCorners);
+  const corners = border.corners;
   const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
   for (let si = shadows.length - 1; si >= 0; si--) {
     const sh = shadows[si];
@@ -57,10 +83,10 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners: Corn
     // shadow). Chromium's `BoxShadowData::ApplyToBoxOuter` shrinks the
     // outer rect by `-spread` on each side and zero-clamps the result.
     // Rect inflated by spread and shifted by (x, y).
-    const sx = el.x + sh.x - sh.spread;
-    const sy = el.y + sh.y - sh.spread;
-    const sw = el.width + sh.spread * 2;
-    const sh2 = el.height + sh.spread * 2;
+    const sx = border.x + sh.x - sh.spread;
+    const sy = border.y + sh.y - sh.spread;
+    const sw = border.width + sh.spread * 2;
+    const sh2 = border.height + sh.spread * 2;
     if (sw <= 0 || sh2 <= 0) continue;
     // Outer shadow corners per CSS Backgrounds 3 §6.4 / Chromium
     // `FloatRoundedRect::Outset`: a non-zero source corner grows by
@@ -89,12 +115,12 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners: Corn
       const rounded = [corners.tl, corners.tr, corners.br, corners.bl].some((corner) => corner.h > 0 || corner.v > 0);
       if (rounded) {
         ctx.defsParts.push(
-          `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${roundedRectSvg(el.x, el.y, el.width, el.height, corners, 'fill="black"')}</mask>`,
+          `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${roundedRectSvg(border.x, border.y, border.width, border.height, corners, 'fill="black"')}</mask>`,
         );
         clipAttr = ` mask="url(#${clipId})"`;
       } else {
         const outer = `M${r(sx - sw)} ${r(sy - sh2)}h${r(sw * 3)}v${r(sh2 * 3)}h${r(-sw * 3)}Z`;
-        const hole = roundedRectPath(el.x, el.y, el.width, el.height, corners);
+        const hole = roundedRectPath(border.x, border.y, border.width, border.height, corners);
         ctx.defsParts.push(
           `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${outer} ${hole}" clip-rule="evenodd"/></clipPath>`,
         );

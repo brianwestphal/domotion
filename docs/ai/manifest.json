@@ -4581,6 +4581,8 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/render/box-shadow-paint.ts",
+        "src/capture/script/walker/border-paint-snap.ts",
+        "tests/box-shadow-border-knockout.e2e.test.ts",
         "tests/box-shadow-native-contour-authority.e2e.test.ts",
         "tests/capture-selected-shadow-root.e2e.test.ts"
       ],

@@ -68,6 +68,17 @@ const cases = [
   { name: "vertical circular offset", shadow: "0 4px 0 red", extra: "border-radius:5px" },
   { name: "circular negative spread", shadow: "0 0 0 -2px red", extra: "border-radius:5px" },
   { name: "circular positive spread", shadow: "0 0 0 2px red", extra: "border-radius:5px" },
+  // PaintNormalBoxShadow paints from PixelSnappedContouredBorder: a
+  // fractional source rect paints its shadow and knockout on whole pixels.
+  { name: "fractional rounded source origin", shadow: "4px 0 0 red", extra: "border-radius:5px;margin:20.5px" },
+  { name: "fractional sharp source origin", shadow: "4px 0 0 red", extra: "margin:20.5px" },
+  { name: "fractional source width", shadow: "4px 0 0 red", extra: "width:20.5px" },
+  {
+    name: "quarter-pixel rounded source origin",
+    shadow: "4px 3px 0 red",
+    extra: "border-radius:5px;margin:20.25px 20.75px",
+  },
+  { name: "fractional origin with spread", shadow: "0 0 0 2px red", extra: "border-radius:5px;margin:20.5px" },
 ];
 it.each(cases)(
   "matches complete native pixels for $name",
@@ -179,5 +190,62 @@ it("keeps a display:contents selector transparent and captures its real child", 
   } finally {
     await page.close();
     await output.close();
+  }
+});
+
+// Blink snaps the border rect in LOCAL paint space and applies a pure
+// translation afterwards (subpixel accumulation, paint_property_tree_builder.cc
+// :733-779, Chromium 7d859f27), so the snap is computed before the captured
+// viewport rect's translation. Spaces the capture cannot authenticate keep the
+// captured geometry (no record).
+it.each([
+  { name: "untransformed half-pixel origin", extra: "margin:20.5px", wrap: "", snap: [0.5, 0.5, 0.5, 0.5] },
+  { name: "fractional width", extra: "width:20.5px", wrap: "", snap: [0, 0, 0.5, 0] },
+  { name: "integral origin", extra: "", wrap: "", snap: [0, 0, 0, 0] },
+  {
+    name: "own half-pixel translate",
+    extra: "margin:20.5px;transform:translate(.5px,.5px)",
+    wrap: "",
+    snap: [0.5, 0.5, 0.5, 0.5],
+  },
+  {
+    name: "ancestor half-pixel translate over an integral origin",
+    extra: "",
+    wrap: "transform:translate(.5px,.5px)",
+    snap: [0, 0, 0, 0],
+  },
+  {
+    name: "standalone translate property",
+    extra: "margin:20.5px;translate:.25px",
+    wrap: "",
+    snap: [0.5, 0.5, 0.5, 0.5],
+  },
+  { name: "scale transform", extra: "margin:20.5px;transform:scale(2)", wrap: "", snap: null },
+  { name: "rotated live ancestor", extra: "margin:20.5px", wrap: "transform:rotate(10deg)", snap: null },
+  { name: "paint containment", extra: "margin:20.5px;contain:paint", wrap: "", snap: null },
+  { name: "isolating ancestor", extra: "margin:20.5px", wrap: "contain:paint", snap: null },
+  { name: "sticky position", extra: "margin:20.5px;position:sticky;top:0", wrap: "", snap: null },
+  { name: "will-change transform", extra: "margin:20.5px;will-change:transform", wrap: "", snap: null },
+  { name: "percentage translate", extra: "margin:20.5px;translate:2.5%", wrap: "", snap: null },
+])("records the source-owned border paint snap: $name", async ({ extra, wrap, snap }) => {
+  const page = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      `<style>body{margin:0}#only{width:20px;height:20px;margin:20px;box-shadow:4px 0 0 red;${extra}}</style><div id="container" style="${wrap}"><div id="only"></div></div>`,
+    );
+    const tree = await captureElementTree(page, "#container", viewport);
+    const find = (nodes: typeof tree): (typeof tree)[number] | undefined => {
+      for (const node of nodes) {
+        if (node.styles.boxShadow != null && node.styles.boxShadow !== "none") return node;
+        const found = find(node.children ?? []);
+        if (found != null) return found;
+      }
+      return undefined;
+    };
+    const record = find(tree)?.borderPaintSnap;
+    if (snap == null) expect(record).toBeUndefined();
+    else expect(record && [record.left, record.top, record.right, record.bottom]).toEqual(snap);
+  } finally {
+    await page.close();
   }
 });

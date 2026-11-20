@@ -167,11 +167,10 @@ already supported.
 
 The [native contour investigation](../277-shadow-contour-authority.md) retains
 source geometry, full-RGBA measurements and strict unresolved producer probes.
-The repaired knockout does not establish elliptical/unequal contour parity,
-subpixel paint-space authority or a universal raster floor. DM-ZNQ7PH,
-DM-WYY3ZZ, DM-5KSA83 and DM-TFN8RD own those remaining producer gaps.
-DM-09GQAV omits the native-empty coincident normal shadow; it does not change
-positive-inset production. Root admission remains separately guarded below.
+It does not establish elliptical/unequal contour parity or a raster floor
+(DM-ZNQ7PH, DM-5KSA83, DM-TFN8RD). Normal shadows use Blink's [pixel-snapped border rectangle](../277-shadow-contour-authority.md#pixel-snapped-normal-shadow-paint-rectangle)
+when capture authenticates the local paint space (DM-WYY3ZZ). DM-09GQAV omits
+the native-empty coincident shadow; root admission is guarded below.
 
 ### Fractional inset admission boundary (DM-7P69DC)
 

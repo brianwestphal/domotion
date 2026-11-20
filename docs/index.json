@@ -6268,9 +6268,11 @@
         "status": "current",
         "owners": ["paint-effects"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC"],
+        "tickets": ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ"],
         "code": [
           "src/render/box-shadow-paint.ts",
+          "src/capture/script/walker/border-paint-snap.ts",
+          "tests/box-shadow-border-knockout.e2e.test.ts",
           "tests/box-shadow-native-contour-authority.e2e.test.ts",
           "tests/capture-selected-shadow-root.e2e.test.ts"
         ],

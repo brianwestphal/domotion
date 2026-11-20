@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { paintInsetBoxShadow, type ShadowBox, type ShadowPaintCtx } from "./box-shadow-paint.js";
-import type { CornerRadii } from "./borders.js";
+import {
+  paintBoxShadow,
+  paintInsetBoxShadow,
+  shadowBorderContour,
+  type ShadowBox,
+  type ShadowPaintCtx,
+} from "./box-shadow-paint.js";
+import { constrainCornerRadiiToRect, type CornerRadii } from "./borders.js";
 
 const SHARP: CornerRadii = {
   tl: { h: 0, v: 0 },
@@ -62,5 +68,78 @@ describe("paintInsetBoxShadow", () => {
   it("ignores outer shadows", () => {
     const ctx = paint("rgb(0, 0, 0) 0px -3px 0px 0px");
     expect(ctx.svgParts).toHaveLength(0);
+  });
+});
+
+describe("normal box-shadow pixel-snapped border contour", () => {
+  const ROUND5: CornerRadii = {
+    tl: { h: 5, v: 5 },
+    tr: { h: 5, v: 5 },
+    br: { h: 5, v: 5 },
+    bl: { h: 5, v: 5 },
+    uniform: true,
+  };
+  const box = (snap?: ShadowBox["borderPaintSnap"]): ShadowBox => ({
+    x: 20.5,
+    y: 20.5,
+    width: 20,
+    height: 20,
+    borderPaintSnap: snap,
+    styles: {
+      boxShadow: "rgb(255, 0, 0) 4px 0px 0px 0px",
+      backgroundColor: "rgba(0, 0, 0, 0)",
+      borderTopWidth: "0px",
+      borderRightWidth: "0px",
+      borderBottomWidth: "0px",
+      borderLeftWidth: "0px",
+    },
+  });
+  const snapHalf = { source: "blink-pixel-snapped-border-v1", left: 0.5, top: 0.5, right: 0.5, bottom: 0.5 } as const;
+  const paintNormal = (el: ShadowBox, corners: CornerRadii): ShadowPaintCtx => {
+    let n = 0;
+    const ctx: ShadowPaintCtx = { svgParts: [], defsParts: [], nextClipId: (p) => `${p}${n++}` };
+    paintBoxShadow(ctx, el, corners, "");
+    return ctx;
+  };
+
+  // PaintNormalBoxShadow derives both the shadow rect and the excluded
+  // contour from PixelSnappedContouredBorder (box_painter_base.cc:294-338,
+  // Chromium 7d859f27); the captured DOM rect itself stays fractional.
+  it("paints the shadow and its knockout from the authenticated snapped rect", () => {
+    const ctx = paintNormal(box(snapHalf), SHARP);
+    expect(ctx.svgParts[0]).toContain('x="25" y="21" width="20" height="20"');
+    expect(ctx.defsParts[0]).toContain("M21,21 L41,21 L41,41 L21,41");
+  });
+
+  it("snaps the rounded knockout mask contour too", () => {
+    const ctx = paintNormal(box(snapHalf), ROUND5);
+    expect(ctx.svgParts[0]).toContain('x="25" y="21"');
+    expect(ctx.defsParts[0]).toContain('x="21" y="21" width="20" height="20"');
+  });
+
+  it("keeps the captured geometry when the paint space is not authenticated", () => {
+    const ctx = paintNormal(box(undefined), SHARP);
+    expect(ctx.svgParts[0]).toContain('x="24.5" y="20.5"');
+    expect(ctx.defsParts[0]).toContain("M20.5,20.5");
+  });
+
+  it("returns the source corners unchanged when they fit the snapped rect", () => {
+    expect(shadowBorderContour(box(snapHalf), ROUND5)).toEqual({
+      x: 21,
+      y: 21,
+      width: 20,
+      height: 20,
+      corners: ROUND5,
+    });
+  });
+
+  it("constrains radii against the snapped rect (FloatRoundedRect::ConstrainRadii)", () => {
+    const big: CornerRadii = { ...ROUND5, tl: { h: 15, v: 15 }, tr: { h: 15, v: 15 } };
+    const shrink = { source: "blink-pixel-snapped-border-v1", left: 0.5, top: 0.5, right: -0.5, bottom: 0.5 } as const;
+    const contour = shadowBorderContour({ ...box(shrink), width: 30 }, big);
+    expect(contour.width).toBe(29);
+    expect(contour.corners.tl.h).toBeCloseTo(14.5, 10);
+    expect(contour.corners.br.h).toBeCloseTo((5 * 29) / 30, 10);
+    expect(constrainCornerRadiiToRect(ROUND5, 20, 20)).toBe(ROUND5);
   });
 });

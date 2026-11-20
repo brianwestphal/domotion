@@ -5,10 +5,12 @@ kind: "investigation"
 status: "current"
 owners: ["paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC"]
+tickets: ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ"]
 code:
   [
     "src/render/box-shadow-paint.ts",
+    "src/capture/script/walker/border-paint-snap.ts",
+    "tests/box-shadow-border-knockout.e2e.test.ts",
     "tests/box-shadow-native-contour-authority.e2e.test.ts",
     "tests/capture-selected-shadow-root.e2e.test.ts",
   ]
@@ -112,3 +114,57 @@ and [SkCanvas](https://skia.googlesource.com/skia/+/fd139e79fd4553ba16556c1bca6c
 The source clip precedes normal-shadow drawing; the zero-blur looper has no
 blur mask filter. Neither fact alone identifies backend coverage arithmetic.
 All measurements above are native macOS evidence, not a Linux/Windows result.
+
+## Pixel-snapped normal-shadow paint rectangle
+
+`BoxPainterBase::PaintNormalBoxShadow` (`core/paint/box_painter_base.cc:294-338`,
+Chromium `7d859f27`) derives both the shadow shape and the excluded border
+contour from `ContouredBorderGeometry::PixelSnappedContouredBorder`
+(`contoured_border_geometry.cc:178-185`): `ToPixelSnappedRect(paint_rect)`
+(`physical_rect.h:228`) rounds the local origin and snaps each size with
+`SnapSizeToPixel` (`layout_unit.h:805-813`, which keeps a nonzero size of more
+than four LayoutUnits at one pixel), and the radii are resolved against the
+unsnapped size, then constrained to the snapped rect (`:136-140`). A 20×20 box
+at a 20.5px margin therefore paints its shadow and knockout at 21..41, not
+20.5..40.5; before this change the producer differed from Chromium at 87 RGBA
+pixels (sharp: 80).
+
+That snap happens in local paint space, before any transform or scroll
+translation, so the capture does not round viewport coordinates. For a box with
+a `box-shadow`, `src/capture/script/walker/border-paint-snap.ts` records
+`borderPaintSnap` — signed deltas from the captured border-box edges to the
+snapped edges, so a later whole-tree translation keeps it valid — only when the
+local paint space is authenticated:
+
+- every element in the composed ancestor chain (self included) has an identity
+  or pure 2D translation transform; subpixel accumulation survives those
+  through `UpdateForPaintOffsetTranslation` /
+  `CanPropagateSubpixelAccumulation` (`paint_property_tree_builder.cc:652-779`),
+  so the local rect is the viewport rect minus the summed translations;
+- every ancestor scroller and the document scroller have integral offsets
+  (`UpdateScrollTranslation` applies them after the snap, `:3556-3564`);
+- the device pixel ratio, pinch zoom and effective CSS zoom are 1.
+
+Everything else fails closed — no record, and the renderer keeps the captured
+geometry: scale/rotate/skew/3D transforms (including a live rotated capture
+root), percentage `translate`, motion paths, `will-change` transform-family
+properties (`kPreventingSubpixelAccumulationReasons`), paint or style+layout
+containment and `content-visibility` (`NeedsIsolationNodes`, `:570-589`), sticky
+positioning, a captured box that differs from the live border box (a fieldset
+legend notch), and table-grid or scrollbar/resizer substitutes. Captured DOM
+geometry is never changed.
+
+`paintBoxShadow` applies the record through `shadowBorderContour`. Native
+full-RGBA controls in `tests/box-shadow-border-knockout.e2e.test.ts` (fractional
+rounded and sharp origins, fractional width, quarter-pixel origins, spread) are
+byte-exact on macOS, and that file pins the record for own and ancestor
+translations and for each fail-closed space. Known remaining gaps:
+
+- Under a fractional device translation (a `translate(.5px)` on the box or an
+  ancestor), the snapped geometry now matches Chromium (21.5..41.5), but Blink's
+  sharp `ClipOut` is not antialiased (`graphics_context.h:385-387`) while the
+  SVG clip is, so the clip edge still differs (57 pixels for the sharp case).
+- Inset shadows still paint from the captured geometry; they snap through
+  `PixelSnappedContouredInnerBorder` and can reuse this record.
+- The radii are constrained against the captured size and then again against
+  the snapped size, rather than once against the snapped size.
