@@ -2089,7 +2089,7 @@ flowchart TD
   WB -->|"default"| WS["script = GetScript(cp)<br/>(ICU Script property; Common/Inherited → GetScriptBasedOnUnicodeBlock)"]
   WS --> WFW["U+FF01-FF5E full-width ASCII → script = Han"]
   WFW --> WHAN{"script == Han?"}
-  WHAN -->|"yes"| WHANL["LocaleForHan(lang) then host locale → Hans / Hant / Hrkt / Hangul;<br/>null leaves script = Han (→ CJK pan-Unicode list),<br/>and the HAN slot carries GetSystem().GetScriptForHan()'s list"]
+  WHAN -->|"yes"| WHANL["LocaleForHan: captured fontLocaleForHan (content locale,<br/>browser --accept-lang, renderer --lang) then host locale<br/>(legacy: lang then host) → Hans / Hant / Hrkt / Hangul;<br/>null leaves script = Han (→ CJK pan-Unicode list),<br/>and the HAN slot carries GetSystem().GetScriptForHan()'s list"]
   WHAN -->|"no"| WBMP
   WHANL --> WBMP{"cp &lt;= 0xFFFF?"}
   WBMP -->|"yes"| WTAB["GetFontFamilyForScript:<br/>monospace + Arabic/Hebrew → 'courier new';<br/>else FirstAvailableFont(WIN_SCRIPT_FONT_FAMILIES[script])<br/>(74 rows, verbatim from InitializeScriptFontMap)"]
@@ -2680,6 +2680,28 @@ constants:
   (exactly what Skia's own comment at `SkFontMgr_win_dw.cpp:641-643` warns about).
   This is the OPPOSITE reduction from the Linux path's, where fontconfig speaks
   language-REGION and ignores `Hans`.
+
+  For a Han codepoint the locale is `LayoutLocale::LocaleForHan(font_description.Locale())`
+  (`platform/text/layout_locale.cc:226-257`): the content locale when it
+  disambiguates Han, else the first accept-language that does, else the renderer
+  default (`--lang`), else ICU's system locale, else the `zh-Hant` literal. The
+  tag sent is that locale's own `LocaleForSkFontMgr()`, so a region-only Han
+  locale such as `en-JP` reaches DirectWrite as `en`. Steps 1-3 are decided at
+  capture (`annotateFontLocaleForHan`, `src/capture/renderer-default-locale.ts`)
+  and recorded per element and pseudo typography as `fontLocaleForHan`: the
+  content locale is null for computed `font-locale: auto`, and the
+  accept-languages are the launched headless shell's own `--accept-lang` switch
+  (empty without it; `headless/lib/browser/command_line_handler.cc:249-251`).
+  Playwright's `locale` option does not reach this list — it is CDP emulation of
+  `navigator.languages` and request headers only. Any other browser build keeps
+  the list in profile preferences, which is unauthenticated, so the field is
+  omitted and the prior route (`lang`, then the host locale) applies. The render
+  options carry it as `TextFontOptions.fontLocaleForHan`; each text-engine entry
+  point enters it as a request-scoped context (`withFontLocaleForHan`) that both
+  Windows Han stages read, and it joins the win32 system-fallback memo key.
+  `DOMOTION_ACCEPT_LANGUAGES=0` disables the accept-languages authority alone
+  (negative control). Linux (`LocaleOrDefault()` to fontconfig,
+  `linux/font_cache_linux.cc:89-97`) and macOS (no locale) never consult it.
 
   The locale joins the helper's per-codepoint memo key (`fallbackCacheKey`), since
   the answer is a function of it. Skia's `IDWriteNumberSubstitution` — built from
@@ -3655,7 +3677,9 @@ Blink's default locale — the launched renderer's last `--lang`, authenticated
 from the process tree (`src/capture/renderer-default-locale.ts`, DM-JRG1BD) and
 recorded as `defaultFontLocale`; it reaches every platform through the per-script
 generic settings and the appended `-webkit-standard` family, plus fontconfig's
-`FC_LANG` on Linux and `GetDefault()` on Windows. Capture-side bitmap-glyph raster
+`FC_LANG` on Linux and `GetDefault()` on Windows. Windows Han fallback instead
+reads `fontLocaleForHan`, Blink's `LocaleForHan` order with a null content
+locale for `auto` (see the DirectWrite `locale` bullet above). Capture-side bitmap-glyph raster
 span selection and the standard-family-type usability gate use the same
 language (DM-XWGRJC). Old trees and an
 unauthenticated renderer continue through their prior language route. The

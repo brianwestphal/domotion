@@ -177,11 +177,17 @@ describe("blinkWinFallbackLocale — FallbackLocaleForCharacter (font_cache_skia
     expect(blinkWinFallbackLocale(HAN, "de-DE")).not.toBe("de");
   });
 
-  it("uses ScriptCodeForHanFromSubtags for a lang that only its region disambiguates", () => {
+  it("sends the Han locale's OWN SkFontMgr tag, even when only its region disambiguates", () => {
     // "Some sites emit lang='en-JP' when English is set as the preferred
-    // language" (locale_to_script_mapping.cc:484-507).
-    expect(blinkWinFallbackLocale(HAN, "en-JP")).toBe("ja");
-    expect(blinkWinFallbackLocale(HAN, "en-TW")).toBe("zh-Hant");
+    // language" (locale_to_script_mapping.cc:484-507): `en-JP` HAS a script for
+    // Han, so `LocaleForHan` returns it as the content locale. The caller then
+    // asks `fallback_locale->LocaleForSkFontMgr()` (font_cache_skia_win.cc:236),
+    // which keys on the locale's own `script_` (Latin), so DirectWrite gets `en`
+    // — not the `ja` that `ToSkFontMgrLocale(GetScriptForHan())` would give.
+    expect(blinkWinFallbackLocale(HAN, "en-JP")).toBe("en");
+    expect(blinkWinFallbackLocale(HAN, "en-TW")).toBe("en");
+    // Step 1 still won: the host locale was never consulted.
+    expect(blinkWinFallbackLocale(HAN, "zh-TW")).toBe("zh-Hant");
   });
 
   it("falls back to Blink's kChineseSimplified LITERAL when nothing disambiguates", () => {

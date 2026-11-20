@@ -59,7 +59,12 @@ import {
   serializeSessionGenericFamilyProbe,
 } from "./generic-font-probe.js";
 import { createCapturedTreeEnvelope, promoteCapturedSubtree } from "./tree-envelope.js";
-import { annotateDefaultFontLocale, rendererDefaultLocaleForPage } from "./renderer-default-locale.js";
+import {
+  annotateDefaultFontLocale,
+  annotateFontLocaleForHan,
+  browserAcceptLanguagesForPage,
+  rendererDefaultLocaleForPage,
+} from "./renderer-default-locale.js";
 import { primeDecodedImageRatios } from "./decoded-image-ratio.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
@@ -2563,6 +2568,13 @@ async function captureElementTreeWithWarningsInternal(
       // Annotate before any capture-side font selection (bitmap-glyph raster
       // spans) so it sees the same `auto` locale the renderer will.
       if ("locale" in rendererLocale) annotateDefaultFontLocale(typed.tree, rendererLocale.locale);
+      // Blink's Windows Han fallback walks LocaleForHan: content locale, then
+      // the browser's --accept-lang, then this default. Both authorities or none.
+      if ("locale" in rendererLocale) {
+        const accept = await browserAcceptLanguagesForPage(page);
+        if ("acceptLanguages" in accept)
+          annotateFontLocaleForHan(typed.tree, rendererLocale.locale, accept.acceptLanguages);
+      }
       await replacedMediaTransaction?.bindCapturedOwners(typed.tree);
       const warnings = typed.warnings ?? [];
       warnings.push(...(fontFamilyDeclarations?.warnings ?? []));

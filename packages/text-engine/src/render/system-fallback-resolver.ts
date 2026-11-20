@@ -8,7 +8,7 @@ import {
   resolveSystemUiFamily,
   type SystemUiCloneRequest,
 } from "./glyph-helper.js";
-import { blinkWinFallbackLocale } from "./win-font-fallback.js";
+import { blinkWinFallbackLocale, fontLocaleForHanIdentity } from "./win-font-fallback.js";
 import { systemFallbackResolutionEnabled, setSystemFallbackResolutionEnabled } from "./font-spec.js";
 import { resolveEffectiveCutKey } from "./font-instance.js";
 import { resolveFontSpec } from "./font-spec.js";
@@ -623,7 +623,11 @@ export function resolveSystemFallbackKeyForCp(
   // the unresolved declared head. It is therefore part of this memo's input,
   // including whether the node was a generic or a quoted/named family.
   const declaredHeadComponent = hostPlatform() === "darwin" ? "" : declaredFamilyHeadIdentity(declaredFamily);
-  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}${darwinDescription}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}|${suppressEmojiPresentation ? "t" : ""}|${primaryKeyComponent}|${declaredHeadComponent}|${uiClone == null ? "" : JSON.stringify(uiClone)}`;
+  // The Windows DirectWrite locale for a Han codepoint is `LocaleForHan`'s
+  // answer, which the request-scoped accept-languages context decides beside
+  // `lang`; it joins the key on win32 for the same reason `lang` does.
+  const hanComponent = hostPlatform() === "win32" ? `|${fontLocaleForHanIdentity()}` : "";
+  const cacheKey = `${hostPlatform()}|${cp}|${weight}|${slant !== 0 ? 1 : 0}${darwinDescription}|${fontSize}|${base.name}|${useSystemUiBase ? "ui" : ""}|${lang ?? ""}${hanComponent}|${suppressEmojiPresentation ? "t" : ""}|${primaryKeyComponent}|${declaredHeadComponent}|${uiClone == null ? "" : JSON.stringify(uiClone)}`;
   // DM-1949: the ideograph document cache (Blink's character_fallback_cache_,
   // font_cache_mac.mm:352-366) is consulted BEFORE any ask — including the
   // process-global memo below, which is a memo of the context-FREE ask and

@@ -3633,6 +3633,7 @@
       "owners": ["text-fonts"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
+        "tests/han-accept-languages.e2e.test.ts",
         "src/font-family-stack.test.ts",
         "src/capture/script/font-family-default.ts",
         "src/capture/script/font-family-default.test.ts",

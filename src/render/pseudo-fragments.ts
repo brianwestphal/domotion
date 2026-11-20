@@ -190,6 +190,7 @@ function textOptions(
     ascentOverride: typography.primaryFontAscent,
     features: fontFeatures(record),
     lang: fontSelectionLanguage(typography),
+    fontLocaleForHan: typography.fontLocaleForHan,
     variationSettings: parseFontVariationSettings(typography.fontVariationSettings),
     fontVariantEmoji:
       variantEmoji === "text" || variantEmoji === "emoji" || variantEmoji === "unicode" ? variantEmoji : undefined,

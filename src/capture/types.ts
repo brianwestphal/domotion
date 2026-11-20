@@ -539,6 +539,12 @@ export interface CapturedPseudoTypography {
   /** Blink's default font locale (the launched renderer's last `--lang`),
    * recorded only where `fontLocale` is `auto`; see renderer-default-locale.ts. */
   defaultFontLocale?: string;
+  /** Steps 1-3 of Blink's `LayoutLocale::LocaleForHan` for this typography:
+   * the Han-disambiguating locale among the content locale (null for `auto`),
+   * the launched browser's `--accept-lang` and the renderer default, or null
+   * when none disambiguates. Absent when the renderer state is unauthenticated;
+   * see renderer-default-locale.ts. Consulted by the Windows Han fallback. */
+  fontLocaleForHan?: string | null;
   effectiveZoom: number;
   primaryFontAscent: number;
   primaryFontDescent: number;
@@ -1530,6 +1536,13 @@ export interface CapturedStyles {
    * recorded only where `fontLocale` is `auto`. Absent (older trees, or an
    * unauthenticated renderer) keeps the prior DOM-language route. */
   defaultFontLocale?: string;
+  /** Steps 1-3 of Blink's `LayoutLocale::LocaleForHan` for this element: the
+   * Han-disambiguating locale among the content locale (null for `auto`), the
+   * launched browser's `--accept-lang` and the renderer default, or null when
+   * none disambiguates. Absent when the renderer state is unauthenticated (the
+   * prior `lang`-then-host route applies). Consulted by the Windows Han
+   * fallback; see renderer-default-locale.ts. */
+  fontLocaleForHan?: string | null;
   /** `text-decoration-line` — 'underline', 'line-through', 'overline', or
    *  combinations. 'none' means no decoration; renderer draws an SVG line
    *  below / through / above the text when present. */

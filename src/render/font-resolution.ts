@@ -30,6 +30,7 @@ export {
   withRenderTextMode,
   isolatedPrimaryFontMetrics,
   type IsolatedFontFace,
+  layoutLocaleForHan,
   linuxFontEnvironmentKey,
   type FontRenderHinting,
   type LinuxFontRenderContext,

@@ -21,9 +21,12 @@ tickets:
     "DM-MGQCRJ",
     "DM-DZVKRG",
     "DM-GREERW",
+    "DM-FEN1QP",
+    "DM-QRHRNY",
   ]
 code:
   [
+    "tests/han-accept-languages.e2e.test.ts",
     "src/font-family-stack.test.ts",
     "src/capture/script/font-family-default.ts",
     "src/capture/script/font-family-default.test.ts",
@@ -475,6 +478,17 @@ typography), the Page generic probe adds its script, and `fontSelectionLanguage`
 prefers it over DOM language for `auto` only. A connected/remote browser,
 unreadable argv, disagreement, or `DOMOTION_RENDERER_DEFAULT_LOCALE=0` leave it
 absent, which keeps the prior DOM-language route; old trees are unchanged.
+
+The same module reads the launched headless shell's own `--accept-lang` switch
+(empty when absent, the only source of the renderer's accept-languages in that
+build; Playwright's `locale` option is CDP emulation and does not reach it).
+With both values authenticated, capture records `fontLocaleForHan` on every
+element and pseudo typography whose computed font locale is known: steps 1-3 of
+`LayoutLocale::LocaleForHan` with a null content locale for `auto` and the
+explicit computed locale otherwise, or `null` when none disambiguates Han. Only
+the Windows Han fallback consumes it; see
+[the font-resolution diagram](font-resolution-diagram.md). A non-headless-shell
+browser, unreadable argv or `DOMOTION_ACCEPT_LANGUAGES=0` leave it absent.
 
 The locale reaches paint through the per-script generic settings on every
 platform: `FontSelector::FamilyNameFromSettings` reads

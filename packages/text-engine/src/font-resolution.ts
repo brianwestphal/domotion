@@ -40,4 +40,5 @@ export type { FontRenderHinting, LinuxFontRenderContext } from "./render/linux-f
 export { isolatedPrimaryFontMetrics } from "./render/isolated-primary-font-metrics.js";
 export type { IsolatedFontFace } from "./render/isolated-primary-font-metrics.js";
 export { localeToScriptCodeForFontSelection } from "./render/generic-script-families.js";
+export { layoutLocaleForHan } from "./render/win-font-fallback.js";
 export { type FontSynthesisAllowance } from "./render/synthesis-decision.js";
