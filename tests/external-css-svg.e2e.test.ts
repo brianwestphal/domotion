@@ -463,7 +463,54 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
       }
     },
   );
-  it.each(["clipping", "3d-transform"] as const)(
+  it.each([
+    { kind: "clip", wrapper: "overflow:hidden;width:12px;height:20px;margin:3px" },
+    { kind: "mask", wrapper: "overflow:hidden;width:12px;height:20px;margin:3px" },
+    { kind: "clip", wrapper: "overflow:clip;width:12px;height:20px;border:2px solid transparent" },
+    { kind: "mask", wrapper: "contain:paint;overflow:hidden;width:12px;height:20px" },
+  ] as const)(
+    "keeps native $kind paint inside a pixel-aligned ancestor overflow clip ($wrapper)",
+    async ({ kind, wrapper }) => {
+      const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
+      try {
+        await page.goto(`${origin}/?kind=${kind}&csp=blocked`);
+        await page.locator("#box").evaluate((element, wrapper) => {
+          const clip = document.createElement("div");
+          clip.style.cssText = wrapper;
+          element.replaceWith(clip);
+          clip.appendChild(element);
+        }, wrapper);
+        await page.evaluate(
+          () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+        );
+        const before = await pixels(page);
+        // Native discriminator: the ancestor clip cuts the owner's 16px red half.
+        const red = [...before].reduce(
+          (count, _, index) => count + (index % 3 === 1 && before[index] === 0 ? 1 : 0),
+          0,
+        );
+        expect(red).toBe(12 * 20);
+        await freezeRealWorldDom(page);
+        const result = await captureElementTreeWithWarnings(page, "body", viewport, {});
+        const owner = result.tree
+          .flatMap(function flat(node): typeof result.tree {
+            return [node, ...node.children.flatMap(flat)];
+          })
+          .find((node) => node.externalCssSvgRaster != null)?.externalCssSvgRaster;
+        expect(owner?.dataUri).toMatch(/^data:image\/png/);
+        const output = await browser.newPage({ viewport: { width: 64, height: 64 } });
+        try {
+          await output.setContent(`<body style="margin:0">${elementTreeToSvg(result.tree, 64, 64, {})}`);
+          expect((await pixels(output)).equals(before)).toBe(true);
+        } finally {
+          await output.close();
+        }
+      } finally {
+        await page.close();
+      }
+    },
+  );
+  it.each(["fractional-clip", "rounded-clip", "scroll-clip", "transformed-clip", "3d-transform"] as const)(
     "refuses unsupported ancestor %s without changing source paint",
     async (effect) => {
       const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
@@ -472,9 +519,15 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
         await page.locator("#box").evaluate((element, effect) => {
           const wrapper = document.createElement("div");
           wrapper.style.cssText =
-            effect === "clipping"
-              ? "overflow:hidden;width:16px;height:16px"
-              : "transform:perspective(100px) rotateY(20deg)";
+            effect === "fractional-clip"
+              ? "overflow:hidden;width:16px;height:16px;margin-left:0.5px"
+              : effect === "rounded-clip"
+                ? "overflow:hidden;width:16px;height:16px;border-radius:4px"
+                : effect === "scroll-clip"
+                  ? "overflow:scroll;width:16px;height:16px"
+                  : effect === "transformed-clip"
+                    ? "overflow:hidden;width:16px;height:16px;transform:rotate(5deg)"
+                    : "transform:perspective(100px) rotateY(20deg)";
           element.replaceWith(wrapper);
           wrapper.appendChild(element);
         }, effect);

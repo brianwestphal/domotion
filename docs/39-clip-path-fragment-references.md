@@ -241,11 +241,29 @@ vector fallback.
 
 The initial native boundary is static HTML owners in the main document. It
 refuses root body/html owners, animated/transitioning owners, backdrop blending,
-and ancestors with filtered, blended or clipped paint, 3D or individual-property
-transforms, zoom, propagated decoration or image list markers. Potential
-isolation transitions, exposed root scrollbars and inherited paint changes also
-refuse; owner computed paint must remain unchanged through isolation/readback.
-These legitimate unsupported cases are tracked by DM-K48QDG.
+and ancestors with filtered, blended, `clip-path`/`mask` or inexact overflow
+clipped paint, 3D or individual-property transforms, zoom, propagated decoration
+or image list markers. Potential isolation transitions, exposed root scrollbars
+and inherited paint changes also refuse; owner computed paint must remain
+unchanged through isolation/readback. These legitimate unsupported cases are
+tracked by DM-K48QDG.
+
+Exact ancestor overflow clips are supported (DM-K48QDG). Blink paints an
+overflow clip with the pixel-snapped clip rect (`UpdateOverflowClip` passes
+`ToSnappedClipRect(clip_rect)`, i.e. `ToPixelSnappedRect`, as the paint clip;
+`paint_property_tree_builder.cc:2536-2538`, `:3085-3099`, pin `7d859f27`), so
+the stamp is hard-clipped on whole pixels, and the renderer re-applies the
+captured padding-box clip. Applying both is exact only when they are the same
+whole pixels, so an ancestor clip is admitted when `overflow-x`/`overflow-y` are
+both `hidden` or `clip` (no `auto`/`scroll` scrollbars, no one-axis clip),
+`overflow-clip-margin` is 0, all border radii are 0, the padding box is
+device-pixel aligned, and no ancestor is transformed; `contain: paint` follows
+the same rule. Root overflow propagated to the viewport is not an element clip.
+Native clip/mask controls are pixel-identical; with the alignment rule removed a
+fractional clip is not. Ancestor `filter`, `backdrop-filter`, `mix-blend-mode`,
+`clip-path` and `mask` remain refused: they composite the whole ancestor
+subtree, and neutralizing `filter` changes the containing block of fixed and
+absolute descendants.
 
 Static 2D ancestor `transform`s are supported (DM-VA1P9H). The walk freezes them
 and the renderer re-applies each as a `<g transform>`; the stamp is a viewport-

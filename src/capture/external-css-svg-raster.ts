@@ -182,6 +182,52 @@ export async function rasterizeExternalCssSvgSurfaces(
               throw new Error("external CSS native owner has unsupported exposed root scrollbars");
             const ancestors = new Set<Element>();
             let transformedAncestor = false;
+            // An ancestor overflow clip is painted with the pixel-snapped clip
+            // rect (`FragmentPaintPropertyTreeBuilder::UpdateOverflowClip` sets
+            // `ToSnappedClipRect(clip_rect)` = `ToPixelSnappedRect`,
+            // paint_property_tree_builder.cc:2536-2538, :3085-3099, pin
+            // 7d859f27), so the stamp is hard-clipped on whole device pixels.
+            // The renderer re-applies the captured padding-box clip; the two are
+            // the same set of whole pixels, and applying it twice is exact,
+            // only when that box is device-pixel aligned, unrounded, unscrolled
+            // by scrollbars and untransformed. Anything else still refuses.
+            let clippingAncestor = false;
+            const rootOverflowPropagates = (element: Element) =>
+              element === document.documentElement ||
+              (element === document.body && getComputedStyle(document.documentElement).overflowX === "visible");
+            const exactOverflowClip = (element: Element, style: CSSStyleDeclaration): boolean => {
+              const clips =
+                style.overflowX !== "visible" ||
+                style.overflowY !== "visible" ||
+                /paint|strict|content/.test(style.contain);
+              if (!clips || rootOverflowPropagates(element)) return true;
+              clippingAncestor = true;
+              const dpr = devicePixelRatio;
+              const rect = element.getBoundingClientRect();
+              const aligned = (value: number) => Math.abs(value * dpr - Math.round(value * dpr)) < 1e-6;
+              const left = parseFloat(style.borderLeftWidth);
+              const top = parseFloat(style.borderTopWidth);
+              const right = parseFloat(style.borderRightWidth);
+              const bottom = parseFloat(style.borderBottomWidth);
+              return (
+                // hidden/clip only: auto/scroll can paint ancestor scrollbars,
+                // and a one-axis clip leaves the other axis unclipped.
+                /^(hidden|clip)$/.test(style.overflowX) &&
+                /^(hidden|clip)$/.test(style.overflowY) &&
+                style.overflowClipMargin === "0px" &&
+                [
+                  style.borderTopLeftRadius,
+                  style.borderTopRightRadius,
+                  style.borderBottomRightRadius,
+                  style.borderBottomLeftRadius,
+                ].every((radius) => radius === "0px") &&
+                element instanceof HTMLElement &&
+                aligned(rect.left + left) &&
+                aligned(rect.top + top) &&
+                aligned(rect.right - right) &&
+                aligned(rect.bottom - bottom)
+              );
+            };
             for (let ancestor = owner.parentElement; ancestor != null; ancestor = ancestor.parentElement) {
               ancestors.add(ancestor);
               const style = getComputedStyle(ancestor);
@@ -204,16 +250,17 @@ export async function rasterizeExternalCssSvgSurfaces(
                 style.maskImage !== "none" ||
                 style.clipPath !== "none" ||
                 style.mixBlendMode !== "normal" ||
-                style.overflowX !== "visible" ||
-                style.overflowY !== "visible" ||
+                !exactOverflowClip(ancestor, style) ||
                 style.zoom !== "1" ||
-                /paint|strict|content/.test(style.contain) ||
                 style.textDecorationLine !== "none" ||
                 // An image marker cannot be made transparent through `color`.
                 (style.display.includes("list-item") && style.listStyleImage !== "none")
               )
                 throw new Error("external CSS native owner has unsupported ancestor effects or clipping");
             }
+            // A snapped clip under a transform is antialiased in device space.
+            if (clippingAncestor && transformedAncestor)
+              throw new Error("external CSS native owner has unsupported ancestor effects or clipping");
             // Same-document resource definitions outside the owner would be hidden
             // with foreign paint. Keep their transitive closure at its native
             // style instead, but only when it is content Blink never paints
