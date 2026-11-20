@@ -110,16 +110,23 @@ describeWithFont("segmented fallback walks declarations instead of re-scoring a 
 describeWithFont("the scalar tie-break is confined to descriptor-less (resource-discovered) faces", () => {
   beforeEach(() => clearWebfonts());
 
-  it("declared descriptors tie on WeightDistance alone — the legacy scalar must not reorder them", () => {
-    // Both faces cover the request at distance 0: `400` exactly, `100 900` as
-    // a containing range. Blink has NO further weight preference between
-    // them — the last-declared face wins. The old behavior let the legacy
-    // scalar (|Δweight|·1e-4) pick the single-weight face regardless of
-    // declaration order.
-    registerWebfont("vf", 400, "normal", fontBuf!, undefined, undefined, "400");
-    registerWebfont("vf", 100, "normal", fontBuf!, undefined, undefined, "100 900");
-    expect(__pickWebfontVariantMetaForTest("vf", 400, false)?.weightCaps).toEqual([100, 900]);
-  });
+  it.each([false, true])(
+    "declared descriptors that tie are ordered by FontFaceCache buckets, not by the legacy scalar (reversed=%s)",
+    (reversed) => {
+      // Both faces cover the request at distance 0: `400` exactly, `100 900` as
+      // a containing range. Blink has no further weight preference, so the key
+      // in the earlier HashTable bucket wins, in either source order. Native
+      // Chrome 147 picks the `400` face here (the fixture behind
+      // font-face-cache-order.test.ts). The legacy scalar (|Δweight|) plays no
+      // part across keys.
+      const faces = [
+        () => registerWebfont("vf", 400, "normal", fontBuf!, undefined, undefined, "400"),
+        () => registerWebfont("vf", 100, "normal", fontBuf!, undefined, undefined, "100 900"),
+      ];
+      for (const register of reversed ? faces.reverse() : faces) register();
+      expect(__pickWebfontVariantMetaForTest("vf", 400, false)?.weightCaps).toEqual([400, 400]);
+    },
+  );
 
   it("resource-discovered faces (no descriptor) still separate by their OS/2 scalar weight", () => {
     // Regression guard for the capture-inference path: every face selects as

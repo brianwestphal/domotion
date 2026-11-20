@@ -5,6 +5,11 @@ import { webfontRegistry } from "./font-instance.js";
 import type { WebfontSynthesisFace } from "./font-instance.js";
 import type { WebfontVariant } from "./font-instance.js";
 import { applyVariationAxes } from "./font-instance.js";
+import {
+  fontSelectionCapabilitiesHash,
+  hashTableIterationOrder,
+  type SelectionCapabilitiesKey,
+} from "./font-face-cache-order.js";
 
 /** Legacy string callers retain their CSS-like quote normalization. Capture
  * and parsed FontFace descriptors pass decoded data explicitly, so quotes,
@@ -470,7 +475,13 @@ export function webfontRequestSlope(slant: number, requestSlope?: number): numbe
  *  `FontFace::GetFontSelectionCapabilities` selects an auto face as exactly
  *  normal width (`core/css/font_face.cc:666-…`, tag 147.0.7727.15). */
 function variantStretchCaps(v: WebfontVariant): readonly [number, number] {
-  return v.stretch ?? [100, 100];
+  return quantizeSelectionRange(v.stretch ?? [100, 100]);
+}
+
+/** A capabilities range on the FontSelectionValue grid, which is what Blink
+ *  compares and hashes (`quantizeFontSelectionValue`). */
+function quantizeSelectionRange([min, max]: readonly [number, number]): readonly [number, number] {
+  return [quantizeFontSelectionValue(min), quantizeFontSelectionValue(max)];
 }
 
 /** A variant's slope SELECTION capabilities (see `webfontSelectionSlopeCaps`),
@@ -486,7 +497,7 @@ function variantSlopeCaps(v: WebfontVariant): readonly [number, number] {
  *  auto face as exactly normal weight (`core/css/font_face.cc:871-874`, rev
  *  7d859f27). */
 function variantWeightCaps(v: WebfontVariant): readonly [number, number] {
-  return v.weightCaps ?? [400, 400];
+  return quantizeSelectionRange(v.weightCaps ?? [400, 400]);
 }
 
 interface SelectionBound {
@@ -665,8 +676,8 @@ function webfontWeightDistance(caps: readonly [number, number], request: number,
  *     above weight, exactly where the boolean rule it replaces sat, and it
  *     exceeds every Blink style distance (at most 180).
  *   - `webfontLegacyWeightTiebreak` counts only for a variant with no
- *     `font-weight` descriptor (`weightCaps` undefined), and only after Blink's
- *     WeightDistance ties.
+ *     `font-weight` descriptor (`weightCaps` undefined), and only between the
+ *     declarations of the one selected group, never across capability keys.
  *
  * Neither term is part of the capabilities key, so faces that differ only in
  * inferred style or weight stay one group, as they share one key in Blink.
@@ -684,7 +695,8 @@ function webfontLegacyWeightTiebreak(v: WebfontVariant, request: WebfontSelectio
   return v.weightCaps != null ? 0 : Math.abs(v.weight - request.weight);
 }
 
-/** One picker request in Blink's `FontSelectionRequest` terms. */
+/** One picker request in Blink's `FontSelectionRequest` terms, on the
+ *  FontSelectionValue grid (`FontDescription::GetFontSelectionRequest`). */
 interface WebfontSelectionRequest {
   readonly weight: number;
   readonly stretch: number;
@@ -692,58 +704,97 @@ interface WebfontSelectionRequest {
   readonly slope: number;
 }
 
-/**
- * A variant's ordering key: Blink's `IsBetterMatchForRequest` distances in
- * order (stretch, style, weight), with the inferred-italic cost in the style
- * tier and, only when `legacyWeight` is set, the legacy weight tie-break last.
- * Compare with `compareWebfontSelectionScores`; lower is better.
- */
-function webfontSelectionScore(
-  v: WebfontVariant,
-  request: WebfontSelectionRequest,
-  bounds: WebfontSelectionBounds,
-  legacyWeight = true,
-): readonly [number, number, number, number] {
-  return [
-    webfontStretchDistance(variantStretchCaps(v), request.stretch, bounds.stretch),
-    webfontStyleDistance(variantSlopeCaps(v), request.slope, bounds.slope) + webfontInferredItalicCost(v, request),
-    webfontWeightDistance(variantWeightCaps(v), request.weight, bounds.weight),
-    legacyWeight ? webfontLegacyWeightTiebreak(v, request) : 0,
-  ];
+function webfontSelectionRequest(
+  weight: number,
+  stretch: number,
+  slant: number,
+  requestSlope: number | undefined,
+): WebfontSelectionRequest {
+  return {
+    weight: quantizeFontSelectionValue(weight),
+    stretch: quantizeFontSelectionValue(stretch),
+    slope: webfontRequestSlope(slant, requestSlope),
+  };
 }
-/** Lexicographic comparison of two `webfontSelectionScore` keys. */
+
+/** Lexicographic comparison of two distance tuples; negative = `a` is better. */
 function compareWebfontSelectionScores(a: readonly number[], b: readonly number[]): number {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];
   return 0;
 }
 
-/** The exact `FontSelectionCapabilities` key a variant is grouped under. */
-function webfontCapabilitiesKey(variant: WebfontVariant): string {
-  return JSON.stringify([variantStretchCaps(variant), variantSlopeCaps(variant), variantWeightCaps(variant)]);
+/** A variant's `FontSelectionCapabilities` key, on the FontSelectionValue grid. */
+function variantCapabilitiesKey(v: WebfontVariant): SelectionCapabilitiesKey {
+  return { width: variantStretchCaps(v), slope: variantSlopeCaps(v), weight: variantWeightCaps(v) };
 }
 
-/** FontFaceCache selects one capabilities key before range iteration.
- * Preserve the callers' existing tie/inference policies; their cross-group
- * parity is a separate investigation (DM-M5E64N), not a Blink guarantee. */
-function webfontDescriptorGroup(
-  variants: WebfontVariant[],
-  request: WebfontSelectionRequest,
-  policy: "ordinary" | "segmented" = "ordinary",
-): WebfontVariant[] {
+/** Key identity. Blink's `operator==` compares the three ranges and the
+ *  deleted flag, never the range type (`font_selection_types.h:262-264, 377-381`), so an
+ *  auto face and a face declaring the same values share one key. */
+function capabilitiesKeyIdentity(key: SelectionCapabilitiesKey): string {
+  return JSON.stringify([key.width, key.slope, key.weight]);
+}
+
+/**
+ * Select the one capabilities group Blink's `FontFaceCache` hands to
+ * `CSSSegmentedFontFace` (`FontSelectionQueryResult::GetOrCreate`,
+ * `core/css/font_face_cache.cc:227-258`, Chromium 7d859f27), and return its
+ * variants in registration order.
+ *
+ * 1. The family's distinct keys are inserted into a WTF `HashTable` in
+ *    FontFaceCache insertion order (`CapabilitiesSet::AddFontFace` inserts a
+ *    key on its first face, lines 84-94). Domotion's model of that order is
+ *    the registration order. Removals are not modeled, and neither is a face
+ *    Blink knows but Domotion never registered.
+ * 2. The keys are walked in bucket order (`hashTableIterationOrder`). The
+ *    first key is the provisional winner, and a later key replaces it only
+ *    when `IsBetterMatchForRequest` is strictly true, i.e. it is lower on
+ *    (stretch, style, weight) distance. Distinct keys that tie therefore
+ *    resolve to the earlier bucket, not to either end of the source order.
+ *
+ * The only non-Blink term at this level is the descriptor-less inferred
+ * italic cost (`webfontInferredItalicCost`), taken as the minimum over the
+ * key's variants. A key holding any CSS face, or any inferred face whose
+ * italic flag matches, therefore scores exactly as Blink does. The legacy
+ * weight tie-break never crosses keys.
+ */
+function webfontDescriptorGroup(variants: WebfontVariant[], request: WebfontSelectionRequest): WebfontVariant[] {
+  if (variants.length === 0) return [];
   const bounds = webfontSelectionBounds(variants);
-  let selected: WebfontVariant | undefined;
-  let bestScore: readonly number[] | undefined;
-  for (const variant of variants) {
-    const score = webfontSelectionScore(variant, request, bounds, policy === "ordinary");
-    const order = bestScore == null ? -1 : compareWebfontSelectionScores(score, bestScore);
-    if (order < 0 || (policy === "ordinary" && order === 0)) {
-      selected = variant;
-      bestScore = score;
+  const keys = new Map<string, { key: SelectionCapabilitiesKey; inferredItalic: number }>();
+  for (const v of variants) {
+    const key = variantCapabilitiesKey(v);
+    const id = capabilitiesKeyIdentity(key);
+    const cost = webfontInferredItalicCost(v, request);
+    const entry = keys.get(id);
+    if (entry == null) keys.set(id, { key, inferredItalic: cost });
+    else entry.inferredItalic = Math.min(entry.inferredItalic, cost);
+  }
+  const score = (key: SelectionCapabilitiesKey): readonly number[] => {
+    const entry = keys.get(capabilitiesKeyIdentity(key));
+    return [
+      webfontStretchDistance(key.width, request.stretch, bounds.stretch),
+      webfontStyleDistance(key.slope, request.slope, bounds.slope) + (entry?.inferredItalic ?? 0),
+      webfontWeightDistance(key.weight, request.weight, bounds.weight),
+    ];
+  };
+  let selected: SelectionCapabilitiesKey | undefined;
+  let selectedScore: readonly number[] = [];
+  const order = hashTableIterationOrder(
+    [...keys.values()].map((entry) => entry.key),
+    fontSelectionCapabilitiesHash,
+    capabilitiesKeyIdentity,
+  );
+  for (const key of order) {
+    const candidate = score(key);
+    if (selected == null || compareWebfontSelectionScores(candidate, selectedScore) < 0) {
+      selected = key;
+      selectedScore = candidate;
     }
   }
   if (selected == null) return [];
-  const selectedKey = webfontCapabilitiesKey(selected);
-  return variants.filter((variant) => webfontCapabilitiesKey(variant) === selectedKey);
+  const selectedId = capabilitiesKeyIdentity(selected);
+  return variants.filter((v) => capabilitiesKeyIdentity(variantCapabilitiesKey(v)) === selectedId);
 }
 
 /**
@@ -809,7 +860,7 @@ export function pickWebfontVariantForCodepoint(
 ): FontInstance | null {
   const variants = webfontRegistry.get(family.toLowerCase());
   if (variants == null || variants.length === 0) return null;
-  const request = { weight, stretch, slope: webfontRequestSlope(slant, requestSlope) };
+  const request = webfontSelectionRequest(weight, stretch, slant, requestSlope);
   const best = pickWithinWebfontGroup(webfontDescriptorGroup(variants, request), request, (v) =>
     unicodeRangeCovers(v.unicodeRange, codepoint),
   );
@@ -842,7 +893,7 @@ export function pickWebfontPrimaryForCharacter(
 ): FontInstance | null {
   const variants = webfontRegistry.get(family.toLowerCase());
   if (variants == null || variants.length === 0) return null;
-  const request = { weight, stretch, slope: webfontRequestSlope(slant, requestSlope) };
+  const request = webfontSelectionRequest(weight, stretch, slant, requestSlope);
   const group = webfontDescriptorGroup(variants, request);
   for (let index = group.length - 1; index >= 0; index--) {
     const variant = group[index];
@@ -892,8 +943,8 @@ export function webfontVariantsInDeclarationOrder(
 ): FontInstance[] {
   const variants = webfontRegistry.get(family.toLowerCase()) ?? [];
   if (variants.length === 0) return [];
-  const request = { weight, stretch, slope: webfontRequestSlope(slant, requestSlope) };
-  const group = webfontDescriptorGroup(variants, request, "segmented");
+  const request = webfontSelectionRequest(weight, stretch, slant, requestSlope);
+  const group = webfontDescriptorGroup(variants, request);
   const out: FontInstance[] = [];
   for (let i = group.length - 1; i >= 0; i--) {
     const variant = group[i];
@@ -988,7 +1039,7 @@ export function __pickWebfontVariantMetaForCodepointForTest(
 ): WebfontVariantMeta | null {
   const variants = webfontRegistry.get(family.toLowerCase());
   if (variants == null || variants.length === 0) return null;
-  const request = { weight, stretch, slope: webfontRequestSlope(italic ? 1 : 0, requestSlope) };
+  const request = webfontSelectionRequest(weight, stretch, italic ? 1 : 0, requestSlope);
   return webfontVariantMeta(
     family,
     pickWithinWebfontGroup(webfontDescriptorGroup(variants, request), request, (v) =>
@@ -1152,7 +1203,7 @@ function selectPrimaryWebfontVariant(
 ): WebfontVariant | null {
   const variants = webfontRegistry.get(familyKey);
   if (variants == null || variants.length === 0) return null;
-  const request = { weight, stretch, slope: webfontRequestSlope(slant, requestSlope) };
+  const request = webfontSelectionRequest(weight, stretch, slant, requestSlope);
   const LATIN_PROBE = 0x0041; // 'A'
   return pickWithinWebfontGroup(webfontDescriptorGroup(variants, request), request, undefined, (v) =>
     unicodeRangeCovers(v.unicodeRange, LATIN_PROBE) ? 0 : WEBFONT_RANGE_MISMATCH,

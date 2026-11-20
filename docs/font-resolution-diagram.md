@@ -16,7 +16,7 @@ route, and explicitly degraded per-codepoint route.
 > `font-spec.ts`, `family-match.ts`, `font-instance.ts`,
 > `fallback-chain.{darwin,linux,win32}.ts` plus `fallback-chain.ts`,
 > `character-fallback-cache.ts`, `system-fallback-resolver.ts`,
-> `emoji-presentation.ts`, `webfont-registry.ts`, `codepoint-resolver.ts`,
+> `emoji-presentation.ts`, `webfont-registry.ts`, `font-face-cache-order.ts`, `codepoint-resolver.ts`,
 > `shaping-route.ts`, `generation.ts`, and `render-text-mode.ts` (implementation),
 > `packages/text-engine/src/render/win-font-fallback.ts` (Blink's hardcoded Windows stage, transcribed),
 > `packages/text-engine/src/render/glyph-helper.ts` (fallback/cache facade),
@@ -1159,14 +1159,14 @@ the angle.
 ```mermaid
 flowchart TD
   subgraph WF["webfontRegistry — Map&lt;family, WebfontVariant[]&gt;"]
-    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["webfontDescriptorGroup:<br/>select descriptor capabilities BEFORE ranges<br/>Blink IsBetterMatchForRequest, compared in order:<br/>StretchDistance, StyleDistance (slope range vs request<br/>slope, 14° italic threshold), WeightDistance<br/>(font_selection_algorithm.cc:30-159);<br/>descriptor-less inference kept outside<br/>the capabilities key; preserve existing caller tie policy"]
+    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["webfontDescriptorGroup:<br/>select descriptor capabilities BEFORE ranges<br/>Blink IsBetterMatchForRequest, compared in order:<br/>StretchDistance, StyleDistance (slope range vs request<br/>slope, 14° italic threshold), WeightDistance<br/>(font_selection_algorithm.cc:30-159);<br/>descriptor-less inference kept outside<br/>the capabilities key; distinct keys that TIE resolve to<br/>the first in FontFaceCache HashTable bucket order<br/>(font-face-cache-order.ts: rapidhash of the key,<br/>WTF HashTable insert/rehash; font_face_cache.cc:227-258)"]
     W1 --> WL["ONLY inside selected group:<br/>prefer Latin-covering primary partition;<br/>range preference cannot cross descriptors"]
     WL --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities, wghtCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped the same way: declared font-weight caps first,<br/>else the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
     W2 --> W3["tagWebfontInstance: stamp WebfontVariant.synthesisFace onto<br/>FontInstance.webfontFace = {declaredWeightCaps, wghtAxisMax, baseIsBold,<br/>declaredStyleCaps, slntAxisMin, baseIsItalic}<br/>→ webfontSyntheticBold() / webfontSyntheticItalic() at the faux-bold/-italic seam<br/>(css_segmented_font_face.cc:116-123 +<br/>font_custom_platform_data.cc:129-154, 188-193, 289-293)"]
     P0["pickWebfontVariantForCodepoint(...cp)"] --> P1["same descriptor group first,<br/>then unicodeRangeCovers(range, cp)"]
     P1 --> P2["covering declaration inside selected group;<br/>source-order ties → last declaration;<br/>range miss → null → next CSS family,<br/>never rematerialize another group"]
     P2 --> W3
-    S0["webfontVariantsInDeclarationOrder(request)"] --> S1["FontFaceCache step: select ONE exact<br/>stretch/style/weight capability group"]
+    S0["webfontVariantsInDeclarationOrder(request)"] --> S1["FontFaceCache step: select ONE exact<br/>stretch/style/weight capability group<br/>(same selection and bucket-order ties as W1)"]
     S1 --> S2["CSSSegmentedFontFace step: keep only that group's<br/>declarations, reverse source order;<br/>do not collapse overlapping unicode-ranges"]
   end
   subgraph LA["localFontAliasRegistry — @font-face src: local()"]
@@ -1199,11 +1199,27 @@ flowchart TD
   italic bit counts only for a registration that passed no `font-style`
   descriptor argument at all (CSS faces pass `""` when it is absent), and it
   joins the style tier. The scalar weight counts only for a variant without a
-  `font-weight` descriptor, and it breaks only exact weight ties. Neither one
+  `font-weight` descriptor, and it breaks ties only inside the selected group. Neither one
   enters the capabilities key. Declared descriptors score by Blink's
-  distances alone. Existing ordinary/segmented cross-group tie policies
-  remain different and are not asserted as Chromium guarantees; their native
-  tie/inference parity is tracked separately (DM-M5E64N).
+  distances alone.
+- **Tied capability groups** resolve as `FontSelectionQueryResult::GetOrCreate`
+  does (`core/css/font_face_cache.cc:227-258`, rev 7d859f27). It walks the
+  family's `CapabilitiesSet` HashMap and replaces the winner only when a key
+  is strictly better, so among keys that tie, the one in the earlier bucket
+  wins. Neither source order nor reverse source order decides it.
+  `font-face-cache-order.ts` transcribes the bucket order: the key hash is the
+  low 32 bits of `rapidhash` over the 16-byte array of the width,
+  slope and weight `UniqueValue`s plus `is_deleted` (`font_selection_types.cc:49-55`,
+  `third_party/rapidhash/rapidhash.h`), and the table starts at 8 buckets with
+  triangular probing, doubles at load 1/2, and rehashes in old bucket order
+  (`wtf/hash_table.h`). The hash has no per-process seed and reads its bytes
+  little-endian, so the order is platform-independent. Domotion models
+  FontFaceCache insertion order as its registration order and models no
+  removals. A face that Blink knows but Domotion never registered (for
+  example, a failed fetch) is missing from both the table and the bounds.
+  All four pickers share this one selection: the primary, per-character
+  primary, per-codepoint and segmented pickers. Within the selected group,
+  reverse declaration order still applies.
 - **Shaped segmented fallback** does not iterate every registered variant.
   `webfontVariantsInDeclarationOrder` first selects one exact
   weight/style/stretch capability group, matching `FontFaceCache`, and only

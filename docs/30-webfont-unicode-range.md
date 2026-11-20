@@ -5,13 +5,20 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557", "DM-KRMZ4Y", "DM-687YPX", "DM-7QQPJA"]
+tickets:
+  ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557", "DM-KRMZ4Y", "DM-687YPX", "DM-7QQPJA", "DM-05FDC9", "DM-FJJSRZ"]
 code:
   [
     "packages/text-engine/src/render/text-to-path.ts",
     "packages/text-engine/src/render/webfont-unicode-range.test.ts",
     "packages/text-engine/src/render/webfont-descriptor-group.test.ts",
     "tests/webfont-descriptor-group.e2e.test.ts",
+    "packages/text-engine/src/render/webfont-registry.ts",
+    "packages/text-engine/src/render/font-face-cache-order.ts",
+    "packages/text-engine/src/render/font-face-cache-order.test.ts",
+    "packages/text-engine/src/render/webfont-style-distance.test.ts",
+    "tests/webfont-tie-order.e2e.test.ts",
+    "tests/webfont-style-distance.e2e.test.ts",
     "src/webfont-unicode-range.test.ts",
     "src/capture/unicode-range.ts",
     "src/capture/unicode-range.test.ts",
@@ -127,10 +134,15 @@ The run-splitter's grouping is widened to discriminate runs by `(fontKey, fontIn
 - **Primary Latin preference**: `WEBFONT_RANGE_MISMATCH` chooses a useful
   primary partition only inside the selected capability group. It cannot
   override weight, style or stretch selection.
-- **Cross-group ties and CSS-less inference**: existing ordinary and segmented
-  selection policies are retained. Their different tie direction and the
-  descriptor-less OS/2 inference are not claimed as Chromium guarantees;
-  native parity remains a separate investigation (DM-M5E64N).
+- **Cross-group ties**: when distinct capability groups tie on stretch,
+  style and weight distance, every picker takes the group whose key comes
+  first in Blink's FontFaceCache HashTable bucket order
+  (`font-face-cache-order.ts`; see the font-resolution diagram), never the
+  first or last declaration.
+- **CSS-less inference**: the descriptor-less OS/2 weight and italic inference
+  for resource-discovered faces is a Domotion heuristic, not a Chromium
+  guarantee. It never changes the capabilities key, and the scalar weight
+  breaks ties only inside the selected group.
 
 ## Verification
 
