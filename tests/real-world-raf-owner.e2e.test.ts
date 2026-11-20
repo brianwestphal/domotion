@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { chromium } from "@playwright/test";
 import { afterAll, expect, it } from "vitest";
 import sharp from "sharp";
+import { createRasterViewportSpace, mapRectThroughAffine } from "../src/capture/raster-viewport-space.js";
 import { captureElementTreeWithDebug } from "../src/capture/index.js";
 import { registerCaptureFrameScheduler, waitForCaptureAnimationFrames } from "../src/capture/frame-scheduler.js";
 import { installCaptureRafClock, sampleCaptureRafClock } from "../src/capture/raf-clock.js";
@@ -88,7 +89,12 @@ it("parks only after warmup and preserves source/tree pixels while capture frame
     expect(await count()).toBe(sampled);
     const before = await page.locator("#track").evaluate((element) => element.getBoundingClientRect().x);
     const captured = await captureElementTreeWithDebug(page, "body", { x: 0, y: 0, width: 160, height: 100 });
-    expect(box(captured.tree)?.x).toBe(before);
+    // Static transforms are frozen: the captured box is local and the emitted
+    // transform maps it to the parked live position.
+    const track = box(captured.tree)!;
+    const ctm = createRasterViewportSpace(captured.tree).frozenCtm(track);
+    const local = { x: track.x, y: track.y, width: track.width, height: track.height };
+    expect((ctm == null ? local : mapRectThroughAffine(local, ctm)).x).toBe(before);
     expect(await count()).toBe(sampled);
     const states = await owner.verify(page);
     expect(states[0].deliveredCaptureFrames).toBeGreaterThanOrEqual(2);
