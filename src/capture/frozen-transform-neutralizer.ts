@@ -100,15 +100,36 @@ export async function withFrozenTransformsNeutralized<T>(
           const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[ancestorsOf.sourceNodeKey] as
             Element[] | undefined;
           const source = nodes?.[ancestorsOf.index];
+          // A source inside a recursed frame is wrapped by that frame's
+          // <iframe> and its ancestors too. The registry indexes exactly the
+          // recursed documents, so it also names each document's owner.
+          const frameOwnerOf = (doc: Document): Element | null => {
+            if (doc === document) return null;
+            for (const candidate of nodes ?? []) {
+              if (candidate.localName !== "iframe") continue;
+              try {
+                if ((candidate as HTMLIFrameElement).contentDocument === doc) return candidate;
+              } catch {
+                /* An inaccessible frame cannot own an indexed document. */
+              }
+            }
+            return null;
+          };
+          const nextAncestor = (element: Element): Element | null =>
+            element.parentElement ?? frameOwnerOf(element.ownerDocument);
           candidates = [];
-          for (let ancestor = source?.parentElement ?? null; ancestor != null; ancestor = ancestor.parentElement)
+          for (let ancestor = source == null ? null : nextAncestor(source); ancestor != null;) {
             candidates.push(ancestor);
+            ancestor = nextAncestor(ancestor);
+          }
         }
         // Decide every owner before writing any, so each decision reads the
-        // same live styles the walk read.
+        // same live styles the walk read. A recursed frame's elements belong
+        // to that frame's realm.
         for (const element of candidates) {
-          if (!(element instanceof HTMLElement || element instanceof SVGElement)) continue;
-          if (!freezes(element, getComputedStyle(element))) continue;
+          const view = (element.ownerDocument.defaultView ?? window) as Window & typeof globalThis;
+          if (!(element instanceof view.HTMLElement || element instanceof view.SVGElement)) continue;
+          if (!freezes(element, view.getComputedStyle(element))) continue;
           owners.push(element);
         }
         // The walker's own neutralization: an override animation that leaves

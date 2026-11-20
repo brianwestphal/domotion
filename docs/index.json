@@ -2205,7 +2205,7 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": [],
-        "tickets": ["DM-1443", "DM-1446", "DM-1447", "DM-1448", "DM-2338", "DM-2520"],
+        "tickets": ["DM-1443", "DM-1446", "DM-1447", "DM-1448", "DM-2338", "DM-2520", "DM-FNSTHZ"],
         "code": [
           "examples/iframe-recursion.ts",
           "examples/output/",

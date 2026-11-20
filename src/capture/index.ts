@@ -1305,6 +1305,7 @@ async function measureProjectivePaintQuads(
   selector: string,
   viewport: { x: number; y: number; width: number; height: number },
   includeComputedFrameState: boolean,
+  frameScrollKey = "",
 ): Promise<ProjectivePaintProbe> {
   const registry = createPageRegistry<Element[]>(page, "ProjectivePaintNodes");
   const key = registry.key;
@@ -1329,7 +1330,7 @@ async function measureProjectivePaintQuads(
 
   const prepared = await evaluateInFrame(
     page,
-    ({ sel, key, includeComputed }): Promise<PreparedNode[]> | PreparedNode[] => {
+    ({ sel, key, includeComputed, frameKey }): Promise<PreparedNode[]> | PreparedNode[] => {
       const root = document.querySelector(sel);
       if (root == null) {
         (globalThis as typeof globalThis & Record<string, unknown>)[key] = [];
@@ -1337,6 +1338,35 @@ async function measureProjectivePaintQuads(
       }
 
       const nodes = [root, ...Array.from(root.querySelectorAll("*"))];
+      // The capture walk recurses into a child document exactly when its
+      // <iframe> owner carries this capture's readable frame authority
+      // (walker/iframe-recursion.ts). Index those documents too, after every
+      // node of their embedding document, so a surface requested inside a
+      // recursed frame correlates with its live Element and its CSS 3D facts
+      // are measured. A child document is painted by its own frame: its root
+      // starts a new ownership chain (parent null) instead of inheriting a 3D
+      // rendering context through the replaced <iframe> box.
+      if (frameKey !== "") {
+        for (let scan = 0; scan < nodes.length; scan++) {
+          const owner = nodes[scan];
+          if (owner.localName !== "iframe") continue;
+          let childRoot: Element | null = null;
+          try {
+            const authority = (owner as Element & Record<string, { access?: string } | undefined>)[frameKey];
+            if (authority?.access !== "same-origin" && authority?.access !== "cross-origin-allowlisted") continue;
+            childRoot = (owner as HTMLIFrameElement).contentDocument?.documentElement ?? null;
+          } catch {
+            childRoot = null;
+          }
+          if (childRoot == null) continue;
+          nodes.push(childRoot, ...Array.from(childRoot.querySelectorAll("*")));
+        }
+      }
+      // A recursed document's elements belong to that frame's realm: read
+      // their style and animation classes through its own window.
+      const viewOf = (element: Element): Window & typeof globalThis =>
+        (element.ownerDocument.defaultView as (Window & typeof globalThis) | null) ?? window;
+      const styleOf = (element: Element): CSSStyleDeclaration => viewOf(element).getComputedStyle(element);
       const indexByNode = new Map<Element, number>();
       for (let index = 0; index < nodes.length; index++) indexByNode.set(nodes[index], index);
       const influenced = new Set<Element>();
@@ -1346,7 +1376,7 @@ async function measureProjectivePaintQuads(
       const SVG_NS = "http://www.w3.org/2000/svg";
 
       for (const element of nodes) {
-        const style = getComputedStyle(element);
+        const style = styleOf(element);
         const transform = style.transform ?? "none";
         let has3dMatrix = transform.startsWith("matrix3d(");
         if (transform !== "" && transform !== "none") {
@@ -1387,7 +1417,7 @@ async function measureProjectivePaintQuads(
         for (const descendant of Array.from(element.querySelectorAll("*"))) {
           influenced.add(descendant);
           if (includeComputed && !computedByElement.has(descendant)) {
-            const descendantStyle = getComputedStyle(descendant);
+            const descendantStyle = styleOf(descendant);
             computedByElement.set(descendant, {
               transform: descendantStyle.transform ?? "none",
               translate: descendantStyle.translate ?? "none",
@@ -1406,7 +1436,7 @@ async function measureProjectivePaintQuads(
 
       for (const element of nodes) {
         if (!influenced.has(element)) continue;
-        const style = getComputedStyle(element);
+        const style = styleOf(element);
         const hasTransform =
           (style.transform != null && style.transform !== "" && style.transform !== "none") ||
           (style.translate != null && style.translate !== "" && style.translate !== "none") ||
@@ -1428,7 +1458,7 @@ async function measureProjectivePaintQuads(
           : element.localName === "svg" && (element as SVGSVGElement).ownerSVGElement == null
             ? "svg-root-box"
             : "svg-graphics";
-        const style = getComputedStyle(element);
+        const style = styleOf(element);
         const tag = element.localName;
         const replaced = !isSvg && /^(?:img|input|textarea|select|video|canvas|iframe|object|embed)$/.test(tag);
         const preserve3dLayoutApplicable =
@@ -1442,7 +1472,7 @@ async function measureProjectivePaintQuads(
           for (const animation of element.getAnimations()) {
             if (animation.playState === "idle" || animation.playState === "finished") continue;
             const effect = animation.effect;
-            if (!(effect instanceof KeyframeEffect) || effect.target !== element) continue;
+            if (!(effect instanceof viewOf(element).KeyframeEffect) || effect.target !== element) continue;
             for (const frame of effect.getKeyframes()) {
               animatedOpacity ||= Object.prototype.hasOwnProperty.call(frame, "opacity");
               animatedFilter ||= Object.prototype.hasOwnProperty.call(frame, "filter");
@@ -1480,7 +1510,7 @@ async function measureProjectivePaintQuads(
         if (style.overflowX !== "visible" || style.overflowY !== "visible") groupingReasons.push("overflow");
         let activeViewTransition: boolean | null = null;
         try {
-          activeViewTransition = document.documentElement.matches(":active-view-transition");
+          activeViewTransition = element.ownerDocument.documentElement.matches(":active-view-transition");
         } catch {
           /* unsupported selector */
         }
@@ -1513,7 +1543,7 @@ async function measureProjectivePaintQuads(
       }
       return result;
     },
-    { sel: selector, key, includeComputed: includeComputedFrameState },
+    { sel: selector, key, includeComputed: includeComputedFrameState, frameKey: frameScrollKey },
   ).catch(async (error: unknown) => {
     await registry.dispose();
     throw error;
@@ -2455,7 +2485,13 @@ async function captureElementTreeWithWarningsInternal(
         frameScrollCapture,
       });
       await reverifyAnimationFrame();
-      projectiveProbe = await measureProjectivePaintQuads(page, selector, viewport, animationFrameState != null);
+      projectiveProbe = await measureProjectivePaintQuads(
+        page,
+        selector,
+        viewport,
+        animationFrameState != null,
+        frameScrollCapture.propertyKey,
+      );
       await reverifyAnimationFrame();
       collapsedBorderFragmentProbe = await prepareCollapsedBorderFragmentRecords(page, selector);
       await reverifyAnimationFrame();
@@ -2766,55 +2802,99 @@ export async function rasterizeProjectiveSurfaces(
             value: string;
             priority: string;
           }>;
-          // The registry was initialized before the first mutation, so a
-          // mid-preparation exception can restore declarations already recorded.
-          const ownerVisibility = getComputedStyle(sourceOwner).visibility;
-          for (const element of Array.from(document.querySelectorAll("*"))) {
-            if (element === sourceOwner || sourceOwner.contains(element)) continue;
+          const record = (element: Element, property: string, value: string): void => {
             const html = element as HTMLElement;
             restore.push({
               element,
-              property: "visibility",
-              value: html.style.getPropertyValue("visibility"),
-              priority: html.style.getPropertyPriority("visibility"),
+              property,
+              value: html.style.getPropertyValue(property),
+              priority: html.style.getPropertyPriority(property),
             });
-            html.style.setProperty("visibility", "hidden", "important");
+            html.style.setProperty(property, value, "important");
+          };
+          const styleOf = (element: Element): CSSStyleDeclaration =>
+            (element.ownerDocument.defaultView ?? window).getComputedStyle(element);
+          // An owner inside a recursed frame paints only through every <iframe>
+          // that embeds its document. Resolve that chain up to the top
+          // document from the registry itself (the documents it indexes are
+          // exactly the recursed ones), so isolation never depends on
+          // `frameElement` being exposed across origins.
+          const frameOwnerOf = (doc: Document): Element | null => {
+            if (doc === document) return null;
+            for (const candidate of sourceNodes ?? []) {
+              if (candidate.localName !== "iframe") continue;
+              try {
+                if ((candidate as HTMLIFrameElement).contentDocument === doc) return candidate;
+              } catch {
+                /* An inaccessible frame cannot own an indexed document. */
+              }
+            }
+            return null;
+          };
+          const chain: Array<{ doc: Document; keep: Element }> = [];
+          for (let keep: Element | null = sourceOwner; keep != null;) {
+            const doc = keep.ownerDocument;
+            chain.push({ doc, keep });
+            if (doc === document) break;
+            keep = frameOwnerOf(doc);
+            if (keep == null) return false;
           }
-          // A hidden ancestor's visibility is inherited. Reassert only the
-          // owner's original used value; authored hidden descendants remain hidden.
-          const ownerHtml = sourceOwner as HTMLElement;
-          restore.push({
-            element: sourceOwner,
-            property: "visibility",
-            value: ownerHtml.style.getPropertyValue("visibility"),
-            priority: ownerHtml.style.getPropertyPriority("visibility"),
-          });
-          ownerHtml.style.setProperty("visibility", ownerVisibility, "important");
+          const nextAncestor = (element: Element): Element | null =>
+            element.parentElement ?? frameOwnerOf(element.ownerDocument);
 
-          // The document canvas background is propagated from html/body even
-          // when those ancestor boxes have visibility:hidden. It is backdrop,
-          // not paint owned by a nested projective surface, and would otherwise
-          // turn an empty/backface-hidden owner into a viewport-sized opaque PNG.
-          // Preserve it only when html/body is itself inside the selected owner.
-          for (const canvasElement of [document.documentElement, document.body]) {
-            if (canvasElement == null || canvasElement === sourceOwner || sourceOwner.contains(canvasElement)) continue;
-            restore.push({
-              element: canvasElement,
-              property: "background",
-              value: canvasElement.style.getPropertyValue("background"),
-              priority: canvasElement.style.getPropertyPriority("background"),
-            });
-            canvasElement.style.setProperty("background", "transparent", "important");
+          // The registry was initialized before the first mutation, so a
+          // mid-preparation exception can restore declarations already recorded.
+          for (const { doc, keep } of chain) {
+            const keepVisibility = styleOf(keep).visibility;
+            for (const element of Array.from(doc.querySelectorAll("*"))) {
+              if (element === keep || keep.contains(element)) continue;
+              record(element, "visibility", "hidden");
+            }
+            // A hidden ancestor's visibility is inherited. Reassert only the
+            // kept box's original used value; authored hidden descendants
+            // remain hidden.
+            record(keep, "visibility", keepVisibility);
+            if (keep !== sourceOwner) {
+              // ReplacedPainter::ShouldPaint skips a non-visible replaced box
+              // and with it the embedded frame, so an <iframe> on the chain
+              // stays visible. Its own box decorations are captured on the
+              // <iframe> node and must not enter this surface; these
+              // declarations change paint only, never layout. Longhands only:
+              // restoring a shorthand that was never declared inline would
+              // also erase any author longhand beneath it.
+              for (const property of [
+                "background-color",
+                "border-top-color",
+                "border-right-color",
+                "border-bottom-color",
+                "border-left-color",
+              ])
+                record(keep, property, "transparent");
+              for (const property of ["background-image", "border-image-source", "box-shadow", "outline-style"])
+                record(keep, property, "none");
+            }
+
+            // The document canvas background is propagated from html/body even
+            // when those ancestor boxes have visibility:hidden. It is backdrop,
+            // not paint owned by a nested projective surface, and would otherwise
+            // turn an empty/backface-hidden owner into a viewport-sized opaque PNG.
+            // Preserve it only when html/body is itself inside the selected owner.
+            for (const canvasElement of [doc.documentElement, doc.body]) {
+              if (canvasElement == null || canvasElement === sourceOwner || sourceOwner.contains(canvasElement))
+                continue;
+              record(canvasElement, "background", "transparent");
+            }
           }
 
           // Ancestor effects represented by SVG wrappers must not be baked into
           // this already-global bitmap and then applied a second time. Frozen
           // ancestor transforms are neutralized around the screenshot below
-          // with the walker's own predicate.
-          let ancestor = sourceOwner.parentElement;
+          // with the walker's own predicate. The walk crosses each recursed
+          // frame's <iframe>, whose effects wrap the frame's captured subtree.
+          let ancestor = nextAncestor(sourceOwner);
           while (ancestor != null) {
             const html = ancestor as HTMLElement;
-            const style = getComputedStyle(ancestor);
+            const style = styleOf(ancestor);
             const neutral: Array<[string, string]> = [];
             if (style.opacity !== "1") neutral.push(["opacity", "1"]);
             if (style.filter != null && style.filter !== "" && style.filter !== "none") {
@@ -2844,7 +2924,7 @@ export async function rasterizeProjectiveSurfaces(
               });
               html.style.setProperty(property, value, "important");
             }
-            ancestor = ancestor.parentElement;
+            ancestor = nextAncestor(ancestor);
           }
           return true;
         },

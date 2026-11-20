@@ -130,10 +130,22 @@ effective outer owner. See [doc 162](../162-inline-svg-3d-transform-audit.md).
 The same pass also materializes the other requested Chromium surfaces: a text
 element whose authoritative text-fragment geometry was unavailable, and an
 inline `<svg>` whose affine freeze or external `<use>` inlining failed. The
-pass isolates an owner through the source-node registry, which indexes only the
-top-level document. An owner inside an allowlisted recursed cross-origin frame
-therefore has no correlation. It keeps its vector subtree and records a
-`<transform>` capture warning instead of failing the whole capture.
+pass isolates an owner through the source-node registry. That registry also
+indexes every recursed frame document (same-origin, or cross-origin on the
+`--cross-origin-frames` allowlist): its nodes follow the embedding document's,
+its CSS 3D facts are measured (`DOM.getContentQuads` already reports a
+same-process child-frame quad in root-frame viewport coordinates), and its
+root starts a new ownership chain. Isolating an owner inside a frame keeps
+each `<iframe>` on its chain visible, because `ReplacedPainter::ShouldPaint`
+skips the embedded frame of a non-visible replaced box. Their background,
+border, box-shadow and outline paint is neutralized with longhands. Every other
+element of each chain document is hidden, its canvas backdrop is cleared, and
+ancestor effects and frozen transforms are neutralized across the `<iframe>`
+boundary. An owner that still has no correlation keeps its vector subtree and
+records a `<transform>` capture warning instead of failing the whole capture.
+The other source-node consumers (native controls and decorations, broken
+images, summary markers) still isolate only the top document, so they keep a
+top-document-only correlation.
 The affine/non-affine boundary is also covered by
 `npm run transform:geometry-oracle`, `npm run raster:boundary-oracle`, and the
 focused inline-SVG route/pixel oracle.

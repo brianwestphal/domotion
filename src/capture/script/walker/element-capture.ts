@@ -84,6 +84,8 @@ export type ElementCaptureDeps = {
   animInfluenced: Set<Element>;
   projectiveFacts: ProjectivePaintNodeFact[];
   projectiveNodeIndex: WeakMap<Element, number>;
+  /** Source-node correlation for consumers that isolate the top document only. */
+  topDocumentNodeIndex: WeakMap<Element, number>;
   nonAffineProjectiveRoots: Set<Element>;
   projectedQuads: WeakMap<Element, Array<{ x: number; y: number }>>;
   projectiveAbsH: WeakMap<Element, number[]>;
@@ -204,7 +206,7 @@ const buildCapturedIdentity = (d: ElementCaptureDeps, f: ElementFacts) => {
     // real generated ::marker fragment and deletes this index before return.
     _summaryMarkerSourceNodeIndex:
       tag === "summary" && cs.display != null && cs.display.includes("list-item")
-        ? d.projectiveNodeIndex.get(el)
+        ? d.topDocumentNodeIndex.get(el)
         : undefined,
     svgReferenceScope: f.svgReferenceScope,
     fragmentReferenceScope:
@@ -346,7 +348,7 @@ const buildCapturedRasters = (d: ElementCaptureDeps, f: ElementFacts, nextBackdr
       rect,
       cs,
       vp,
-      _projectiveNodeIndex: d.projectiveNodeIndex,
+      _projectiveNodeIndex: d.topDocumentNodeIndex,
       sel,
       tag,
       el,
@@ -360,7 +362,7 @@ const buildCapturedRasters = (d: ElementCaptureDeps, f: ElementFacts, nextBackdr
       rect,
       vp,
       sel,
-      _projectiveNodeIndex: d.projectiveNodeIndex,
+      _projectiveNodeIndex: d.topDocumentNodeIndex,
       el,
     }),
     // DM-2171: backdrop-filter samples already-painted content behind this
@@ -490,7 +492,7 @@ export const createElementCapture = () => {
       vp,
       sel,
       effectiveZoomFor: d.effectiveZoomFor,
-      sourceNodeIndex: d.projectiveNodeIndex.get(el),
+      sourceNodeIndex: d.topDocumentNodeIndex.get(el),
       contentImageKey: d.args.pseudoImageSizingKey,
       warn: d.warn,
     });

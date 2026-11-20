@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: []
-tickets: ["DM-1443", "DM-1446", "DM-1447", "DM-1448", "DM-2338", "DM-2520"]
+tickets: ["DM-1443", "DM-1446", "DM-1447", "DM-1448", "DM-2338", "DM-2520", "DM-FNSTHZ"]
 code:
   [
     "examples/iframe-recursion.ts",
@@ -258,6 +258,34 @@ paints unmasked, so the path can't be exercised end-to-end through real capture
 (the top-level `mask-element-ref` feature fixture passes _vacuously_ for the same
 reason). The frame-aware code is correct for if/when `element()` resolves;
 tracked separately (see the `element()`-dormancy investigation).
+
+### Chromium surfaces inside a recursed frame
+
+A recursed document can request a Chromium raster surface: a CSS 3D plane
+whose paint quad is non-affine, a text element without authoritative fragment
+geometry, or an inline `<svg>` whose affine freeze failed. The capture's
+projective prepass (`measureProjectivePaintQuads`) therefore indexes each
+recursed document after its embedding document. The predicate is the walker's
+own: the `<iframe>` carries this capture's frame authority with readable
+access. The frame root starts a new ownership chain. Its content quads need no
+extra mapping, because `InspectorHighlight::GetContentQuads` converts a
+same-process child-frame quad to root-frame viewport coordinates
+(`inspector_highlight.cc` `FrameQuadToViewport`, Chromium `7d859f27`).
+
+`rasterizeProjectiveSurfaces` then isolates the owner across its `<iframe>`
+chain. Each chain `<iframe>` stays visible with its own box decorations
+neutralized, because `ReplacedPainter::ShouldPaint` skips the embedded frame of
+a non-visible replaced box. Everything else in each chain document is hidden,
+and canvas backdrops, ancestor effects and frozen ancestor transforms are
+neutralized through the `<iframe>` boundary. Regression guards in
+`tests/cross-origin-iframe-recursion.e2e.test.ts` check:
+
+- the materialized surface's exact RGBA;
+- that the page is restored exactly;
+- a non-allowlisted negative control.
+
+The other source-node post-passes (native controls, broken images, summary
+markers) still correlate top-document nodes only.
 
 ## Phase 2 — cross-origin recursion (Shipped)
 

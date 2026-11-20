@@ -269,8 +269,14 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
   probeTransformRelatedBoxes(_ownershipEls, _transformRelatedBox);
   probeContainmentEligibility(_ownershipEls, _paintOrLayoutContainmentEligible);
   bindContainmentEligibility(_paintOrLayoutContainmentEligible);
-  const { projectiveFacts, projectiveNodeIndex, projectedQuads, projectiveAbsH, nonAffineProjectiveRoots } =
-    indexProjectiveFacts(args);
+  const {
+    projectiveFacts,
+    projectiveNodeIndex,
+    topDocumentNodeIndex,
+    projectedQuads,
+    projectiveAbsH,
+    nonAffineProjectiveRoots,
+  } = indexProjectiveFacts(args);
   const _animInfluenced = collectAnimInfluenced(_allEls);
   const _effectiveZoomFor = createEffectiveZoomResolver();
   const _backgroundAttachmentPaintScaleFor = createBackgroundAttachmentPaintScale();
@@ -354,6 +360,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     animInfluenced: _animInfluenced,
     projectiveFacts,
     projectiveNodeIndex,
+    topDocumentNodeIndex,
     nonAffineProjectiveRoots,
     projectedQuads,
     projectiveAbsH,

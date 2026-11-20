@@ -469,6 +469,12 @@ export const indexProjectiveFacts = (args: CaptureScriptArgs) => {
       ? ((globalThis as Record<string, unknown>)[args.projectiveKey] as Element[])
       : [];
   const projectiveNodeIndex = new WeakMap<Element, number>();
+  // The registry also indexes the documents of recursed frames, but only the
+  // projective surface post-pass isolates across a frame boundary. Every other
+  // source-node consumer (native controls, broken images, summary markers)
+  // still hides and samples the top document only, so it keeps the
+  // top-document correlation it was written against.
+  const topDocumentNodeIndex = new WeakMap<Element, number>();
   const projectedQuads = new WeakMap<Element, Array<{ x: number; y: number }>>();
   const projectiveAbsH = new WeakMap<Element, number[]>();
   for (let _pi = 0; _pi < projectiveFacts.length; _pi++) {
@@ -476,6 +482,7 @@ export const indexProjectiveFacts = (args: CaptureScriptArgs) => {
     const _pel = projectiveDomNodes[_pi];
     if (_pel == null || _fact == null) continue;
     projectiveNodeIndex.set(_pel, _pi);
+    if (_pel.ownerDocument === document) topDocumentNodeIndex.set(_pel, _pi);
     if (_fact.role === "svg-graphics") continue;
     const _values = _fact.borderQuad || _fact.quad;
     if (!Array.isArray(_values) || _values.length !== 8) continue;
@@ -491,7 +498,14 @@ export const indexProjectiveFacts = (args: CaptureScriptArgs) => {
     const _owner = projectiveDomNodes[_ownerIndex];
     if (_owner != null) nonAffineProjectiveRoots.add(_owner);
   }
-  return { projectiveFacts, projectiveNodeIndex, projectedQuads, projectiveAbsH, nonAffineProjectiveRoots };
+  return {
+    projectiveFacts,
+    projectiveNodeIndex,
+    topDocumentNodeIndex,
+    projectedQuads,
+    projectiveAbsH,
+    nonAffineProjectiveRoots,
+  };
 };
 
 /** DM-2470: keep effective CSS zoom as a local layout/metric input. CSS

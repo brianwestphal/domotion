@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import sharp from "sharp";
 import { afterAll, describe, expect, it } from "vitest";
 import { launchChromium, captureElementTreeWithWarnings, crossOriginFramesLaunchArgs } from "../src/capture/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
@@ -62,6 +63,23 @@ function findByTag(tree: CapturedElement[], tag: string): CapturedElement | null
 
 function flatten(tree: CapturedElement[]): CapturedElement[] {
   return tree.flatMap((element) => [element, ...flatten(element.children ?? [])]);
+}
+
+interface RawRgba {
+  data: Buffer;
+  width: number;
+  height: number;
+}
+
+async function rawRgba(png: Buffer): Promise<RawRgba> {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return { data, width: info.width, height: info.height };
+}
+
+function decodeSurface(dataUri: string): Promise<RawRgba> {
+  const prefix = "data:image/png;base64,";
+  expect(dataUri.startsWith(prefix)).toBe(true);
+  return rawRgba(Buffer.from(dataUri.slice(prefix.length), "base64"));
 }
 
 /** Does any node in the subtree carry the marker text (in text or a segment)? */
@@ -135,14 +153,25 @@ const complexOuterSrv = await startRouteServer({
 });
 const complexOuterUrl = `http://127.0.0.1:${complexOuterSrv.port}/`;
 
-// DM-AZ0HVJ: a singular SVG transform makes the inline <svg> request a Chromium
-// raster owner. The source-node registry indexes only the top-level document,
-// so an owner inside a recursed frame has no correlation.
+// A singular SVG transform makes the inline <svg> request a Chromium raster
+// owner. Inside a recursed frame that owner must correlate with its live
+// Element through the frame-inclusive source-node registry, so the surface is
+// isolated across the <iframe> chain instead of being dropped to vector. The
+// outer page, the <iframe> box and the inner canvas each carry a distinct
+// color that must never leak into the isolated surface.
 const singularSvgInnerSrv = await startServer(
-  `<!doctype html><html><body style="margin:0"><div id="singular-text">SINGULAR_FRAME_TEXT</div><svg width="40" height="40"><rect width="20" height="20" fill="#16a34a" transform="scale(0)"/><rect x="20" width="20" height="20" fill="#16a34a"/></svg></body></html>`,
+  `<!doctype html><html><body style="margin:0;background:rgb(254,215,170)"><div id="singular-text" style="height:20px;color:rgb(124,58,237)">SINGULAR_FRAME_TEXT</div><svg style="display:block" width="40" height="40"><rect width="20" height="20" fill="#16a34a" transform="scale(0)"/><rect x="20" width="20" height="20" fill="#16a34a"/></svg></body></html>`,
 );
 const singularSvgOuterSrv = await startServer(
-  `<!doctype html><html><body style="margin:0"><iframe src="http://localhost:${singularSvgInnerSrv.port}/" width="200" height="90" style="display:block;border:0"></iframe></body></html>`,
+  `<!doctype html><html><body style="margin:0;padding:10px;background:rgb(253,230,138)"><iframe src="http://localhost:${singularSvgInnerSrv.port}/" width="160" height="70" style="display:block;border:4px solid rgb(37,99,235);background:rgb(190,242,100);box-shadow:0 0 0 3px rgb(236,72,153)"></iframe></body></html>`,
+);
+// A CSS 3D plane inside a recursed frame: its non-affine paint quad is only
+// measured once the frame document is part of the projective prepass.
+const projectiveInnerSrv = await startServer(
+  `<!doctype html><html><body style="margin:0;background:rgb(254,215,170)"><div style="perspective:120px;width:80px;height:60px;margin:10px"><div id="plane" style="width:80px;height:60px;background:rgb(220,38,38);transform:rotateY(35deg)"></div></div></body></html>`,
+);
+const projectiveOuterSrv = await startServer(
+  `<!doctype html><html><body style="margin:0;padding:10px;background:rgb(253,230,138)"><iframe src="http://localhost:${projectiveInnerSrv.port}/" width="160" height="90" style="display:block;border:4px solid rgb(37,99,235)"></iframe></body></html>`,
 );
 
 const env = await (async () => {
@@ -161,6 +190,8 @@ afterAll(async () => {
   await closeServer(allowedDeepSrv.server);
   await closeServer(deniedDeepSrv.server);
   await closeServer(singularSvgOuterSrv.server);
+  await closeServer(projectiveOuterSrv.server);
+  await closeServer(projectiveInnerSrv.server);
   await closeServer(singularSvgInnerSrv.server);
 }, 20_000);
 
@@ -450,15 +481,16 @@ describeBrowser("cross-origin iframe recursion (DM-1442)", () => {
     expect(subtreeHasText(iframe, INNER_TEXT), "inner text should be captured natively").toBe(true);
   });
 
-  it("keeps an unindexed raster owner inside a recursed frame as vector instead of failing the capture", async () => {
-    const ctx = await env!.browserSecOff.newContext({ viewport: { width: 220, height: 100 } });
+  it("materializes a raster owner inside a recursed frame through the frame-inclusive source registry", async () => {
+    const ctx = await env!.browserSecOff.newContext({ viewport: { width: 220, height: 120 } });
     const page = await ctx.newPage();
     try {
       await page.goto(`http://127.0.0.1:${singularSvgOuterSrv.port}/`, { waitUntil: "networkidle" });
+      const before = await page.screenshot({ type: "png" });
       const { tree, warnings } = await captureElementTreeWithWarnings(
         page,
         "body",
-        { x: 0, y: 0, width: 220, height: 100 },
+        { x: 0, y: 0, width: 220, height: 120 },
         { crossOriginFrames: `localhost:${singularSvgInnerSrv.port}` },
       );
       const iframe = findByTag(tree, "iframe");
@@ -466,8 +498,101 @@ describeBrowser("cross-origin iframe recursion (DM-1442)", () => {
       expect(iframe && subtreeHasText(iframe, "SINGULAR_FRAME_TEXT")).toBe(true);
       const svg = iframe && findByTag(iframe.children ?? [], "svg");
       expect(svg, "the recursed frame's inline <svg> is captured").not.toBeNull();
-      expect(svg!.transformSubtreeRaster).toBeUndefined();
-      expect(warnings.some((w) => w.detail.includes("no Chromium source-node correlation"))).toBe(true);
+      expect(warnings.some((w) => w.detail.includes("no Chromium source-node correlation"))).toBe(false);
+      const raster = svg!.transformSubtreeRaster;
+      expect(raster?.dataUri, "the frame's surface is isolated in Chromium").toBeDefined();
+      expect(raster?.sourceNodeIndex, "private correlation never reaches the tree").toBeUndefined();
+      // Body padding 10 + iframe border 4 put the frame content box at 14;
+      // the rect's x 20 and the 20px text row place the visible 20x20 rect
+      // at (34, 34) in capture space.
+      expect({ x: raster!.x, y: raster!.y, width: raster!.width, height: raster!.height }).toEqual({
+        x: 34,
+        y: 34,
+        width: 20,
+        height: 20,
+      });
+      const surface = await decodeSurface(raster!.dataUri!);
+      // Every surface pixel is the owner's own opaque fill: no outer page,
+      // <iframe> background/border/box-shadow, inner canvas or text leaks in.
+      const colors = new Set<string>();
+      for (let offset = 0; offset < surface.data.length; offset += 4)
+        colors.add(Array.from(surface.data.subarray(offset, offset + 4)).join(","));
+      expect([...colors]).toEqual(["22,163,74,255"]);
+      // Isolation restored the live page exactly.
+      const after = await page.screenshot({ type: "png" });
+      expect(await rawRgba(after)).toEqual(await rawRgba(before));
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  it("measures and rasterizes a projective plane inside a recursed frame", async () => {
+    const ctx = await env!.browserSecOff.newContext({ viewport: { width: 220, height: 130 } });
+    const page = await ctx.newPage();
+    try {
+      await page.goto(`http://127.0.0.1:${projectiveOuterSrv.port}/`, { waitUntil: "networkidle" });
+      const reference = await rawRgba(await page.screenshot({ type: "png" }));
+      const { tree, warnings } = await captureElementTreeWithWarnings(
+        page,
+        "body",
+        { x: 0, y: 0, width: 220, height: 130 },
+        { crossOriginFrames: `localhost:${projectiveInnerSrv.port}` },
+      );
+      const iframe = findByTag(tree, "iframe");
+      expect(iframe?.replacedSnapshot).toBeUndefined();
+      expect(warnings.some((w) => w.detail.includes("no Chromium source-node correlation"))).toBe(false);
+      const owners = flatten(iframe?.children ?? []).filter((element) => element.transformSubtreeRaster != null);
+      expect(owners, "exactly one projective surface owner inside the frame").toHaveLength(1);
+      const raster = owners[0].transformSubtreeRaster!;
+      expect(raster.dataUri).toBeDefined();
+      // The plane lies inside the iframe content box (10+4 .. 10+4+160).
+      expect(raster.x).toBeGreaterThanOrEqual(14);
+      expect(raster.y).toBeGreaterThanOrEqual(14);
+      expect(raster.x + raster.width).toBeLessThanOrEqual(174);
+      const surface = await decodeSurface(raster.dataUri!);
+      let opaque = 0;
+      for (let y = 0; y < surface.height; y++) {
+        for (let x = 0; x < surface.width; x++) {
+          const offset = (y * surface.width + x) * 4;
+          const alpha = surface.data[offset + 3];
+          if (alpha === 0) continue;
+          const color = Array.from(surface.data.subarray(offset, offset + 3));
+          if (alpha !== 255) {
+            // Partial coverage is the plane's own antialiased edge over a
+            // transparent backdrop: un-premultiplied, its color stays the
+            // plane's up to 8-bit premultiplied rounding, never a leaked
+            // backdrop color.
+            const drift = Math.max(...color.map((channel, i) => (Math.abs(channel - [220, 38, 38][i]) * alpha) / 255));
+            expect(drift, `edge pixel ${color.join(",")}@${alpha}`).toBeLessThanOrEqual(1);
+            continue;
+          }
+          expect(color).toEqual([220, 38, 38]);
+          opaque++;
+          // A fully covered pixel equals Chromium's own composited paint.
+          const pageOffset = ((raster.y + y) * reference.width + (raster.x + x)) * 4;
+          expect(Array.from(reference.data.subarray(pageOffset, pageOffset + 4))).toEqual([220, 38, 38, 255]);
+        }
+      }
+      expect(opaque).toBeGreaterThan(2000);
+    } finally {
+      await ctx.close();
+    }
+  });
+
+  it("indexes nothing inside a frame the allowlist does not recurse (negative control)", async () => {
+    const ctx = await env!.browserSecOff.newContext({ viewport: { width: 220, height: 130 } });
+    const page = await ctx.newPage();
+    try {
+      await page.goto(`http://127.0.0.1:${projectiveOuterSrv.port}/`, { waitUntil: "networkidle" });
+      const { tree } = await captureElementTreeWithWarnings(
+        page,
+        "body",
+        { x: 0, y: 0, width: 220, height: 130 },
+        { crossOriginFrames: `localhost:${projectiveInnerSrv.port + 1}` },
+      );
+      const iframe = findByTag(tree, "iframe");
+      expect(iframe?.replacedSnapshot).toBeDefined();
+      expect(flatten(tree).some((element) => element.transformSubtreeRaster != null)).toBe(false);
     } finally {
       await ctx.close();
     }
