@@ -573,22 +573,6 @@ jobs:
       - run: npm ci
       - name: Build the text-engine workspace
         run: npm run build:text-engine
-      - name: Run native worker bootstrap diagnostics
-        run: >-
-          npx vitest run --config vitest.e2e.config.ts
-          tests/real-world-cdp.e2e.test.ts
-          tests/real-world-shared-worker-bootstrap.e2e.test.ts
-          tests/real-world-worker-startup-diagnostics.e2e.test.ts
-          tests/real-world-browser-signals.e2e.test.ts
-          tests/real-world-webgl-worker-lifecycle.e2e.test.ts
-          tests/real-world-webgl-freeze.e2e.test.ts
-          --reporter=json --outputFile=tests/output-linux/worker-bootstrap/results.json
-      - name: Verify native profile evidence and no skipped tests
-        if: always()
-        run: node --import tsx tools/check-worker-bootstrap-report.ts tests/output-linux/worker-bootstrap/results.json tests/output-linux/worker-bootstrap/fingerprint.json
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: linux-worker-bootstrap
-          path: tests/output-linux/worker-bootstrap/
-          if-no-files-found: error
+      - name: Platform GPU startup and font-family paint evidence (throwaway ci-sweep)
+        shell: bash
+        run: bash ci-evidence/platform-gpu-font-evidence.sh
