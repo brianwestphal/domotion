@@ -71,7 +71,14 @@ async function captureWithAuthority(page: Page, enabled: boolean) {
 
 describe("renderer default font locale consumers (DM-XWGRJC)", () => {
   it("routes raster spans and the standard family type through --lang=ja", async () => {
-    const browser = await launchChromium({ args: ["--lang=ja"] });
+    // Linux takes the application locale from the environment (DM-MGQCRJ).
+    const browser = await launchChromium({
+      args: ["--lang=ja"],
+      ...(process.platform === "linux"
+        ? { env: { ...process.env, LANG: "ja_JP.UTF-8", LC_ALL: "ja_JP.UTF-8", LANGUAGE: "ja_JP" } }
+        : {}),
+    });
+    const expected = process.platform === "linux" ? "ja-JP" : "ja";
     try {
       const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
       await page.setContent(html);
@@ -82,21 +89,12 @@ describe("renderer default font locale consumers (DM-XWGRJC)", () => {
       const without = await captureWithAuthority(page, false);
       const find = (tree: CapturedElement[], suffix: string) =>
         flat(tree).find((el) => el.text.trim().endsWith(suffix))!;
-      if (process.platform === "linux") {
-        // The Linux renderer argv is not authenticated yet; both arms take the
-        // DOM-language route and must agree.
-        expect(authority).toMatchObject({ reason: expect.any(String) });
-        expect(find(current.tree, "reset").styles.fontFamilyStack).toEqual(
-          find(without.tree, "reset").styles.fontFamilyStack,
-        );
-        return;
-      }
-      expect(authority).toEqual({ locale: "ja" });
+      expect(authority).toEqual({ locale: expected });
       const reset = find(current.tree, "reset"),
         resetWithout = find(without.tree, "reset");
       expect(reset.styles.fontLocale).toBe("auto");
       expect(reset.styles.lang).toBe("en");
-      expect(fontSelectionLanguage(reset.styles)).toBe("ja");
+      expect(fontSelectionLanguage(reset.styles)).toBe(expected);
       // With the authority the standard type is routable and no locale warning fires.
       expect(reset.styles.fontFamilyStack?.genericFamily).toBe("standard");
       expect(current.warnings.some((w) => w.detail.includes("DM-PJG8E9"))).toBe(false);
@@ -113,7 +111,7 @@ describe("renderer default font locale consumers (DM-XWGRJC)", () => {
       // The no-lang run's raster spans select with "ja" and must agree with
       // Chromium's color face: rasterized exactly where it painted a color font.
       const nolang = find(current.tree, "nolang");
-      expect(nolang.styles.defaultFontLocale).toBe("ja");
+      expect(nolang.styles.defaultFontLocale).toBe(expected);
       const rasterChars = (el: CapturedElement) =>
         (el.textPaintGeometry?.neutral?.textSegments ?? el.textSegments ?? [])
           .flatMap((seg) =>
@@ -135,7 +133,7 @@ describe("renderer default font locale consumers (DM-XWGRJC)", () => {
       const directory = join(process.env.DOMOTION_OUTPUT_DIR ?? "tests/output", "renderer-default-locale-consumers");
       await mkdir(directory, { recursive: true });
       await writeFile(
-        join(directory, "ja.json"),
+        join(directory, `${expected}.json`),
         JSON.stringify({ platform: process.platform, browser: browser.version(), native, diffs }, null, 2),
       );
       if (process.platform === "darwin") expect(diffs.current, JSON.stringify(diffs)).toBeLessThan(diffs.without);

@@ -5126,7 +5126,8 @@
           "DM-ZAXD0C",
           "DM-JRG1BD",
           "DM-D8RS5E",
-          "DM-XWGRJC"
+          "DM-XWGRJC",
+          "DM-MGQCRJ"
         ],
         "code": [
           "src/font-family-stack.test.ts",

@@ -196,8 +196,7 @@ describe("CSS-wide/substituted initial-name type (DM-ESH89H)", () => {
         const authority = await rendererDefaultLocaleForPage(page);
         const defaultFontLocale = "locale" in authority ? authority.locale : undefined;
         evidence.rendererDefaultLocale = authority;
-        // Linux renderer argv is not authenticated yet (zygote retitling).
-        if (process.platform !== "linux") expect(defaultFontLocale).toBeDefined();
+        expect(defaultFontLocale).toBeDefined();
         const usable = (fixture: (typeof fixtures)[number]) =>
           !("usable" in fixture) || (fixture.usable === "renderer-default" && defaultFontLocale != null);
         const legacy = await capture(page, true, defaultFontLocale),

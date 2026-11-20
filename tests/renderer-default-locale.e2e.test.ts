@@ -55,28 +55,33 @@ async function diffPct(page: Page, svg: string, source: Buffer): Promise<number>
   return (pixels / (W * H)) * 100;
 }
 
+/**
+ * On Linux `--lang` does not set the application locale: it comes from the
+ * environment (`ui/base/l10n/l10n_util.cc:508-577`, Chromium 7d859f27), and the
+ * zygote-retitled renderer argv is cut before the appended `--lang`, so the
+ * authority reads it from a utility child (DM-MGQCRJ). Each Linux case sets the
+ * locale environment that yields the same language as the `--lang` case.
+ */
+const linuxEnv = (lang: string, language: string) => ({
+  env: { ...process.env, LANG: `${lang}.UTF-8`, LC_ALL: `${lang}.UTF-8`, LANGUAGE: language },
+});
+
 describe("renderer default font locale (DM-JRG1BD)", () => {
   it.each([
-    ["ja", "ja"],
-    ["zh-TW", "zh-TW"],
-    ["en_US", "en-US"],
-  ])("routes font-locale auto through the launched renderer's --lang=%s", async (lang, expected) => {
+    ["ja", "ja", "ja_JP", "ja-JP"],
+    ["zh-TW", "zh-TW", "zh_TW", "zh-TW"],
+    ["en_US", "en-US", "en_US", "en-US"],
+  ])("routes font-locale auto through the launched renderer's --lang=%s", async (lang, macWin, env, linux) => {
+    const expected = process.platform === "linux" ? linux : macWin;
     // A propagated duplicate must not win: the browser appends its own --lang last.
-    const browser = await launchChromium({ args: [`--lang=${lang}`] });
+    const browser = await launchChromium({
+      args: [`--lang=${lang}`],
+      ...(process.platform === "linux" ? linuxEnv(env, env) : {}),
+    });
     try {
       const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
       await page.setContent(html);
       const authority = await rendererDefaultLocaleForPage(page);
-      if (process.platform === "linux") {
-        // Linux renderers are forked from the zygote and retitle themselves
-        // (setproctitle) within the zygote's argv area, so /proc/<pid>/cmdline
-        // is truncated before the appended --lang. The authority must refuse
-        // rather than guess; the prior DOM-language route stays in force.
-        expect(authority).toEqual({ reason: "renderer command line carries no --lang switch" });
-        const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: W, height: H });
-        for (const el of flat(capture.tree)) expect(el.styles.defaultFontLocale).toBeUndefined();
-        return;
-      }
       expect(authority).toEqual({ locale: expected });
       const source = await page.screenshot();
       const nativeFaces = Object.fromEntries(await Promise.all(ids.map(async (id) => [id, await painted(page, id)])));

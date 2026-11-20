@@ -18,6 +18,7 @@ export const SOURCE_AUTHORITY_PINS = Object.freeze({
 export const DIRECT_SOURCE_FILES = Object.freeze([
   "external/chromium/base/command_line.cc",
   "external/chromium/content/browser/renderer_host/render_process_host_impl.cc",
+  "external/chromium/content/browser/service_host/utility_process_host.cc",
   "external/chromium/content/renderer/render_thread_impl.cc",
   "external/chromium/content/renderer/renderer_blink_platform_impl.cc",
   "external/chromium/headless/lib/browser/headless_content_browser_client.cc",
