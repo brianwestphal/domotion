@@ -505,6 +505,18 @@ export interface WebfontVariant {
    *  range. The legacy `weight` field above remains the scoring scalar for
    *  report rows; selection and instancing consult THIS. */
   weightCaps?: readonly [number, number];
+  /** The `@font-face` `font-style` DESCRIPTOR as slope SELECTION capabilities
+   *  `[min, max]` in Blink's CSS-degree convention, quantized onto the
+   *  FontSelectionValue quarter grid (`FontFace::GetFontSelectionCapabilities`,
+   *  `core/css/font_face.cc:776-850`, rev 7d859f27). Undefined = descriptor
+   *  auto/absent, which selects as normal style `[0, 0]`. */
+  slopeCaps?: readonly [number, number];
+  /** True when the registration supplied no `font-style` descriptor argument
+   *  at all (the CSS-less resource-discovery path and the legacy string API),
+   *  so the legacy `italic` flag is an inference. It feeds only Domotion's
+   *  descriptor-less tie-break (`webfontLegacyTiebreak`), never the Blink
+   *  capabilities. */
+  styleInferred?: true;
   /** Snapshot of the three per-variant constants Blink's webfont
    *  synthetic-bold rule reads (see `webfontSyntheticBold`). Computed once at
    *  registration from the opened buffer, because all three are properties of

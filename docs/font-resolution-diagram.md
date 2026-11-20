@@ -1159,7 +1159,7 @@ the angle.
 ```mermaid
 flowchart TD
   subgraph WF["webfontRegistry — Map&lt;family, WebfontVariant[]&gt;"]
-    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["webfontDescriptorGroup:<br/>select descriptor capabilities BEFORE ranges<br/>stretch distance × 1e4 + italic mismatch (1000)<br/>+ weight distance vs descriptor capabilities;<br/>preserve existing caller tie/inference policy"]
+    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["webfontDescriptorGroup:<br/>select descriptor capabilities BEFORE ranges<br/>Blink IsBetterMatchForRequest, compared in order:<br/>StretchDistance, StyleDistance (slope range vs request<br/>slope, 14° italic threshold), WeightDistance<br/>(font_selection_algorithm.cc:30-159);<br/>descriptor-less inference kept outside<br/>the capabilities key; preserve existing caller tie policy"]
     W1 --> WL["ONLY inside selected group:<br/>prefer Latin-covering primary partition;<br/>range preference cannot cross descriptors"]
     WL --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities, wghtCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped the same way: declared font-weight caps first,<br/>else the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
     W2 --> W3["tagWebfontInstance: stamp WebfontVariant.synthesisFace onto<br/>FontInstance.webfontFace = {declaredWeightCaps, wghtAxisMax, baseIsBold,<br/>declaredStyleCaps, slntAxisMin, baseIsItalic}<br/>→ webfontSyntheticBold() / webfontSyntheticItalic() at the faux-bold/-italic seam<br/>(css_segmented_font_face.cc:116-123 +<br/>font_custom_platform_data.cc:129-154, 188-193, 289-293)"]
@@ -1184,10 +1184,24 @@ flowchart TD
   reverse declaration order and takes the first covering face
   (`css_segmented_font_face.cc:125-136`, `segmented_font_data.cc:33-40`, rev
   7d859f27), so later covering declarations override earlier ones. The
-  Domotion-specific scalar-weight tie-break is confined to descriptor-less
-  (auto-caps) variants, where it routes the CSS-less resource-discovery path's
-  faces by their OS/2 weight; declared descriptors score by Blink's
-  WeightDistance alone. Existing ordinary/segmented cross-group tie policies
+  capability group itself is chosen by Blink's `IsBetterMatchForRequest`
+  over the descriptor capabilities: `StretchDistance`, then `StyleDistance`,
+  then `WeightDistance` (`font_selection_algorithm.cc:30-159`, rev 7d859f27),
+  with slopes quantized onto the FontSelectionValue quarter grid. Style is
+  the face's `font-style` slope range (`italic` / bare `oblique` = 14°,
+  `oblique a b` = the sorted range, auto = 0°) scored against the request
+  slope. The pickers take an optional CSS-degree `requestSlope`; without it
+  the renderer's `slant` stands in (0 → 0°, nonzero → 14°), which is exact
+  for `normal`, `italic`, bare `oblique` and `oblique 14deg` only, because
+  `slantForStyle` drops other oblique angles before they reach the pickers.
+  The Domotion descriptor-less inference routes the CSS-less
+  resource-discovery path's faces by their OS/2 weight and italic bit. The
+  italic bit counts only for a registration that passed no `font-style`
+  descriptor argument at all (CSS faces pass `""` when it is absent), and it
+  joins the style tier. The scalar weight counts only for a variant without a
+  `font-weight` descriptor, and it breaks only exact weight ties. Neither one
+  enters the capabilities key. Declared descriptors score by Blink's
+  distances alone. Existing ordinary/segmented cross-group tie policies
   remain different and are not asserted as Chromium guarantees; their native
   tie/inference parity is tracked separately (DM-M5E64N).
 - **Shaped segmented fallback** does not iterate every registered variant.

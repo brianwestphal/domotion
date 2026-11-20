@@ -27,6 +27,7 @@ export {
 } from "./render/embolden-outline.js";
 export { type SourcePriorityItem, sourcePriorityItems } from "./render/emoji-presentation-priority.js";
 export {
+  __pickWebfontVariantMetaForTest,
   __resolveSystemFallbackKeyForCpForTest,
   __setWin32FamilyKeyResolverForTest,
   beginCharacterFallbackDocument,
