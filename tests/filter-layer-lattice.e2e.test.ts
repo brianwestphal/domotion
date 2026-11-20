@@ -25,6 +25,20 @@ beforeAll(async () => {
 });
 afterAll(async () => closeBrowserSafely(browser), 15_000);
 const rgba = async (bytes: Buffer) => sharp(bytes).ensureAlpha().raw().toBuffer();
+/** Largest per-channel difference between two RGBA buffers. */
+const maxDelta = (a: Buffer, b: Buffer) => {
+  let max = 0;
+  for (let i = 0; i < a.length; i++) max = Math.max(max, Math.abs(a[i] - b[i]));
+  return max;
+};
+// The two margins' SVGs compose to the same filter-layer and text matrices,
+// but the consumer composes them in float. On Linux x64 that rounding alone
+// moves single anti-aliased text pixels by one level (translating the whole
+// rounded-margin SVG by 1e-4 px moves 3-20 pixels by exactly one level there;
+// arm64 and macOS happen to stay byte-identical). That is the consumer's
+// rasterization floor, not grid placement, so the renderer comparison allows
+// one level per channel; the negative control must exceed it.
+const RASTER_FLOOR = 1;
 
 const html = (margin: string, own: string, parent = "", height = "36px") =>
   `<style>body{margin:0;background:#fff}#b{display:flex;align-items:center;justify-content:center;width:70px;height:${height};` +
@@ -60,8 +74,8 @@ it.each([
     const fractional = await renderBoth(page, output, html("20.4375px", own, parent, height));
     // Chromium itself paints both margins identically.
     expect(fractional.source.equals(whole.source), "source").toBe(true);
-    // So must the renderer.
-    expect(fractional.actual.equals(whole.actual), "renderer").toBe(true);
+    // So must the renderer, up to the consumer's float rounding.
+    expect(maxDelta(fractional.actual, whole.actual), "renderer").toBeLessThanOrEqual(RASTER_FLOOR);
     // Negative control: the same SVGs without the parameter-space wrapper
     // (the renderer's previous output) differ between the two margins.
     // An identity translate in their place is a no-op wrapper.
@@ -80,7 +94,7 @@ it.each([
       await output.setContent(`<style>body{margin:0}</style>${svg}`);
       shots.push(await rgba(await output.screenshot({ omitBackground: true })));
     }
-    expect(shots[1].equals(shots[0]), "unwrapped").toBe(false);
+    expect(maxDelta(shots[1], shots[0]), "unwrapped").toBeGreaterThan(RASTER_FLOOR);
   } finally {
     await page.close();
     await output.close();
