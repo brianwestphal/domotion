@@ -484,6 +484,11 @@ describe("real-world worker WebGL lifecycle (DM-S9S3WG)", () => {
       const freeze = await freezeWebGlOutput(page);
       const failed = startWorker(page, "worker", `failed-${mode}`);
       if (mode === "timeout") {
+        // The spy withholds the reply to the first worker Runtime.evaluate it
+        // sees. Start the healthy worker only once that evaluate belongs to the
+        // failed worker; otherwise a loaded host can attach the healthy worker
+        // first, hand it the withheld reply, and leave it unpatched.
+        await expect.poll(() => injected).toBe(true);
         await startWorker(page, "worker", "healthy-during-timeout");
         expect(await latest(page, "healthy-during-timeout")).toMatchObject({
           nativeAtStart: false,
