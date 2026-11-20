@@ -1786,7 +1786,9 @@
           "DM-GQNPEN",
           "DM-PCT7GR",
           "DM-6SVH1W",
-          "DM-NTN9EK"
+          "DM-NTN9EK",
+          "DM-0MT3TS",
+          "DM-817Y5J"
         ],
         "code": [
           "tests/e2e-setup.ts",
@@ -1794,6 +1796,9 @@
           "tests/e2e-browser-evidence.test.ts",
           "tests/e2e-browser-evidence.e2e.test.ts",
           "tests/e2e-host-sampler.global.ts",
+          "src/test-support/presented-frame-screenshot.ts",
+          "tests/presented-frame-screenshot.test.ts",
+          "tests/presented-frame-screenshot.e2e.test.ts",
           "tests/real-world-browser.ts",
           "tests/real-world-browser-diagnostics.ts",
           "tests/real-world-browser-diagnostics.test.ts",

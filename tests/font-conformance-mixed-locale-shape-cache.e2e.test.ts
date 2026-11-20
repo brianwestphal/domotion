@@ -13,6 +13,7 @@ import {
   prepareStack,
   type StackDescriptor,
 } from "../tools/font-conformance.js";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 
 const cps = [0x2f800, 0x2f900, 0x2fa00];
 const stack: StackDescriptor = { fontFamily: "system-ui", fontSize: 16, fontWeight: 400, fontStyle: "normal" };
@@ -39,7 +40,9 @@ async function browserFaces(cells: ProbeCell[], family = "system-ui"): Promise<s
         ".c{display:inline-block;width:24px;height:24px;overflow:hidden;font-style:inherit;white-space:pre}" +
         `</style><div id=w>${cells.map(cell).join("")}</div></html>`,
     );
-    await page.screenshot();
+    // Forces a paint before asking for platform fonts. It is the first capture
+    // of a fresh browser, so wait for a presented frame first.
+    await screenshotAfterPresentedFrame(page);
     const { root } = await cdp.send("DOM.getDocument");
     const { nodeIds } = await cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".c" });
     const faces: string[] = [];
@@ -96,7 +99,9 @@ async function browserMixedRows(text: string, seeded: boolean, targetStyle = "")
     await page.setContent(
       `<!doctype html><html lang=en><style>.c{display:block;font:16px system-ui;white-space:pre}</style>${cells.map((lang) => `<i class=c lang=${lang} style="${lang === "zh-Hans" ? targetStyle : ""}">${encoded}</i>`).join("")}`,
     );
-    await page.screenshot();
+    // Forces a paint before asking for platform fonts. It is the first capture
+    // of a fresh browser, so wait for a presented frame first.
+    await screenshotAfterPresentedFrame(page);
     const { root } = await cdp.send("DOM.getDocument");
     const { nodeIds } = await cdp.send("DOM.querySelectorAll", { nodeId: root.nodeId, selector: ".c" });
     return await Promise.all(

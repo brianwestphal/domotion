@@ -17,6 +17,7 @@ import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeReport } from "./lib/report.js";
 import { captureElementTree } from "../src/capture/index.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 
 export type PrimitiveKind = "border" | "outline";
 export type PrimitiveStyle = "solid" | "dashed" | "dotted" | "double";
@@ -273,34 +274,6 @@ function numberList(raw: string, name: string): number[] {
 }
 
 const sha256 = (value: string | Buffer): string => createHash("sha256").update(value).digest("hex");
-
-/** DevTools answers "Unable to capture screenshot" when the browser-side
- * surface copy comes back empty (PageHandler::ScreenshotCaptured,
- * content/browser/devtools/protocol/page_handler.cc at chromium 7d859f27), for
- * example before a freshly created context has presented a frame. On hosted
- * Linux runners every failure since 2026-10-08 was the first capture of a new
- * DSF 4 context, at any tile size (1024×1024 tiles failed the same way), and a
- * later scenario in the same run then succeeded. Wait for two animation frames
- * so a frame has been presented, and retry only that exact protocol error a
- * bounded number of times; any other error, or a persistent one, still fails. */
-const EMPTY_SURFACE_SCREENSHOT = /Page\.captureScreenshot\): Unable to capture screenshot/;
-const SCREENSHOT_ATTEMPTS = 4;
-
-export async function screenshotAfterPresentedFrame(
-  page: Page,
-  options: Parameters<Page["screenshot"]>[0],
-): Promise<Buffer> {
-  for (let attempt = 1; ; attempt++) {
-    await page.evaluate(
-      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-    );
-    try {
-      return await page.screenshot(options);
-    } catch (error) {
-      if (attempt >= SCREENSHOT_ATTEMPTS || !EMPTY_SURFACE_SCREENSHOT.test(String(error))) throw error;
-    }
-  }
-}
 
 /** Linux's headless screenshot protocol rejects the full DSF=4 surface even
  * though the resulting PNG is within Chromium's image dimensions. Capture

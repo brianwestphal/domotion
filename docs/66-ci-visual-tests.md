@@ -34,6 +34,8 @@ tickets:
     "DM-PCT7GR",
     "DM-6SVH1W",
     "DM-NTN9EK",
+    "DM-0MT3TS",
+    "DM-817Y5J",
   ]
 code:
   [
@@ -42,6 +44,9 @@ code:
     "tests/e2e-browser-evidence.test.ts",
     "tests/e2e-browser-evidence.e2e.test.ts",
     "tests/e2e-host-sampler.global.ts",
+    "src/test-support/presented-frame-screenshot.ts",
+    "tests/presented-frame-screenshot.test.ts",
+    "tests/presented-frame-screenshot.e2e.test.ts",
     "tests/real-world-browser.ts",
     "tests/real-world-browser-diagnostics.ts",
     "tests/real-world-browser-diagnostics.test.ts",
@@ -452,6 +457,39 @@ after six consecutive empty browser-side surface copies
 (`content/browser/devtools/protocol/page_handler.cc:1831` and the retry loop in
 `render_widget_host_impl.cc:3853-3882`, Chromium `7d859f27`). Either an invalid
 or evicted local surface id or an empty viz `CopyOutputResult` can cause it.
+
+**First capture of a fresh page.** Every hosted-runner occurrence found up to
+2026-11-20 was the first capture of a newly created page, within about two
+seconds of launch. That covers six failed `ci.yml` runs, two failed
+`test-linux.yml` runs and two retried attempts in passing runs. Playwright
+launches Chromium with `--enable-features=CDPScreenshotNewSurface`. Under that
+flag the browser asks the renderer to redraw, does not wait for it, and issues
+the copy at once (`RenderWidgetHostImpl::GetSnapshotFromBrowser`,
+`render_widget_host_impl.cc:2246-2268`). Viz returns an empty result
+immediately while the renderer has no compositor frame sink yet
+(`FrameSinkManagerImpl::RequestCopyOfOutput`,
+`components/viz/service/frame_sinks/frame_sink_manager_impl.cc:562-577`).
+`DelegatedFrameHost` also drops the copy while the view has no valid local
+surface id (`delegated_frame_host.cc:219-223`). Chromium's five back-to-back
+retries cannot outlast either state. A hosted-macOS probe (2026-11-20, six
+`macos-latest` jobs, a fresh browser per iteration, 2 or 6 browsers at once)
+reproduced it. A plain `setContent` + `page.screenshot()` failed 17 times in
+1,200 runs: 9 at DPR 1 and 8 at DPR 4, 0.3–1 s after launch. Most failures
+came from the oversubscribed jobs. After a two-frame wait of 17–61 ms, all 17
+pages captured normally. The arm that waited for two animation frames before
+its first capture failed 0 times in 1,200 runs.
+
+When a harness's first capture of a page can run shortly after launch, it uses
+`screenshotAfterPresentedFrame` from
+`src/test-support/presented-frame-screenshot.ts`. Before each capture, the
+helper waits up to 5 s for two animation frames. It retries only this exact
+DevTools message, a bounded number of times, and warns once per empty copy
+with a `[presented-frame screenshot]` line, so a recovered failure still shows
+in the log. If every attempt comes back empty, it throws
+`EmptySurfaceScreenshotError`. That error keeps the DevTools text, so the lane
+retry and the evidence dump below still match it, and it adds the frame-wait
+record for each attempt.
+
 Attributing one occurrence needs the browser's own stderr and the host's state
 at that time, so every E2E run keeps both in bounded form:
 

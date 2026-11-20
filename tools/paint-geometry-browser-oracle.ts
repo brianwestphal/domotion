@@ -5,6 +5,7 @@ import { withBrowser } from "./lib/browser.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
 import { writeReport } from "./lib/report.js";
 import { blinkCornerLine } from "./paint-geometry-oracle.js";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
 import { playwrightVersion as readPlaywrightVersion } from "../scripts/run-env.mjs";
 
@@ -57,7 +58,9 @@ export async function runBrowserPaintOracle(): Promise<{
       #html-object-url { position:absolute;left:20px;top:1540px;width:200px;height:100px;clip-path:url(#html-object-clip) }
       #html-object-url > i { position:absolute;left:80px;top:20px;width:80px;height:60px;background:#000 }
     </style><svg width="0" height="0" aria-hidden="true"><defs><clipPath id="html-url-clip"><rect width="30" height="100"/></clipPath><clipPath id="html-object-clip" clipPathUnits="objectBoundingBox"><rect width=".5" height="1"/></clipPath><clipPath id="svg-url-clip" clipPathUnits="objectBoundingBox"><rect width=".25" height="1"/></clipPath></defs></svg><div id="gradient"></div><div id="clip"></div><div id="mask"></div><div id="negative-radial"></div><div id="conic"></div><svg class="paint" id="svg-fill" viewBox="0 0 200 120"><rect x="60" y="30" width="80" height="40"/></svg><svg class="paint" id="svg-stroke" viewBox="0 0 200 120"><rect x="60" y="30" width="80" height="40"/></svg><svg class="paint" id="svg-view" viewBox="0 0 200 120"><rect x="60" y="30" width="80" height="40"/></svg><div id="html-url"></div><svg class="paint" id="svg-url" viewBox="0 0 200 120"><rect x="60" y="30" width="80" height="40" clip-path="url(#svg-url-clip)"/></svg><div id="html-object-url"><i></i></div>`);
-      const png = await page.screenshot();
+      // First capture of a fresh browser: wait for a presented frame so the
+      // DevTools surface copy has a compositor surface to read.
+      const png = await screenshotAfterPresentedFrame(page);
       const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
       const luminanceAt = (cssX: number, cssY: number): number => {
         const cx = Math.round(cssX * DPR),
