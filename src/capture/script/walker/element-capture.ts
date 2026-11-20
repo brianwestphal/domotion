@@ -11,7 +11,7 @@
 
 import { computeFieldsetLegendBox } from "./fieldset-legend.js";
 import { captureLegacyClipRect } from "./legacy-clip.js";
-import { captureBorderPaintSnap, frozenPaintShift } from "./border-paint-snap.js";
+import { captureBorderPaintSnap, captureImagePaintBasis, frozenPaintShift } from "./border-paint-snap.js";
 import { detectInlineFragments } from "./fragmentation.js";
 import { captureInlineSvg } from "./inline-svg.js";
 import { captureImageElement } from "./image-elements.js";
@@ -573,6 +573,18 @@ export const createElementCapture = () => {
     ) {
       const borderPaintSnap = captureBorderPaintSnap(el, rect);
       if (borderPaintSnap != null) captured.borderPaintSnap = borderPaintSnap;
+    }
+    // ImagePainter snaps an image's destination and content rects in the same
+    // local paint space; record that basis separately from the DOM geometry.
+    if (
+      captured.imageSrc != null &&
+      captured.x === rect.left - vp.x &&
+      captured.y === rect.top - vp.y &&
+      captured.width === rect.width &&
+      captured.height === rect.height
+    ) {
+      const imagePaintBasis = captureImagePaintBasis(el, rect);
+      if (imagePaintBasis != null) captured.imagePaintBasis = imagePaintBasis;
     }
     return assembleCaptureResultPhase({
       captured,

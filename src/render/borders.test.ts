@@ -914,6 +914,23 @@ describe("snappedInsetBox", () => {
       height: 17,
     });
   });
+  // Paint isolation displaces the whole local space: each delta is
+  // shift + round(L) - L, and only the remainder is the edge's own rounding.
+  it("separates a paint-isolation shift from the edge rounding", () => {
+    // Local left 0.5 (own delta +0.5) displaced by isolation shift -0.25.
+    const borderPaintSnap = {
+      left: 0.25,
+      top: -0.25,
+      right: 0.25,
+      bottom: -0.25,
+      width: 20,
+      height: 20,
+      shift: { x: -0.25, y: 0 },
+    };
+    // Inset 2 on the left: local 2.5 rounds to 3, so captured 22.5 + 0.5
+    // own rounding - 0.25 shift = 22.75.
+    expect(snappedInsetBox({ ...box, borderPaintSnap }, { top: 0, right: 0, bottom: 0, left: 2 }).x).toBe(22.75);
+  });
 });
 
 describe("skRRectSvg", () => {

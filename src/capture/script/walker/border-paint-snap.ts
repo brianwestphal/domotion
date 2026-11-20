@@ -32,10 +32,22 @@
 // non-translation ancestor transforms, `offset-path`,
 // `will-change` transform-family properties (they discard subpixel
 // accumulation, `kPreventingSubpixelAccumulationReasons`), paint or
-// style+layout containment and `content-visibility` (they reset the paint
-// offset, `NeedsIsolationNodes`, :570-589), sticky positioning (its own
+// style+layout containment without a native eligibility fact and
+// `content-visibility` (they may reset the paint offset,
+// `NeedsIsolationNodes`, :570-589), sticky positioning (its own
 // translation node), fractional scroll offsets, a non-unit device pixel ratio,
 // or pinch zoom.
+//
+// Paint isolation with an authenticated eligibility fact keeps the proof in a
+// changed form: the isolating box's paint offset is rounded and the offset
+// beneath it restarts at its border-box origin with no subpixel accumulation
+// (`UpdateForPaintOffsetTranslation`, :744-749). A descendant's local offset
+// is then measured from that origin, and the whole subtree is displaced by
+// `round(P) - P` of the isolating box (composed through nested isolation);
+// the record carries that displacement as `shift`. Isolation eligibility is
+// LayoutObject-specific (`IsEligibleForPaintOrLayoutContainment`), so an
+// isolating box whose eligibility the prepass could not establish still fails
+// closed rather than guessing from the computed `contain` value.
 //
 // CSS zoom keeps the proof: Blink lays out and snaps in zoomed LayoutUnits, and
 // under standardized zoom getBoundingClientRect divides only by the frame's
@@ -48,7 +60,7 @@
 // later whole-tree translation of the captured coordinates keeps it valid.
 // Self-contained: this runs inside the page via CAPTURE_SCRIPT.
 
-import type { CapturedBorderPaintSnap } from "../../types.js";
+import type { CapturedBorderPaintSnap, CapturedImagePaintBasis } from "../../types.js";
 
 /**
  * Frozen transforms whose subtree is being captured: `{x, y}` holds the box's
@@ -98,6 +110,34 @@ const pureTranslation = (cs: CSSStyleDeclaration): { x: number; y: number } | nu
   return { x, y };
 };
 
+/**
+ * Native paint/layout containment eligibility from the document prepass
+ * (`probeContainmentEligibility`). Absent entries are unknown, never false.
+ */
+let containmentEligibility: WeakMap<Element, boolean> | null = null;
+
+export const bindContainmentEligibility = (eligible: WeakMap<Element, boolean> | null): void => {
+  containmentEligibility = eligible;
+};
+
+/**
+ * `NeedsIsolationNodes` (paint_property_tree_builder.cc:570-589, Chromium
+ * 7d859f27): a layered box isolates when paint containment applies, or style
+ * AND layout containment both apply. `ShouldApplyPaintContainment` /
+ * `ShouldApplyLayoutContainment` require `IsEligibleForPaintOrLayoutContainment`
+ * while `ShouldApplyStyleContainment` has no gate (layout_object.h:621-670).
+ * "yes"/"no" only from the native eligibility fact; "unknown" otherwise
+ * (including `content-visibility`, whose eligibility is not probed).
+ */
+const paintIsolationOf = (node: Element, cs: CSSStyleDeclaration): "yes" | "no" | "unknown" => {
+  if (!isolatesPaintOffset(cs)) return "no";
+  const visibility = (cs as CSSStyleDeclaration & { contentVisibility?: string }).contentVisibility;
+  if (visibility != null && visibility !== "" && visibility !== "visible") return "unknown";
+  const eligible = containmentEligibility?.get(node);
+  if (eligible == null) return "unknown";
+  return eligible ? "yes" : "no";
+};
+
 const isolatesPaintOffset = (cs: CSSStyleDeclaration): boolean => {
   const contain = cs.contain ?? "none";
   if (/\b(paint|strict|content)\b/.test(contain)) return true;
@@ -132,6 +172,17 @@ export const subpixelPropagation = (transform: string, willChange: string): { x:
 const onWholePixel = (value: number): boolean => Math.abs(value - Math.round(value)) < 1 / 1024;
 
 /**
+ * A box's local paint offset (`x`, `y`, up to whole pixels) and the
+ * translation `shift` by which paint isolation above it displaces its whole
+ * local paint space from the captured geometry (zero without isolation).
+ */
+export interface LocalPaintOffset {
+  x: number;
+  y: number;
+  shift: { x: number; y: number };
+}
+
+/**
  * The local paint offset of a box whose live (or frozen-untransformed) border
  * rect is `rect`, or undefined when it cannot be authenticated. Below a
  * non-propagating frozen transform the offset is relative to that transform's
@@ -145,7 +196,7 @@ export const localPaintOffset = (
   el: Element,
   rect: { left: number; top: number },
   includeSelf: boolean,
-): { x: number; y: number } | undefined => {
+): LocalPaintOffset | undefined => {
   const view = el.ownerDocument?.defaultView;
   if (view == null) return undefined;
   if (view.devicePixelRatio !== 1) return undefined;
@@ -166,6 +217,7 @@ export const localPaintOffset = (
     ty = 0;
   let localX: number | null = null,
     localY: number | null = null;
+  let shift = { x: 0, y: 0 };
   for (const node of chain) {
     const cs = view.getComputedStyle(node);
     const zoom = zooms.get(node) ?? 1;
@@ -176,12 +228,37 @@ export const localPaintOffset = (
       if (localY == null && base.y != null) localY = rect.top - ty - base.y;
       if (localX != null && localY != null) break;
     }
-    if (cs.position === "sticky") return undefined;
-    if (cs.offsetPath != null && cs.offsetPath !== "" && cs.offsetPath !== "none") return undefined;
     // The box's own compositing or isolation only matters once its own
     // paint-offset translation applies (includeSelf); without it, P is the
     // offset that translation rounds.
-    if ((node !== el || includeSelf) && (preventsSubpixelAccumulation(cs) || isolatesPaintOffset(cs))) return undefined;
+    if (node !== el || includeSelf) {
+      if (preventsSubpixelAccumulation(cs)) return undefined;
+      const isolation = paintIsolationOf(node, cs);
+      if (isolation === "unknown") return undefined;
+      if (isolation === "yes") {
+        // Isolation rounds this box's paint offset into its
+        // PaintOffsetTranslation and resets the offset below it to zero with
+        // no subpixel accumulation (UpdateForPaintOffsetTranslation,
+        // paint_property_tree_builder.cc:744-749). Everything beneath paints
+        // relative to the box's border-box origin, displaced by
+        // round(P) - P from the captured geometry, plus whatever an outer
+        // isolation displaced the box itself by.
+        if (localX != null || localY != null) return undefined;
+        const isolationRect = node.getBoundingClientRect();
+        const outer = localPaintOffset(node, isolationRect, false);
+        if (outer == null) return undefined;
+        const quantize = (value: number) => Math.round(value * 64) / 64;
+        localX = rect.left - tx - quantize(isolationRect.left);
+        localY = rect.top - ty - quantize(isolationRect.top);
+        shift = {
+          x: outer.shift.x + Math.round(outer.x) - outer.x,
+          y: outer.shift.y + Math.round(outer.y) - outer.y,
+        };
+        break;
+      }
+    }
+    if (cs.position === "sticky") return undefined;
+    if (cs.offsetPath != null && cs.offsetPath !== "" && cs.offsetPath !== "none") return undefined;
     // A frozen transform reads as identity here (the rect below it is already
     // untransformed); a live one must be a pure translation.
     const translation = pureTranslation(cs);
@@ -205,7 +282,7 @@ export const localPaintOffset = (
   // Re-quantize to the LayoutUnit 1/64 grid so float translation round-off
   // cannot move a half-pixel edge across the rounding boundary.
   const quantize = (value: number) => Math.round(value * 64) / 64;
-  return { x: quantize(localX ?? rect.left - tx), y: quantize(localY ?? rect.top - ty) };
+  return { x: quantize(localX ?? rect.left - tx), y: quantize(localY ?? rect.top - ty), shift };
 };
 
 /**
@@ -242,9 +319,13 @@ export const registerFrozenPaintBase = (
     x: propagation.x ? null : Math.round(rect.left * 64) / 64,
     y: propagation.y ? null : Math.round(rect.top * 64) / 64,
   });
+  // On an axis that drops the accumulation the descendants stop at this base,
+  // so the wrapper also carries any isolation displacement above the box. On
+  // a propagating axis they walk past it and carry that displacement in their
+  // own records instead, so folding it here would apply it twice.
   const shift = {
-    x: propagation.x ? 0 : Math.round(offset.x) - offset.x,
-    y: propagation.y ? 0 : Math.round(offset.y) - offset.y,
+    x: propagation.x ? 0 : offset.shift.x + Math.round(offset.x) - offset.x,
+    y: propagation.y ? 0 : offset.shift.y + Math.round(offset.y) - offset.y,
   };
   if (shift.x !== 0 || shift.y !== 0) frozenPaintShifts.set(el, shift);
   return shift;
@@ -333,14 +414,40 @@ export const captureBorderPaintSnap = (
   const localRight = localLeft + rect.width,
     localBottom = localTop + rect.height;
   const device = deviceTranslationFraction(el);
+  // Paint isolation above the box displaces every edge by the same shift.
   return {
     source: "blink-pixel-snapped-border-v1",
-    left: Math.round(localLeft) - localLeft,
-    top: Math.round(localTop) - localTop,
-    right: Math.round(localRight) - localRight,
-    bottom: Math.round(localBottom) - localBottom,
+    left: local.shift.x + Math.round(localLeft) - localLeft,
+    top: local.shift.y + Math.round(localTop) - localTop,
+    right: local.shift.x + Math.round(localRight) - localRight,
+    bottom: local.shift.y + Math.round(localBottom) - localBottom,
     width: rect.width,
     height: rect.height,
     ...(device == null ? {} : { device }),
+    ...(local.shift.x === 0 && local.shift.y === 0 ? {} : { shift: local.shift }),
+  };
+};
+
+/**
+ * A replaced image's local paint basis (`ImagePainter::PaintIntoRect` snaps its
+ * destination and content rectangles in local paint space), or undefined when
+ * that space cannot be authenticated from the live page.
+ */
+export const captureImagePaintBasis = (
+  el: Element,
+  rect: { left: number; top: number; width: number; height: number },
+): CapturedImagePaintBasis | undefined => {
+  const local = localPaintOffset(el, rect, true);
+  if (local == null) return undefined;
+  const fraction = (value: number) => {
+    const quantized = Math.round(value * 64) / 64;
+    return quantized - Math.floor(quantized);
+  };
+  return {
+    source: "blink-image-paint-basis-v1",
+    origin: { x: fraction(local.x), y: fraction(local.y) },
+    shift: local.shift,
+    width: rect.width,
+    height: rect.height,
   };
 };

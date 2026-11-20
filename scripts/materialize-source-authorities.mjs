@@ -59,6 +59,7 @@ export const DIRECT_SOURCE_FILES = Object.freeze([
   "external/chromium/cc/paint/draw_looper.cc",
   "external/chromium/third_party/blink/renderer/core/layout/adjust_for_absolute_zoom.h",
   "external/chromium/third_party/blink/renderer/core/layout/geometry/physical_rect.h",
+  "external/chromium/third_party/blink/renderer/core/layout/layout_object.h",
   "external/chromium/third_party/blink/renderer/core/layout/transform_utils.cc",
   "external/chromium/third_party/blink/renderer/core/css/resolver/style_builder_converter.cc",
   "external/chromium/third_party/blink/renderer/platform/transforms/affine_transform.cc",

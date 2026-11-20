@@ -59,6 +59,7 @@ export interface BorderPaintSnapCarrier {
     width: number;
     height: number;
     device?: { x: number; y: number };
+    shift?: { x: number; y: number };
   };
 }
 
@@ -109,11 +110,15 @@ export function snappedInsetBox(
     bottom = el.y + el.height - insets.bottom;
   const snap = authenticBorderPaintSnap(el);
   if (snap == null) return { x: left, y: top, width: right - left, height: bottom - top };
+  // An isolation shift moves the whole local paint space; only the remainder
+  // of each delta is the edge's own rounding.
+  const sx = snap.shift?.x ?? 0,
+    sy = snap.shift?.y ?? 0;
   const delta = (offset: number, s: number) => Math.round(offset - s) - (offset - s);
-  const l = left + delta(insets.left, snap.left),
-    t = top + delta(insets.top, snap.top);
-  const rr = right + delta(-insets.right, snap.right),
-    b = bottom + delta(-insets.bottom, snap.bottom);
+  const l = left + sx + delta(insets.left, snap.left - sx),
+    t = top + sy + delta(insets.top, snap.top - sy);
+  const rr = right + sx + delta(-insets.right, snap.right - sx),
+    b = bottom + sy + delta(-insets.bottom, snap.bottom - sy);
   return { x: l, y: t, width: rr - l, height: b - t };
 }
 

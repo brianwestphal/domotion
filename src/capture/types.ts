@@ -2083,6 +2083,36 @@ export interface CapturedBorderPaintSnap {
    * chain is not a pure translation, or is on the live-rect model.
    */
   device?: { x: number; y: number };
+  /**
+   * The part of each edge delta that is not this box's own local rounding:
+   * the displacement of its whole local paint space by eligible paint
+   * isolation above it (`NeedsIsolationNodes` rounds the isolating box's
+   * paint offset and resets the offset beneath it,
+   * paint_property_tree_builder.cc:570-589 / :744-749, Chromium 7d859f27).
+   * Each edge delta is `shift + round(L) - L`. Absent when zero.
+   */
+  shift?: { x: number; y: number };
+}
+
+/**
+ * A replaced image's local paint basis, for Blink's `ImagePainter::PaintIntoRect`
+ * pixel snapping of its destination and content rectangles
+ * (core/paint/image_painter.cc:205-239, Chromium 7d859f27). The DOM geometry
+ * (`x`/`y`/object-fit rectangle) is unchanged; this only says where the snap
+ * happens. A captured coordinate `X` on an axis sits at local `X - el.x + origin`
+ * and paints at `el.x + shift + round(local) - origin`. Absent when the local
+ * paint space could not be authenticated (the renderer keeps the captured
+ * geometry).
+ */
+export interface CapturedImagePaintBasis {
+  source: "blink-image-paint-basis-v1";
+  /** The border box's local paint offset, reduced to [0, 1) on the 1/64 grid. */
+  origin: { x: number; y: number };
+  /** Paint-isolation displacement of the box's local paint space (see `CapturedBorderPaintSnap.shift`). */
+  shift: { x: number; y: number };
+  /** The border-box size the basis describes; a derived box of another size ignores it. */
+  width: number;
+  height: number;
 }
 
 export interface CapturedElement {
@@ -2419,6 +2449,8 @@ export interface CapturedElement {
    * the renderer then paints from the captured geometry.
    */
   borderPaintSnap?: CapturedBorderPaintSnap;
+  /** Local paint basis of an `<img>` / `<input type=image>` (see `CapturedImagePaintBasis`). */
+  imagePaintBasis?: CapturedImagePaintBasis;
   /**
    * The `prefersReducedMotion` / `inForcedColors` Settings an `<img>`'s SVG
    * image document copies from the renderer's first ordinary page

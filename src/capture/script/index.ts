@@ -78,6 +78,7 @@ import {
   probeTransformRelatedBoxes,
   probeContainmentEligibility,
 } from "./walker/document-prepass.js";
+import { bindContainmentEligibility } from "./walker/border-paint-snap.js";
 
 const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void>) => {
   const sel = args.selector;
@@ -266,6 +267,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
   const _backdropEffectSpaceFor = createBackdropEffectSpace(_ownershipEls, shortSelector);
   probeTransformRelatedBoxes(_ownershipEls, _transformRelatedBox);
   probeContainmentEligibility(_ownershipEls, _paintOrLayoutContainmentEligible);
+  bindContainmentEligibility(_paintOrLayoutContainmentEligible);
   const { projectiveFacts, projectiveNodeIndex, projectedQuads, projectiveAbsH, nonAffineProjectiveRoots } =
     indexProjectiveFacts(args);
   const _animInfluenced = collectAnimInfluenced(_allEls);

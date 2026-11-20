@@ -246,7 +246,7 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2473", "DM-2475", "DM-WTSX24", "DM-S2EA2P", "DM-PYF5QN", "SK-1091", "SK-1127"],
+        "tickets": ["DM-2473", "DM-2475", "DM-WTSX24", "DM-S2EA2P", "DM-PYF5QN", "DM-9VS6RT", "SK-1091", "SK-1127"],
         "code": [
           "src/capture/script/index.ts",
           "src/capture/script/walker/transforms.ts",
@@ -6452,13 +6452,14 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB", "DM-FRF6A8"],
+        "tickets": ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB", "DM-FRF6A8", "DM-9VS6RT"],
         "code": [
           "src/capture/replaced-media-frame.ts",
           "src/capture/background-image-sizing.ts",
           "src/capture/pseudo-fragment-cdp.ts",
           "src/render/element-tree-to-svg.ts",
           "src/render/image-orientation.ts",
+          "src/render/image-paint-snap.ts",
           "src/render/image-pattern.ts",
           "src/post-processing/",
           "tests/feature-coverage.ts"

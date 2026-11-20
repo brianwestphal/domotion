@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2473", "DM-2475", "DM-WTSX24", "DM-S2EA2P", "DM-PYF5QN", "SK-1091", "SK-1127"]
+tickets: ["DM-2473", "DM-2475", "DM-WTSX24", "DM-S2EA2P", "DM-PYF5QN", "DM-9VS6RT", "SK-1091", "SK-1127"]
 code:
   [
     "src/capture/script/index.ts",
@@ -221,6 +221,35 @@ inside the filter differs more (follow-up DM-6AX9BY). 13-deep-anchor-positioning
 now snap in the same local space too (DM-6A9J20, doc 277), which removed the
 remaining residual on axes that keep the accumulation and brought
 22-deep-filter-paint-bounds to 0.978%.
+
+### Paint isolation (DM-9VS6RT)
+
+`NeedsIsolationNodes` (`paint_property_tree_builder.cc:570-589`, Chromium
+`7d859f27`) isolates a layered box when paint containment applies, or style
+AND layout containment both apply. Paint and layout containment apply only to
+a LayoutObject that is `IsEligibleForPaintOrLayoutContainment`; style
+containment has no such gate (`core/layout/layout_object.h:621-670`). An
+isolating box's paint offset is rounded into its PaintOffsetTranslation and the
+offset beneath it restarts at zero with no subpixel accumulation (`:744-749`).
+Its whole subtree therefore paints displaced by `round(P) − P`. That
+displacement composes through nested isolation.
+
+`localPaintOffset` now authenticates through an isolating box when the
+document prepass's native eligibility fact (`paintOrLayoutContainmentEligible`,
+from the neutral-host probe) says the box is eligible. It measures a descendant
+from the isolating box's border-box origin and returns the composed
+displacement as `shift`. An ineligible box does not isolate. A box whose
+eligibility is unknown (source-specific replaced, control and SVG layout
+objects, shadow-tree ancestors outside the prepass, `content-visibility`) still
+fails closed. `contain: layout` alone does not isolate.
+
+`borderPaintSnap` edge deltas include the shift and record it as `shift`, so
+the inset (`snappedInsetBox`) and inline-fragment consumers separate it from
+each edge's own rounding. Raster `<img>` / `<input type=image>` boxes carry a
+separate `imagePaintBasis` (local origin fraction plus shift), described in the
+[images handbook](handbook/images-media-and-embedding.md#raster-image-paint-rectangles).
+Text and other unsnapped content inside an isolated subtree still paint at
+their captured positions.
 
 ## Follow-ups to file
 

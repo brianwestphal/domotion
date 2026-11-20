@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB", "DM-FRF6A8"]
+tickets: ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB", "DM-FRF6A8", "DM-9VS6RT"]
 code:
   [
     "src/capture/replaced-media-frame.ts",
@@ -13,6 +13,7 @@ code:
     "src/capture/pseudo-fragment-cdp.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/image-orientation.ts",
+    "src/render/image-paint-snap.ts",
     "src/render/image-pattern.ts",
     "src/post-processing/",
     "tests/feature-coverage.ts",
@@ -124,6 +125,49 @@ probe does not reproduce the source's `currentSrc` and DOM natural size.
 natural size by the float density, so its size can differ from the decoded one
 by under 1/64 px. A src-only image has density 1, so its DOM integers are
 already exact.
+
+## Raster image paint rectangles
+
+`ImagePainter::PaintIntoRect` (`core/paint/image_painter.cc:205-239`, Chromium
+`7d859f27`) draws a raster image into `ToPixelSnappedRect` of its object-fit
+destination. When the content rect does not contain the destination, it crops
+to the snapped content rect intersected with the snapped destination and maps
+the source rect by the same ratio. Drawing the whole image into the snapped
+destination, clipped to that intersection, paints the same pixels.
+
+The snap happens in the image's local paint space. That space can differ from
+the captured viewport coordinates because of live translations, frozen
+transforms, or paint isolation above the image (see
+[doc 06](../06-css-transforms.md#paint-isolation-dm-9vs6rt)). Capture
+therefore records `imagePaintBasis`:
+
+- the border box's local origin fraction;
+- the isolation displacement `shift`;
+- the box size it describes.
+
+The DOM geometry and object-fit rectangle are not rewritten.
+`src/render/image-paint-snap.ts` snaps the destination and crop, and
+`resolvedOverflowClipMarginGeometry` snaps the image's overflow clip in the
+same space. A sharp overflow clip that contains everything drawn is not
+referenced; Chromium's compositor drops such a clip rather than antialiasing
+a fractional device edge. Without an authenticated basis the captured geometry
+is kept, because a global rounding would be wrong exactly where the spaces
+differ.
+
+SVG-source images keep their nested-SVG route. Inline SVG root paint mapping
+is a separate rule. Native full-RGBA controls in
+`tests/paint-isolation-image-basis.e2e.test.ts` cover:
+
+- an unisolated fractional image;
+- style+layout versus layout-only containment;
+- nested paint and content containment;
+- an `object-fit: none` crop;
+- CSS zoom, a frozen integral translation, and an integrally scrolled
+  container.
+
+Each case also has a negative control that strips the records.
+
+## Retained Stripe evidence (DM-MJAMW0)
 
 The retained Stripe mobile card joins actual browser response bytes and emitted
 SVG bytes by SHA-256

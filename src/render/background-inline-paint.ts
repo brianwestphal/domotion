@@ -511,19 +511,24 @@ export function fragmentShadowBox(
   // δ the element's delta (round(L) is a whole pixel).
   const snap = element.borderPaintSnap;
   const authentic = snap != null && snap.width === element.width && snap.height === element.height;
-  const edgeDelta = (offset: number, delta: number) => {
-    const local = Math.round((offset - delta) * 64) / 64;
-    return Math.round(local) - local;
+  // A paint-isolation shift moves the element's whole local paint space, so it
+  // is carried unchanged and only the remainder is the edge's own rounding.
+  const sx = snap?.shift?.x ?? 0,
+    sy = snap?.shift?.y ?? 0;
+  const edgeDelta = (offset: number, delta: number, shift: number) => {
+    const local = Math.round((offset - (delta - shift)) * 64) / 64;
+    return shift + Math.round(local) - local;
   };
   const fragmentSnap = authentic
     ? {
         source: snap.source,
-        left: edgeDelta(f.x - element.x, snap.left),
-        top: edgeDelta(f.y - element.y, snap.top),
-        right: edgeDelta(f.x + f.width - element.x, snap.left),
-        bottom: edgeDelta(f.y + f.height - element.y, snap.top),
+        left: edgeDelta(f.x - element.x, snap.left, sx),
+        top: edgeDelta(f.y - element.y, snap.top, sy),
+        right: edgeDelta(f.x + f.width - element.x, snap.left, sx),
+        bottom: edgeDelta(f.y + f.height - element.y, snap.top, sy),
         width: f.width,
         height: f.height,
+        ...(snap.shift == null ? {} : { shift: snap.shift }),
       }
     : undefined;
   return {

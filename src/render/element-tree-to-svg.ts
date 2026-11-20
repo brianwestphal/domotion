@@ -42,6 +42,7 @@ import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-contro
 import { r, esc, formatNumberLoose, stopFmt, rootSvgA11y } from "./format.js";
 import { clipPathShapeForElement, parseSameDocumentClipPathUrl } from "./clip-path.js";
 import { backgroundPositionOffsetPx, buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
+import { authenticImagePaintBasis, imagePaintIntoRect, paintRectContains } from "./image-paint-snap.js";
 import { paintClipForLayer } from "./paint-clip-layers.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js";
 import { buildGradientTilePatternDef } from "./gradient-tile.js";
@@ -206,8 +207,14 @@ function resolvedOverflowClipMarginGeometry(
   });
   if (value == null) return null;
   const side = (value: string | undefined): number => parseFloat(value ?? "0") || 0;
-  return overflowClipMarginGeometry(
-    { x: el.x, y: el.y, width: el.width, height: el.height },
+  // An image's overflow clip snaps in the same authenticated local paint
+  // space as its PaintIntoRect destination (image-paint-snap.ts): compute it
+  // at the local origin and translate back, isolation shift included.
+  const basis = authenticImagePaintBasis(el);
+  const geometry = overflowClipMarginGeometry(
+    basis == null
+      ? { x: el.x, y: el.y, width: el.width, height: el.height }
+      : { x: basis.origin.x, y: basis.origin.y, width: el.width, height: el.height },
     {
       top: side(el.styles.borderTopWidth),
       right: side(el.styles.borderRightWidth),
@@ -223,6 +230,12 @@ function resolvedOverflowClipMarginGeometry(
     corners,
     value,
   );
+  if (basis == null) return geometry;
+  return {
+    ...geometry,
+    x: geometry.x + el.x - basis.origin.x + basis.shift.x,
+    y: geometry.y + el.y - basis.origin.y + basis.shift.y,
+  };
 }
 
 /**
@@ -638,16 +651,39 @@ function paintImage(
     // percentages/calc lengths and scale-down's none-vs-contain choice; SVG's
     // preserveAspectRatio alignment only has min/mid/max buckets.
     const { x: ix, y: iy, width: iw, height: ih } = objectRect;
+    // A raster image paints through ImagePainter::PaintIntoRect, which snaps
+    // its destination and content rects in the authenticated local paint
+    // space (image-paint-snap.ts). The DOM geometry above stays unchanged.
+    const svgTextNone = resolveSvgSource(el.imageSrc);
+    const paintBasis = svgTextNone == null ? authenticImagePaintBasis(captured) : undefined;
+    const painted =
+      paintBasis == null
+        ? null
+        : imagePaintIntoRect(
+            el,
+            paintBasis,
+            { x: ix, y: iy, width: iw, height: ih },
+            { x: contentX, y: contentY, width: contentW, height: contentH },
+          );
+    const snappedNumber = (n: number) => formatNumberLoose(n, 6);
     // When a border-radius is present, prefer the rounded clip over the
     // plain content-box rect (a rounded clip subsumes the rect clip:
     // anything inside the rounded shape is also inside the box).
-    let clipId: string;
+    // A snapped image the content box contains needs no content clip at all
+    // (PaintIntoRect draws the whole destination); a crop replaces it.
+    let clipId: string | null = null;
     if (roundedClipId != null) {
       clipId = roundedClipId;
-    } else {
+    } else if (painted == null) {
       clipId = ctx.nextClipId("ifn");
       ctx.defsParts.push(
         `<clipPath id="${clipId}"><rect x="${r(contentX)}" y="${r(contentY)}" width="${r(contentW)}" height="${r(contentH)}" /></clipPath>`,
+      );
+    } else if (painted.crop != null) {
+      clipId = ctx.nextClipId("ifn");
+      const c = painted.crop;
+      ctx.defsParts.push(
+        `<clipPath id="${clipId}"><rect x="${snappedNumber(c.x)}" y="${snappedNumber(c.y)}" width="${snappedNumber(c.width)}" height="${snappedNumber(c.height)}" /></clipPath>`,
       );
     }
     // DM-1592: an SVG source inlines as a native `<svg>` whose viewport is the
@@ -659,7 +695,6 @@ function paintImage(
     // content (`xMidYMid meet` by default) instead of stretching it (see
     // `InlineSvgPlacement.documentViewport`). Falls back to the raster
     // `<image>` when the source isn't SVG or has no usable coordinate system.
-    const svgTextNone = resolveSvgSource(el.imageSrc);
     let inlinedNone: string | null = null;
     if (svgTextNone != null) {
       // DM-K0S6ZS: opt-in flatten to `<g transform>` (falls back to the nested
@@ -686,6 +721,35 @@ function paintImage(
     }
     if (inlinedNone != null) {
       ctx.svgParts.push(`${indent}<g clip-path="url(#${clipId})">${inlinedNone}</g>`);
+    } else if (painted != null) {
+      const d = painted.dest,
+        c = painted.crop;
+      if (d.width > 0 && d.height > 0 && (c == null || (c.width > 0 && c.height > 0))) {
+        let markup = `<image href="${esc(embedResizedDataUri(el.imageSrc, d.width, d.height))}" x="${snappedNumber(d.x)}" y="${snappedNumber(d.y)}" width="${snappedNumber(d.width)}" height="${snappedNumber(d.height)}" preserveAspectRatio="none"${mirrorTransform(mirror, d.x, d.y, d.width, d.height)} />`;
+        // PaintIntoRect's own crop applies inside the box's overflow clip.
+        if (c != null && roundedClipId != null) {
+          const cropId = ctx.nextClipId("ipr");
+          ctx.defsParts.push(
+            `<clipPath id="${cropId}"><rect x="${snappedNumber(c.x)}" y="${snappedNumber(c.y)}" width="${snappedNumber(c.width)}" height="${snappedNumber(c.height)}" /></clipPath>`,
+          );
+          markup = `<g clip-path="url(#${cropId})">${markup}</g>`;
+        }
+        // A sharp overflow clip that contains everything drawn clips nothing;
+        // Chromium's compositor drops such a clip rather than antialiasing at
+        // a fractional device edge (a contour with radii still clips).
+        const drawn = c ?? d;
+        const overflowClipIsInert =
+          roundedClipId != null &&
+          imageClip != null &&
+          [imageClip.corners.tl, imageClip.corners.tr, imageClip.corners.br, imageClip.corners.bl].every(
+            (corner) => corner.h === 0 && corner.v === 0,
+          ) &&
+          paintRectContains(imageClip, drawn);
+        if (clipId != null && !(clipId === roundedClipId && overflowClipIsInert)) {
+          markup = `<g clip-path="url(#${clipId})">${markup}</g>`;
+        }
+        ctx.svgParts.push(`${indent}${markup}`);
+      }
     } else {
       const image = `<image href="${esc(embedResizedDataUri(el.imageSrc, iw, ih))}" x="${r(ix)}" y="${r(iy)}" width="${r(iw)}" height="${r(ih)}" preserveAspectRatio="none"`;
       ctx.svgParts.push(

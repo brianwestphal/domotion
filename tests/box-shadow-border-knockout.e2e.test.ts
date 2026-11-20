@@ -438,8 +438,11 @@ it.each([
     mid: "transition:transform 100s;transform:translate(.4px,.2px)",
     snap: [0.5, 0.5, 0.5, 0.5],
   },
-  { name: "paint containment", extra: "margin:20.5px;contain:paint", wrap: "", snap: null },
-  { name: "isolating ancestor", extra: "margin:20.5px", wrap: "contain:paint", snap: null },
+  // Eligible paint isolation is authenticated: the box rounds its own paint
+  // offset (shift +0.5, local origin 0), and below an isolating ancestor the
+  // child snaps from that ancestor's origin (local 20.5).
+  { name: "paint containment", extra: "margin:20.5px;contain:paint", wrap: "", snap: [0.5, 0.5, 0.5, 0.5] },
+  { name: "isolating ancestor", extra: "margin:20.5px", wrap: "contain:paint", snap: [0.5, 0.5, 0.5, 0.5] },
   { name: "sticky position", extra: "margin:20.5px;position:sticky;top:0", wrap: "", snap: null },
   { name: "will-change transform", extra: "margin:20.5px;will-change:transform", wrap: "", snap: null },
   { name: "own percentage translate", extra: "margin:20.5px;translate:2.5%", wrap: "", snap: [0.5, 0.5, 0.5, 0.5] },
