@@ -20,10 +20,16 @@
 // element in the composed ancestor chain has an identity or pure 2D
 // translation transform and every scroller's offset is integral, the local
 // paint rect equals the captured viewport rect minus the summed translations,
-// up to whole pixels — the only thing snapping depends on.
+// up to whole pixels — the only thing snapping depends on. A static transform
+// the walk freezes (captured untransformed, re-applied by the renderer as a
+// wrapper) contributes nothing here: the rect is already in its local space.
+// The box's own transform never matters (its border snaps at its rounded
+// paint offset either way); a frozen non-translation ANCESTOR does, because
+// Blink drops the subpixel accumulation beneath it.
 //
 // Everything outside that proof fails closed (no record; the renderer keeps
-// the captured geometry): scale/rotate/skew/3D transforms, `offset-path`,
+// the captured geometry): live scale/rotate/skew/3D transforms, frozen
+// non-translation ancestor transforms, `offset-path`,
 // `will-change` transform-family properties (they discard subpixel
 // accumulation, `kPreventingSubpixelAccumulationReasons`), paint or
 // style+layout containment and `content-visibility` (they reset the paint
@@ -36,6 +42,16 @@
 // Self-contained: this runs inside the page via CAPTURE_SCRIPT.
 
 import type { CapturedBorderPaintSnap } from "../../types.js";
+import { frozenTransformOwners } from "./transforms.js";
+
+const isPureTranslationMatrix = (transform: string): boolean => {
+  try {
+    const m = new DOMMatrix(transform);
+    return m.is2D && m.a === 1 && m.b === 0 && m.c === 0 && m.d === 1;
+  } catch {
+    return false;
+  }
+};
 
 const composedParent = (node: Element): Element | null => {
   const slot = (node as HTMLElement).assignedSlot;
@@ -108,6 +124,13 @@ export const captureBorderPaintSnap = (
     if (cs.position === "sticky") return undefined;
     if (cs.offsetPath != null && cs.offsetPath !== "" && cs.offsetPath !== "none") return undefined;
     if (preventsSubpixelAccumulation(cs) || isolatesPaintOffset(cs)) return undefined;
+    // A frozen transform reads as identity here and the captured rect is
+    // already untransformed below it. Its own box still snaps at the rounded
+    // paint offset, but under a non-translation ancestor transform Blink drops
+    // the subpixel accumulation (`CanPropagateSubpixelAccumulation`), so
+    // descendants snap relative to that ancestor's rounded offset: fail closed.
+    const frozen = frozenTransformOwners.get(node);
+    if (frozen != null && node !== el && !isPureTranslationMatrix(frozen)) return undefined;
     const translation = pureTranslation(cs);
     if (translation == null) return undefined;
     tx += translation.x;

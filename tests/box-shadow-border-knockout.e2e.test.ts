@@ -279,18 +279,34 @@ it.each([
     wrap: "",
     snap: [0.5, 0.5, 0.5, 0.5],
   },
-  { name: "scale transform", extra: "margin:20.5px;transform:scale(2)", wrap: "", snap: null },
+  // A static transform is frozen (captured untransformed, re-applied as a
+  // wrapper); the box's own border still snaps at its rounded paint offset.
+  { name: "own scale transform", extra: "margin:20.5px;transform:scale(2)", wrap: "", snap: [0.5, 0.5, 0.5, 0.5] },
   { name: "rotated live ancestor", extra: "margin:20.5px", wrap: "transform:rotate(10deg)", snap: null },
+  // Below a frozen non-translation transform Blink drops the subpixel
+  // accumulation (CanPropagateSubpixelAccumulation), so descendants fail closed;
+  // a frozen pure translation keeps it.
+  { name: "frozen scaled ancestor", extra: "margin:20.5px", wrap: "", mid: "transform:scale(1.5)", snap: null },
+  { name: "frozen rotated ancestor", extra: "margin:20.5px", wrap: "", mid: "transform:rotate(10deg)", snap: null },
+  {
+    name: "frozen translated ancestor",
+    extra: "margin:20.5px",
+    wrap: "",
+    mid: "transform:translate(.5px,.25px)",
+    snap: [0.5, 0.5, 0.5, 0.5],
+  },
   { name: "paint containment", extra: "margin:20.5px;contain:paint", wrap: "", snap: null },
   { name: "isolating ancestor", extra: "margin:20.5px", wrap: "contain:paint", snap: null },
   { name: "sticky position", extra: "margin:20.5px;position:sticky;top:0", wrap: "", snap: null },
   { name: "will-change transform", extra: "margin:20.5px;will-change:transform", wrap: "", snap: null },
-  { name: "percentage translate", extra: "margin:20.5px;translate:2.5%", wrap: "", snap: null },
-])("records the source-owned border paint snap: $name", async ({ extra, wrap, snap }) => {
+  { name: "own percentage translate", extra: "margin:20.5px;translate:2.5%", wrap: "", snap: [0.5, 0.5, 0.5, 0.5] },
+])("records the source-owned border paint snap: $name", async (sample) => {
+  const { extra, wrap, snap } = sample;
+  const mid = "mid" in sample ? sample.mid : "";
   const page = await browser.newPage({ viewport });
   try {
     await page.setContent(
-      `<style>body{margin:0}#only{width:20px;height:20px;margin:20px;box-shadow:4px 0 0 red;${extra}}</style><div id="container" style="${wrap}"><div id="only"></div></div>`,
+      `<style>body{margin:0}#only{width:20px;height:20px;margin:20px;box-shadow:4px 0 0 red;${extra}}</style><div id="container" style="${wrap}"><div id="mid" style="${mid}"><div id="only"></div></div></div>`,
     );
     const tree = await captureElementTree(page, "#container", viewport);
     const find = (nodes: typeof tree): (typeof tree)[number] | undefined => {

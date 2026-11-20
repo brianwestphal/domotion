@@ -318,6 +318,12 @@ export const transformFreezes = (el: Element, cs: CSSStyleDeclaration): boolean 
   );
 };
 
+// Elements whose transform is frozen for the duration of their subtree's
+// capture, mapped to the original effective transform. While frozen, their
+// computed transform reads as identity, so readers that must know what the
+// renderer re-applies (the border paint snap authority) consult this map.
+export const frozenTransformOwners = new WeakMap<Element, string>();
+
 export const createTransformsHandler = () => {
   // Computed styles of elements whose planar transform stayed live (animated),
   // so threadFrozenTransform records `none` for them.
@@ -361,9 +367,11 @@ export const createTransformsHandler = () => {
       el.style.rotate = "none";
       el.style.scale = "none";
       el.style.translate = "none";
+      frozenTransformOwners.set(el, originalTransform);
       try {
         return captureInner(el, cs, originalTransform, cs.transformOrigin);
       } finally {
+        frozenTransformOwners.delete(el);
         el.style.transform = inlineTransform;
         el.style.rotate = inlineRotate;
         el.style.scale = inlineScale;

@@ -145,9 +145,19 @@ local paint space is authenticated:
   (`UpdateScrollTranslation` applies them after the snap, `:3556-3564`);
 - the device pixel ratio, pinch zoom and effective CSS zoom are 1.
 
+Static planar transforms are frozen by the capture walk (the box is measured
+untransformed and the renderer re-applies the transform as a wrapper), so they
+add nothing to the translation sum: the box's own frozen transform never
+matters, because its border snaps at its rounded paint offset either way, and a
+frozen pure-translation ancestor keeps the subpixel accumulation. A frozen
+non-translation ancestor (scale, rotate, skew, general matrix) does not:
+`CanPropagateSubpixelAccumulation` drops the accumulation beneath it, so its
+descendants snap relative to its rounded offset and get no record. The walk's
+`frozenTransformOwners` map tells the snap which ancestors are frozen.
+
 Everything else fails closed — no record, and the renderer keeps the captured
-geometry: scale/rotate/skew/3D transforms (including a live rotated capture
-root), percentage `translate`, motion paths, `will-change` transform-family
+geometry: live (animated) scale/rotate/skew/3D transforms, including a live
+rotated capture root, motion paths, `will-change` transform-family
 properties (`kPreventingSubpixelAccumulationReasons`), paint or style+layout
 containment and `content-visibility` (`NeedsIsolationNodes`, `:570-589`), sticky
 positioning, a captured box that differs from the live border box (a fieldset
