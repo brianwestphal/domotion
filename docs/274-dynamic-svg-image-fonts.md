@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA", "DM-AZY7MZ", "DM-3P65HE"]
+tickets: ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA", "DM-AZY7MZ", "DM-3P65HE", "DM-0R35WP"]
 code:
   [
     "src/render/svg-image-font-shorthand.ts",
@@ -21,6 +21,7 @@ code:
     "src/capture/image-svg-fonts.ts",
     "src/capture/image-svg-font-witness.ts",
     "tests/image-svg-font-witness.e2e.test.ts",
+    "tests/image-svg-font-conditions.e2e.test.ts",
     "tests/image-svg-own-fonts.e2e.test.ts",
     "tests/img-svg-dynamic-font-names.e2e.test.ts",
     "tests/img-svg-root-sheet-font.e2e.test.ts",
@@ -151,8 +152,40 @@ are tried in order and a source that fails to load is popped. The CSSOM `src`
 value already omits entries whose `format()` / `tech()` the parser rejects
 (`CSSFontFaceSrcValue::IsSupportedFormat`, `css_font_face_src_value.cc:85-99`,
 adds only the legacy `.eot` URL check). Capture validates each `data:` entry
-with a detached `FontFace` and selects the first that loads. `local()` and
-non-`data:` entries are not modeled here and keep the image raster.
+with a detached `FontFace` and selects the first that loads. Non-`data:`
+URL entries are not modeled and keep the image raster.
+
+A `local()` entry is resolved against the host's system fonts inside an SVG
+image too: `LocalFontFaceSource::IsLocalFontAvailable`
+(`local_font_face_source.cc:43-49`) asks the process-wide `FontCache` for a
+platform unique-name match (CoreText, fontconfig or DirectWrite). Capture asks
+the same `FontCache` with a detached `local()` `FontFace` (DM-0R35WP). A
+name the host lacks is skipped to the next entry, as `CSSFontFace::Load` pops
+it. A name the host has would paint that host face, whose bytes the
+image-owned context does not carry, so the image stays raster. The witness
+checks both outcomes: a skipped name must still paint the selected data
+source, and a present one paints neither reference.
+
+### Conditional face groups
+
+An `@font-face` inside `@media` and `@supports` groups is decided in the
+image's own environment (DM-0R35WP). `@media` uses `evaluateMediaQueryList`
+with the image viewport (the concrete object size, so capture decides it only
+for `object-fit: fill`, where that is the content box) and the embedder-supplied
+environment (`ImageMediaEnv`). `@supports` uses the page's recorded answers
+(`imageSvgSupports`), which capture now decides before the fonts. A face in a
+false group is never created, so capture skips it without validating its
+sources. Every admitted image with a group passes the witness, whose loaded
+reference removes inactive faces and moves active ones out of their groups;
+a wrong decision cannot be repeated by the browser in the reference. Capture
+records each active face's condition chain and the viewport it was decided
+for. The renderer re-decides each chain with the evaluators that freeze the
+emitted sheet's groups and keeps raster when the answer differs, is undecided,
+or the placement's image viewport differs from the recorded one. `@layer`,
+`@scope` and `@container` parents remain raster: the parser accepts
+`@font-face` in a `@container` rule list (`ConsumeContainerRule`,
+`css_parser_impl.cc:2208-2240`), but which faces such groups contribute is
+not modeled.
 
 `font-display: optional` stays raster. `RemoteFontFaceSource::ComputePeriod`
 (`remote_font_face_source.cc:113-136`) enters the failure period once rendering
@@ -183,8 +216,8 @@ unresolved. Static exact-table fallbacks remain available on all three
 platforms. Missing native ex/cap evidence, unsupported bitmap/VDMX cases and
 unknown variable line metrics remain unresolved rather than borrowing a face.
 
-Conditional or layered face groups, media/title-selected or foreign/inert style sets,
-`local()` and non-`data:` source candidates, `font-display: optional`,
+Layered, scoped and container face groups, media/title-selected or foreign/inert style sets,
+host-available `local()` and non-`data:` source candidates, `font-display: optional`,
 angled oblique capability groups and variable slnt-axis faces
 remain conservative (DM-WE2R1V). Existing unsupported root variation/stretch
 properties retain their raster behavior. General text fallback's separate

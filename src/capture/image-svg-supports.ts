@@ -36,8 +36,8 @@ export async function captureImageSvgSupports(page: Page, tree: CapturedElement[
     const conditions = collectImageSupportsConditions(expanded);
     if (conditions.length > 0) pending.push({ el, conditions });
   });
-  await captureImageSvgFonts(page, tree);
-  if (pending.length === 0) return;
+  // Own-font capture reads these answers for @supports-wrapped faces.
+  if (pending.length === 0) return captureImageSvgFonts(page, tree);
   const texts = [...new Set(pending.flatMap(({ conditions }) => conditions.map((c) => c.condition)))];
   const answers = await page.evaluate(
     (list: string[]) =>
@@ -56,4 +56,5 @@ export async function captureImageSvgSupports(page: Page, tree: CapturedElement[
   for (const { el, conditions } of pending) {
     el.imageSvgSupports = Object.fromEntries(conditions.map((c) => [c.key, byText.get(c.condition) === true]));
   }
+  await captureImageSvgFonts(page, tree);
 }

@@ -23,13 +23,27 @@ export interface ImageOwnFontContext {
     ascentOverride?: number;
     descentOverride?: number;
     lineGapOverride?: number;
+    /** Enclosing `@media` / `@supports` preludes, outermost first. Capture
+     *  records only faces whose conditions held for `viewport`. */
+    conditions?: ImageFontCondition[];
   }>;
+  /** The image viewport (CSS px) the conditions were decided for; required
+   *  when any face carries a media condition. */
+  viewport?: { w: number; h: number };
+}
+
+/** One conditional group rule enclosing an image `@font-face`. */
+export interface ImageFontCondition {
+  type: "media" | "supports";
+  prelude: string;
 }
 
 export const imageFontDigest = (data: string | Buffer): string => createHash("sha256").update(data).digest("hex");
 
 /** Decode XML before CSS parsing; preserve its exact text in the emitted sheet. */
-export function imageOwnFontSheets(source: string): { source: string; faces: string[] } | null {
+export function imageOwnFontSheets(
+  source: string,
+): { source: string; faces: string[]; conditions: ImageFontCondition[][] } | null {
   if (/<\?xml[^>]*encoding\s*=\s*['"](?!utf-8['"])[^'"]+['"]/i.test(source)) return null;
   // These can change which stylesheet nodes are active. Do not authenticate
   // a regex-collected face as a member of a different document/style set.
@@ -37,6 +51,7 @@ export function imageOwnFontSheets(source: string): { source: string; faces: str
   if (/\bxmlns\s*=\s*(['"])(?!http:\/\/www\.w3\.org\/2000\/svg\1)/i.test(source)) return null;
   if (imageStyleSheets(source) == null) return null;
   const faces: string[] = [];
+  const conditions: ImageFontCondition[][] = [];
   let invalid = false;
   const normalized = replaceImageStyleSheets(source, ({ open, css: raw, close }) => {
     const _all = open + raw + close;
@@ -58,20 +73,26 @@ export function imageOwnFontSheets(source: string): { source: string; faces: str
       const sheet = postcss.parse(css);
       sheet.walkAtRules((rule) => {
         if (rule.name.toLowerCase() !== "font-face") return;
-        // Conditional availability needs the image's exact environment;
-        // FontFaceList also sorts layered faces by CascadeLayerMap rank
-        // (css_segmented_font_face.cc:199-233), rather than source order.
+        // `@media` / `@supports` groups are decided against the image's own
+        // environment (`conditions`). Every other parent stays unresolved:
+        // FontFaceList sorts layered faces by CascadeLayerMap rank
+        // (css_segmented_font_face.cc:199-233) rather than source order, and
+        // which faces `@container` / `@scope` contribute is not modeled.
+        const chain: ImageFontCondition[] = [];
         for (let parent = rule.parent; parent != null && parent.type !== "root"; parent = parent.parent) {
-          invalid = true;
+          const name = parent.type === "atrule" ? (parent as postcss.AtRule).name.toLowerCase() : "";
+          if (name !== "media" && name !== "supports") invalid = true;
+          else chain.unshift({ type: name, prelude: (parent as postcss.AtRule).params });
         }
         faces.push(rule.toString());
+        conditions.push(chain);
       });
     } catch {
       invalid = true;
     }
     return open + serializeImageStyleText(css, true) + close;
   });
-  return invalid || faces.length > 64 ? null : { source: normalized, faces };
+  return invalid || faces.length > 64 ? null : { source: normalized, faces, conditions };
 }
 
 /**
@@ -83,26 +104,32 @@ export function imageOwnFontSheets(source: string): { source: string; faces: str
 export function rewriteImageFontFaces(
   source: string,
   edit: (index: number, rule: postcss.AtRule) => string | null,
+  /** Rules appended to the end of the last sheet (face order is document
+   *  order); read after every edit has run. */
+  append: () => string = () => "",
 ): string | null {
   const normalized = imageOwnFontSheets(source);
   if (normalized == null) return null;
+  const sheets = imageStyleSheets(normalized.source)?.length ?? 0;
   let index = 0;
+  let sheet = 0;
   let failed = false;
   const out = replaceImageStyleSheets(normalized.source, ({ open, css: raw, close }) => {
+    const last = ++sheet === sheets;
     const css = xmlStyleText(raw);
     if (css == null) {
       failed = true;
       return open + raw + close;
     }
     try {
-      const sheet = postcss.parse(css);
-      sheet.walkAtRules((rule) => {
+      const parsed = postcss.parse(css);
+      parsed.walkAtRules((rule) => {
         if (rule.name.toLowerCase() !== "font-face") return;
         const replacement = edit(index++, rule);
         if (replacement == null) rule.remove();
         else rule.replaceWith(postcss.parse(replacement).nodes);
       });
-      return open + serializeImageStyleText(sheet.toString(), true) + close;
+      return open + serializeImageStyleText(parsed.toString() + (last ? append() : ""), true) + close;
     } catch {
       failed = true;
       return open + raw + close;
@@ -111,8 +138,17 @@ export function rewriteImageFontFaces(
   return failed || index !== normalized.faces.length ? null : out;
 }
 
-/** Missing, stale or malformed evidence cannot authorize isolated font metrics. */
-export function authenticatedImageFonts(source: string, context?: ImageOwnFontContext): IsolatedFontFace[] | null {
+/**
+ * Missing, stale or malformed evidence cannot authorize isolated font metrics.
+ * A face recorded under `@media` / `@supports` is re-decided with `decide`
+ * (the renderer's image environment); capture recorded only faces whose
+ * conditions held, so any other answer, or an undecided one, is refused.
+ */
+export function authenticatedImageFonts(
+  source: string,
+  context?: ImageOwnFontContext,
+  decide?: (condition: ImageFontCondition, viewport: { w: number; h: number } | undefined) => boolean | null,
+): IsolatedFontFace[] | null {
   if (
     context?.authority !== "chromium-svg-image-fonts-v1" ||
     context.sourceSha256 !== imageFontDigest(source) ||
@@ -128,7 +164,12 @@ export function authenticatedImageFonts(source: string, context?: ImageOwnFontCo
     if (bytes > 16 * 1024 * 1024 || imageFontDigest(data) !== face.sha256) return null;
     for (const metric of [face.sizeAdjust, face.ascentOverride, face.descentOverride, face.lineGapOverride])
       if (metric != null && !(Number.isFinite(metric) && metric >= 0)) return null;
-    out.push({ ...face, data });
+    for (const condition of face.conditions ?? []) {
+      if (condition.type === "media" && context.viewport == null) return null;
+      if (decide?.(condition, context.viewport) !== true) return null;
+    }
+    const { conditions: _conditions, ...isolated } = face;
+    out.push({ ...isolated, data });
   }
   return out;
 }

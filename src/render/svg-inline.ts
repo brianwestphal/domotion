@@ -46,12 +46,18 @@ import {
 import { IMAGE_ROOT_ATTR, scopeImageStyleSheets } from "./svg-image-style-scope.js";
 import { imageHtmlSourceNamesUnchanged } from "./svg-image-html-identity.js";
 import { namespaceImageStyleNames } from "./svg-image-style-names.js";
-import type { ImageMediaEnv } from "./svg-image-media.js";
+import { evaluateMediaQueryList, type ImageMediaEnv } from "./svg-image-media.js";
+import { decideImageSupports } from "./svg-image-supports.js";
 import { imageRootFontMetricUnits, parseImageRootFontShorthand } from "./svg-image-root-font.js";
 import { resolveSvgImageCssImports } from "./svg-image-css-import.js";
 import { namespaceImageReferencesWithIdentity, preserveImageStyleAttributeIdentity } from "./svg-image-references.js";
 import { resolveImageNamespace } from "./svg-image-namespace.js";
-import { authenticatedImageFonts, imageOwnFontSheets, type ImageOwnFontContext } from "./svg-image-own-fonts.js";
+import {
+  authenticatedImageFonts,
+  imageOwnFontSheets,
+  type ImageFontCondition,
+  type ImageOwnFontContext,
+} from "./svg-image-own-fonts.js";
 import type { IsolatedFontFace } from "./font-resolution.js";
 import { resolveImageCssVariables } from "./svg-image-css-variables.js";
 import { blankImageCssNoise } from "./svg-image-cdata.js";
@@ -997,6 +1003,24 @@ function imageMediaEnv(p: InlineSvgPlacement): ImageMediaEnv {
   };
 }
 
+/**
+ * Re-decide a captured image face's `@media` / `@supports` condition in the
+ * renderer's image environment, with the evaluators that freeze the emitted
+ * sheet's groups. A media condition also requires the viewport capture decided
+ * it for (and witnessed) to be this placement's image viewport.
+ */
+function ownFontCondition(
+  p: InlineSvgPlacement,
+): (condition: ImageFontCondition, viewport: { w: number; h: number } | undefined) => boolean | null {
+  return (condition, viewport) => {
+    if (condition.type === "supports") return decideImageSupports(condition.prelude, p.supportsConditions);
+    const vp = imageViewport(p);
+    if (vp == null || viewport == null || Math.abs(vp.w - viewport.w) > 1 / 64 || Math.abs(vp.h - viewport.h) > 1 / 64)
+      return null;
+    return evaluateMediaQueryList(condition.prelude, vp, imageMediaEnv(p));
+  };
+}
+
 /** The SVG image document's viewport in its own CSS px, for `@media`: the
  *  placement rect when it is the concrete object rect, unknown otherwise. */
 function imageViewport(p: InlineSvgPlacement): { w: number; h: number } | null {
@@ -1117,7 +1141,7 @@ function resolveDocumentViewport(
 export function inlineImgSvg(sourceText: string, placement: InlineSvgPlacement): string | null {
   if (!imageHtmlSourceNamesUnchanged(sourceText)) return null;
   const p = resolveNamespacedImagePlacement(placement);
-  const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts);
+  const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts, ownFontCondition(p));
   const expanded = resolveSvgImageCssImports(sourceText, fontFaces != null);
   let imageSource =
     expanded == null ? null : fontFaces == null ? expanded : (imageOwnFontSheets(expanded)?.source ?? null);
@@ -1357,7 +1381,7 @@ export function isSvgSafeToFlatten(body: string): boolean {
 export function flattenImgSvg(sourceText: string, placement: InlineSvgPlacement): string | null {
   if (!imageHtmlSourceNamesUnchanged(sourceText)) return null;
   const p = resolveNamespacedImagePlacement(placement);
-  const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts);
+  const fontFaces = authenticatedImageFonts(sourceText, p.ownFonts, ownFontCondition(p));
   const expanded = resolveSvgImageCssImports(sourceText, fontFaces != null);
   if (expanded == null) return null;
   if (fontFaces != null) {

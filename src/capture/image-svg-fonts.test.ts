@@ -55,4 +55,17 @@ describe("painted used-face witness", () => {
     expect(request.removed[0]).toContain('src:url("data:x")');
     expect(request.removed[0]).toContain("font-display:fallback");
   });
+  it("hoists active conditional faces out of their groups and drops inactive ones in the loaded reference", () => {
+    const source = `<svg xmlns="http://www.w3.org/2000/svg"><style>@media (min-width:900px){@font-face{font-family:A;src:url(data:x)}}</style><style>@supports (display:grid){@font-face{font-family:B;src:url(data:y)}} .k{fill:red}</style></svg>`;
+    const entries = (url: string) => fontSourceEntries(`url("${url}")`)!;
+    const request = witnessRequest(source, source, [null, { entries: entries("data:y"), selected: 0 }], {
+      width: 10,
+      height: 10,
+    })!;
+    expect(request.loaded).not.toContain("font-family:A");
+    expect(request.loaded).toMatch(/\.k\{fill:red\}@font-face\{font-family:B;src:url\("data:y"\);font-display:block\}/);
+    // The groups stay, now empty; the browser cannot re-decide them for B.
+    expect(request.loaded).toContain("@supports (display:grid){}");
+    expect(request.removed).toEqual([]);
+  });
 });

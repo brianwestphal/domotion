@@ -725,6 +725,12 @@ with the helper's native glyph bounds before the file fallback. FreeType uses
 `sxHeight` / `sCapHeight`, else the hinted `x` / `H` outline top; DirectWrite
 uses OS/2 v2 here. `ch` and `ic` read the advances of `0` and U+6C34.
 
+An image `local()` source is resolved by Chromium against the host's system
+fonts, not the embedding page's registries. Capture skips a name the host
+lacks and keeps the image raster for one the host has, so this path never
+resolves a host face through an image `local()` name
+([doc 274](274-dynamic-svg-image-fonts.md)).
+
 Image-owned faces may carry the `size-adjust` and `ascent-override` /
 `descent-override` / `line-gap-override` descriptors once the painted used-face
 witness admits them (`src/capture/image-svg-font-witness.ts`; see

@@ -7,8 +7,11 @@ import {
   imageFontDigest,
   imageOwnFontSheets,
   rewriteImageFontFaces,
+  type ImageFontCondition,
   type ImageOwnFontContext,
 } from "../render/svg-image-own-fonts.js";
+import { evaluateMediaQueryList, type ImageMediaEnv } from "../render/svg-image-media.js";
+import { decideImageSupports } from "../render/svg-image-supports.js";
 import { firstCssFunctionToken, parseCssUrl, splitTopLevelCommas } from "../render/css-tokens.js";
 import { parseDataUri } from "../utils/data-uri.js";
 import { parseUnicodeRangeDescriptor } from "./unicode-range.js";
@@ -103,7 +106,13 @@ function witnessBox(el: CapturedElement): WitnessBox {
  * timing, which the source does not order.
  */
 export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]): Promise<void> {
-  const pending: Array<{ el: CapturedElement; source: string; expanded: string; faces: string[] }> = [];
+  const pending: Array<{
+    el: CapturedElement;
+    source: string;
+    expanded: string;
+    faces: string[];
+    conditions: ImageFontCondition[][];
+  }> = [];
   forEachElement(tree, (el) => {
     if (
       el.imageSrc == null ||
@@ -117,7 +126,7 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
     const expanded = resolveSvgImageCssImports(source, true);
     const sheets = expanded == null ? null : imageOwnFontSheets(expanded);
     if (expanded != null && sheets != null && sheets.faces.length > 0)
-      pending.push({ el, source, expanded, faces: sheets.faces });
+      pending.push({ el, source, expanded, faces: sheets.faces, conditions: sheets.conditions });
   });
   const witnessed: Array<{
     el: CapturedElement;
@@ -156,13 +165,45 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
         }),
       item.faces,
     );
+    // Measured only when a witness or a media condition needs the box.
+    let measured: WitnessBox | undefined;
+    const box = (): WitnessBox => (measured ??= witnessBox(item.el));
+    const viewport = (): { w: number; h: number } => ({ w: box().width, h: box().height });
+    const env: ImageMediaEnv = {
+      preferredColorScheme: item.el.imageEmbeddingColorScheme ?? null,
+      prefersReducedMotion: item.el.imageDocumentPrefersReducedMotion ?? null,
+      forcedColors: item.el.imageDocumentForcedColors ?? null,
+      supports: item.el.imageSvgSupports ?? null,
+    };
+    // `@media` sees the image document's viewport, the concrete object size
+    // (`svg-image-media.ts`); the witness box is that size only for `fill`.
+    const decide = (condition: ImageFontCondition): boolean | null =>
+      condition.type === "supports"
+        ? decideImageSupports(condition.prelude, env.supports)
+        : (box().objectFit ?? "fill") === "fill"
+          ? evaluateMediaQueryList(condition.prelude, viewport(), env)
+          : null;
+    // A chain holds when every group holds; one false group decides it.
+    const active = item.conditions.map((chain) => {
+      const answers = chain.map(decide);
+      return answers.includes(false) ? false : answers.includes(null) ? null : true;
+    });
+    if (active.includes(null)) continue;
     const faces: ImageOwnFontContext["faces"] = [];
-    // Per face: the selected entry's text and the full entry list.
-    const selections: Array<{ entries: FontSourceEntry[]; selected: number }> = [];
-    let needsWitness = false;
+    // Per source face: null when its conditions do not hold, else the
+    // selected entry and the full entry list.
+    const selections: Array<{ entries: FontSourceEntry[]; selected: number } | null> = [];
+    let needsWitness = item.conditions.some((chain) => chain.length > 0);
+    let failed = false;
     let total = 0;
     const deadline = Date.now() + 3000;
-    for (const descriptor of parsed) {
+    for (const [faceIndex, descriptor] of parsed.entries()) {
+      // A face in a false group never becomes a FontFace in the image.
+      if (active[faceIndex] === false) {
+        selections.push(null);
+        continue;
+      }
+      failed = true;
       if (descriptor == null || descriptor.family === "") break;
       const family = parseCssFontFamilyName(descriptor.family);
       if (family == null) break;
@@ -177,22 +218,25 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
       if (metrics.some((metric) => metric === null)) break;
       const [sizeAdjust, ascentOverride, descentOverride, lineGapOverride] = metrics as Array<number | undefined>;
       const entries = fontSourceEntries(descriptor.src);
-      // local() and non-data URLs are not modeled here, so they never enter
-      // a FontFace.load that could consult the embedding page or the network.
-      if (entries == null || entries.length > 8 || entries.some((e) => e.kind !== "url" || !/^data:/i.test(e.url)))
+      // Non-data URLs are not modeled, so they never enter a FontFace.load
+      // that could reach the network.
+      if (entries == null || entries.length > 8 || entries.some((e) => e.kind === "url" && !/^data:/i.test(e.url)))
         break;
       // CSSFontFace::Load / GetFontData (css_font_face.cc:155-200, 247-271)
       // pop each source that fails to load and use the first that succeeds.
+      // A local() source succeeds when FontCache's platform unique-name lookup
+      // finds a host face (LocalFontFaceSource::IsLocalFontAvailable,
+      // local_font_face_source.cc); the detached FontFace asks the same
+      // process-wide FontCache the image document uses.
       let selected = -1;
       let bytes: Buffer | null = null;
       for (let index = 0; index < entries.length; index++) {
         const entry = entries[index];
-        if (entry.kind !== "url" || entry.url.includes("#")) break;
-        const data = parseDataUri(entry.url);
-        if (data == null || (total += data.bytes.length) > 16 * 1024 * 1024) break;
+        const data = entry.kind === "url" && !entry.url.includes("#") ? parseDataUri(entry.url) : null;
+        if (entry.kind === "url" && (data == null || (total += data.bytes.length) > 16 * 1024 * 1024)) break;
         const timeoutMs = deadline - Date.now();
         if (timeoutMs <= 0) break;
-        const valid = await page.evaluate(
+        const loads = await page.evaluate(
           async ({ descriptor, family, src, timeoutMs }) => {
             try {
               const font = new FontFace(family, src, {
@@ -208,8 +252,8 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
                     () => true,
                     () => false,
                   ),
-                  new Promise<false>((resolve) => {
-                    timer = setTimeout(() => resolve(false), timeoutMs);
+                  new Promise<null>((resolve) => {
+                    timer = setTimeout(() => resolve(null), timeoutMs);
                   }),
                 ]);
               } finally {
@@ -221,9 +265,12 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
           },
           { descriptor, family, src: entry.text, timeoutMs },
         );
-        if (valid) {
+        // A timeout decides nothing. An available host-local face is painted
+        // instead of any data bytes, which this path does not attribute.
+        if (loads == null || (loads && data == null)) break;
+        if (loads) {
           selected = index;
-          bytes = data.bytes;
+          bytes = data?.bytes ?? null;
           break;
         }
       }
@@ -233,6 +280,7 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
       if (descriptor.display === "fallback" || entries.length > 1 || metrics.some((metric) => metric !== undefined))
         needsWitness = true;
       selections.push({ entries, selected });
+      const conditions = item.conditions[faceIndex];
       faces.push({
         family,
         // Omitted descriptors are auto capabilities in FontFace::GetFontSelectionCapabilities;
@@ -247,19 +295,22 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
         ...(ascentOverride == null ? {} : { ascentOverride }),
         ...(descentOverride == null ? {} : { descentOverride }),
         ...(lineGapOverride == null ? {} : { lineGapOverride }),
+        ...(conditions.length === 0 ? {} : { conditions }),
       });
+      failed = false;
     }
-    if (faces.length !== item.faces.length) continue;
+    if (failed || selections.length !== item.faces.length || faces.length === 0) continue;
     const context: ImageOwnFontContext = {
       authority: "chromium-svg-image-fonts-v1",
       sourceSha256: imageFontDigest(item.source),
       faces,
+      ...(item.conditions.some((chain) => chain.some((c) => c.type === "media")) ? { viewport: viewport() } : {}),
     };
     if (!needsWitness) {
       item.el.imageOwnFonts = context;
       continue;
     }
-    const request = witnessRequest(item.source, item.expanded, selections, witnessBox(item.el));
+    const request = witnessRequest(item.source, item.expanded, selections, box());
     if (request != null) witnessed.push({ el: item.el, context, request });
   }
   if (witnessed.length === 0) return;
@@ -272,11 +323,17 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
   });
 }
 
-/** Same-source references for the painted used-face witness. */
+/**
+ * Same-source references for the painted used-face witness. The loaded
+ * reference is Domotion's model, not the source's: faces whose conditions do
+ * not hold are removed, and active faces move out of their `@media` /
+ * `@supports` groups to the end of the last sheet in document order, so the
+ * browser cannot repeat a wrong condition decision in the reference.
+ */
 export function witnessRequest(
   source: string,
   expanded: string,
-  selections: ReadonlyArray<{ entries: FontSourceEntry[]; selected: number }>,
+  selections: ReadonlyArray<{ entries: FontSourceEntry[]; selected: number } | null>,
   box: WitnessBox,
 ): Parameters<typeof witnessImageFonts>[1][number] | null {
   const withSrc = (rule: Parameters<Parameters<typeof rewriteImageFontFaces>[1]>[1], src: string, block: boolean) => {
@@ -289,27 +346,34 @@ export function witnessRequest(
     if (block) clone.append({ prop: "font-display", value: "block" });
     return clone.toString();
   };
-  const loaded = rewriteImageFontFaces(expanded, (index, rule) => {
-    const selection = selections[index];
-    return withSrc(rule, selection.entries[selection.selected].text, true);
-  });
+  const hoisted: string[] = [];
+  const loaded = rewriteImageFontFaces(
+    expanded,
+    (index, rule) => {
+      const selection = selections[index];
+      if (selection != null) hoisted.push(withSrc(rule, selection.entries[selection.selected].text, true));
+      return null;
+    },
+    () => hoisted.join(""),
+  );
   const absent = rewriteImageFontFaces(expanded, () => null);
   if (loaded == null || absent == null) return null;
   const removed: string[] = [];
   for (let face = 0; face < selections.length; face++) {
-    if (selections[face].entries.length < 2) continue;
-    const variant = rewriteImageFontFaces(expanded, (index, rule) => {
-      if (index !== face) return rule.toString();
-      const { entries, selected } = selections[index];
-      return withSrc(
-        rule,
-        entries
-          .filter((_, at) => at !== selected)
-          .map((entry) => entry.text)
-          .join(", "),
-        false,
-      );
-    });
+    const selection = selections[face];
+    if (selection == null || selection.entries.length < 2) continue;
+    const variant = rewriteImageFontFaces(expanded, (index, rule) =>
+      index !== face
+        ? rule.toString()
+        : withSrc(
+            rule,
+            selection.entries
+              .filter((_, at) => at !== selection.selected)
+              .map((entry) => entry.text)
+              .join(", "),
+            false,
+          ),
+    );
     if (variant == null) return null;
     removed.push(variant);
   }

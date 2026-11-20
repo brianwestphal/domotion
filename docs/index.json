@@ -6291,7 +6291,7 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA", "DM-AZY7MZ", "DM-3P65HE"],
+        "tickets": ["DM-2K0K01", "DM-53WRGR", "DM-NZQE02", "DM-10TEGA", "DM-AZY7MZ", "DM-3P65HE", "DM-0R35WP"],
         "code": [
           "src/render/svg-image-font-shorthand.ts",
           "src/render/svg-image-font-family.ts",
@@ -6306,6 +6306,7 @@
           "src/capture/image-svg-fonts.ts",
           "src/capture/image-svg-font-witness.ts",
           "tests/image-svg-font-witness.e2e.test.ts",
+          "tests/image-svg-font-conditions.e2e.test.ts",
           "tests/image-svg-own-fonts.e2e.test.ts",
           "tests/img-svg-dynamic-font-names.e2e.test.ts",
           "tests/img-svg-root-sheet-font.e2e.test.ts"

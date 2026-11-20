@@ -25,16 +25,50 @@ describe("image-owned font evidence", () => {
     expect(sheets?.source).toContain("]]]]><![CDATA[>");
     expect(imageOwnFontSheets(sheets!.source)?.faces).toEqual(sheets?.faces);
   });
-  it.each(["@media screen", "@supports (display:grid)", "@scope (.x)", "@layer fonts"])(
-    "rejects unproven conditional face availability: %s",
+  it.each(["@scope (.x)", "@layer fonts", "@container (width > 1px)", "@media screen{@layer x"])(
+    "rejects unmodeled face groups: %s",
     (group) => {
+      const closing = "}".repeat(group.split("{").length);
       expect(
         imageOwnFontSheets(
-          `<svg><style>${group}{@font-face{font-family:A;src:url(data:font/ttf;base64,AA==)}}</style></svg>`,
+          `<svg><style>${group}{@font-face{font-family:A;src:url(data:font/ttf;base64,AA==)}${closing}</style></svg>`,
         ),
       ).toBeNull();
     },
   );
+  it("records @media / @supports chains, outermost first", () => {
+    const sheets = imageOwnFontSheets(
+      `<svg><style>@font-face{font-family:A;src:url(data:a)} @supports (display:grid){@media (max-width: 300px){@font-face{font-family:B;src:url(data:b)}}}</style></svg>`,
+    );
+    expect(sheets?.conditions).toEqual([
+      [],
+      [
+        { type: "supports", prelude: "(display:grid)" },
+        { type: "media", prelude: "(max-width: 300px)" },
+      ],
+    ]);
+  });
+  it("re-decides recorded conditions and refuses undecided or missing viewports", () => {
+    const data = Buffer.from("font-data");
+    const face = {
+      family: "A",
+      unicodeRange: [[0, 0x10ffff]] as Array<[number, number]>,
+      data: data.toString("base64"),
+      sha256: imageFontDigest(data),
+      conditions: [{ type: "media" as const, prelude: "(max-width: 300px)" }],
+    };
+    const context: ImageOwnFontContext = {
+      authority: "chromium-svg-image-fonts-v1",
+      sourceSha256: imageFontDigest("<svg/>"),
+      faces: [face],
+      viewport: { w: 90, h: 40 },
+    };
+    expect(authenticatedImageFonts("<svg/>", context, () => true)?.[0]).not.toHaveProperty("conditions");
+    expect(authenticatedImageFonts("<svg/>", context, () => false)).toBeNull();
+    expect(authenticatedImageFonts("<svg/>", context, () => null)).toBeNull();
+    expect(authenticatedImageFonts("<svg/>", context)).toBeNull();
+    expect(authenticatedImageFonts("<svg/>", { ...context, viewport: undefined }, () => true)).toBeNull();
+  });
   it("requires source and normalized byte digests independently", () => {
     const source = "<svg/>";
     const data = Buffer.from("font-data");
