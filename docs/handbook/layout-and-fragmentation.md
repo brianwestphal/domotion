@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-5YF0BB", "DM-F42BPG", "DM-D8Y3WJ"]
+tickets: ["DM-2596", "DM-5YF0BB", "DM-F42BPG", "DM-D8Y3WJ", "DM-T0CE2X"]
 code:
   [
     "src/capture/script/walker/transforms.ts",
@@ -84,3 +84,19 @@ name. DM-F42BPG owns that explicit native-authority and legacy-input gap.
 DM-D8Y3WJ separately tracks an unchanged-source native-control capture path that
 adds an empty `style` attribute and invokes source style callbacks; that defect
 is not attributed to the neutral eligibility probe.
+
+## Stacked layers and the z-order list (DM-T0CE2X)
+
+Blink collects every stacked layer — positioned, or a stacking context — into
+the nearest stacking context's z-order list through any number of
+non-stacking-context ancestors, at `EffectiveZIndex()`: the authored z-index for
+positioned boxes and flex/grid items, otherwise 0
+(`PaintLayerStackingNode::CollectLayers`, `paint_layer_stacking_node.cc:328-373`;
+`LayoutObject::IsStacked`; `computed_style.h:794-798`; Chromium `7d859f27`).
+`gatherStackingContextChildren` therefore hoists a non-positioned stacking
+context (opacity, transform, filter, isolation, will-change, containment, …)
+the same way it hoists positioned boxes; an overflow-only scroller is not
+stacked and stays in flow. `paintOrderBuckets` ignores a z-index that does not
+apply. Generated (`::before`/`::after`) stacked boxes still paint with their host
+(DM-SC2P4R). Covered by `src/render/stacking-non-positioned-sc.test.ts` and
+`src/capture/non-positioned-stacking.e2e.test.ts`.
