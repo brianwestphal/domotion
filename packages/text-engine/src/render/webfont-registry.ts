@@ -661,7 +661,8 @@ function webfontWeightDistance(caps: readonly [number, number], request: number,
 /**
  * Domotion's descriptor-less inference. It is a capture-inference necessity
  * for the CSS-less resource-discovery path (fonts found only via network
- * requests, no parseable CSS), which registers every face with auto
+ * requests, no parseable CSS, and no `CSS.fontsUpdated` face to supply the
+ * authored descriptors), which registers every face with auto
  * capabilities, so all of them select as `[100, 100]` / `[0, 0]` /
  * `[400, 400]`. Instead such a face carries its own OS/2 weight as the scalar
  * `weight` and its italic bit as the legacy `style`; without the inference a

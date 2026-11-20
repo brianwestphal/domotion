@@ -45,6 +45,8 @@ export type FaceRule = {
   urls?: string[];
   unicodeRange?: Array<[number, number]>;
   stretch?: string;
+  /** Set when the descriptors came from `CSS.fontsUpdated` rather than a rule (fonts-updated-faces.ts). */
+  source?: "fonts-updated";
 };
 
 export type { FontFaceDescriptorText } from "./active-font-face-rules.js";

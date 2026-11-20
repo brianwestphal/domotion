@@ -907,7 +907,8 @@
           "DM-687YPX",
           "DM-7QQPJA",
           "DM-05FDC9",
-          "DM-FJJSRZ"
+          "DM-FJJSRZ",
+          "DM-0FR6ZZ"
         ],
         "code": [
           "packages/text-engine/src/render/text-to-path.ts",
@@ -926,7 +927,10 @@
           "tests/unicode-range-descriptor.e2e.test.ts",
           "src/capture/cross-origin-font-face.ts",
           "src/cross-origin-font-face.test.ts",
-          "tests/cross-origin-font-face.e2e.test.ts"
+          "tests/cross-origin-font-face.e2e.test.ts",
+          "src/capture/fonts-updated-faces.ts",
+          "src/capture/fonts-updated-faces.test.ts",
+          "tests/fonts-updated-webfonts.e2e.test.ts"
         ],
         "aliases": ["docs/30-webfont-unicode-range.md", "doc-30"]
       }

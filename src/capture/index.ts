@@ -104,6 +104,13 @@ import {
   type FaceRule,
   type LocalFace,
 } from "./cross-origin-font-face.js";
+import {
+  faceRuleFromFontsUpdatedFace,
+  joinFontsUpdatedFaces,
+  observeFontsUpdated,
+  readDocumentFontFaces,
+  type FontsUpdatedFace,
+} from "./fonts-updated-faces.js";
 import type {
   CapturedElement,
   CapturedFrameScrollState,
@@ -644,17 +651,46 @@ export class DemoRecorder {
  * cross-origin fonts that don't send `Timing-Allow-Origin: *` (most CDNs
  * don't), and most webfonts in the wild are served cross-origin.
  *
- * Attach BEFORE navigation so the listener catches the initial fetches.
+ * It also listens for `CSS.fontsUpdated`, which reports the authored family
+ * and descriptors of every face whose source loads, including faces built by
+ * script with the `FontFace` API (fonts-updated-faces.ts). Pass `fontFaces` as
+ * `DiscoverWebfontsOptions.fontsUpdatedFaces`.
+ *
+ * Attach BEFORE navigation, and await `ready`, so the listeners catch the
+ * initial fetches and loads.
  */
-export function attachWebfontTracker(page: Page): { urls: Set<string>; detach: () => void } {
+export function attachWebfontTracker(page: Page): WebfontTracker {
   const urls = new Set<string>();
   const handler = (req: { url: () => string }): void => {
     const u = req.url();
     if (/\.(woff2?|ttf|otf)(\?|$)/i.test(u)) urls.add(u);
   };
   page.on("requestfinished", handler);
-  return { urls, detach: () => page.off("requestfinished", handler) };
+  const fontsUpdated = observeFontsUpdated(page);
+  return {
+    urls,
+    fontFaces: fontsUpdated.faces,
+    ready: fontsUpdated.ready,
+    detach: () => {
+      page.off("requestfinished", handler);
+      fontsUpdated.detach();
+    },
+  };
 }
+
+/** What `attachWebfontTracker` collects while the page loads. */
+export type WebfontTracker = {
+  /** Font-file URLs the browser fetched. */
+  urls: Set<string>;
+  /** `CSS.fontsUpdated` faces: authored descriptors per loaded source (fonts-updated-faces.ts). */
+  fontFaces: FontsUpdatedFace[];
+  /**
+   * Resolves once the `CSS.fontsUpdated` listener is enabled. Await it before
+   * navigating: script-constructed faces are reported only live, never replayed.
+   */
+  ready: Promise<void>;
+  detach: () => void;
+};
 
 /**
  * Discover all `@font-face` rules in the page's stylesheets, fetch each
@@ -685,7 +721,7 @@ type WebfontRegisterReport = {
   weight: number;
   style: string;
   url: string;
-  source: "font-face" | "resource";
+  source: "font-face" | "fonts-updated" | "resource";
   ok: boolean;
   error?: string;
 };
@@ -722,6 +758,13 @@ export interface DiscoverWebfontsOptions {
    * network while Chrome painted the archived bytes.
    */
   httpGet?: FontHttpGetter;
+  /**
+   * `CSS.fontsUpdated` faces observed while the page loaded
+   * (`WebfontTracker.fontFaces`). A face no `@font-face` rule declares is then
+   * registered under its authored family and descriptors instead of the font
+   * file's internal name and OS/2 weight and italic bits.
+   */
+  fontsUpdatedFaces?: readonly FontsUpdatedFace[];
 }
 
 /**
@@ -864,7 +907,7 @@ async function registerDiscoveredFont(
           weight: weightNum,
           style: item.style,
           url: candidateUrl,
-          source: "font-face",
+          source: item.source ?? "font-face",
           ok: true,
         });
       } else {
@@ -906,7 +949,7 @@ async function registerDiscoveredFont(
       weight: item.kind === "font-face" ? parseWeightDescriptor(item.weight) : 400,
       style: item.kind === "font-face" ? item.style : "normal",
       url: item.url,
-      source: item.kind,
+      source: item.kind === "font-face" ? (item.source ?? "font-face") : item.kind,
       ok: false,
       error: lastError ?? "no candidates",
     });
@@ -991,17 +1034,24 @@ export async function discoverAndRegisterWebfonts(
   //      verbatim. Cross-origin sheets (Google Fonts, etc.) throw a
   //      SecurityError on cssRules access; their text is fetched below.
   //
-  //   2. Resource-based fallback — every font URL the browser actually
-  //      fetched. Cross-origin entries don't appear in
-  //      `performance.getEntriesByType("resource")` without a
+  //   2. `CSS.fontsUpdated` faces (`options.fontsUpdatedFaces`) — Blink's
+  //      own report of each loaded face's authored family and descriptors,
+  //      covering faces no rule declares (the `FontFace` API). Only faces
+  //      `document.fonts` still holds count (fonts-updated-faces.ts).
+  //
+  //   3. Resource-based fallback — every font URL the browser actually
+  //      fetched that neither pass above covers. Cross-origin entries don't
+  //      appear in `performance.getEntriesByType("resource")` without a
   //      `Timing-Allow-Origin: *` header from the font CDN, so callers
   //      should pass the URL set captured from a `requestfinished` listener
   //      registered before navigation. We download anything ending in
   //      .woff2/.woff/.ttf/.otf, parse with fontkit, and register under
-  //      the font's own internal `familyName`.
+  //      the font's own internal `familyName` with its OS/2 weight and
+  //      italic bit. That naming and weight inference is a Domotion
+  //      heuristic, not Blink behavior.
   //
   // Pass 1 names match CSS exactly (good when authors rename a face);
-  // pass 2 catches fonts that pass 1 missed and uses the font's internal
+  // pass 3 catches fonts that the others missed and uses the font's internal
   // name (good for Google Fonts which keep names in sync).
   //
   // Which `@font-face` rules count is decided by ONE page-side walker,
@@ -1085,6 +1135,10 @@ export async function discoverAndRegisterWebfonts(
   };
   for (const sheetUrl of scan.crossOriginSheetUrls) await scanFetchedSheet(sheetUrl, []);
   await resolveLocalFaceAliases(page, pendingLocals);
+  // After every rule is known: a CSS-connected face's event serializes an
+  // absent descriptor as `normal` (font_face.cc:298-312), so a face a rule
+  // declares keeps that rule's descriptors and its event is skipped.
+  const fontsUpdatedUrls = await addFontsUpdatedFaces(page, options.fontsUpdatedFaces ?? [], discovered);
   for (const url of observedFontUrls) {
     if (seen.has(url)) continue;
     seen.add(url);
@@ -1093,9 +1147,45 @@ export async function discoverAndRegisterWebfonts(
 
   const report: WebfontRegisterReport[] = [];
   for (const item of discovered) {
+    // A resource the event authority covers is registered by its face(s) instead.
+    if (item.kind === "resource" && fontsUpdatedUrls.has(item.url)) continue;
     await registerDiscoveredFont(item, page, report, httpGet, textEngineSession, options.onRegister);
   }
   return report;
+}
+
+/**
+ * Append a registration item for every `CSS.fontsUpdated` face that Blink can
+ * match and no `@font-face` rule in `discovered` declares. Returns the URLs
+ * those items cover, so the resource inference skips them. An event that does
+ * not join with `document.fonts`, or has no URL, adds nothing; its URL keeps
+ * the resource path.
+ */
+async function addFontsUpdatedFaces(
+  page: Page,
+  events: readonly FontsUpdatedFace[],
+  discovered: DiscoveredItem[],
+): Promise<Set<string>> {
+  const covered = new Set<string>();
+  if (events.length === 0) return covered;
+  const ruleUrls = new Set<string>();
+  for (const item of discovered) {
+    if (item.kind === "font-face") for (const u of item.urls ?? [item.url]) ruleUrls.add(u);
+  }
+  let documentFaces;
+  try {
+    documentFaces = await readDocumentFontFaces(page);
+  } catch {
+    return covered;
+  }
+  for (const face of joinFontsUpdatedFaces(events, documentFaces).matched) {
+    if (ruleUrls.has(face.src)) continue;
+    const rule = faceRuleFromFontsUpdatedFace(face);
+    if (rule == null) continue;
+    discovered.push(rule);
+    covered.add(rule.url);
+  }
+  return covered;
 }
 
 /**

@@ -46,11 +46,12 @@ async function captureToSvg(
     page.setDefaultTimeout(90_000);
     page.setDefaultNavigationTimeout(90_000);
     const tracker = attachWebfontTracker(page);
+    await tracker.ready;
     await loadInputIntoPage(page, p.input, { networkIdle: p.networkIdle });
     await applyReadyWaits(page, { wait: p.wait ?? 200, waitFor: p.waitFor, fontsReady: true });
     clearWebfonts();
     clearCaptureGenerationCaches();
-    await discoverAndRegisterWebfonts(page, tracker.urls);
+    await discoverAndRegisterWebfonts(page, tracker.urls, undefined, { fontsUpdatedFaces: tracker.fontFaces });
     tracker.detach();
     const tree = await captureElementTree(page, p.selector ?? "body", {
       x: 0,

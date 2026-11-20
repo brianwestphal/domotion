@@ -494,7 +494,7 @@ async function compileLiveSegment(
     const { page, tracker } = session;
     await loadInputIntoPage(page, input);
     await applyReadyWaits(page, { wait: cap.wait ?? 200, waitFor: cap.waitFor, fontsReady: true });
-    await discoverAndRegisterWebfonts(page, tracker.urls, textEngineSession);
+    await discoverAndRegisterWebfonts(page, tracker.urls, textEngineSession, { fontsUpdatedFaces: tracker.fontFaces });
     await runScenePhase(project, scene, sceneIndex, page, "beforeCapture", options.runSceneHook);
 
     const selector = cap.selector ?? "body";
@@ -528,7 +528,9 @@ async function compileLiveSegment(
       evidence.push(observed);
       completedEventIds.push(step.event.id);
       activeEventId = undefined;
-      await discoverAndRegisterWebfonts(page, tracker.urls, textEngineSession);
+      await discoverAndRegisterWebfonts(page, tracker.urls, textEngineSession, {
+        fontsUpdatedFaces: tracker.fontFaces,
+      });
       states.push(
         await captureState(
           page,

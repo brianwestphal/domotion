@@ -94,6 +94,10 @@ flowchart TD
     A21 --> A3{"@font-face src?"}
     A3 -->|"real webfont bytes (url / data)"| A4["registerWebfont(family, weight,<br/>style, buffer, unicodeRange,<br/>stretch desc, weight desc, style desc)<br/>→ webfontRegistry"]
     A3 -->|"all local() → system font"| A5["registerLocalFontAlias(family,<br/>resolvedKey, weight, italic)<br/>→ localFontAliasRegistry"]
+    A2 --> A9{"fetched font URL with no rule?"}
+    A9 -->|"CSS.fontsUpdated face that joins<br/>a loaded document.fonts face"| A4
+    A9 -->|"uncovered (heuristic)"| A10["registerWebfont(internal familyName,<br/>OS/2 usWeightClass, fsSelection italic)<br/>auto descriptors"]
+    A10 --> A4
     A0 --> A6{"Capture: one concrete family equals<br/>this document's computed initial family,<br/>with no known author/control declaration?"}
     A6 -->|"yes"| A7["typed -webkit-standard<br/>script-keyed standard descriptor"]
     A6 -->|"no"| A8["retain computed structured stack<br/>including opaque authored names"]
@@ -126,6 +130,7 @@ flowchart TD
 ```
 
 **Source of truth:** `discoverAndRegisterWebfonts` in `src/capture/index.ts` (source bytes via `fetchFontSourceBytes` in `src/capture/font-source-bytes.ts`: `data:` decoded locally, `file:` read from disk for a `file:` page, everything else through an injectable http getter that defaults to the browser request API; a HAR replay — `domotion capture page.har` and the real-world suite — passes `createHarHttpGetter` from `src/capture/har-fetcher.ts` so the bytes come from the archive Chrome painted, since `routeFromHAR` does not intercept the request API);
+for a fetched font that no `@font-face` rule declares (typically a `FontFace`-API face), the authored family and descriptors from `CSS.fontsUpdated` in `src/capture/fonts-updated-faces.ts`. `attachWebfontTracker` enables that listener before navigation, because `CSS.enable` replays only CSS-connected faces (`inspector_css_agent.cc:935-963`, Chromium 7d859f27). An event counts only when it joins a loaded `document.fonts` face with the same family and descriptor strings: the event also fires for faces that were never added or were deleted, and Blink cannot match those. A URL that no event covers still uses the resource heuristic, which registers the face under the file's internal `familyName` with its OS/2 weight and italic bit. That heuristic is Domotion's own, not Blink behavior. Unloaded faces, which still widen Blink's capability bounds, and `ArrayBuffer` sources, which have no URL, are not registered;
 `resetGeneration` / `snapshotGeneration` / `restoreGeneration` in
 `packages/text-engine/src/render/generation.ts`, invoked by
 `withTextEngineDocument` in `packages/text-engine/src/render/text-engine.ts`;
@@ -1195,7 +1200,9 @@ flowchart TD
   for `normal`, `italic`, bare `oblique` and `oblique 14deg` only, because
   `slantForStyle` drops other oblique angles before they reach the pickers.
   The Domotion descriptor-less inference routes the CSS-less
-  resource-discovery path's faces by their OS/2 weight and italic bit. The
+  resource-discovery path's faces by their OS/2 weight and italic bit (only
+  faces `CSS.fontsUpdated` does not cover; covered faces carry their
+  authored descriptors). The
   italic bit counts only for a registration that passed no `font-style`
   descriptor argument at all (CSS faces pass `""` when it is absent), and it
   joins the style tier. The scalar weight counts only for a variant without a

@@ -50,6 +50,7 @@ export async function openAnimateCaptureSession(
   clearEmbeddedFonts();
   clearGlyphDefs();
   const tracker = attachWebfontTracker(page);
+  await tracker.ready;
   let closed = false;
   return {
     page,

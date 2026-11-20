@@ -327,6 +327,7 @@ async function runCaptureExecution(parsed: ParsedCapture): Promise<void> {
     // expose their resource-timing entries to JS, so this listener-based
     // tracker is how `discoverAndRegisterWebfonts` learns about them.
     const tracker = attachWebfontTracker(page);
+    await tracker.ready;
 
     if (har) {
       // DM-889: replay the HAR offline. Route every request through the archive
@@ -365,7 +366,7 @@ async function runCaptureExecution(parsed: ParsedCapture): Promise<void> {
         })
       : undefined;
     await timed(log, `  registered webfonts (${tracker.urls.size})`, () =>
-      discoverAndRegisterWebfonts(page, tracker.urls, undefined, { httpGet }),
+      discoverAndRegisterWebfonts(page, tracker.urls, undefined, { httpGet, fontsUpdatedFaces: tracker.fontFaces }),
     );
     tracker.detach();
 

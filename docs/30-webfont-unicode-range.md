@@ -6,7 +6,19 @@ status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
 tickets:
-  ["DM-294", "DM-444", "DM-517", "DM-545", "DM-557", "DM-KRMZ4Y", "DM-687YPX", "DM-7QQPJA", "DM-05FDC9", "DM-FJJSRZ"]
+  [
+    "DM-294",
+    "DM-444",
+    "DM-517",
+    "DM-545",
+    "DM-557",
+    "DM-KRMZ4Y",
+    "DM-687YPX",
+    "DM-7QQPJA",
+    "DM-05FDC9",
+    "DM-FJJSRZ",
+    "DM-0FR6ZZ",
+  ]
 code:
   [
     "packages/text-engine/src/render/text-to-path.ts",
@@ -26,6 +38,9 @@ code:
     "src/capture/cross-origin-font-face.ts",
     "src/cross-origin-font-face.test.ts",
     "tests/cross-origin-font-face.e2e.test.ts",
+    "src/capture/fonts-updated-faces.ts",
+    "src/capture/fonts-updated-faces.test.ts",
+    "tests/fonts-updated-webfonts.e2e.test.ts",
   ]
 aliases: ["docs/30-webfont-unicode-range.md", "doc-30"]
 ---
@@ -81,6 +96,8 @@ cmap cannot bypass its declared range.
 ## API
 
 `unicode-range` is captured from each `@font-face` rule and stored on the registered variant. Same-origin rules come from the page-side walker (`scanActiveFontFaceRules`), which keeps only the rules Blink activates (evaluated `@media` / `@supports` / `@import` conditions; see [doc 03](03-font-family-chain.md)). A cross-origin stylesheet (which throws on `cssRules`) is fetched Node-side and its text is parsed by Chromium itself, in a constructed `CSSStyleSheet` in the page (`src/capture/cross-origin-font-face.ts`), and walked by the same scanner, so both paths keep the same rules and read the descriptors from CSSOM. Each descriptor therefore takes Blink's value, the last valid declaration: `CSSParserImpl::ConsumeFontFaceRule` builds the value set through `FilterProperties`, which keeps the last declaration per descriptor (`core/css/parser/css_parser_impl.cc:263-307`, `:1519-1555`), and `AtRuleDescriptorParser::ParseFontFaceDescriptor` drops an invalid value (`at_rule_descriptor_parser.cc:346-430`), both at Chromium 7d859f27. An earlier regex scanner took the first declaration instead and split values at a `;` or `}` inside a string.
+
+A face that no rule declares, typically one a script builds with the `FontFace` API, takes its family and descriptors, `unicode-range` included, from the DevTools `CSS.fontsUpdated` event (`src/capture/fonts-updated-faces.ts`). `InspectorCSSAgent::FontsUpdated` sends the face's own `FontFace` getter values with the loaded source URL (`core/inspector/inspector_css_agent.cc:989-1033`, Chromium 7d859f27). Only events that join a loaded `document.fonts` face count. A font URL without such an event falls back to Domotion's resource heuristic: the internal family name, the OS/2 weight, and full coverage. See the [font-resolution diagram](font-resolution-diagram.md).
 
 ```ts
 interface WebfontVariant {

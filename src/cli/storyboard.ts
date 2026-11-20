@@ -271,12 +271,13 @@ async function captureSceneToSvg(
     page.setDefaultTimeout(PAGE_DEFAULT_TIMEOUT_MS);
     page.setDefaultNavigationTimeout(PAGE_DEFAULT_TIMEOUT_MS);
     const tracker = attachWebfontTracker(page);
+    await tracker.ready;
     const input = cap.url ?? resolve(configDir, requireField(cap.file, "storyboard capture.file"));
     await loadInputIntoPage(page, input);
     await applyReadyWaits(page, { wait: cap.wait ?? 200, waitFor: cap.waitFor, fontsReady: true });
     clearWebfonts();
     clearCaptureGenerationCaches();
-    await discoverAndRegisterWebfonts(page, tracker.urls);
+    await discoverAndRegisterWebfonts(page, tracker.urls, undefined, { fontsUpdatedFaces: tracker.fontFaces });
     tracker.detach();
     // Self-contained capture: a storyboard scene renders straight into the
     // published SVG, so an un-inlined remote `<img>` would be a dead href there.

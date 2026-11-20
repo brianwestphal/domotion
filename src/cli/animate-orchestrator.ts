@@ -1748,7 +1748,7 @@ async function buildLiveCapturedFrame(
     waitForGone: fc.waitForGone,
     waitForCount: fc.waitForCount,
   });
-  await discoverAndRegisterWebfonts(page, tracker.urls);
+  await discoverAndRegisterWebfonts(page, tracker.urls, undefined, { fontsUpdatedFaces: tracker.fontFaces });
   if (fc.scrollTo != null) {
     const sx = fc.scrollTo[0],
       sy = fc.scrollTo[1];
