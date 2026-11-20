@@ -561,7 +561,9 @@ export const createElementCapture = () => {
           (parseFloat(cs[`border${side}Width`]) || 0) > 0 &&
           !/^(none|hidden)$/.test(cs[`border${side}Style`] ?? "none"),
       ) ||
-      ((cs.outlineStyle ?? "none") !== "none" && (parseFloat(cs.outlineWidth) || 0) > 0);
+      ((cs.outlineStyle ?? "none") !== "none" && (parseFloat(cs.outlineWidth) || 0) > 0) ||
+      (cs.backgroundImage != null && cs.backgroundImage !== "" && cs.backgroundImage !== "none") ||
+      !/^(transparent|rgba\([^)]*,\s*0\)|)$/.test(cs.backgroundColor ?? "");
     if (
       paintsSnappedDecoration &&
       captured.x === rect.left - vp.x &&

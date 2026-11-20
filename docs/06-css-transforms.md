@@ -190,9 +190,10 @@ fixtures that use translate or scale, 7 improve (21-transform-2d 1.03% → 0.13%
 21-deep-transform-origin 1.58% → 0.91%, 32-real-world-pricing-table 12.58% →
 9.48%), 18 are unchanged, and 22-deep-filter-paint-bounds moves 1.147% →
 1.227%: its rotated, drop-shadowed box gains geometric accuracy but its text
-inside the filter differs more (follow-up DM-6AX9BY). 13-deep-anchor-positioning moves by 0.00007 with an identical error total. Backgrounds are still not
-pixel-snapped, which is a separate pre-existing gap visible on axes that keep
-the accumulation (DM-6A9J20).
+inside the filter differs more (follow-up DM-6AX9BY). 13-deep-anchor-positioning moves by 0.00007 with an identical error total. Backgrounds
+now snap in the same local space too (DM-6A9J20, doc 277), which removed the
+remaining residual on axes that keep the accumulation and brought
+22-deep-filter-paint-bounds to 0.978%.
 
 ## Follow-ups to file
 

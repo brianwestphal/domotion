@@ -10,6 +10,7 @@ import {
   parseCornerRadii,
   parseSide,
   type CornerRadii,
+  snappedInsetBox,
 } from "./borders.js";
 import { parseBoxShadow } from "./box-shadow.js";
 import { parseColor, colorStr, sameColor, INVISIBLE_ALPHA } from "./colors.js";
@@ -122,19 +123,21 @@ export function paintBackgroundImageLayers(
     const padL = parseFloat(el.styles.paddingLeft ?? "0") || 0;
     // Box helpers: border-box = captured rect, padding-box = border inset,
     // content-box = border+padding inset.
+    // BackgroundImageGeometry pixel-snaps both the destination (painting) area
+    // and the positioning area after contracting them to the clip/origin box
+    // (`ToPixelSnappedRect`, core/paint/background_image_geometry.cc:391-401,
+    // Chromium 7d859f27). With an authenticated border paint snap that rounding
+    // happens in the box's local paint space; otherwise the captured geometry
+    // is kept.
     const boxFor = (key: string): { x: number; y: number; w: number; h: number } => {
-      if (key === "content-box") {
-        return {
-          x: el.x + bwL + padL,
-          y: el.y + bwT + padT,
-          w: el.width - bwL - bwR - padL - padR,
-          h: el.height - bwT - bwB - padT - padB,
-        };
-      }
-      if (key === "padding-box") {
-        return { x: el.x + bwL, y: el.y + bwT, w: el.width - bwL - bwR, h: el.height - bwT - bwB };
-      }
-      return { x: el.x, y: el.y, w: el.width, h: el.height };
+      const insets =
+        key === "content-box"
+          ? { top: bwT + padT, right: bwR + padR, bottom: bwB + padB, left: bwL + padL }
+          : key === "padding-box"
+            ? { top: bwT, right: bwR, bottom: bwB, left: bwL }
+            : { top: 0, right: 0, bottom: 0, left: 0 };
+      const box = snappedInsetBox(el, insets);
+      return { x: box.x, y: box.y, w: box.width, h: box.height };
     };
     const borderBox = { x: el.x, y: el.y, width: el.width, height: el.height };
     // CSS: first layer paints on top of later layers. Emit in reverse order

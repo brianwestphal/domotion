@@ -74,10 +74,30 @@ describeBrowser("transformed flex descendant logical geometry", () => {
             for (const id of ["a", "b"]) {
               const box = await rendered.locator(`.anim-${id}`).boundingBox();
               expect(box).not.toBeNull();
-              expect(box!.x).toBeCloseTo(live[id].x + paintShift, 1);
-              expect(box!.y).toBeCloseTo(live[id].y + paintShift, 1);
-              expect(box!.width).toBeCloseTo(live[id].width, 1);
-              expect(box!.height).toBeCloseTo(live[id].height, 1);
+              // The background itself is painted at Blink's pixel-snapped local
+              // rect (ToPixelSnappedRect, box_painter_base.cc:1265), recorded as
+              // the box's border paint snap; map that rect through the same CTM.
+              const captured = find(tree, id)!;
+              const snap = captured.borderPaintSnap;
+              const left = captured.x + (snap?.left ?? 0),
+                top = captured.y + (snap?.top ?? 0);
+              const painted = {
+                x: left,
+                y: top,
+                width: captured.x + captured.width + (snap?.right ?? 0) - left,
+                height: captured.y + captured.height + (snap?.bottom ?? 0) - top,
+              };
+              const ctm = space.frozenCtm(captured);
+              const expected = ctm == null ? painted : mapRectThroughAffine(painted, ctm);
+              // Rect coordinates are written with one decimal (r()), so a
+              // painted edge may sit up to 0.05 local px (times the scale) off.
+              const quantum = 0.05 * Math.max(1, scale) + 1e-6;
+              for (const key of ["x", "y", "width", "height"] as const) {
+                expect(Math.abs(box![key] - expected[key]), key).toBeLessThanOrEqual(2 * quantum);
+              }
+              // …and the snap moves an edge by at most half a local pixel.
+              expect(Math.abs(expected.x - (live[id].x + paintShift))).toBeLessThanOrEqual(0.5 * scale + 1e-6);
+              expect(Math.abs(expected.y - (live[id].y + paintShift))).toBeLessThanOrEqual(0.5 * scale + 1e-6);
             }
             const key = `${scale}/${origin}`;
             const values = wrapperPairs.get(key) ?? [];

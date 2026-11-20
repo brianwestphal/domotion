@@ -5,6 +5,7 @@ import {
   doubleBorderStripeGeometry,
   pixelSnappedBorderReferenceRect,
   snappedBorderEdges,
+  snappedInsetBox,
   uniformDoubleBorderStripeBoxes,
   snapNinePieceDestinationGrid,
   findOffGridCollapsedCells,
@@ -775,5 +776,28 @@ describe("snappedBorderEdges", () => {
   it("ignores a record made for a box of another size", () => {
     const borderPaintSnap = { left: 0, top: 0.25, right: 0, bottom: 0.25, width: 20, height: 18 };
     expect(snappedBorderEdges({ ...box, borderPaintSnap })).toEqual({ left: 21, top: 10, right: 41, bottom: 30 });
+  });
+});
+
+describe("snappedInsetBox", () => {
+  const box = { x: 20.5, y: 10.25, width: 20, height: 20 };
+  it("keeps the captured inset box without a record", () => {
+    expect(snappedInsetBox(box, { top: 2, right: 2, bottom: 2, left: 2 })).toEqual({
+      x: 22.5,
+      y: 12.25,
+      width: 16,
+      height: 16,
+    });
+  });
+  // An edge k past a border edge with rounding delta s rounds by
+  // round(k - s) - (k - s) in local space (BackgroundImageGeometry snapping).
+  it("rounds each inset edge in local paint space", () => {
+    const borderPaintSnap = { left: 0.5, top: -0.25, right: 0.5, bottom: -0.25, width: 20, height: 20 };
+    expect(snappedInsetBox({ ...box, borderPaintSnap }, { top: 2.25, right: 0, bottom: 0, left: 2 })).toEqual({
+      x: 23,
+      y: 13, // 10.25 + 2.25 = local n + 2.5, rounds half up
+      width: 18,
+      height: 17,
+    });
   });
 });

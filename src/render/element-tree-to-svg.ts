@@ -1,4 +1,8 @@
-import { paintBoxShadow, paintInsetBoxShadow } from "./box-shadow-paint.js";
+import {
+  paintBoxShadow,
+  paintInsetBoxShadow,
+  shadowBorderContour as snappedBackgroundBox,
+} from "./box-shadow-paint.js";
 import { unorientedImageSource } from "./image-orientation.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 const UNBOUNDED_CLIP_EXTENT = 100000;
@@ -773,7 +777,14 @@ function paintBackgroundColor(
       `${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${el.styles.frostedBgFallback}"`)}`,
     );
   } else if (!suppressEmptyCell && bgColor != null && bgColor.a > INVISIBLE_ALPHA && !backgroundColorClipsToText(el)) {
-    out.push(`${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`);
+    // PaintFillLayerBackground fills ToPixelSnappedRect of the paint rect, and
+    // the rounded fast path PixelSnappedContouredBorder
+    // (core/paint/box_painter_base.cc:1056-1058, 1213-1214, 1265, Chromium
+    // 7d859f27) — in local paint space, hence the authenticated snap record.
+    const box = snappedBackgroundBox(el, corners);
+    out.push(
+      `${indent}${roundedRectSvg(box.x, box.y, box.width, box.height, box.corners, `fill="${colorStr(bgColor)}"`)}`,
+    );
   }
   return out;
 }

@@ -2376,9 +2376,9 @@ export interface CapturedElement {
    * Blink's pixel-snapped border paint rectangle
    * (`ContouredBorderGeometry::PixelSnappedContouredBorder`) as signed deltas
    * from the captured border-box edges. Captured only for a box with a
-   * `box-shadow`, and only when its local paint space is authenticated from
-   * the live page (identity or pure-translation transform chain, integral
-   * scroll offsets, unit DPR and zoom, no paint isolation); see
+   * shadow, border, outline or background, and only when its local paint space is
+   * authenticated from the live page (frozen-transform bases, live pure
+   * translations, integral scroll offsets, unit DPR and zoom, no paint isolation); see
    * `src/capture/script/walker/border-paint-snap.ts`. Absent otherwise, and
    * the renderer then paints from the captured geometry.
    */

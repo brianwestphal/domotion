@@ -84,6 +84,31 @@ export function snappedBorderEdges(el: BorderPaintSnapCarrier): {
   };
 }
 
+/**
+ * A box inset from the border box by the given amounts, with each edge rounded
+ * in the box's local paint space (`ToPixelSnappedRect` of the inset rect). The
+ * record gives each border edge's rounding delta `s = round(e) - e`, so an edge
+ * `k` further along rounds by `round(k - s) - (k - s)`. Without an authenticated
+ * record the captured geometry is returned unchanged.
+ */
+export function snappedInsetBox(
+  el: BorderPaintSnapCarrier,
+  insets: { top: number; right: number; bottom: number; left: number },
+): { x: number; y: number; width: number; height: number } {
+  const left = el.x + insets.left,
+    top = el.y + insets.top;
+  const right = el.x + el.width - insets.right,
+    bottom = el.y + el.height - insets.bottom;
+  const snap = authenticBorderPaintSnap(el);
+  if (snap == null) return { x: left, y: top, width: right - left, height: bottom - top };
+  const delta = (offset: number, s: number) => Math.round(offset - s) - (offset - s);
+  const l = left + delta(insets.left, snap.left),
+    t = top + delta(insets.top, snap.top);
+  const rr = right + delta(-insets.right, snap.right),
+    b = bottom + delta(-insets.bottom, snap.bottom);
+  return { x: l, y: t, width: rr - l, height: b - t };
+}
+
 export function pixelSnappedBorderReferenceRect(
   x: number,
   y: number,

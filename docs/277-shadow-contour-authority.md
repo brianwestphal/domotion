@@ -6,12 +6,24 @@ status: "current"
 owners: ["paint-effects"]
 platforms: ["macos", "linux", "windows"]
 tickets:
-  ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ", "DM-8N1VB2", "DM-B73YF5", "DM-TFN8RD", "DM-S2EA2P"]
+  [
+    "DM-H5DDDE",
+    "DM-J2WVF3",
+    "DM-09GQAV",
+    "DM-7P69DC",
+    "DM-WYY3ZZ",
+    "DM-8N1VB2",
+    "DM-B73YF5",
+    "DM-TFN8RD",
+    "DM-S2EA2P",
+    "DM-6A9J20",
+  ]
 code:
   [
     "src/render/box-shadow-paint.ts",
     "src/capture/script/walker/border-paint-snap.ts",
     "tests/box-shadow-border-knockout.e2e.test.ts",
+    "tests/background-paint-snap.e2e.test.ts",
     "tests/box-shadow-native-contour-authority.e2e.test.ts",
     "tests/capture-selected-shadow-root.e2e.test.ts",
   ]
@@ -203,6 +215,49 @@ ancestor translations and for each fail-closed space. Known remaining gaps:
   sharp normal shadow, 67 for a sharp inset).
 - The radii are constrained against the captured size and then again against
   the snapped size, rather than once against the snapped size.
+
+### Backgrounds from the same record
+
+Backgrounds snap the same way. `PaintFillLayerBackground` fills
+`ToPixelSnappedRect` of the paint rect, and the rounded fast path fills the
+`PixelSnappedContouredBorder` (`box_painter_base.cc:1056-1058`, `1213-1214`,
+`1265`). Image and gradient layers contract their destination and positioning
+areas to the clip and origin boxes and then `ToPixelSnappedRect` each one
+(`background_image_geometry.cc:391-401`).
+
+The record is now also captured for boxes with a background color or image:
+
+- `paintBackgroundColor` fills `shadowBorderContour`.
+- The layer painter builds its border, padding and content boxes with
+  `snappedInsetBox` (`src/render/borders.ts`). An edge `k` past a border edge
+  whose rounding delta is `s` rounds by `round(k − s) − (k − s)`.
+
+On macOS, `tests/background-paint-snap.e2e.test.ts` passes byte-exact against
+native rendering for: fractional, rounded, quarter-pixel and translucent colors;
+a color under a border; colors under a translate and an x-only scale; plain,
+rounded, padding-box and content-box gradients; and positioned, repeated and
+covering images. Before, a half-pixel color box differed at 80 pixels.
+
+Over 42 html-test fixtures (translate/scale, lists, tables, links), 23 improve
+and 1 worsens:
+
+| Fixture                     | Before       | After        |
+| --------------------------- | ------------ | ------------ |
+| 11-deep-math-functions      | 5.23%        | 0.76%        |
+| 32-real-world-pricing-table | 9.48%        | 3.44%        |
+| 22-deep-filter-stacking     | 2.51%        | 0.90%        |
+| 13-deep-anchor-positioning  | 2.78% (fail) | 1.87% (pass) |
+| 31-deep-inert-hidden        | 5.096%       | 5.179%       |
+
+The 31-deep-inert-hidden change is a worse diffPct even though the total absolute
+error over its changed pixels fell from 52045 to 11824.
+
+Not covered:
+
+- Tiled gradients (`background-size` smaller than the box) are off even at
+  integral positions; that is the separate repeat-tiling gap.
+- A background color does not honor `background-clip: padding-box`/`content-box`;
+  that is pre-existing and unrelated to snapping (DM-NXDNGQ).
 
 ## Normal-shadow spread radii
 
