@@ -3203,9 +3203,16 @@ function renderStackedPaintEntries(
  */
 function renderChildBoxPhase(state: RenderState, plan: ChildPaintPlan, depth: number): void {
   const { buckets, childDisplay } = plan;
-  for (const c of buckets.negative) {
-    renderElementWithOverflowClip(state, c, depth + 1, childDisplay);
-  }
+  // kNegativeZOrderChildren merges generated layers with real ones by
+  // effective z, then tree order (PaintLayerPainter::PaintLayerContents,
+  // core/paint/paint_layer_painter.cc:471-479, Chromium 7d859f27).
+  renderStackedPaintEntries(
+    state,
+    buckets.negative.map((child) => ({ child, zIndex: Number.parseInt(child.styles.zIndex ?? "0", 10) || 0 })),
+    plan.pseudos.filter((entry) => (entry.paint.zIndex ?? 0) < 0),
+    depth,
+    childDisplay,
+  );
   for (const c of buckets.base) {
     if (paintsAtomicallyInInlinePhase(c, childDisplay)) continue;
     renderElementWithOverflowClip(state, c, depth + 1, childDisplay, "box");
@@ -3219,6 +3226,7 @@ function renderChildBoxPhase(state: RenderState, plan: ChildPaintPlan, depth: nu
 function childBoxPhaseIsEmpty(plan: ChildPaintPlan): boolean {
   const { buckets } = plan;
   if (buckets.negative.length > 0 || buckets.floats.length > 0) return false;
+  if (plan.pseudos.some((entry) => (entry.paint.zIndex ?? 0) < 0)) return false;
   return !buckets.base.some((c) => !paintsAtomicallyInInlinePhase(c, plan.childDisplay));
 }
 

@@ -5,7 +5,19 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2459", "DM-2468", "DM-2488", "DM-P1ASMP", "DM-AWS6Y4", "DM-XWPSPP", "DM-NAG7AD", "DM-5YF0BB", "DM-9PEZBK"]
+tickets:
+  [
+    "DM-2459",
+    "DM-2468",
+    "DM-2488",
+    "DM-P1ASMP",
+    "DM-AWS6Y4",
+    "DM-XWPSPP",
+    "DM-NAG7AD",
+    "DM-5YF0BB",
+    "DM-9PEZBK",
+    "DM-C5GEMW",
+  ]
 code:
   [
     ".github/workflows/pseudo-fragment-render-parity.yml",
@@ -73,10 +85,9 @@ The implementation keeps Blink's decisions separated by owner:
   `box-decoration-break` slice/clone edge ownership are painted per fragment,
   including multicolumn translations.
 - `::before`, `::after`, positioned, negative, and positive records enter
-  explicit host paint slots. A negative positioned pseudo whose host does not
-  establish a stacking context remains owned by the ancestor context and
-  paints below the host box; a host-local stacking context retains Appendix E
-  ordering.
+  explicit host paint slots. A negative positioned 2D pseudo joins its owning
+  context's negative z-order list (DM-C5GEMW, below); a host-local stacking
+  context retains Appendix E ordering.
 - An already-emitted host CTM is inverted around source-owned physical pseudo
   paint, so transforms are applied exactly once rather than baking host
   geometry into every fragment.
@@ -198,8 +209,16 @@ ownership and the separate preserve-3d path retain their prior behavior.
 
 ## Ancestor context admission (DM-NAG7AD)
 
-Nonnegative positioned source records now join the nearest real two-dimensional
-stacking context's paint list. A separate immutable plan retains their original
+Positioned source records of either sign now join the nearest real
+two-dimensional stacking context's paint list. Negative records (DM-C5GEMW)
+merge with the context's real negative children by effective z and tree order
+in `kNegativeZOrderChildren`, which `PaintLayerPainter::PaintLayerContents`
+paints after the context's own background and before its foreground phases
+(`core/paint/paint_layer_painter.cc:471-503`, Chromium `7d859f27`). So a
+non-transferred body background or a wrapper block background covers them,
+while a body background that moved to the document canvas (doc 280) stays
+beneath them. That canvas repair is what makes this admission safe; without
+it the transferred body fill painted over the moved layer. A separate immutable plan retains their original
 host, source record, generated-child tree order and non-context ancestry; it does
 not fabricate captured elements or mutate the captured tree. Ordinary real
 children and generated entries stable-sort by effective z-index and source tree

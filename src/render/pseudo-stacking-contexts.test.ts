@@ -78,11 +78,14 @@ describe("positioned generated paint context ownership", () => {
     expect(plan.treeOrder.has(opaque.children[0])).toBe(true);
   });
 
-  it("preserves negative and legacy3D ownership rather than projecting a new phase", () => {
+  it("admits negative layers into the context's negative list but keeps legacy3D ownership (DM-C5GEMW)", () => {
     const negative = owner();
     record(negative).paint.zIndex = -1;
+    const plan = collectPseudoStackingContexts([negative]);
+    expect(plan.managed.has(record(negative))).toBe(true);
+    expect(plan.contexts.get(null)?.map((entry) => entry.paint.zIndex)).toEqual([-1]);
     const projective = owner({ transformStyle: "preserve-3d" });
-    expect(collectPseudoStackingContexts([negative, projective]).managed.size).toBe(0);
+    expect(collectPseudoStackingContexts([projective]).managed.size).toBe(0);
   });
 
   it("uses native grid order for in-flow generated items and effective0 for out-of-flow", () => {

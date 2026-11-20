@@ -37,8 +37,8 @@ function ownsOpaqueSurface(element: CapturedElement): boolean {
 /**
  * Blink 6b5a1b80 PaintLayerStackingNode collects generated layers with ordinary
  * children, through non-context ancestors, then stable-sorts effective z-index.
- * Nonnegative positioned layers are admitted here; the existing negative and
- * legacy3D paths retain their separate paint ownership.
+ * Positioned 2D layers of either sign are admitted here; the legacy3D path
+ * retains its separate paint ownership.
  * Keep this paint-only plan separate from the immutable captured element tree.
  */
 export function collectPseudoStackingContexts(elements: readonly CapturedElement[]): PseudoStackingContexts {
@@ -116,7 +116,11 @@ export function collectPseudoStackingContexts(elements: readonly CapturedElement
       result.recordOrder.set(record, treeOrder);
       if (opaquePath) continue;
       if (!["relative", "absolute", "fixed", "sticky"].includes(record.paint.position)) continue;
-      if (context3d || (record.paint.zIndex ?? 0) < 0) continue; // Existing projective/legacy3D ownership remains unchanged.
+      // Negative layers join the context's kNegativeZOrderChildren, which
+      // paints beneath non-layer block backgrounds of the context's
+      // foreground (a non-transferred body, any wrapper) and above the
+      // document canvas. Existing projective/legacy3D ownership remains.
+      if (context3d) continue;
       if (!realContext && hasUnavailableLayerOrder(contextPath, true)) {
         unavailableContexts.set(ownerContext, element);
       }
