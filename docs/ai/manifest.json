@@ -4618,6 +4618,8 @@
       "platforms": ["macos", "linux", "windows"],
       "code": [
         "src/render/box-shadow-paint.ts",
+        "src/render/shadow-blur-authority.ts",
+        "src/render/gaussian-blur.ts",
         "src/capture/script/walker/border-paint-snap.ts",
         "tests/box-shadow-border-knockout.e2e.test.ts",
         "tests/background-paint-snap.e2e.test.ts",

@@ -23,10 +23,13 @@ tickets:
     "DM-PH6EK3",
     "DM-9B7A6G",
     "DM-0TRG51",
+    "DM-RRWR8E",
   ]
 code:
   [
     "src/render/box-shadow-paint.ts",
+    "src/render/shadow-blur-authority.ts",
+    "src/render/gaussian-blur.ts",
     "src/capture/script/walker/border-paint-snap.ts",
     "tests/box-shadow-border-knockout.e2e.test.ts",
     "tests/background-paint-snap.e2e.test.ts",
@@ -662,15 +665,96 @@ curvature and border shapes.
 
 ## Blurred shadows (DM-RRWR8E)
 
-Blink's σ is exactly half the blur radius (`shadow_data.h:76-82`), as ours is.
-The engines differ:
+Blink paints a blurred normal shadow through a draw looper. The looper's paint
+carries `SkMaskFilter::MakeBlur(kNormal, σ)` and a
+`SkColorFilters::Blend(color, kSrcIn)` (`cc/paint/draw_looper.cc:22-35`,
+Chromium `7d859f27`). σ is exactly half the blur radius
+(`shadow_data.h:76-82`). On the CPU raster device, Skia does four things:
 
-- A **sharp** blurred rect goes through `SkBlurMaskFilterImpl::filterRectMask`
-  → `SkBlurMask::BlurRect` (`SkBlurMaskFilterImpl.cpp:124-130`,
-  `SkBlurMask.cpp:405`). That is an analytic integral profile.
-- `feGaussianBlur` uses the image-filter blur engine (`SkBlurImageFilter`,
-  `SkBlurEngine`).
+1. It rasterizes the shape into an A8 coverage mask.
+2. It blurs the mask.
+3. It merges an antialiased clip-out's coverage into the mask.
+4. It blits the color through the mask with the legacy ARGB32 blitter.
 
-The measured residual matches that split. The ticket's `4px 4px 4px` sharp case
-differs at 443 pixels (max alpha delta 7), while a radius-5 blurred shadow,
-which Blink blurs through the rrect mask route, is byte-exact.
+The producer follows the same pipeline
+(`emitShadowMaskBlurFilter` / `emitShadowMaskBlurStages`):
+
+- It blurs the black shape's `SourceAlpha` with `feGaussianBlur`.
+- On a rounded transparent box, it applies the clip-out knockout mask next.
+  The knockout is the same luminance mask, on the antialiased-clip route, that
+  zero-blur shadows use.
+- It recolors through a component-transfer table that writes the blitter's
+  alpha. The filter uses `color-interpolation-filters="sRGB"`.
+- The filter region starts at Skia's mask origin and reaches the kernel
+  bounds.
+
+`src/render/shadow-blur-authority.ts` decides, stage by stage, when the result
+is equal by construction. Skia references below are at `62efacd3`.
+
+| Stage         | Native (mask filter)                                                                                                                                                                                                                  | Producer (`feGaussianBlur`)                                                                                                                          | Equal when                                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kernel, σ < 2 | `small_blur`, a true Gaussian (`SkMaskBlurFilter.cpp:967-969`)                                                                                                                                                                        | `ThreeBoxApproxPass` always (Chromium defines `SK_AVOID_SLOW_RASTER_PIPELINE_BLURS`, `skia/config/SkUserConfig.h:142`; `SkBlurEngine.cpp:1240-1258`) | never                                                                                                                                        |
+| Kernel, σ ≥ 2 | `PlanGauss`, three boxes, `(round(2^32/d)·S + 2^31) >> 32`                                                                                                                                                                            | `ThreeBoxApproxPass`, same window, buffers and border, `((S + (d+1)/2)·round(2^32/d)) >> 32` (`SkVx.h:880-897`)                                      | the two roundings agree for every reachable sum. An exhaustive check gives windows 4, 5, 6, 8, 10, 11, 12 and 14; windows 7, 9 and 13 differ |
+| Sharp shape   | `filterRectsToNine` → analytic `SkBlurMask::BlurRect` profile once the rect is at least about `ceil(6σ) + 3` px; smaller rects fall back to the box-blurred mask (`SkBlurMaskFilterImpl.cpp:432-520`, `SkMaskFilterBase.cpp:262-322`) | box blur                                                                                                                                             | the rect is too small for the analytic route and sits on whole pixels (0/255 coverage)                                                       |
+| Color blit    | `SkAlphaMulQ(pm, aa + 1)` = `(c·(aa+1)) >> 8` per premultiplied channel (`SkBlitter_ARGB32.cpp:1615`; confirmed natively per pixel for five colors)                                                                                   | discrete alpha table of the same bytes; constant unpremultiplied RGB (`fe_component_transfer.cc:65-77` truncates `255·v`, so entries carry `+ 0.5`)  | every RGB channel is 0 or 255, at any alpha                                                                                                  |
+| AA clip-out   | `SkAAClipBlitter::blitMask` merges `SkMulDiv255Round(aa, clip)` before the blit (`SkAAClip.cpp:1806`)                                                                                                                                 | the knockout mask between the blur and blit filters                                                                                                  | (rounded boxes are not admitted, see below)                                                                                                  |
+
+Measurements on macOS, full RGBA, Chromium 147:
+
+- The old producer differed in four places:
+  - the clip-out contour route for elliptical corners (3 px);
+  - a filter region and knockout region of only 50% of the shape, which
+    clipped every blur of 8px and more;
+  - premultiplied linearRGB blurring of the color, which was off for any
+    channel other than 0/255;
+  - alpha rounding after the knockout instead of before it.
+
+  All four are fixed for the container route as well.
+
+- A sweep of 108 sharp cases (sizes 6–20 px, blurs 4–15 px, red, black at
+  0.4 alpha, and white) is byte-exact wherever the rule predicts the box
+  route. It differs (262–578 px) in exactly the eight cases the rule assigns to
+  the analytic profile. One of those is the ticket's `4px 4px 4px red` on
+  20×20 (443 px).
+- Odd windows 7, 9 and 13 differ by one level at a few pixels, as the
+  rounding check predicts.
+
+`shadowOnlyRootIsAdmissible` therefore admits a selected root whose only normal
+layer is blurred when all of the following hold:
+
+- the box is sharp, and both the box and the shadow rect sit on whole pixels;
+- σ ≥ 2, with an agreeing window no larger than 14;
+- the rect is too small for the analytic profile;
+- every color channel is 0 or 255;
+- any other layer is a zero-blur inset.
+
+`tests/capture-selected-shadow-root.e2e.test.ts` pins seven such lists
+through direct, parent and body capture against the native screenshot. It
+also has two negative controls: no shadow, and the blur radius 2px larger.
+
+These stay refused, with the reason:
+
+- **Rounded boxes.** Most rounded cases are now exact, but some residuals are
+  unexplained, so they are not authenticated:
+  - `4px 4px 8px` on a 30×30 box with radius 12 differs by one level at 15
+    pixels, all on the right-hand corners;
+  - a 12px blur on a 20×20 radius-5 box differs at 2 knockout-corner pixels;
+  - a 30px blur (window 28, which agrees) differs at 8 pixels.
+
+  Skia's nine-patch route also draws a smaller rrect at a whole-pixel origin.
+  When the full shape and that smaller rrect fall in different AAA blitter
+  classes (`MaskAdditiveBlitter` for at most 32 px wide and at most 1024 px²,
+  run-based otherwise; `SkScan_AAAPath.cpp:171-196`), large boxes differ by
+  one level, for example 60×40 radius 5 at 7 pixels. A fractional border
+  radius also moves the knockout corner.
+
+- **Large sharp rects:** the analytic `BlurRect` profile is not a box blur.
+- **σ < 2:** a true Gaussian against three boxes.
+- **Other colors:** a constant unpremultiplied channel cannot reproduce
+  `(c·(aa+1)) >> 8` for an intermediate channel. The alpha is still exact; the
+  color channels are off by one at low alpha.
+- **Two or more normal layers with a blur:** where they overlap, the legacy
+  blitter's `dst·(256−sa) >> 8` differs from SVG source-over.
+- **Blurred insets mixed with a normal layer:** a blurred inset on a rounded
+  box still differs natively by 198–247 px (DM-CA3QT6). Its measured rows are
+  blurs of 2px and 3px (σ < 2), so this mechanism cannot make them exact.

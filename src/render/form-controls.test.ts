@@ -1050,7 +1050,8 @@ describe("source-owned structural <meter> geometry (DM-1156 / DM-2458)", () => {
       "",
       defCtx,
     );
-    const outer = svg.indexOf('fill="rgb(0,0,0)"');
+    // A blurred outer shadow is a black shape recolored by its mask-blit filter.
+    const outer = svg.indexOf('fill="black" filter=');
     const background = svg.indexOf('fill="rgb(12, 34, 56)"');
     const inset = svg.indexOf("rgb(255,255,255)");
     expect(outer).toBeGreaterThanOrEqual(0);

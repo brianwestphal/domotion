@@ -4,7 +4,12 @@ import { isPaintedColor } from "../utils/transparent-background.js";
 import { withTimeout } from "../utils/with-timeout.js";
 import { detachQuietly, withCdpSession } from "./cdp-lifecycle.js";
 import { privateCaptureKey } from "./private-key.js";
-import { CORNER_SHAPE_PROPERTIES, curvedCornerShapes, shadowOnlyRootIsAdmissible } from "./shadow-root-admission.js";
+import {
+  CORNER_SHAPE_PROPERTIES,
+  curvedCornerShapes,
+  shadowOnlyRootIsAdmissible,
+  sharpBorderRadii,
+} from "./shadow-root-admission.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import type { CaptureWarning } from "./types.js";
 
@@ -147,6 +152,10 @@ export async function prepareInsetRootShadowContext(
             (node) => node.nodeType === 3 && (node.textContent ?? "").trim() !== "",
           ),
           corners: Object.fromEntries(cornerProperties.map((name) => [name, cs.getPropertyValue(name)])),
+          bounds: (() => {
+            const rect = root.getBoundingClientRect();
+            return { left: rect.x, top: rect.y, width: rect.width, height: rect.height };
+          })(),
         };
       },
       { property: key, selector, cornerProperties: [...CORNER_SHAPE_PROPERTIES.flat(), "border-shape"] },
@@ -161,6 +170,7 @@ export async function prepareInsetRootShadowContext(
         shadows,
         curvedCornerShapes((name) => style.corners[name] ?? ""),
         style.corners["border-shape"] ?? "",
+        { ...style.bounds, sharp: sharpBorderRadii((name) => style.corners[name] ?? "") },
       ) ||
       isPaintedColor(style.background) ||
       !["", "none"].includes(style.backgroundImage) ||

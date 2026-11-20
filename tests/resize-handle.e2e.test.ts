@@ -281,9 +281,12 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
       expect(custom.resizeHandle!.logicalLeft).toBe(true);
       expect(customSvg).toContain("resizersh");
       expect(customSvg).toContain("<feGaussianBlur");
-      expect(customSvg).toContain('fill="rgb(255,0,0)"');
+      // The blurred red outer shadow is a black shape recolored by its
+      // mask-blit filter (DM-RRWR8E).
+      expect(customSvg).toContain('<feFuncR type="linear" slope="0" intercept="1.0020"/>');
       expect(customSvg).toContain('fill="rgba(0,0,0,0.5)"');
-      expect(customSvg.indexOf('fill="rgb(255,0,0)"')).toBeLessThan(customSvg.indexOf('fill="rgb(1,254,2)"'));
+      expect(customSvg.indexOf('fill="black" filter=')).toBeGreaterThan(0);
+      expect(customSvg.indexOf('fill="black" filter=')).toBeLessThan(customSvg.indexOf('fill="rgb(1,254,2)"'));
       expect(customSvg.indexOf('fill="rgb(1,254,2)"')).toBeLessThan(customSvg.indexOf('fill="rgba(0,0,0,0.5)"'));
       expect(quietSvg).not.toContain("resizersh");
     } finally {

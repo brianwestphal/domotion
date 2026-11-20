@@ -20,7 +20,10 @@ element paint lifecycle and delegates generated pseudo backgrounds, triangles,
 borders, and effect wrappers to named helpers. Text path emitters share their
 captured segment typography and common path options through `src/render/text.ts`.
 `src/render/gaussian-blur.ts` converts Blink shadow blur radius to SVG standard
-deviation for box, inline, control, and text shadows.
+deviation for box, inline, control, and text shadows, and emits a blurred normal
+box-shadow as Skia's mask-filter blur and legacy blit;
+`src/render/shadow-blur-authority.ts` decides which of those are byte-exact
+(doc 277, "Blurred shadows").
 SVG image XML boundaries are shared by `svg-image-xml.ts` (also used by the image
 element parser) and `svg-image-stylesheets.ts`; stylesheet transformations never
 search CSS strings or CDATA for an XML closing tag.

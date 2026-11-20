@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseBoxShadow } from "../render/box-shadow.js";
-import { curvedCornerShapes, shadowOnlyRootIsAdmissible } from "./shadow-root-admission.js";
+import { curvedCornerShapes, shadowOnlyRootIsAdmissible, sharpBorderRadii } from "./shadow-root-admission.js";
 
 const admits = (shadow: string, shapes: string[] = [], borderShape = "none") =>
   shadowOnlyRootIsAdmissible(parseBoxShadow(shadow), shapes, borderShape);
@@ -23,6 +23,33 @@ describe("shadowOnlyRootIsAdmissible", () => {
     expect(admits("4px 4px 0 red, 0 0 1px blue")).toBe(false);
     expect(admits("inset 0 0 2px red, 4px 4px 0 blue")).toBe(false);
   });
+  describe("a blurred normal layer (DM-RRWR8E)", () => {
+    const sharp = { left: 20, top: 20, width: 10, height: 10, sharp: true };
+    const withBox = (shadow: string, box = sharp) =>
+      shadowOnlyRootIsAdmissible(parseBoxShadow(shadow), [], "none", box);
+    it("admits a lone box-blurred layer on a sharp whole-pixel box", () => {
+      expect(withBox("rgb(255, 0, 0) 4px 4px 8px 0px")).toBe(true);
+      expect(withBox("rgba(0, 0, 0, 0.4) -3px 2px 6px 1px")).toBe(true);
+      expect(withBox("rgb(0, 0, 255) 0px 0px 0px 3px inset, rgb(255, 0, 0) 4px 4px 9px 0px")).toBe(true);
+    });
+    it("refuses it without a box, on a rounded box, or on an analytic-profile rect", () => {
+      expect(admits("rgb(255, 0, 0) 4px 4px 8px 0px")).toBe(false);
+      expect(withBox("rgb(255, 0, 0) 4px 4px 8px 0px", { ...sharp, sharp: false })).toBe(false);
+      expect(withBox("rgb(255, 0, 0) 4px 4px 4px 0px", { ...sharp, width: 20, height: 20 })).toBe(false);
+    });
+    it("refuses σ < 2, disagreeing windows, other colors and fractional rects", () => {
+      expect(withBox("rgb(255, 0, 0) 4px 4px 3px 0px")).toBe(false);
+      expect(withBox("rgb(255, 0, 0) 4px 4px 7px 0px")).toBe(false);
+      expect(withBox("rgb(51, 102, 153) 4px 4px 8px 0px")).toBe(false);
+      expect(withBox("rgb(255, 0, 0) 4.5px 4px 8px 0px")).toBe(false);
+      expect(withBox("rgb(255, 0, 0) 4px 4px 8px 0px", { ...sharp, left: 20.5 })).toBe(false);
+    });
+    it("refuses a second normal layer or a blurred inset beside it", () => {
+      expect(withBox("rgb(255, 0, 0) 4px 4px 8px 0px, rgb(0, 0, 255) -4px -4px 8px 0px")).toBe(false);
+      expect(withBox("rgb(255, 0, 0) 4px 4px 8px 0px, rgb(0, 0, 255) 4px 4px 0px 0px")).toBe(false);
+      expect(withBox("rgb(0, 0, 255) 0px 0px 2px 0px inset, rgb(255, 0, 0) 4px 4px 8px 0px")).toBe(false);
+    });
+  });
   it("refuses a normal layer drawn through a non-round curved corner", () => {
     expect(admits("4px 4px 0 red", ["round", "bevel"])).toBe(false);
     expect(admits("4px 4px 0 red", ["round", "round"])).toBe(true);
@@ -37,6 +64,16 @@ describe("shadowOnlyRootIsAdmissible", () => {
   it("refuses a normal layer drawn through a border-shape", () => {
     expect(admits("4px 4px 0 red", [], "circle(50%)")).toBe(false);
     expect(admits("4px 4px 0 red", [], "")).toBe(true);
+  });
+});
+
+describe("sharpBorderRadii", () => {
+  it("is true only when every radius longhand is zero on both axes", () => {
+    const read = (values: Record<string, string>) => (name: string) => values[name] ?? "0px";
+    expect(sharpBorderRadii(read({}))).toBe(true);
+    expect(sharpBorderRadii(read({ "border-top-left-radius": "0px 0px" }))).toBe(true);
+    expect(sharpBorderRadii(read({ "border-bottom-right-radius": "5px" }))).toBe(false);
+    expect(sharpBorderRadii(read({ "border-top-right-radius": "0px 3px" }))).toBe(false);
   });
 });
 

@@ -8,7 +8,12 @@
  */
 
 import type { CapturedElement } from "../capture/types.js";
-import { emitGaussianBlurFilter } from "./gaussian-blur.js";
+import {
+  emitGaussianBlurFilter,
+  emitShadowMaskBlurFilter,
+  emitShadowMaskBlurStages,
+  shadowMaskBlurRegion,
+} from "./gaussian-blur.js";
 import { parseBoxShadow } from "./box-shadow.js";
 import { formatNumberLoose, r } from "./format.js";
 import { parseColor, colorStr } from "./colors.js";
@@ -416,17 +421,30 @@ function paintNormalShadowLayer(
     const sh2 = fillRect.bottom - fillRect.top + sh.spread * 2;
     if (sw <= 0 || sh2 <= 0) return;
     const shadowCorners = normalShadowCorners(corners, sh.spread, border.width, border.height, sw, sh2);
-    let filterAttr = "";
-    if (sh.blur > 0) {
+    // A blurred shadow reaches ceil(3σ) past its shape (`SkBlurImageFilter`
+    // kernelBounds, Skia 62efacd3), so its knockout region must cover that.
+    // The zero-blur knockout keeps its historical 3x shape rect.
+    const reach = sh.blur > 0 ? Math.ceil(1.5 * sh.blur) + 2 : 0;
+    const ko = {
+      x: r(sx - sw - reach),
+      y: r(sy - sh2 - reach),
+      w: r(sw * 3 + 2 * reach),
+      h: r(sh2 * 3 + 2 * reach),
+      back: r(-(sw * 3 + 2 * reach)),
+    };
+    const shadowColor = parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 };
+    // Blink blurs the shape's coverage mask and blits the shadow color through
+    // it (DrawLooperBuilder::AddShadow); the filter does the same from the
+    // black shape's alpha (`emitShadowMaskBlurFilter`).
+    const blurRegion = shadowMaskBlurRegion(sx, sy, sw, sh2, sh.blur);
+    const blurFilterAttr = (): string => {
+      if (sh.blur <= 0) return "";
       const fid = ctx.nextClipId("sh");
-      // Filter region needs to extend beyond the shadow rect by enough
-      // padding to keep the Gaussian fall-off from clipping. The default
-      // filter region adds 50% on each side; primitiveUnits inherits the default
-      // userSpaceOnUse-equivalent so stdDeviation is in CSS pixels.
-      ctx.defsParts.push(emitGaussianBlurFilter(fid, sh.blur));
-      filterAttr = ` filter="url(#${fid})"`;
-    }
+      ctx.defsParts.push(emitShadowMaskBlurFilter(fid, sh.blur, shadowColor, blurRegion));
+      return ` filter="url(#${fid})"`;
+    };
     let clipAttr = "";
+    let knockoutMask: string | undefined;
     const background = el.styles.backgroundColor == null ? null : parseColor(el.styles.backgroundColor);
     const roundedBorder = [corners.tl, corners.tr, corners.br, corners.bl].some(
       (corner) => corner.h > 0 || corner.v > 0,
@@ -450,7 +468,7 @@ function paintNormalShadowLayer(
       const hole =
         clipOut.right > clipOut.left && clipOut.bottom > clipOut.top ? deviceRoundedRect(clipOut, device) : null;
       const shape = { left: sx, top: sy, right: sx + sw, bottom: sy + sh2 };
-      const fill = `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"`;
+      const fill = sh.blur > 0 ? 'fill="black"' : `fill="${colorStr(shadowColor)}"`;
       if (sh.blur === 0) {
         for (const piece of hole == null ? [shape] : regionBandPieces(shape, hole)) {
           const n = devicePieceNumber;
@@ -468,12 +486,12 @@ function paintNormalShadowLayer(
         const clipId = ctx.nextClipId("shcut");
         const n = devicePieceNumber;
         ctx.defsParts.push(
-          `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="M${r(sx - sw)} ${r(sy - sh2)}h${r(sw * 3)}v${r(sh2 * 3)}h${r(-sw * 3)}Z M${n(hole.left)} ${n(hole.top)}H${n(hole.right)}V${n(hole.bottom)}H${n(hole.left)}Z" clip-rule="evenodd"/></clipPath>`,
+          `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="M${ko.x} ${ko.y}h${ko.w}v${ko.h}h${ko.back}Z M${n(hole.left)} ${n(hole.top)}H${n(hole.right)}V${n(hole.bottom)}H${n(hole.left)}Z" clip-rule="evenodd"/></clipPath>`,
         );
         snappedClip = ` clip-path="url(#${clipId})"`;
       }
       ctx.svgParts.push(
-        `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill}${filterAttr}${snappedClip}`, shadowShapeNumber)}`,
+        `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill}${blurFilterAttr()}${snappedClip}`, shadowShapeNumber)}`,
       );
       return;
     }
@@ -504,7 +522,7 @@ function paintNormalShadowLayer(
         'fill="black"',
       );
       ctx.defsParts.push(
-        `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${contourShape}</mask>`,
+        `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${ko.x}" y="${ko.y}" width="${ko.w}" height="${ko.h}" style="mask-type:luminance"><rect x="${ko.x}" y="${ko.y}" width="${ko.w}" height="${ko.h}" fill="white"/>${contourShape}</mask>`,
       );
       clipAttr = ` mask="url(#${clipId})"`;
     }
@@ -517,18 +535,17 @@ function paintNormalShadowLayer(
         // Blink builds this clip as an SkAAClip, whose path coverage comes from
         // the run-based accumulator (SkAAClip::setPath → AntiFillPath forceRLE);
         // draw the mask's contour under an AA clip so it takes the same route.
-        // A blurred shadow keeps the earlier contour: its mask-filter route
-        // has no native control proving this one yet.
-        const contour =
-          sh.blur === 0
-            ? aaRouteRRectSvg(ctx, border.x, border.y, border.width, border.height, corners, 'fill="black"')
-            : roundedRectSvg(border.x, border.y, border.width, border.height, corners, 'fill="black"');
+        const contour = aaRouteRRectSvg(ctx, border.x, border.y, border.width, border.height, corners, 'fill="black"');
         ctx.defsParts.push(
-          `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${contour}</mask>`,
+          `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${ko.x}" y="${ko.y}" width="${ko.w}" height="${ko.h}" style="mask-type:luminance"><rect x="${ko.x}" y="${ko.y}" width="${ko.w}" height="${ko.h}" fill="white"/>${contour}</mask>`,
         );
-        clipAttr = ` mask="url(#${clipId})"`;
+        // `SkAAClipBlitter::blitMask` merges the clip's coverage into a blurred
+        // shadow's mask before the color blit (SkAAClip.cpp:1806, Skia
+        // 62efacd3), so for a blur the mask sits between the filter stages.
+        if (sh.blur > 0) knockoutMask = clipId;
+        else clipAttr = ` mask="url(#${clipId})"`;
       } else {
-        const outer = `M${r(sx - sw)} ${r(sy - sh2)}h${r(sw * 3)}v${r(sh2 * 3)}h${r(-sw * 3)}Z`;
+        const outer = `M${ko.x} ${ko.y}h${ko.w}v${ko.h}h${ko.back}Z`;
         const hole = roundedRectPath(border.x, border.y, border.width, border.height, corners);
         ctx.defsParts.push(
           `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${outer} ${hole}" clip-rule="evenodd"/></clipPath>`,
@@ -536,7 +553,7 @@ function paintNormalShadowLayer(
         clipAttr = ` clip-path="url(#${clipId})"`;
       }
     }
-    const fill = `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"`;
+    const fill = sh.blur > 0 ? 'fill="black"' : `fill="${colorStr(shadowColor)}"`;
     // Blink draws a rounded box's shadow under ClipOutContouredRect, an
     // antialiased clip (ClipToBorderEdge, box_painter_base.cc:175-198), unless
     // the inset-by-1 contour of an opaque box is empty. Under an AA clip Skia's
@@ -560,8 +577,17 @@ function paintNormalShadowLayer(
       ctx.svgParts.push(clipAttr === "" ? `${indent}${shape}` : `${indent}<g${clipAttr}>${shape}</g>`);
       return;
     }
+    if (knockoutMask != null) {
+      const ids = { blur: ctx.nextClipId("sh"), blit: ctx.nextClipId("sh") };
+      ctx.defsParts.push(emitShadowMaskBlurStages(ids, sh.blur, shadowColor, blurRegion));
+      const shape = skRRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill} filter="url(#${ids.blur})"`, shadowShapeNumber);
+      ctx.svgParts.push(`${indent}<g filter="url(#${ids.blit})"><g mask="url(#${knockoutMask})">${shape}</g></g>`);
+      return;
+    }
     ctx.svgParts.push(
-      `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill}${filterAttr}${clipAttr}`, shadowShapeNumber)}`,
+      // A blurred shape is the SkRRect Blink fills into the mask; four equal
+      // elliptical corners stay one `<rect rx ry>` (`skRRectSvg`).
+      `${indent}${(sh.blur > 0 ? skRRectSvg : roundedRectSvg)(sx, sy, sw, sh2, shadowCorners, `${fill}${blurFilterAttr()}${clipAttr}`, shadowShapeNumber)}`,
     );
   }
   return;

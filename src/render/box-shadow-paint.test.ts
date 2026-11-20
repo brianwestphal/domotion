@@ -170,6 +170,41 @@ describe("normal box-shadow pixel-snapped border contour", () => {
     expect(blurred.svgParts[0]).not.toContain("shaa");
   });
 
+  // Blink blurs the shadow's coverage mask, merges the antialiased clip-out's
+  // coverage into it (SkAAClipBlitter::blitMask, SkAAClip.cpp:1806 at Skia
+  // 62efacd3), then blits the color (DM-RRWR8E): blur stage, knockout mask,
+  // blit stage, in that order, with the contour on the AA-clip route.
+  it("stages a blurred rounded shadow as coverage blur, knockout, then color blit", () => {
+    const ctx = paintNormal(
+      { ...box(), x: 20, y: 20, styles: { ...box().styles, boxShadow: "rgba(0, 0, 0, 0.5) 4px 4px 8px 0px" } },
+      ROUND5,
+    );
+    const defs = ctx.defsParts.join("");
+    expect(ctx.svgParts[0]).toMatch(
+      /^<g filter="url\(#(sh\d+)\)"><g mask="url\(#shcut\d+\)"><rect x="24" y="24" width="20" height="20" rx="5" fill="black" filter="url\(#(sh\d+)\)" \/><\/g><\/g>$/,
+    );
+    const [, blit, blur] = /^<g filter="url\(#(sh\d+)\)">.*filter="url\(#(sh\d+)\)"/.exec(ctx.svgParts[0])!;
+    // σ = 4 → box window 8 → PlanGauss border 11: the region starts there.
+    expect(defs).toContain(
+      `<filter id="${blur}" filterUnits="userSpaceOnUse" x="13" y="13" width="44" height="44" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="4"/></filter>`,
+    );
+    expect(defs).toMatch(new RegExp(`<filter id="${blit}"[^>]*><feComponentTransfer>.*<feFuncA type="discrete"`));
+    expect(defs).toMatch(/<mask id="shcut\d+"[^>]*>.*clip-path="url\(#shaa\d+\)"/);
+  });
+
+  it("keeps one blur-and-blit filter on a sharp blurred shadow", () => {
+    const ctx = paintNormal(
+      { ...box(), x: 20, y: 20, styles: { ...box().styles, boxShadow: "rgb(255, 0, 0) 4px 4px 8px 0px" } },
+      SHARP,
+    );
+    expect(ctx.svgParts).toHaveLength(1);
+    const defs = ctx.defsParts.join("");
+    expect(defs).toMatch(
+      /<filter id="sh\d+"[^>]*><feGaussianBlur in="SourceAlpha" stdDeviation="4"\/><feComponentTransfer><feFuncR type="linear" slope="0" intercept="1.0020"\/><feFuncG [^>]*intercept="0.0020"\/><feFuncB [^>]*intercept="0.0020"\/><\/feComponentTransfer><\/filter>/,
+    );
+    expect(defs).not.toContain("feFuncA");
+  });
+
   // On an opaque background Blink clips out the contour inset by 1px
   // (box_painter_base.cc:185-187) and skips an empty one.
   it("clips an opaque rounded box's shadow to the contour inset by one pixel", () => {
@@ -418,7 +453,7 @@ describe("non-antialiased sharp shadow clips", () => {
   it("snaps a blurred transparent shadow's knockout hole to device pixels", () => {
     const ctx = run(sharpBox("rgb(255, 0, 0) 4px 0px 3px 0px", "rgba(0, 0, 0, 0)", { x: 0.5, y: 0.5 }));
     expect(ctx.defsParts.join("")).toContain("M21.5 21.5H41.5V41.5H21.5Z");
-    expect(ctx.svgParts[0]).toContain('filter="url(#sh0)"');
+    expect(ctx.svgParts[0]).toMatch(/fill="black" filter="url\(#sh\d+\)"/);
   });
 
   it("keeps the antialiased producer without a device record (negative control)", () => {

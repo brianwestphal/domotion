@@ -36,7 +36,10 @@ describe("range pseudo box-shadow", () => {
       // Track outer (solid offset) shadow, thumb outer blur, and two inset donuts.
       expect(svg).toContain('fill="rgb(148,163,184)"');
       expect(svg.match(/fill-rule="evenodd"/g)?.length).toBe(2);
-      expect(svg).toMatch(/fill="rgba\(0,0,0,0\.5\)" filter="url\(#/);
+      // The thumb's blurred outer shadow is a black shape whose mask-blit
+      // filter writes the 50% alpha table (DM-RRWR8E).
+      expect(svg).toMatch(/fill="black" filter="url\(#/);
+      expect(svg).toMatch(/<feFuncA type="discrete" tableValues="0\.0020 0\.0059 /);
     } finally {
       await browser.close();
     }

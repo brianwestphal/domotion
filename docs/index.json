@@ -6387,10 +6387,13 @@
           "DM-GX7XNJ",
           "DM-PH6EK3",
           "DM-9B7A6G",
-          "DM-0TRG51"
+          "DM-0TRG51",
+          "DM-RRWR8E"
         ],
         "code": [
           "src/render/box-shadow-paint.ts",
+          "src/render/shadow-blur-authority.ts",
+          "src/render/gaussian-blur.ts",
           "src/capture/script/walker/border-paint-snap.ts",
           "tests/box-shadow-border-knockout.e2e.test.ts",
           "tests/background-paint-snap.e2e.test.ts",

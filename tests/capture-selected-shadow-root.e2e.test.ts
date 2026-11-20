@@ -154,10 +154,80 @@ it.each(hardShadows)("retains the selected root for source hard shadow paint %s"
     await output.close();
   }
 });
+// A lone blurred normal layer on a sharp whole-pixel box is admitted where
+// every stage of Skia's mask-filter blur is equal to the producer's
+// (DM-RRWR8E, `shadow-blur-authority.ts`): σ ≥ 2 with an agreeing box window,
+// a shadow rect too small for the analytic BlurRect profile, and color
+// channels of 0 or 255 at any alpha. Each case pins direct, parent and body
+// capture against the native full-RGBA screenshot.
+const blurredShadows: Array<[string, string, string]> = [
+  ["blur-small-box", "4px 4px 4px red", "width:10px;height:10px"],
+  ["blur-box-route", "4px 4px 8px red", ""],
+  ["blur-odd-agreeing-window", "-3px 2px 5px -2px blue", "width:14px;height:14px"],
+  ["blur-alpha-black", "-3px 2px 6px 1px rgba(0,0,0,.4)", "width:10px;height:10px"],
+  ["blur-white-negative-spread", "0 0 12px -1px white", ""],
+  ["blur-window-14", "2px 3px 15px rgba(255,0,255,.7)", ""],
+  ["blur-with-inset", "inset 0 0 0 3px blue,4px 4px 9px red", ""],
+];
+it.each(blurredShadows)("retains the selected root for source blurred shadow paint %s", async (id, shadow, extra) => {
+  const page = await browser.newPage({ viewport });
+  const output = await browser.newPage({ viewport });
+  try {
+    const fixtureHtml = html(shadow, `margin:20px;${extra}`);
+    await page.setContent(fixtureHtml);
+    const sourcePng = await page.screenshot({ omitBackground: true });
+    const witness = retainNativeShadowSource({
+      id: `selected-${id}`,
+      label: `${shadow} ${extra}`.trim(),
+      fixtureFile: import.meta.url,
+      fixtureHtml,
+      browserVersion: browser.version(),
+      viewport,
+      sourcePng,
+    });
+    const source = await rgba(sourcePng);
+    const computed = await page.locator("#only").evaluate((node) => getComputedStyle(node).boxShadow);
+    for (const selector of ["#only", "#container", "body"]) {
+      const tree = await captureElementTree(page, selector, viewport);
+      const owners = walk(tree).filter((node) => node.styles.boxShadow === computed);
+      expect(owners, selector).toHaveLength(1);
+      if (selector === "#only") expect(tree).toEqual(owners);
+      await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(tree, 100, 100));
+      const outputPng = await output.screenshot({ omitBackground: true });
+      witness.output(selector, outputPng);
+      expect(await rgba(outputPng), selector).toEqual(source);
+    }
+    // Negative controls: the direct root must not reproduce the native paint
+    // without its shadow, nor with the blurred layer's radius 2px larger.
+    for (const boxShadow of [
+      "none",
+      computed.replace(/(-?[\d.]+)px (-?[\d.]+)px ([1-9][\d.]*)px/, (_m, x: string, y: string, b: string) => {
+        return `${x}px ${y}px ${Number(b) + 2}px`;
+      }),
+    ]) {
+      expect(boxShadow).not.toBe(computed);
+      const direct = await captureElementTree(page, "#only", viewport);
+      direct[0].styles.boxShadow = boxShadow;
+      await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(direct, 100, 100));
+      expect(await rgba(await output.screenshot({ omitBackground: true })), boxShadow).not.toEqual(source);
+    }
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
 it.each([
   ["none", ""],
+  // Analytic BlurRect profile (sharp rect large enough for filterRectsToNine).
   ["4px 4px 4px red", ""],
+  ["4px 4px 6px 1px red", ""],
+  // Rounded coverage, σ < 2, disagreeing pass rounding (window 7), a color
+  // channel other than 0/255, and two normal layers.
   ["4px 4px 4px red", "border-radius:5px"],
+  ["4px 4px 3px red", "width:10px;height:10px"],
+  ["4px 4px 7px red", "width:10px;height:10px"],
+  ["4px 4px 8px #336699", "width:10px;height:10px"],
+  ["4px 4px 8px red,-4px -4px 8px blue", "width:10px;height:10px"],
   ["inset 0 0 2px red,4px 4px 0 blue", ""],
   ["inset 0 0 3px red,4px 4px 0 blue", ""],
   ["4px 4px 0 red", "border-radius:5px;corner-shape:bevel"],

@@ -1,4 +1,6 @@
 import type { BoxShadow } from "../render/box-shadow.js";
+import { parseColor } from "../render/colors.js";
+import { blurredNormalShadowRefusal } from "../render/shadow-blur-authority.js";
 
 /** Physical corners as [corner-shape longhand, border-radius longhand]. */
 export const CORNER_SHAPE_PROPERTIES = [
@@ -25,6 +27,27 @@ export function curvedCornerShapes(read: (property: string) => string): string[]
   return shapes;
 }
 
+/** Whether every border-radius longhand is zero on both axes, so Blink paints
+ * the box's shadows on its sharp, non-antialiased contour. */
+export function sharpBorderRadii(read: (property: string) => string): boolean {
+  return CORNER_SHAPE_PROPERTIES.every(([, radiusProperty]) =>
+    read(radiusProperty)
+      .trim()
+      .split(/\s+/)
+      .every((value) => (parseFloat(value) || 0) === 0),
+  );
+}
+
+/** The selected root's border box in viewport pixels, and whether its border
+ * radii are all zero (`sharpBorderRadii`). */
+export interface ShadowRootBox {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  sharp: boolean;
+}
+
 /** Whether a selected root whose only paint is its `box-shadow` list may be
  * captured as its own root (rather than flattened to its children).
  *
@@ -38,10 +61,19 @@ export function curvedCornerShapes(read: (property: string) => string): string[]
  * - an inset-only list (the earlier inset admission, kept for compatibility);
  * - any list whose every layer has zero blur, normal and inset mixed.
  *
- * A blurred normal layer stays refused: Blink blurs through an
- * `SkMaskFilter` (analytic `SkBlurMask::BlurRect` for a sharp rect) while the
- * producer uses `feGaussianBlur`, and the sharp case still differs. A blurred
- * inset layer mixed with a normal one is refused for the same reason.
+ * - a list whose only normal layer is blurred, on a sharp whole-pixel box,
+ *   when `blurredNormalShadowRefusal` finds every stage of Skia's mask-filter
+ *   blur equal to the producer's (σ ≥ 2 with a box window whose pass rounding
+ *   agrees, a shadow rect too small for the analytic `SkBlurMask::BlurRect`
+ *   profile, and a color whose channels are 0 or 255; see
+ *   `shadow-blur-authority.ts`). Its other layers may be zero-blur insets.
+ *
+ * Every other blurred normal layer stays refused: a rounded box's
+ * antialiased coverage, a large sharp rect's analytic profile, σ < 2's true
+ * Gaussian, disagreeing pass rounding, other colors, and overlapping blurred
+ * layers (whose legacy-blitter compositing differs from SVG source-over) all
+ * differ natively. A blurred inset layer mixed with a normal one is refused
+ * too: a rounded box's blurred inset still differs natively (DM-CA3QT6).
  *
  * A `corner-shape` other than `round` on a curved corner turns the contour
  * into a ContouredRect path (`ContouredRect::GetCornerCurvature`), and a
@@ -53,14 +85,33 @@ export function curvedCornerShapes(read: (property: string) => string): string[]
  * there, inset-only included: a positive inset through a `bevel`, `squircle`
  * or `notch` corner differs natively at 24-54 pixels (DM-0TRG51), while
  * elliptical and unequal round insets are exact. Pass `curvedCornerShapes`
- * of the root and its computed `border-shape` ("" when unsupported). */
+ * of the root, its computed `border-shape` ("" when unsupported) and its box;
+ * without the box a blurred normal layer is refused. */
 export function shadowOnlyRootIsAdmissible(
   shadows: readonly BoxShadow[],
   cornerShapes: readonly string[],
   borderShape: string,
+  box?: ShadowRootBox,
 ): boolean {
   if (shadows.length === 0) return false;
   if (cornerShapes.some((shape) => shape !== "" && shape !== "round")) return false;
   if (borderShape !== "" && borderShape !== "none") return false;
-  return shadows.every((shadow) => shadow.inset) || shadows.every((shadow) => shadow.blur === 0);
+  if (shadows.every((shadow) => shadow.inset) || shadows.every((shadow) => shadow.blur === 0)) return true;
+  const normals = shadows.filter((shadow) => !shadow.inset);
+  if (normals.length !== 1 || normals[0].blur === 0 || shadows.some((shadow) => shadow.inset && shadow.blur > 0))
+    return false;
+  if (box == null || !box.sharp) return false;
+  const shadow = normals[0];
+  const color = parseColor(shadow.color);
+  return (
+    color != null &&
+    blurredNormalShadowRefusal({
+      border: { left: box.left, top: box.top, right: box.left + box.width, bottom: box.top + box.height },
+      x: shadow.x,
+      y: shadow.y,
+      blur: shadow.blur,
+      spread: shadow.spread,
+      color,
+    }) == null
+  );
 }

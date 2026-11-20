@@ -20,7 +20,7 @@ import type { CaptureScriptArgs, CapturedElement } from "../../types.js";
 import type { ProjectivePaintNodeFact } from "../../projective-owner.js";
 import type { CollapsedBorderFragmentRecord } from "../../collapsed-border-fragment-record.js";
 import type { InsetRootShadowContextRecord } from "../../inset-root-shadow-context.js";
-import { curvedCornerShapes, shadowOnlyRootIsAdmissible } from "../../shadow-root-admission.js";
+import { curvedCornerShapes, shadowOnlyRootIsAdmissible, sharpBorderRadii } from "../../shadow-root-admission.js";
 
 type TextPaintRegistry = {
   indexByElement?: WeakMap<Element, number>;
@@ -621,8 +621,10 @@ export const captureRootElements = (
   // wrapping ordinary transparent containers (DM-TPJX3H). Zero-blur normal and
   // mixed lists are admitted too (DM-9B7A6G): with the source-border knockout,
   // contour coverage and unequal-rrect repairs the producer is byte-exact for
-  // them at an authenticated integral paint space. Blurred normal layers and
-  // non-round corner-shape contours stay refused (`shadowOnlyRootIsAdmissible`),
+  // them at an authenticated integral paint space. A lone blurred normal layer
+  // is admitted only where Skia's mask-filter blur is reproduced exactly
+  // (DM-RRWR8E); other blurred normal layers and non-round corner-shape
+  // contours stay refused (`shadowOnlyRootIsAdmissible`),
   // and the paint-space guard below still refuses fractional or transformed
   // roots.
   const rootShadows = parseBoxShadow(rootCs.boxShadow);
@@ -694,6 +696,16 @@ export const captureRootElements = (
       rootShadows,
       curvedCornerShapes((name) => rootCs.getPropertyValue(name)),
       rootCs.getPropertyValue("border-shape"),
+      (() => {
+        const bounds = root.getBoundingClientRect();
+        return {
+          left: bounds.x,
+          top: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
+          sharp: sharpBorderRadii((name) => rootCs.getPropertyValue(name)),
+        };
+      })(),
     ) &&
     insetRootPaintSpaceIsSupported();
   // DM-365: invalid HTML like <p>foo<div>bar</div>baz</p> auto-closes the <p>
