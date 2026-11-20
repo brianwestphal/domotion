@@ -91,13 +91,21 @@ function warnEmptySurface(attempt: EmptySurfaceAttempt): void {
   );
 }
 
-/** Wait, at most `timeoutMs`, for two animation frames to run in the page. */
+/**
+ * Wait, at most `timeoutMs`, for two animation frames to run in the page.
+ *
+ * The deadline is enforced from Node as well as in the page: a page whose
+ * timers have been replaced (the real-world DOM freeze does this) or whose
+ * `requestAnimationFrame` never calls back would otherwise hold the evaluation
+ * open forever. An in-flight evaluation that loses the race is left to settle
+ * on its own; its result is ignored.
+ */
 export async function waitForPresentedFrame(
   page: Pick<Page, "evaluate">,
   timeoutMs = DEFAULT_FRAME_TIMEOUT_MS,
 ): Promise<PresentedFrameWait> {
   const started = Date.now();
-  const presented = await page.evaluate(
+  const inPage = page.evaluate(
     (deadline) =>
       new Promise<boolean>((resolve) => {
         const timer = setTimeout(() => resolve(false), deadline);
@@ -110,7 +118,19 @@ export async function waitForPresentedFrame(
       }),
     timeoutMs,
   );
-  return { presented, waitMs: Date.now() - started };
+  let nodeTimer: ReturnType<typeof setTimeout> | undefined;
+  const nodeDeadline = new Promise<boolean>((resolve) => {
+    nodeTimer = setTimeout(() => resolve(false), timeoutMs);
+  });
+  try {
+    const presented = await Promise.race([inPage, nodeDeadline]);
+    return { presented, waitMs: Date.now() - started };
+  } finally {
+    clearTimeout(nodeTimer);
+    // A losing evaluation may still reject later (for example when the page
+    // closes); it no longer has an observer.
+    inPage.catch(() => {});
+  }
 }
 
 /**

@@ -5,6 +5,7 @@ import { captureElementTree, elementTreeToSvg, launchChromium } from "../src/ind
 import { probeImageDocumentSettings } from "../src/capture/image-document-settings.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { diagnosticPhase } from "./diagnostic-phase.js";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 
 // An <img> SVG document copies prefersReducedMotion / inForcedColors from the
 // renderer's first ordinary page's Settings (svg_image.cc:901-904,
@@ -107,14 +108,16 @@ describe("<img> SVG document Settings (prefers-reduced-motion / forced-colors)",
         c.expected[0] === "host"
           ? await withPage([], {}, (page) =>
               diagnosticPhase(`${c.name}/host-preference.screenshot`, async () =>
-                blueAt(await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } })),
+                blueAt(await screenshotAfterPresentedFrame(page, { clip: { x: 0, y: 0, width: W, height: H } })),
               ),
             )
           : [false];
       const expected: [boolean, boolean] = [c.expected[0] === "host" ? hostReduce : c.expected[0], c.expected[1]];
       await withPage(c.args, c.context, async (page) => {
         expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(c.pageReduce);
-        const painted = await blueAt(await page.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }));
+        const painted = await blueAt(
+          await screenshotAfterPresentedFrame(page, { clip: { x: 0, y: 0, width: W, height: H } }),
+        );
         expect(painted).toEqual(expected);
         const oracle = await probeImageDocumentSettings(page);
         expect(oracle).toEqual({ prefersReducedMotion: expected[0], forcedColors: expected[1] });
@@ -129,9 +132,9 @@ describe("<img> SVG document Settings (prefers-reduced-motion / forced-colors)",
         try {
           const raster = await rasterBrowser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
           await raster.setContent(`<!doctype html><body style="margin:0">${svg}</body>`, { waitUntil: "load" });
-          expect(await blueAt(await raster.screenshot({ clip: { x: 0, y: 0, width: W, height: H } }))).toEqual(
-            expected,
-          );
+          expect(
+            await blueAt(await screenshotAfterPresentedFrame(raster, { clip: { x: 0, y: 0, width: W, height: H } })),
+          ).toEqual(expected);
         } finally {
           await closeBrowserSafely(rasterBrowser);
         }

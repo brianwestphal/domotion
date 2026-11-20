@@ -12,6 +12,7 @@ import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { primeExternalCssSvgReferences } from "../src/capture/external-css-svg.js";
 import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 
 const SPRITE =
   '<svg xmlns="http://www.w3.org/2000/svg"><clipPath id="clip" clipPathUnits="userSpaceOnUse"><rect width="16" height="32"/></clipPath><mask id="mask" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="16" height="32" fill="white"/></mask></svg>';
@@ -104,8 +105,10 @@ afterAll(async () => {
   await closeBrowserSafely(browser, 15_000);
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
+// A page's first capture can race its first compositor frame on hosted
+// runners, so comparisons capture after a presented frame.
 async function pixels(page: Page) {
-  return sharp(await page.screenshot())
+  return sharp(await screenshotAfterPresentedFrame(page))
     .removeAlpha()
     .raw()
     .toBuffer();
