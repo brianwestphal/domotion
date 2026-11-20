@@ -158,7 +158,22 @@ authenticated:
   so the local rect is the viewport rect minus the summed translations;
 - every ancestor scroller and the document scroller have integral offsets
   (`UpdateScrollTranslation` applies them after the snap, `:3556-3564`);
-- the device pixel ratio, pinch zoom and effective CSS zoom are 1.
+- the device pixel ratio and pinch zoom are 1.
+
+CSS `zoom` is supported. Blink lays out and snaps in zoomed LayoutUnits, using
+the same `ToPixelSnappedRect`. Under standardized zoom, `getBoundingClientRect`
+divides only by the frame's layout zoom factor
+(`AdjustForAbsoluteZoom::AdjustRectMaybeExcludingCSSZoom`,
+`core/layout/adjust_for_absolute_zoom.h`), so the captured rect is already in
+that zoomed space. Two inputs serialize in unzoomed CSS px, so the walk
+multiplies them by the owning element's effective zoom before using them:
+
+- computed `transform` and `translate` translations;
+- `scrollLeft` / `scrollTop` (`AdjustForAbsoluteZoom::AdjustScroll`,
+  `core/dom/element.cc:2757`).
+
+Strict full-RGBA controls at zoom 0.8, 1.25 and nested zoom are in
+`tests/frozen-transform-paint-offset.e2e.test.ts`.
 
 Static planar transforms are frozen by the capture walk (the box is measured
 untransformed and the renderer re-applies the transform as a wrapper), so they

@@ -571,7 +571,7 @@ export const createElementCapture = () => {
       captured.width === rect.width &&
       captured.height === rect.height
     ) {
-      const borderPaintSnap = captureBorderPaintSnap(el, rect, d.effectiveZoomFor(el));
+      const borderPaintSnap = captureBorderPaintSnap(el, rect);
       if (borderPaintSnap != null) captured.borderPaintSnap = borderPaintSnap;
     }
     return assembleCaptureResultPhase({

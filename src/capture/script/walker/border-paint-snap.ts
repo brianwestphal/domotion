@@ -35,7 +35,14 @@
 // style+layout containment and `content-visibility` (they reset the paint
 // offset, `NeedsIsolationNodes`, :570-589), sticky positioning (its own
 // translation node), fractional scroll offsets, a non-unit device pixel ratio,
-// pinch zoom, or a non-unit CSS zoom.
+// or pinch zoom.
+//
+// CSS zoom keeps the proof: Blink lays out and snaps in zoomed LayoutUnits, and
+// under standardized zoom getBoundingClientRect divides only by the frame's
+// layout zoom factor (AdjustRectMaybeExcludingCSSZoom,
+// core/layout/adjust_for_absolute_zoom.h), so the captured rect is already in
+// that zoomed space. Computed translations and scrollLeft/scrollTop serialize
+// unzoomed, so each is multiplied by its element's effective zoom here.
 //
 // The record is relative to the captured border box (edge deltas), so any
 // later whole-tree translation of the captured coordinates keeps it valid.
@@ -121,6 +128,9 @@ export const subpixelPropagation = (transform: string, willChange: string): { x:
   return { x: m.a === 1, y: m.d === 1 };
 };
 
+/** Whole up to the float round-off of a zoom division and re-multiplication. */
+const onWholePixel = (value: number): boolean => Math.abs(value - Math.round(value)) < 1 / 1024;
+
 /**
  * The local paint offset of a box whose live (or frozen-untransformed) border
  * rect is `rect`, or undefined when it cannot be authenticated. Below a
@@ -140,14 +150,25 @@ export const localPaintOffset = (
   if (view == null) return undefined;
   if (view.devicePixelRatio !== 1) return undefined;
   if (view.visualViewport != null && view.visualViewport.scale !== 1) return undefined;
+  // Each chain member's effective zoom (the product of `zoom` from it to the
+  // root): its computed translation serializes in unzoomed CSS px, while
+  // Blink lays out and translates in zoomed px.
+  const chain: Element[] = [];
+  for (let node: Element | null = el; node != null; node = composedParent(node)) chain.push(node);
+  const zooms = new Map<Element, number>();
+  let suffix = 1;
+  for (let index = chain.length - 1; index >= 0; index--) {
+    const own = parseFloat(view.getComputedStyle(chain[index]).zoom);
+    suffix *= isFinite(own) && own > 0 ? own : 1;
+    zooms.set(chain[index], suffix);
+  }
   let tx = 0,
-    ty = 0,
-    zoom = 1;
+    ty = 0;
   let localX: number | null = null,
     localY: number | null = null;
-  for (let node: Element | null = el; node != null; node = composedParent(node)) {
+  for (const node of chain) {
     const cs = view.getComputedStyle(node);
-    zoom *= parseFloat(cs.zoom) || 1;
+    const zoom = zooms.get(node) ?? 1;
     const base = node === el && !includeSelf ? undefined : frozenPaintBases.get(node);
     if (base === "unauthenticated") return undefined;
     if (base != null) {
@@ -165,12 +186,16 @@ export const localPaintOffset = (
     // untransformed); a live one must be a pure translation.
     const translation = pureTranslation(cs);
     if (translation == null) return undefined;
-    tx += translation.x;
-    ty += translation.y;
-    // A descendant's own scroll offset moves its contents, not itself.
-    if (node !== el && (!Number.isInteger(node.scrollLeft) || !Number.isInteger(node.scrollTop))) return undefined;
+    tx += translation.x * zoom;
+    ty += translation.y * zoom;
+    // A descendant's own scroll offset moves its contents, not itself. The
+    // web-exposed offset is divided by the scroller's effective zoom
+    // (`AdjustForAbsoluteZoom::AdjustScroll`, core/dom/element.cc:2757); the
+    // ScrollTranslation applies the zoomed one.
+    if (node !== el && (!onWholePixel(node.scrollLeft * zoom) || !onWholePixel(node.scrollTop * zoom))) {
+      return undefined;
+    }
   }
-  if (zoom !== 1) return undefined;
   if (localX == null || localY == null) {
     const scroller = el.ownerDocument.scrollingElement;
     if (scroller != null && (!Number.isInteger(scroller.scrollLeft) || !Number.isInteger(scroller.scrollTop))) {
@@ -240,9 +265,7 @@ export const frozenPaintShift = (el: Element): { x: number; y: number } | undefi
 export const captureBorderPaintSnap = (
   el: Element,
   rect: { left: number; top: number; width: number; height: number },
-  effectiveZoom: number,
 ): CapturedBorderPaintSnap | undefined => {
-  if (effectiveZoom !== 1) return undefined;
   const local = localPaintOffset(el, rect, true);
   if (local == null) return undefined;
   // Each edge's LayoutUnit::Round delta in local paint space

@@ -320,6 +320,23 @@ it.each([
     mid: "transform:translate(.5px,.25px)",
     snap: [0.5, 0.5, 0.5, 0.5],
   },
+  // Under CSS zoom the captured rect and Blink's layout are both zoomed px;
+  // computed translations are unzoomed, so a live one is scaled by the
+  // translating element's effective zoom (.4px x 1.25 = .5px).
+  { name: "zoomed half-pixel origin", extra: "margin:10px", wrap: "zoom:1.25", snap: [0.5, 0.5, 0.5, 0.5] },
+  {
+    name: "zoom 0.8 LayoutUnit origin",
+    extra: "margin:10.4px",
+    wrap: "zoom:0.8",
+    snap: [-0.3125, -0.3125, -0.3125, -0.3125],
+  },
+  {
+    name: "live translated ancestor under zoom",
+    extra: "margin:10px",
+    wrap: "zoom:1.25",
+    mid: "transition:transform 100s;transform:translate(.4px,.2px)",
+    snap: [0.5, 0.5, 0.5, 0.5],
+  },
   { name: "paint containment", extra: "margin:20.5px;contain:paint", wrap: "", snap: null },
   { name: "isolating ancestor", extra: "margin:20.5px", wrap: "contain:paint", snap: null },
   { name: "sticky position", extra: "margin:20.5px;position:sticky;top:0", wrap: "", snap: null },
