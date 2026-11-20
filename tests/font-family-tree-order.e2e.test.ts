@@ -121,11 +121,18 @@ describe("font-family cascade across tree scopes", () => {
         }
         return out;
       });
-      // The two declaration types paint different faces, so the oracle discriminates.
+      // The two declaration types paint different faces, so the oracle
+      // discriminates — except on Linux, where it cannot by construction:
+      // Playwright's Linux generic table has no per-script entries, so
+      // `GenericFontFamilySettings::GenericFontFamilyForScript` falls back to
+      // the common-script "Times New Roman" for every script
+      // (`generic_font_family_settings.cc:81-107`, Chromium 7d859f27) and the
+      // `initial` keyword names the same family as the literal. No installed
+      // font can separate them there; the type facts below still discriminate.
       const byType = (type: Case["type"]) => new Set(CASES.filter((c) => c.type === type).map((c) => painted[c.id]));
       expect(byType("standard").size).toBe(1);
       expect(byType("concrete").size).toBe(1);
-      expect([...byType("standard")][0]).not.toBe([...byType("concrete")][0]);
+      expect([...byType("standard")][0] !== [...byType("concrete")][0]).toBe(process.platform !== "linux");
 
       // The production fact provider proves each type with no refusal.
       const probe = await captureFontFamilyDeclarationFacts(page);
