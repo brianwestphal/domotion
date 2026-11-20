@@ -529,11 +529,19 @@ function paintImage(
   const capturedImageZoom = el.imageEffectiveZoom;
   const effectiveZoom =
     capturedImageZoom != null && Number.isFinite(capturedImageZoom) && capturedImageZoom > 0 ? capturedImageZoom : 1;
-  // Density cancels for contain/cover. Preserve native decoded resource ratio
-  // instead of the independently truncated DOM natural dimensions (DM-0A2W05).
-  // None/scale-down still require complete density-corrected natural size.
-  const ratioIntrinsic = fit === "contain" || fit === "cover" ? el.imageDecodedIntrinsic : undefined;
-  const objectIntrinsic = ratioIntrinsic ?? intrinsic;
+  // Density cancels for contain/cover, so the native decoded resource ratio
+  // replaces the independently truncated DOM natural dimensions. Scale-down
+  // also takes the decoded SIZE: Blink reverts a srcset image's density before
+  // comparing and painting ("they need to use the underlying image src's
+  // size", LayoutReplaced::ComputeObjectFitAndPositionRect,
+  // core/layout/layout_replaced.cc:444-450, Chromium 7d859f27). Blink reverts
+  // the LayoutUnit natural size by the float density, so this can differ from
+  // its size by under one LayoutUnit (1/64 px). `none` paints at the
+  // density-corrected natural size itself, which only the native probe's
+  // fractional measurement carries.
+  const decodedIntrinsic =
+    fit === "contain" || fit === "cover" || fit === "scale-down" ? el.imageDecodedIntrinsic : undefined;
+  const objectIntrinsic = decodedIntrinsic ?? (fit === "none" ? el.imageLayoutNatural : undefined) ?? intrinsic;
   const paintIntrinsic =
     objectIntrinsic == null
       ? null

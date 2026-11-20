@@ -42,6 +42,7 @@ export const captureImageElement = ({
   let imageSrc = undefined;
   let imageIntrinsic;
   let imageDecodedIntrinsic;
+  let imageLayoutNatural;
   let imageEffectiveZoom;
   let imageBroken;
   let imageAlt;
@@ -101,8 +102,10 @@ export const captureImageElement = ({
                   naturalWidth: number;
                   naturalHeight: number;
                   orientation: string;
-                  width: number;
-                  height: number;
+                  width?: number;
+                  height?: number;
+                  layoutNaturalWidth?: number;
+                  layoutNaturalHeight?: number;
                 }
               >;
             };
@@ -117,7 +120,10 @@ export const captureImageElement = ({
         decoded.naturalHeight === img.naturalHeight &&
         el.ownerDocument.defaultView?.getComputedStyle(el).imageOrientation === decoded.orientation
       ) {
-        imageDecodedIntrinsic = { w: decoded.width, h: decoded.height };
+        if (decoded.width != null && decoded.height != null)
+          imageDecodedIntrinsic = { w: decoded.width, h: decoded.height };
+        if (decoded.layoutNaturalWidth != null && decoded.layoutNaturalHeight != null)
+          imageLayoutNatural = { w: decoded.layoutNaturalWidth, h: decoded.layoutNaturalHeight };
       }
     }
     // Blink applies `image-orientation: none` only to an access-allowed
@@ -235,6 +241,7 @@ export const captureImageElement = ({
     imageSrc,
     imageIntrinsic,
     imageDecodedIntrinsic,
+    imageLayoutNatural,
     imageEffectiveZoom,
     imageBroken,
     imageAlt,

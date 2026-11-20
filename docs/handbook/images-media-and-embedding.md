@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB"]
+tickets: ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB", "DM-FRF6A8"]
 code:
   [
     "src/capture/replaced-media-frame.ts",
@@ -95,11 +95,35 @@ in place and swaps the natural axes for orientations 5-8, so consumers that
 honor EXIF paint the stored grid as Chromium does. Only the containers Chromium
 orients from EXIF are patched: JPEG APP1 (`ImageDecoder::ApplyExifMetadata`)
 and PNG `eXIf` (`SkPngRustCodec`, Skia `fd139e79`). Blink's WebP decoder ignores
-EXIF. AVIF orients through its `irot`/`imir` item properties; the renderer zeroes the `irot` angle in place and swaps axes for quarter turns (DM-4G5NX9), and, because `imir` cannot be neutralized in the bytes, flips the painted image about the `imir` axis (axis 0 top/bottom, axis 1 left/right) to restore the stored grid (DM-FPTFZB). DM-FRF6A8 owns complete fractional natural-size authority for none
-and scale-down: physical decoded dimensions alone cannot recover density. A
-native396w/sizes390px auto-size control lays out389.984375×572.1875 while API
-getters report389×572. Do not infer density from those separately truncated
-integers.
+EXIF. AVIF orients through its `irot`/`imir` item properties; the renderer zeroes the `irot` angle in place and swaps axes for quarter turns (DM-4G5NX9), and, because `imir` cannot be neutralized in the bytes, flips the painted image about the `imir` axis (axis 0 top/bottom, axis 1 left/right) to restore the stored grid (DM-FPTFZB).
+
+Responsive `none` and `scale-down` (DM-FRF6A8) take different natural sizes at
+Chromium `7d859f27`. `none` paints at `LayoutImageResource::GetNaturalDimensions`:
+the decoded size scaled by `1 / candidate.Density()` and kept fractional
+(`layout_image_resource.cc:145-170`, `html_image_element.cc:281-301`); a
+`396w`/`sizes=390px` control lays out 389.984375 × 572.1875 while the API getters
+report 389 × 572. `scale-down` reverts that density before comparing and
+painting ("they need to use the underlying image src's size",
+`LayoutReplaced::ComputeObjectFitAndPositionRect`, `layout_replaced.cc:444-450`):
+a `396w`/`sizes=195px` image in a 700 px box paints at the physical 396 × 581,
+not at its 194 × 286 DOM natural size. The density itself is exposed by no page
+or protocol API, and is never inferred from the truncated getters. For a `none`
+image whose current source came from a `srcset` candidate (the img's own or a
+`<picture>` `<source>`'s), the prepass splits that `srcset` only to find the one
+candidate whose resolved URL is `currentSrc`, then lays out a hidden
+closed-shadow probe `<img>` carrying just that raw URL, its raw descriptor and
+the same raw `sizes`. With one candidate Blink selects nothing; it evaluates
+`sizes` and the density itself, and the probe's auto box is the natural size,
+recorded as `imageLayoutNatural`. The source element is never touched or
+reselected, and the probe reuses the document's already-decoded image (no
+request). The probe refuses, with a diagnostic and the legacy integers, when
+`sizes` contains `auto` (it depends on the source's own box), when the URL
+appears under different descriptors, when the probe host is zoomed, or when the
+probe does not reproduce the source's `currentSrc` and DOM natural size.
+`scale-down` takes `imageDecodedIntrinsic`; Blink reverts the LayoutUnit
+natural size by the float density, so its size can differ from the decoded one
+by under 1/64 px. A src-only image has density 1, so its DOM integers are
+already exact.
 
 The retained Stripe mobile card joins actual browser response bytes and emitted
 SVG bytes by SHA-256

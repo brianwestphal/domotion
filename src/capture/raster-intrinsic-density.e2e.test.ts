@@ -1,7 +1,11 @@
-import type { Browser } from "@playwright/test";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import type { Browser, Page } from "@playwright/test";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { captureElementTree, launchChromium } from "./index.js";
+import { primeDecodedImageRatios } from "./decoded-image-ratio.js";
+import { getLastCaptureWarnings } from "./warnings.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 import { forEachElement } from "../tree-ops/for-each-element.js";
 import { elementTreeToSvg, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
@@ -235,5 +239,211 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
     } finally {
       await page.close();
     }
+  });
+
+  describe("responsive natural size for object-fit none and scale-down", () => {
+    let uri: string;
+    beforeAll(async () => {
+      const bytes = await sharp({ create: { width: 396, height: 581, channels: 3, background: "red" } })
+        .png()
+        .toBuffer();
+      uri = `data:image/png;base64,${bytes.toString("base64")}`;
+    });
+    // Red coverage summed along the middle row and column: the painted object
+    // size in fractional pixels, so 389 versus 389.98 is visible.
+    const redExtent = async (png: Buffer) => {
+      const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      const red = (x: number, y: number) => {
+        const o = (y * info.width + x) * 3;
+        return Math.max(0, Math.min(1, (data[o] - data[o + 1]) / 255));
+      };
+      let w = 0;
+      let h = 0;
+      const my = Math.floor(info.height / 2);
+      const mx = Math.floor(info.width / 2);
+      for (let x = 0; x < info.width; x++) w += red(x, my);
+      for (let y = 0; y < info.height; y++) h += red(mx, y);
+      return { w, h };
+    };
+    const captureImage = async (page: Page) => {
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 800, height: 800 });
+      let image: CapturedElement | undefined;
+      forEachElement(tree, (element) => {
+        if (element.tag === "img") image = element;
+      });
+      expect(image).toBeDefined();
+      return { tree, image: image!, warnings: [...getLastCaptureWarnings()] };
+    };
+    const renderExtent = async (generated: Page, tree: CapturedElement[]) => {
+      await generated.setContent(`<style>body{margin:0}</style>${elementTreeToSvg(tree, 800, 800)}`);
+      await generated.waitForTimeout(50);
+      return redExtent(await generated.screenshot());
+    };
+    const extents = async (page: Page, generated: Page, html: string) => {
+      await page.setContent(`<body style="margin:0;background:white">${html}</body>`);
+      await page.evaluate(() => Promise.all(Array.from(document.images, (image) => image.decode())));
+      const native = await redExtent(await page.screenshot());
+      const { tree, image, warnings } = await captureImage(page);
+      const captured = { ...image };
+      const rendered = await renderExtent(generated, tree);
+      // Negative control: the same tree with only the legacy DOM integers.
+      delete image.imageLayoutNatural;
+      delete image.imageDecodedIntrinsic;
+      const legacy = await renderExtent(generated, tree);
+      return { native, rendered, legacy, image: captured, warnings };
+    };
+
+    it("paints none at Blink's fractional density-corrected natural size", async () => {
+      const page = await browser.newPage({ viewport: { width: 800, height: 800 } });
+      const generated = await browser.newPage({ viewport: { width: 800, height: 800 } });
+      try {
+        for (const [sizes, dom, natural] of [
+          ["390px", { w: 389, h: 572 }, { w: 389.984375, h: 572.1875 }],
+          ["358px", { w: 358, h: 525 }, { w: 357.984375, h: 525.234375 }],
+          ["389.99px", { w: 389, h: 572 }, { w: 389.96875, h: 572.171875 }],
+        ] as const) {
+          const { native, rendered, legacy, image, warnings } = await extents(
+            page,
+            generated,
+            `<img srcset="${uri} 396w" sizes="${sizes}" style="display:block;width:700px;height:700px;object-fit:none">`,
+          );
+          expect(image.imageIntrinsic, sizes).toEqual(dom);
+          expect(image.imageLayoutNatural, sizes).toEqual(natural);
+          expect(warnings.filter((warning) => warning.feature === "raster-intrinsic-ratio")).toEqual([]);
+          // The SVG paints the unsnapped object rect; Chromium paints its pixel
+          // snap (ImagePainter::PaintIntoRect, ToPixelSnappedRect), so native
+          // extents are the natural size rounded through snapped edges.
+          expect(Math.abs(rendered.w - natural.w), sizes).toBeLessThan(0.05);
+          expect(Math.abs(rendered.h - natural.h), sizes).toBeLessThan(0.05);
+          expect(Math.abs(native.w - natural.w), sizes).toBeLessThan(1);
+          expect(Math.abs(native.h - natural.h), sizes).toBeLessThan(1);
+          // Negative control: the truncated DOM integers paint a different size.
+          expect(Math.abs(legacy.w - natural.w) + Math.abs(legacy.h - natural.h), sizes).toBeGreaterThan(0.15);
+        }
+      } finally {
+        await generated.close();
+        await page.close();
+      }
+    }, 60_000);
+
+    it("paints scale-down at the decoded size Blink reverts srcset density to", async () => {
+      const page = await browser.newPage({ viewport: { width: 800, height: 800 } });
+      const generated = await browser.newPage({ viewport: { width: 800, height: 800 } });
+      try {
+        const { native, rendered, legacy, image } = await extents(
+          page,
+          generated,
+          `<img srcset="${uri} 396w" sizes="195px" style="display:block;width:700px;height:700px;object-fit:scale-down">`,
+        );
+        expect(image.imageIntrinsic).toEqual({ w: 194, h: 286 });
+        expect(image.imageDecodedIntrinsic).toEqual({ w: 396, h: 581 });
+        expect(image.imageLayoutNatural).toBeUndefined();
+        // Blink reverts the LayoutUnit natural size by the float density
+        // (580.98 high here) and pixel-snaps the paint rect, so the native
+        // extent may sit one snapped pixel off the decoded size.
+        expect(Math.abs(rendered.w - 396)).toBeLessThan(0.05);
+        expect(Math.abs(rendered.h - 581)).toBeLessThan(0.05);
+        expect(Math.abs(native.w - 396)).toBeLessThan(1);
+        expect(Math.abs(native.h - 581)).toBeLessThanOrEqual(1);
+        expect(legacy.w).toBeLessThan(200);
+      } finally {
+        await generated.close();
+        await page.close();
+      }
+    }, 60_000);
+
+    it("probes only srcset-origin sources and refuses ambiguous or layout-dependent candidates", async () => {
+      const page = await browser.newPage({ viewport: { width: 800, height: 800 } });
+      try {
+        const natural = async (html: string) => {
+          await page.setContent(`<body style="margin:0">${html}</body>`);
+          await page.evaluate(() => Promise.all(Array.from(document.images, (image) => image.decode())));
+          const { image, warnings } = await captureImage(page);
+          return {
+            natural: image.imageLayoutNatural,
+            warnings: warnings
+              .filter((warning) => warning.feature === "raster-intrinsic-ratio")
+              .map((warning) => warning.detail),
+          };
+        };
+        const fit = `style="width:700px;height:700px;object-fit:none"`;
+        // src only: density 1, so the DOM integers are already exact.
+        expect(await natural(`<img src="${uri}" ${fit}>`)).toEqual({ natural: undefined, warnings: [] });
+        // An x descriptor selected from a <picture> <source>.
+        expect(await natural(`<picture><source srcset="${uri} 3x"><img src="data:," ${fit}></picture>`)).toEqual({
+          natural: { w: 131.984375, h: 193.65625 },
+          warnings: [],
+        });
+        // The same URL under two different descriptors is ambiguous.
+        const ambiguous = await natural(`<img src="${uri}" srcset="${uri} 2x" ${fit}>`);
+        expect(ambiguous.natural).toBeUndefined();
+        expect(ambiguous.warnings).toEqual([expect.stringContaining("different descriptors")]);
+        // sizes=auto depends on the source's own box, which a probe cannot share.
+        const auto = await natural(`<img loading="lazy" srcset="${uri} 396w" sizes="auto, 200px" ${fit}>`);
+        expect(auto.natural).toBeUndefined();
+        expect(auto.warnings).toEqual([expect.stringContaining("sizes=auto")]);
+        // Fits other than none never run the probe.
+        expect(
+          await natural(`<img srcset="${uri} 396w" sizes="390px" style="width:70px;height:70px;object-fit:fill">`),
+        ).toEqual({ natural: undefined, warnings: [] });
+      } finally {
+        await page.close();
+      }
+    }, 60_000);
+
+    it("neither mutates nor refetches the source and removes its probe host", async () => {
+      // A real server, not page.route: request interception disables the
+      // caches, so a routed page refetches even what the document's list of
+      // available images would reuse.
+      let requests = 0;
+      const bytes = Buffer.from(uri.split(",")[1], "base64");
+      const server = createServer((request, response) => {
+        if (request.url === "/a.png") {
+          requests++;
+          response.writeHead(200, { "content-type": "image/png", "cache-control": "no-store" });
+          response.end(bytes);
+          return;
+        }
+        response.writeHead(200, { "content-type": "text/html" });
+        response.end(
+          `<body style="margin:0"><img srcset="/a.png 396w" sizes="390px" style="width:700px;height:700px;object-fit:none"></body>`,
+        );
+      });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const { port } = server.address() as AddressInfo;
+      const page = await browser.newPage({ viewport: { width: 800, height: 800 } });
+      try {
+        await page.goto(`http://127.0.0.1:${port}/`);
+        await page.evaluate(() => Promise.all(Array.from(document.images, (image) => image.decode())));
+        await page.evaluate(() => {
+          const records: string[] = [];
+          new MutationObserver((list) => {
+            for (const record of list)
+              if (record.type !== "childList" || record.target !== document.documentElement)
+                records.push(`${record.type}:${record.attributeName ?? ""}`);
+          }).observe(document, { subtree: true, attributes: true, childList: true, characterData: true });
+          Object.defineProperty(window, "__sourceMutations", { value: records });
+        });
+        const prime = await primeDecodedImageRatios(page);
+        try {
+          expect(prime.warnings).toEqual([]);
+          const after = await page.evaluate(() => ({
+            mutations: (window as Window & { __sourceMutations?: string[] }).__sourceMutations,
+            children: document.documentElement.children.length,
+            natural: (() => {
+              const image = document.images[0];
+              return [image.naturalWidth, image.naturalHeight, image.currentSrc];
+            })(),
+          }));
+          expect(after).toEqual({ mutations: [], children: 2, natural: [389, 572, `http://127.0.0.1:${port}/a.png`] });
+        } finally {
+          await prime.dispose();
+        }
+        expect(requests).toBe(1);
+      } finally {
+        await page.close();
+        server.close();
+      }
+    }, 60_000);
   });
 });

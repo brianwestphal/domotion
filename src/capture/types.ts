@@ -2278,6 +2278,16 @@ export interface CapturedElement {
    * authority only: responsive density is deliberately not inferred. */
   imageDecodedIntrinsic?: { w: number; h: number };
   /**
+   * Blink's natural size of a responsive `<img>` whose current source came
+   * from a `srcset` candidate: the decoded size scaled by `1 / density`
+   * (`LayoutImageResource::GetNaturalDimensions`), unzoomed and LayoutUnit-
+   * quantized, measured natively from a single-candidate probe. Unlike the
+   * truncated `naturalWidth`/`naturalHeight` in `imageIntrinsic` it keeps the
+   * fraction (389.984375 rather than 389). Captured only for
+   * `object-fit: none`, which paints at this size.
+   */
+  imageLayoutNatural?: { w: number; h: number };
+  /**
    * Blink `LayoutImage::UpdateNaturalSizeIfNeeded()` passes the element's
    * effective zoom into `ImageResource::GetNaturalDimensions()`. The renderer
    * multiplies `imageIntrinsic` by this value only for concrete object-fit
