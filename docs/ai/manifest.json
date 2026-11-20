@@ -4617,6 +4617,7 @@
         "tests/background-paint-snap.e2e.test.ts",
         "tests/box-shadow-native-contour-authority.e2e.test.ts",
         "tests/capture-selected-shadow-root.e2e.test.ts",
+        "src/capture/shadow-root-admission.ts",
         "src/render/background-inline-paint.ts",
         "src/capture/script/walker/fragmentation.ts",
         "tests/inline-fragment-box-shadow.e2e.test.ts"

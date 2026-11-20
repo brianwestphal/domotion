@@ -16,6 +16,7 @@ tickets:
     "DM-H5DDDE",
     "DM-09GQAV",
     "DM-7P69DC",
+    "DM-9B7A6G",
     "DM-HZPAYY",
     "DM-1C56DE",
   ]
@@ -139,22 +140,16 @@ resize/scrollbar callers supply their own source background rather than an
 unrelated host color. `display:contents` owns no layout box: its selector keeps
 flattening to the real child, and the general producer skips its own shadow.
 
-New outset/mixed shadow-only roots remain unadmitted (DM-09GQAV). The existing
-container/body producer has exact native integer-origin controls covering
-transparent/semitransparent/opaque backgrounds, one-axis/two-axis source
-offsets, positive/negative spread, uniform circular corners, group/shadow
-opacity, multiple/inset layering and non-box flattening. Those passing controls
-do not authenticate fractional paint-space coverage for new selected roots.
-Other independently painted roots still reach their existing producer. Source
-positions, radii and shadow offsets remain unchanged.
-
-New blurred outset/mixed roots stay unadmitted pending DM-RRWR8E: an unchanged
-producer blur control differs at843 pixels, including400 wrong interior pixels
-and443 outer sampling pixels. Border knockout fixes the400 interior pixels;
-the outer443 remain byte-identical to the old output (max alpha difference7).
-That is not full blur parity or a universal raster floor. Elliptical/unequal or
-other unauthenticated corner contours remain unadmitted under DM-H5DDDE; strict
-probe assertions are retained outside ordinary test discovery. Fragmented
+Zero-blur normal and mixed shadow-only roots are admitted (DM-9B7A6G) under
+the paint-space and author-shadow-context guard below; the producer is
+byte-exact natively for sharp, circular, pill, elliptical and unequal contours,
+spread, multiple layers, opacity and mixed lists, for direct, parent and body
+selection (`tests/capture-selected-shadow-root.e2e.test.ts`).
+`shadowOnlyRootIsAdmissible` (`src/capture/shadow-root-admission.ts`) refuses a
+blurred normal layer, or a blurred inset mixed with a normal one (DM-RRWR8E:
+`SkMaskFilter` blur versus `feGaussianBlur`, 443 pixels for `4px 4px 4px`),
+and a normal layer through a non-round curved `corner-shape` or a
+`border-shape`, neither of which the producer draws. Fractional or transformed roots stay refused. Fragmented
 clone/slice shadows paint per fragment with Blink's sides ([doc 277](../277-shadow-contour-authority.md#fragmented-box-shadows-dm-4rgp8y), DM-4RGP8Y).
 
 DM-H49Z50 and DM-HZPAYY own

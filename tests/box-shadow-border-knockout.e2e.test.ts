@@ -185,15 +185,18 @@ it.each(cases)(
             })
           : undefined;
       const source = await rgba(sourcePng);
-      // New shadow-only outset/mixed selected roots remain refused while
-      // paint-space/contour authority is unresolved. Keep complete native pixel
-      // assertions on the existing container/body producer, plus owned BG roots.
-      if (!("ownsOtherRootPaint" in sample && sample.ownsOtherRootPaint)) {
+      // A shadow-only selected root is admitted at an integral, untransformed
+      // paint space (DM-9B7A6G) and must then match the same native pixels;
+      // a fractional or translated one stays refused, while the container,
+      // body and owned-background roots keep their complete assertions.
+      const owns = "ownsOtherRootPaint" in sample && sample.ownsOtherRootPaint;
+      const directShadowRoot = !/(?:margin|width|left|top):[^;]*\.\d|translate/.test(
+        `${sample.extra ?? ""}${"wrap" in sample ? sample.wrap : ""}`,
+      );
+      if (!owns && !directShadowRoot) {
         expect(await captureElementTree(page, "#only", viewport)).toEqual([]);
       }
-      for (const selector of "ownsOtherRootPaint" in sample && sample.ownsOtherRootPaint
-        ? ["#only", "#container", "body"]
-        : ["#container", "body"]) {
+      for (const selector of owns || directShadowRoot ? ["#only", "#container", "body"] : ["#container", "body"]) {
         const captured = await captureElementTree(page, selector, viewport);
         expect(captured, selector).toHaveLength(1);
         await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(captured, 100, 100));
@@ -209,22 +212,20 @@ it.each(cases)(
   30000,
 );
 
-it.each([
-  "border-radius:8px / 4px",
-  "border-radius:8px 0 3px 5px",
-  "border-radius:50%",
-  "border-radius:5px;corner-shape:bevel",
-])("retains the selected-root boundary for an unauthenticated contour: %s", async (extra) => {
-  const page = await browser.newPage({ viewport });
-  try {
-    await page.setContent(
-      `<style>body{margin:0}#only{width:20px;height:20px;margin:20px;box-shadow:4px 4px 0 red;${extra}}</style><div id="only"></div>`,
-    );
-    expect(await captureElementTree(page, "#only", viewport)).toEqual([]);
-  } finally {
-    await page.close();
-  }
-});
+it.each(["border-radius:5px;corner-shape:bevel", "border-radius:50%;corner-shape:squircle"])(
+  "retains the selected-root boundary for a non-round corner-shape contour: %s",
+  async (extra) => {
+    const page = await browser.newPage({ viewport });
+    try {
+      await page.setContent(
+        `<style>body{margin:0}#only{width:20px;height:20px;margin:20px;box-shadow:4px 4px 0 red;${extra}}</style><div id="only"></div>`,
+      );
+      expect(await captureElementTree(page, "#only", viewport)).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  },
+);
 
 it("knocks out the complete source interior after blur while blurred-root admission stays held", async () => {
   const page = await browser.newPage({ viewport }),

@@ -20,6 +20,7 @@ import type { CaptureScriptArgs, CapturedElement } from "../../types.js";
 import type { ProjectivePaintNodeFact } from "../../projective-owner.js";
 import type { CollapsedBorderFragmentRecord } from "../../collapsed-border-fragment-record.js";
 import type { InsetRootShadowContextRecord } from "../../inset-root-shadow-context.js";
+import { curvedCornerShapes, shadowOnlyRootIsAdmissible } from "../../shadow-root-admission.js";
 
 type TextPaintRegistry = {
   indexByElement?: WeakMap<Element, number>;
@@ -603,11 +604,13 @@ export const captureRootElements = (
   const rootHasBg = isPaintedColor(rootBg) || rootHasBgImage;
   // BoxPainterBase paints inset shadows independently of a background or
   // border. Source-computed shadow layers reach the existing producer without
-  // wrapping ordinary transparent containers (DM-TPJX3H). DM-J2WVF3 repairs
-  // the existing outset producer's source-border knockout, but new outset/mixed
-  // root admission stays held (DM-09GQAV): fractional source paint geometry
-  // (DM-WYY3ZZ) and contour coverage (DM-ZNQ7PH) still need native authority.
-  // An integer-origin offset fixture alone cannot authenticate every root.
+  // wrapping ordinary transparent containers (DM-TPJX3H). Zero-blur normal and
+  // mixed lists are admitted too (DM-9B7A6G): with the source-border knockout,
+  // contour coverage and unequal-rrect repairs the producer is byte-exact for
+  // them at an authenticated integral paint space. Blurred normal layers and
+  // non-round corner-shape contours stay refused (`shadowOnlyRootIsAdmissible`),
+  // and the paint-space guard below still refuses fractional or transformed
+  // roots.
   const rootShadows = parseBoxShadow(rootCs.boxShadow);
   const insetRootPaintSpaceIsSupported = () => {
     const shadowContext =
@@ -673,7 +676,11 @@ export const captureRootElements = (
   const rootHasShadow =
     rootCs.display !== "contents" &&
     rootShadows.length > 0 &&
-    rootShadows.every((shadow) => shadow.inset) &&
+    shadowOnlyRootIsAdmissible(
+      rootShadows,
+      curvedCornerShapes((name) => rootCs.getPropertyValue(name)),
+      rootCs.getPropertyValue("border-shape"),
+    ) &&
     insetRootPaintSpaceIsSupported();
   // DM-365: invalid HTML like <p>foo<div>bar</div>baz</p> auto-closes the <p>
   // when the <div> opens, leaving "baz" as a direct text-node child of <body>.

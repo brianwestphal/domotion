@@ -21,6 +21,7 @@ tickets:
     "DM-4RGP8Y",
     "DM-GX7XNJ",
     "DM-PH6EK3",
+    "DM-9B7A6G",
   ]
 code:
   [
@@ -30,6 +31,7 @@ code:
     "tests/background-paint-snap.e2e.test.ts",
     "tests/box-shadow-native-contour-authority.e2e.test.ts",
     "tests/capture-selected-shadow-root.e2e.test.ts",
+    "src/capture/shadow-root-admission.ts",
     "src/render/background-inline-paint.ts",
     "src/capture/script/walker/fragmentation.ts",
     "tests/inline-fragment-box-shadow.e2e.test.ts",
@@ -79,7 +81,9 @@ opaque/semitransparent backgrounds. Genuine integer offsets and nonzero spread
 retain their existing exact controls. No general contour, geometry or tolerance
 change is part of that repair.
 
-Bounded adversaries also prove why new outset/mixed admission stays held.
+Bounded adversaries also proved why new outset/mixed admission was held until
+the producer repairs below; DM-9B7A6G later admitted zero-blur normal and mixed
+roots at an integral paint space (handbook, "Selected shadow-only roots").
 At integer source origin, circular subpixel offsets `(0.5,0)` and `(0,0.5)`
 retain3/4 differing pixels (maximum alpha4/10). An inverse clipPath replacement
 regresses the exact integer-offset controls and is rejected. Separately,

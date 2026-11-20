@@ -4,6 +4,7 @@ import { isPaintedColor } from "../utils/transparent-background.js";
 import { withTimeout } from "../utils/with-timeout.js";
 import { detachQuietly, withCdpSession } from "./cdp-lifecycle.js";
 import { privateCaptureKey } from "./private-key.js";
+import { CORNER_SHAPE_PROPERTIES, curvedCornerShapes, shadowOnlyRootIsAdmissible } from "./shadow-root-admission.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import type { CaptureWarning } from "./types.js";
 
@@ -116,11 +117,11 @@ export async function prepareInsetRootShadowContext(
   };
   const operation = (async (): Promise<"not-candidate" | "ready"> => {
     const style = await page.evaluate(
-      ({ property, selector }) => {
+      ({ property, selector, cornerProperties }) => {
         const root = document.querySelector(selector);
         if (!root) return null;
         const cs = getComputedStyle(root);
-        if (!cs.boxShadow.includes("inset")) return null;
+        if (cs.boxShadow === "none" || cs.boxShadow === "") return null;
         const host = globalThis as typeof globalThis & Record<string, InsetRootShadowContextRecord | undefined>;
         host[property] = {
           source: "domotion-inset-root-shadow-context-v1",
@@ -145,9 +146,10 @@ export async function prepareInsetRootShadowContext(
           text: Array.from(root.childNodes).some(
             (node) => node.nodeType === 3 && (node.textContent ?? "").trim() !== "",
           ),
+          corners: Object.fromEntries(cornerProperties.map((name) => [name, cs.getPropertyValue(name)])),
         };
       },
-      { property: key, selector },
+      { property: key, selector, cornerProperties: [...CORNER_SHAPE_PROPERTIES.flat(), "border-shape"] },
     );
     initialComplete = true;
     tagged = style != null;
@@ -155,8 +157,11 @@ export async function prepareInsetRootShadowContext(
     const shadows = parseBoxShadow(style?.boxShadow ?? "none");
     if (
       !style ||
-      shadows.length === 0 ||
-      shadows.some((shadow) => !shadow.inset) ||
+      !shadowOnlyRootIsAdmissible(
+        shadows,
+        curvedCornerShapes((name) => style.corners[name] ?? ""),
+        style.corners["border-shape"] ?? "",
+      ) ||
       isPaintedColor(style.background) ||
       !["", "none"].includes(style.backgroundImage) ||
       style.border ||
