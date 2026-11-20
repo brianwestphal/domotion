@@ -11,6 +11,7 @@ import { capturedFontFamilyCss } from "../src/font-family-stack.js";
 import { getFontInstance, resolveFontKey, withRenderTextMode } from "../src/render/font-resolution.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { linuxApplicationLocale } from "../src/test-support/linux-application-locale.js";
 
 /**
  * `font-locale: auto` selects with Blink's default locale — the launched
@@ -60,7 +61,10 @@ async function diffPct(page: Page, svg: string, source: Buffer): Promise<number>
  * environment (`ui/base/l10n/l10n_util.cc:508-577`, Chromium 7d859f27), and the
  * zygote-retitled renderer argv is cut before the appended `--lang`, so the
  * authority reads it from a utility child (DM-MGQCRJ). Each Linux case sets the
- * locale environment that yields the same language as the `--lang` case.
+ * locale environment that yields the same language as the `--lang` case; the
+ * exact tag then depends on which `locales/*.pak` the build ships
+ * (`linuxApplicationLocale`): `ja` on Chrome for Testing x64, `ja-JP` on
+ * Playwright's arm64 build, which ships none.
  */
 const linuxEnv = (lang: string, language: string) => ({
   env: { ...process.env, LANG: `${lang}.UTF-8`, LC_ALL: `${lang}.UTF-8`, LANGUAGE: language },
@@ -68,17 +72,17 @@ const linuxEnv = (lang: string, language: string) => ({
 
 describe("renderer default font locale (DM-JRG1BD)", () => {
   it.each([
-    ["ja", "ja", "ja_JP", "ja-JP"],
-    ["zh-TW", "zh-TW", "zh_TW", "zh-TW"],
-    ["en_US", "en-US", "en_US", "en-US"],
-  ])("routes font-locale auto through the launched renderer's --lang=%s", async (lang, macWin, env, linux) => {
-    const expected = process.platform === "linux" ? linux : macWin;
+    ["ja", "ja", "ja_JP"],
+    ["zh-TW", "zh-TW", "zh_TW"],
+    ["en_US", "en-US", "en_US"],
+  ])("routes font-locale auto through the launched renderer's --lang=%s", async (lang, macWin, env) => {
     // A propagated duplicate must not win: the browser appends its own --lang last.
     const browser = await launchChromium({
       args: [`--lang=${lang}`],
       ...(process.platform === "linux" ? linuxEnv(env, env) : {}),
     });
     try {
+      const expected = process.platform === "linux" ? await linuxApplicationLocale(browser, env) : macWin;
       const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
       await page.setContent(html);
       const authority = await rendererDefaultLocaleForPage(page);

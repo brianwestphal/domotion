@@ -11,6 +11,7 @@ import { capturedFontFamilyCss } from "../src/font-family-stack.js";
 import { getFontInstance, resolveFontKey, withRenderTextMode } from "../src/render/font-resolution.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { linuxApplicationLocale } from "../src/test-support/linux-application-locale.js";
 
 /**
  * DM-XWGRJC: the two capture-side consumers of the font-selection language —
@@ -78,8 +79,9 @@ describe("renderer default font locale consumers (DM-XWGRJC)", () => {
         ? { env: { ...process.env, LANG: "ja_JP.UTF-8", LC_ALL: "ja_JP.UTF-8", LANGUAGE: "ja_JP" } }
         : {}),
     });
-    const expected = process.platform === "linux" ? "ja-JP" : "ja";
     try {
+      // `ja` on Chrome for Testing x64, `ja-JP` on a build without locale paks.
+      const expected = process.platform === "linux" ? await linuxApplicationLocale(browser, "ja_JP") : "ja";
       const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
       await page.setContent(html);
       const authority = await rendererDefaultLocaleForPage(page);
