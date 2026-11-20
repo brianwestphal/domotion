@@ -400,10 +400,12 @@ export async function rasterizeExternalCssSvgSurfaces(
                 ),
             );
             isolation.ancestorText = ancestorText;
-            // Hiding inherited text paint restyles the owner subtree, and a
-            // restyled external CSS mask whose bytes Chromium could not refetch
-            // stops painting (measured: the stamp comes back fully transparent).
-            // Clip paths survive the restyle; masks under ancestor text refuse.
+            // Hiding inherited text paint needs a pin rule matched on the owner,
+            // and a CSP-blocked external CSS mask whose owner gains a newly
+            // matched (or inline) declaration stops painting natively (measured:
+            // the stamp comes back fully transparent; an inherited-only change
+            // or a plain re-attach keeps it). Clip paths survive; masks under
+            // ancestor text refuse.
             if (
               ancestorText &&
               [owner, ...owner.querySelectorAll("*")].some((element) => getComputedStyle(element).maskImage !== "none")

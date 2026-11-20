@@ -266,8 +266,11 @@ pseudos, pins the owner to its own computed values (colors equal to `color` as
 `currentcolor`, which inherits as a keyword), and verifies the ancestor text
 channels after isolation and after readback; the owner-subtree fingerprint
 catches any inherited change. A **mask** owner under ancestor text refuses: the
-restyle makes a CSP-blocked external mask stop painting natively, so the stamp
-would come back transparent.
+owner pin is a newly matched declaration on the owner, and a CSP-blocked
+external mask whose owner gains one (by rule or inline style) stops painting
+natively, so the stamp would come back transparent. An inherited-only change on
+an ancestor kept the mask, as did re-attaching the plain fixture owner into
+opacity wrappers (DM-3GE1EK measurement).
 
 Ancestor `opacity` is supported (DM-N933MV). The renderer already emits each
 captured ancestor's opacity group around the owner's `<image>`, so the stamp

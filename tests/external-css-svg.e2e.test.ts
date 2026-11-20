@@ -114,8 +114,9 @@ beforeAll(async () => {
               : "/sprite.svg";
       const fragment = url.searchParams.get("fragment") === "missing" ? "missing" : kind;
       const owner = `<div id="box" style="width:32px; height:32px; background:red; ${property}:url(${asset}#${fragment}) !important; --sentinel: author">${url.searchParams.has("compound") ? '<div style="width:32px;height:32px;background:blue;mask-image:url(/child.svg#mask)"></div>' : ""}</div>`;
-      // Static ancestor text and a list marker (re-attaching a CSP-blocked
-      // external mask in script stops its native paint).
+      // Static ancestor text and a list marker. Building it in script would
+      // restyle the owner, and a CSP-blocked external mask whose owner gains a
+      // newly matched declaration stops painting natively.
       response.end(
         url.searchParams.get("ancestor") === "list"
           ? `<!doctype html><body style="margin:0;background:white"><ul style="margin:0;padding-left:40px;color:green;font:16px sans-serif"><li style="text-shadow:1px 1px blue">${owner}ancestor text</li></ul>`
@@ -287,6 +288,13 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
           outer.appendChild(inner);
           inner.appendChild(element);
         });
+        // Settle before the native reference so a lost external mask fails the
+        // discriminator below deterministically instead of racing the screenshot.
+        // Measured: this re-attached owner keeps its mask after 0-1000 ms.
+        await page.evaluate(
+          () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+        );
+        await page.waitForTimeout(200);
         const before = await pixels(page);
         // Native discriminator: 0.3-alpha red over white inside the clip/mask,
         // untouched white outside it.
