@@ -18,7 +18,8 @@
  * The live Chrome half — that Chrome's painted geometry moves the same way, and
  * that `identifyFace` cannot see any of it — is `variable-axis-oracle-pair.e2e.test.ts`.
  */
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { readFile, readdir } from "node:fs/promises";
 import { beforeAll, describe, expect, it } from "vitest";
 import * as fontkit from "fontkit";
 import { clearFontResolutionCaches } from "@domotion/text-engine/testing";
@@ -40,23 +41,26 @@ const html = existsSync(DEFAULT_FIXTURE) ? readFileSync(DEFAULT_FIXTURE, "utf-8"
 const TEXT = "Hamburgefonstiv";
 
 describe("the fixture", () => {
-  it("keeps production TypeScript free of literal NUL bytes", () => {
+  it("keeps production TypeScript free of literal NUL bytes", async () => {
     // Oxc accepted the NUL embedded in shaping-conformance.ts on macOS/Linux,
     // but rejected that module during Vitest import on Windows before any test
     // was collected. `\\0` produces the same runtime separator portably.
-    const offenders: string[] = [];
-    const walk = (dir: string): void => {
-      for (const name of readdirSync(dir)) {
-        const path = `${dir}/${name}`;
-        if (statSync(path).isDirectory()) {
-          walk(path);
-          continue;
-        }
-        if (/\.tsx?$/.test(name) && readFileSync(path).includes(0)) offenders.push(path);
-      }
-    };
-    walk("src");
-    walk("tools");
+    // The ~1,000 files are read concurrently: sequential blocking reads once
+    // took this scan past 50 s on a heavily loaded host, where each read can
+    // wait to be rescheduled.
+    const sources = (
+      await Promise.all(
+        ["src", "tools"].map(async (dir) =>
+          (await readdir(dir, { recursive: true, withFileTypes: true }))
+            .filter((entry) => entry.isFile() && /\.tsx?$/.test(entry.name))
+            .map((entry) => `${entry.parentPath}/${entry.name}`),
+        ),
+      )
+    ).flat();
+    const offenders = (
+      await Promise.all(sources.map(async (path) => ((await readFile(path)).includes(0) ? path : null)))
+    ).filter((path) => path != null);
+    expect(sources.length).toBeGreaterThan(500);
     expect(offenders).toEqual([]);
   });
 
