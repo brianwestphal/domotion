@@ -1,10 +1,8 @@
-import { emitGaussianBlurFilter } from "./gaussian-blur.js";
 import { openDashArray, isThinDotted } from "./stroke-style.js";
 import { paintBlinkCurvedDashedDottedBorder, paintPerSideBorder } from "./border-paint.js";
 import type { CapturedBackgroundImage, CapturedElement } from "../capture/types.js";
 import { resolveBackgroundAttachment, intersectBackgroundRects } from "./background-attachment.js";
 import {
-  outsetCornerRadiiForShadow,
   insetCornerRadii,
   roundedRectSvg,
   parseCornerRadii,
@@ -13,6 +11,7 @@ import {
   snappedInsetBox,
 } from "./borders.js";
 import { parseBoxShadow } from "./box-shadow.js";
+import { paintBoxShadow, paintInsetBoxShadow, type ShadowBox, type ShadowFragment } from "./box-shadow-paint.js";
 import { parseColor, colorStr, sameColor, INVISIBLE_ALPHA } from "./colors.js";
 import { splitTopLevelCommas } from "./css-tokens.js";
 import { r } from "./format.js";
@@ -470,6 +469,76 @@ export function deriveFragmentCorners(
       };
 }
 
+/**
+ * The box one fragment's shadows are painted from: the fragment rect with the
+ * element's shadow, border widths and background, and the sides Blink's
+ * `SidesToInclude()` keeps — every side for `clone`, and for `slice` only the
+ * box's starting side on its first fragment and its ending side on its last
+ * (the same sides the fragment's borders paint). The fragment carries the
+ * element's user→device translation: it is painted in the same space.
+ */
+export function fragmentShadowBox(
+  element: CapturedElement,
+  f: { x: number; y: number; width: number; height: number },
+  clone: boolean,
+  isFirst: boolean,
+  isLast: boolean,
+  fragsAxisIsBlock: boolean,
+): { box: ShadowBox; fragment: ShadowFragment } {
+  const s = element.styles;
+  // Blink snaps each fragment's paint rect (`PixelSnappedContouredBorder` of
+  // the fragment's own rect, inline_box_fragment_painter.cc:189-213) in the
+  // element's local paint space. The element's record holds `round(L) - L`
+  // per edge; a fragment edge at viewport offset `d` from the element's edge
+  // sits at `L + d` locally, so its delta is `round(d - δ) - (d - δ)` with
+  // δ the element's delta (round(L) is a whole pixel).
+  const snap = element.borderPaintSnap;
+  const authentic = snap != null && snap.width === element.width && snap.height === element.height;
+  const edgeDelta = (offset: number, delta: number) => {
+    const local = Math.round((offset - delta) * 64) / 64;
+    return Math.round(local) - local;
+  };
+  const fragmentSnap = authentic
+    ? {
+        source: snap.source,
+        left: edgeDelta(f.x - element.x, snap.left),
+        top: edgeDelta(f.y - element.y, snap.top),
+        right: edgeDelta(f.x + f.width - element.x, snap.left),
+        bottom: edgeDelta(f.y + f.height - element.y, snap.top),
+        width: f.width,
+        height: f.height,
+      }
+    : undefined;
+  return {
+    box: {
+      x: f.x,
+      y: f.y,
+      width: f.width,
+      height: f.height,
+      ...(fragmentSnap == null ? {} : { borderPaintSnap: fragmentSnap }),
+      styles: {
+        boxShadow: s.boxShadow,
+        backgroundColor: s.backgroundColor,
+        borderTopWidth: s.borderTopWidth,
+        borderRightWidth: s.borderRightWidth,
+        borderBottomWidth: s.borderBottomWidth,
+        borderLeftWidth: s.borderLeftWidth,
+      },
+    },
+    fragment: {
+      // An inline's fragments run in line order; its starting side is the
+      // right one in a right-to-left inline (horizontal writing modes).
+      sides: {
+        top: clone || (fragsAxisIsBlock ? isFirst : true),
+        bottom: clone || (fragsAxisIsBlock ? isLast : true),
+        left: clone || (fragsAxisIsBlock ? true : s.direction === "rtl" ? isLast : isFirst),
+        right: clone || (fragsAxisIsBlock ? true : s.direction === "rtl" ? isFirst : isLast),
+      },
+      ...(element.borderPaintSnap?.device == null ? {} : { device: element.borderPaintSnap.device }),
+    },
+  };
+}
+
 /** Per-element invariants a wrapped-inline / multi-column block needs to paint
  *  each of its fragments (extracted from `renderInlineFragments`, DM-1458). */
 interface InlineFragmentCtx {
@@ -534,30 +603,19 @@ export function paintInlineFragment(
     bgAttachmentLayers,
   } = ctx;
 
-  // Outset box-shadow. Clone applies shadow to each fragment; slice
-  // applies it to the joined shape which would need per-fragment
-  // clipping to express in SVG — skip for slice (rare on wrapped
-  // inlines that aren't using `clone`).
-  if (clone) {
-    for (let si = shadows.length - 1; si >= 0; si--) {
-      const sh = shadows[si];
-      if (sh.inset) continue;
-      const sx = f.x + sh.x - sh.spread;
-      const sy = f.y + sh.y - sh.spread;
-      const sw = f.width + sh.spread * 2;
-      const sh2 = f.height + sh.spread * 2;
-      if (sw <= 0 || sh2 <= 0) continue;
-      const shadowCorners = outsetCornerRadiiForShadow(fragCorners, sh.spread);
-      let filterAttr = "";
-      if (sh.blur > 0) {
-        const fid = paintCtx.nextClipId("sh");
-        defsParts.push(emitGaussianBlurFilter(fid, sh.blur));
-        filterAttr = ` filter="url(#${fid})"`;
-      }
-      svgParts.push(
-        `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}`)}`,
-      );
-    }
+  // Box shadows. Blink paints every inline box fragment's decorations from
+  // that fragment's own rect (InlineBoxFragmentPainterBase::
+  // PaintBoxDecorationBackground, inline_box_fragment_painter.cc:427-444,
+  // Chromium 7d859f27): the normal shadow first, then the background, then
+  // the inset shadow, each through the shared BoxPainterBase producer with
+  // the fragment's SidesToInclude(). Clone includes every side; slice drops
+  // the sides where the box continues, which ClipToSides and
+  // AdjustRectForSideClipping turn into an open shadow edge
+  // (box_painter_base.cc:200-250).
+  const shadowFragment =
+    shadows.length > 0 ? fragmentShadowBox(element, f, clone, isFirst, isLast, fragsAxisIsBlock) : null;
+  if (shadowFragment != null) {
+    paintBoxShadow(paintCtx, shadowFragment.box, fragCorners, indent, shadowFragment.fragment);
   }
 
   // Background color.
@@ -674,6 +732,11 @@ export function paintInlineFragment(
         )}`,
       );
     }
+  }
+
+  // The inset shadow paints above the background and below the border.
+  if (shadowFragment != null) {
+    paintInsetBoxShadow(paintCtx, shadowFragment.box, fragCorners, indent, shadowFragment.fragment);
   }
 
   // Per-side borders. The suppressed sides depend on fragmentation axis:

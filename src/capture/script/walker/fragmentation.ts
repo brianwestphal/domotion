@@ -237,7 +237,12 @@ export const detectInlineFragments = (
     captured.styles.textDecorationLine != null &&
     captured.styles.textDecorationLine !== "" &&
     captured.styles.textDecorationLine !== "none";
-  var _hasPaint = _hasBg || _hasBgImage || _hasBorder || _hasMaskImage;
+  // Blink paints a box shadow per fragment too (InlineBoxFragmentPainterBase::
+  // PaintBoxDecorationBackground, inline_box_fragment_painter.cc:427-444,
+  // Chromium 7d859f27), so a shadow-only inline needs its fragments as well.
+  var _hasShadow =
+    captured.styles.boxShadow != null && captured.styles.boxShadow !== "" && captured.styles.boxShadow !== "none";
+  var _hasPaint = _hasBg || _hasBgImage || _hasBorder || _hasMaskImage || _hasShadow;
   // DM-7NN5E6 / DM-9JNAVF: a focus ring and a normal outline both outline the
   // union of the line fragments (ComputeRightAnglePath), so they need them
   // even without box paint.

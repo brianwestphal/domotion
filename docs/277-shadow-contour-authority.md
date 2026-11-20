@@ -18,6 +18,7 @@ tickets:
     "DM-S2EA2P",
     "DM-6A9J20",
     "DM-8PMQPX",
+    "DM-4RGP8Y",
   ]
 code:
   [
@@ -27,6 +28,9 @@ code:
     "tests/background-paint-snap.e2e.test.ts",
     "tests/box-shadow-native-contour-authority.e2e.test.ts",
     "tests/capture-selected-shadow-root.e2e.test.ts",
+    "src/render/background-inline-paint.ts",
+    "src/capture/script/walker/fragmentation.ts",
+    "tests/inline-fragment-box-shadow.e2e.test.ts",
   ]
 aliases: ["docs/277-shadow-contour-authority.md", "doc-277"]
 ---
@@ -458,7 +462,65 @@ Remaining gaps:
 - **Negative-spread inset holes.** These get rounded corners that Blink's
   coverage-corrected outset keeps sharp.
 
-### Blurred shadows (DM-RRWR8E)
+## Fragmented box shadows (DM-4RGP8Y)
+
+A box broken across line boxes (a wrapped inline) or columns (a multi-column
+block) is painted **per fragment**, never as one joined shape.
+`InlineBoxFragmentPainterBase::PaintBoxDecorationBackground`
+(`inline_box_fragment_painter.cc:427-444`, Chromium `7d859f27`) paints each
+fragment's normal shadow, then its fill layers, then its inset shadow. Each
+shadow comes from that fragment's own rect, through the shared `BoxPainterBase`
+producer, with the fragment's `SidesToInclude()`:
+
+- **Clone** includes every side, so each fragment is a whole box: pixel-snapped
+  rect, `ClipToBorderEdge` knockout, and the clips above.
+- **Slice** drops the sides where the box continues. `ClipToSides` keeps the
+  border rect outset by `ShadowData::RectOutsets()` on included sides only
+  (`ceil(3σ) + spread ∓ offset`, `shadow_data.cc:32-43`), as a non-antialiased
+  `Clip(RectF)`. `AdjustRectForSideClipping` stretches the fill rect, or the
+  inset hole, past each excluded side by the offset and blur
+  (`box_painter_base.cc:200-250`). An inset fragment also drops the border
+  widths of its excluded sides (`PixelSnappedContouredInnerBorder(style, rect,
+sides)`).
+
+Measured on unchanged `main` (macOS, full RGBA, transparent text):
+
+| case                                      | pixels off | cause                                                         |
+| ----------------------------------------- | ---------- | ------------------------------------------------------------- |
+| shadow-only wrapped inline, slice / clone | 672 / 588  | no fragments captured; one shadow drawn around the union bbox |
+| slice with a background                   | 512        | slice shadows skipped                                         |
+| clone with a translucent background       | 896        | no border knockout                                            |
+| slice inset                               | 720        | inset never painted per fragment; bbox inset instead          |
+| fractional fragment edges                 | 28         | fragment rect not pixel-snapped                               |
+
+The capture now records fragments for a shadow-only inline too.
+`paintInlineFragment` hands each fragment to `paintBoxShadow` and
+`paintInsetBoxShadow` with a `ShadowFragment`, which carries the sides and the
+element's device translation. The sides follow the borders' slice ownership,
+with the inline-axis start on the right in a right-to-left inline. The
+fragment's snap comes from the element's `borderPaintSnap`: a fragment edge at
+viewport offset `d` from the element edge is at local `L + d`, so its delta is
+`round(d - δ) - (d - δ)`.
+
+`tests/inline-fragment-box-shadow.e2e.test.ts` holds byte-exact native
+controls on integral-geometry fixtures. They cover slice and clone with
+transparent, translucent and opaque backgrounds; a negative offset with spread;
+right-to-left; inset; a half-pixel translate; and a multi-column block. A
+negative control strips the fragments and requires the pixels to move.
+
+Remaining gaps, outside the shadow producer unless noted:
+
+- **Rounded fragments.** A 1-8 alpha residual remains at 1-3 corner pixels. The
+  same rounded box outside an inline does not show it.
+- **Background fragment edges.** Fractional fragment edges are not
+  pixel-snapped, which costs 51 pixels with or without a shadow.
+- **Translucent slice borders.** These double-paint their corners.
+- **Right-to-left corners and borders.** Fragment corners and borders ignore
+  `direction`.
+- **Vertical writing modes.** The fragment sides assume a horizontal inline
+  axis.
+
+## Blurred shadows (DM-RRWR8E)
 
 Blink's σ is exactly half the blur radius (`shadow_data.h:76-82`), as ours is.
 The engines differ:

@@ -4,6 +4,8 @@ import {
   deviceRoundedEdge,
   deviceRoundedRect,
   insetShadowCastingRect,
+  adjustRectForSideClipping,
+  sideClipKeepRect,
   regionBandPieces,
   paintBoxShadow,
   paintInsetBoxShadow,
@@ -413,5 +415,89 @@ describe("non-antialiased sharp shadow clips", () => {
     expect(ctx.svgParts[0]).toContain('d="M21,21 L41,21 L41,41 L21,41 L21,21 Z M24,24 L38,24');
     const unsnapped = run(sharpBox("rgb(255, 0, 0) 0px 0px 0px 3px inset", "rgba(0, 0, 0, 0)"), true);
     expect(unsnapped.defsParts[0]).toContain('<rect x="21" y="21" width="20" height="20" rx="0"');
+  });
+});
+
+// A fragment that excludes sides: ClipToSides keeps the border rect outset by
+// ShadowData::RectOutsets on included sides only, and AdjustRectForSideClipping
+// stretches the fill rect past the excluded ones (box_painter_base.cc:200-250,
+// shadow_data.cc:32-43, Chromium 7d859f27).
+describe("fragment side clipping", () => {
+  const layer = (x: number, y: number, blur: number, spread: number) => ({
+    x,
+    y,
+    blur,
+    spread,
+    color: "red",
+    inset: false,
+  });
+  const rect = { left: 10, top: 20, right: 50, bottom: 32 };
+  const openRight = { top: true, right: false, bottom: true, left: true };
+  const openLeft = { top: true, right: true, bottom: true, left: false };
+
+  it("stretches the fill rect past excluded sides by the offset and blur", () => {
+    expect(adjustRectForSideClipping(rect, layer(4, 4, 0, 0), openRight)).toEqual(rect);
+    expect(adjustRectForSideClipping(rect, layer(-3, 2, 2, 0), openRight)).toEqual({ ...rect, right: 55 });
+    expect(adjustRectForSideClipping(rect, layer(4, 4, 2, 0), openLeft)).toEqual({ ...rect, left: 4 });
+  });
+
+  it("keeps the border outset by the shadow's extent on included sides only", () => {
+    expect(sideClipKeepRect(rect, layer(4, 4, 0, 0), openRight)).toEqual({ left: 14, top: 24, right: 50, bottom: 36 });
+    // ceil(3σ) with σ = blur / 2: blur 3 → ceil(4.5) = 5, plus spread 1.
+    expect(sideClipKeepRect(rect, layer(0, 0, 3, 1), openLeft)).toEqual({ left: 10, top: 14, right: 56, bottom: 38 });
+  });
+
+  it("wraps a fragment's shadow in the side clip and leaves a whole box alone", () => {
+    let n = 0;
+    const ctx: ShadowPaintCtx = { svgParts: [], defsParts: [], nextClipId: (p) => `${p}${n++}` };
+    const box: ShadowBox = {
+      x: 10,
+      y: 20,
+      width: 40,
+      height: 12,
+      styles: {
+        boxShadow: "rgb(255, 0, 0) 4px 4px 0px 0px",
+        backgroundColor: "rgb(0, 0, 255)",
+        borderTopWidth: "0px",
+        borderRightWidth: "0px",
+        borderBottomWidth: "0px",
+        borderLeftWidth: "0px",
+      },
+    };
+    paintBoxShadow(ctx, box, SHARP, "", { sides: openRight, device: { x: 0, y: 0 } });
+    expect(ctx.defsParts.at(-1)).toBe(
+      '<clipPath id="shside0" clipPathUnits="userSpaceOnUse"><rect x="14" y="24" width="36" height="12"/></clipPath>',
+    );
+    expect(ctx.svgParts[0]).toBe('<g clip-path="url(#shside0)">');
+    expect(ctx.svgParts.at(-1)).toBe("</g>");
+    const whole: ShadowPaintCtx = { svgParts: [], defsParts: [], nextClipId: (p) => p };
+    paintBoxShadow(whole, box, SHARP, "", {
+      sides: { top: true, right: true, bottom: true, left: true },
+      device: { x: 0, y: 0 },
+    });
+    expect(whole.defsParts.join("")).not.toContain("shside");
+  });
+
+  it("drops an inset fragment's excluded borders and opens its hole past them", () => {
+    let n = 0;
+    const ctx: ShadowPaintCtx = { svgParts: [], defsParts: [], nextClipId: (p) => `${p}${n++}` };
+    const box: ShadowBox = {
+      x: 10,
+      y: 20,
+      width: 40,
+      height: 12,
+      styles: {
+        boxShadow: "rgb(255, 0, 0) 2px 2px 0px 0px inset",
+        borderTopWidth: "1px",
+        borderRightWidth: "1px",
+        borderBottomWidth: "1px",
+        borderLeftWidth: "1px",
+      },
+    };
+    paintInsetBoxShadow(ctx, box, SHARP, "", { sides: openRight, device: { x: 0, y: 0 } });
+    // The clip runs to the open right edge (no right border there).
+    expect(ctx.defsParts.at(-1)).toContain('<rect x="11" y="21" width="39" height="10"/>');
+    // The hole starts 2px in and runs past the open right side.
+    expect(ctx.svgParts[0]).toContain("M13,23 L52,23");
   });
 });

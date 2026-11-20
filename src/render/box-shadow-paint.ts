@@ -256,12 +256,80 @@ export function normalShadowCorners(
   return constrainCornerRadiiToRect(outset, shadowWidth, shadowHeight);
 }
 
-export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners: CornerRadii, indent: string): void {
+/** The physical sides of a box fragment its decorations include. */
+export interface ShadowSides {
+  top: boolean;
+  right: boolean;
+  bottom: boolean;
+  left: boolean;
+}
+
+/**
+ * One fragment of a fragmented box (a wrapped inline's line box): the sides
+ * Blink's `SidesToInclude()` keeps for it, and the user→device translation of
+ * the box it belongs to (a fragment's own size never matches the box's
+ * `borderPaintSnap` record).
+ */
+export interface ShadowFragment {
+  sides: ShadowSides;
+  device?: { x: number; y: number };
+}
+
+type ShadowLayer = ReturnType<typeof parseBoxShadow>[number];
+
+const includesAllSides = (sides: ShadowSides | undefined): boolean =>
+  sides == null || (sides.top && sides.right && sides.bottom && sides.left);
+
+/**
+ * `AdjustRectForSideClipping` (box_painter_base.cc:225-250, Chromium
+ * 7d859f27): a fragment's shadow (or inset hole) rect is stretched past each
+ * excluded side by the offset and blur, so that side shows neither a shadow
+ * edge nor its blur.
+ */
+export function adjustRectForSideClipping(rect: EdgeRect, sh: ShadowLayer, sides: ShadowSides): EdgeRect {
+  return {
+    left: sides.left ? rect.left : rect.left - (Math.max(sh.x, 0) + sh.blur),
+    top: sides.top ? rect.top : rect.top - (Math.max(sh.y, 0) + sh.blur),
+    right: sides.right ? rect.right : rect.right + (sh.blur - Math.min(sh.x, 0)),
+    bottom: sides.bottom ? rect.bottom : rect.bottom + (sh.blur - Math.min(sh.y, 0)),
+  };
+}
+
+/**
+ * The rect `ClipToSides` keeps (box_painter_base.cc:200-223): the border rect
+ * outset by `ShadowData::RectOutsets()` (`ceil(3σ) + spread ∓ offset`, σ half
+ * the blur radius, shadow_data.cc:32-43) on included sides and not at all on
+ * excluded ones. Blink applies it with the non-antialiased `Clip(RectF)`.
+ */
+export function sideClipKeepRect(border: EdgeRect, sh: ShadowLayer, sides: ShadowSides): EdgeRect {
+  const blurAndSpread = Math.ceil(3 * (sh.blur / 2)) + sh.spread;
+  return {
+    left: border.left - (sides.left ? blurAndSpread - sh.x : 0),
+    top: border.top - (sides.top ? blurAndSpread - sh.y : 0),
+    right: border.right + (sides.right ? blurAndSpread + sh.x : 0),
+    bottom: border.bottom + (sides.bottom ? blurAndSpread + sh.y : 0),
+  };
+}
+
+export function paintBoxShadow(
+  ctx: ShadowPaintCtx,
+  el: ShadowBox,
+  sourceCorners: CornerRadii,
+  indent: string,
+  fragment?: ShadowFragment,
+): void {
   // A display:contents element has no box for BoxPainterBase to decorate.
   if (el.styles.display === "contents") return;
   const border = shadowBorderContour(el, sourceCorners);
-  const corners = border.corners;
   const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
+  const sides = fragment == null || includesAllSides(fragment.sides) ? null : fragment.sides;
+  const borderRect = {
+    left: border.x,
+    top: border.y,
+    right: border.x + border.width,
+    bottom: border.y + border.height,
+  };
+  const device = authenticBorderPaintSnap(el)?.device ?? fragment?.device;
   for (let si = shadows.length - 1; si >= 0; si--) {
     const sh = shadows[si];
     if (sh.inset) continue;
@@ -275,12 +343,48 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
     // shape's width/height = box + 2*spread (so spread < 0 shrinks the
     // shadow). Chromium's `BoxShadowData::ApplyToBoxOuter` shrinks the
     // outer rect by `-spread` on each side and zero-clamps the result.
-    // Rect inflated by spread and shifted by (x, y).
-    const sx = border.x + sh.x - sh.spread;
-    const sy = border.y + sh.y - sh.spread;
-    const sw = border.width + sh.spread * 2;
-    const sh2 = border.height + sh.spread * 2;
-    if (sw <= 0 || sh2 <= 0) continue;
+    if (border.width + sh.spread * 2 <= 0 || border.height + sh.spread * 2 <= 0) continue;
+    // A fragment that excludes sides paints under ClipToSides and stretches
+    // its fill rect past those sides first (PaintNormalBoxShadow,
+    // box_painter_base.cc:334-341).
+    const fill = sides == null ? borderRect : adjustRectForSideClipping(borderRect, sh, sides);
+    const keep = sides == null ? null : sideClipKeepRect(borderRect, sh, sides);
+    const layerStart = ctx.svgParts.length;
+    try {
+      paintNormalShadowLayer(ctx, el, border, sh, fill, device, indent);
+    } finally {
+      if (keep != null && ctx.svgParts.length > layerStart) {
+        const k = device == null ? keep : deviceRoundedRect(keep, device);
+        const keepId = ctx.nextClipId("shside");
+        const n = devicePieceNumber;
+        ctx.defsParts.push(
+          `<clipPath id="${keepId}" clipPathUnits="userSpaceOnUse"><rect x="${n(k.left)}" y="${n(k.top)}" width="${n(k.right - k.left)}" height="${n(k.bottom - k.top)}"/></clipPath>`,
+        );
+        ctx.svgParts.splice(layerStart, 0, `${indent}<g clip-path="url(#${keepId})">`);
+        ctx.svgParts.push(`${indent}</g>`);
+      }
+    }
+  }
+}
+
+/** One normal shadow layer of `paintBoxShadow`, painted from its fill rect. */
+function paintNormalShadowLayer(
+  ctx: ShadowPaintCtx,
+  el: ShadowBox,
+  border: ShadowContour,
+  sh: ShadowLayer,
+  fillRect: EdgeRect,
+  device: { x: number; y: number } | undefined,
+  indent: string,
+): void {
+  const corners = border.corners;
+  // Rect inflated by spread and shifted by (x, y).
+  {
+    const sx = fillRect.left + sh.x - sh.spread;
+    const sy = fillRect.top + sh.y - sh.spread;
+    const sw = fillRect.right - fillRect.left + sh.spread * 2;
+    const sh2 = fillRect.bottom - fillRect.top + sh.spread * 2;
+    if (sw <= 0 || sh2 <= 0) return;
     const shadowCorners = normalShadowCorners(corners, sh.spread, border.width, border.height, sw, sh2);
     let filterAttr = "";
     if (sh.blur > 0) {
@@ -303,7 +407,6 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
     // whole pixels and the shadow rect is filled region piece by region piece.
     // That needs the user→device translation; without it the antialiased
     // producer below is kept.
-    const device = authenticBorderPaintSnap(el)?.device;
     if (!roundedBorder && background != null && device != null && (sh.blur === 0 || background.a < 1)) {
       // An opaque box clips out its contour inset by one pixel, and nothing
       // when that is empty (box_painter_base.cc:180-196).
@@ -325,7 +428,7 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
             `${indent}<rect x="${n(piece.left)}" y="${n(piece.top)}" width="${n(piece.right - piece.left)}" height="${n(piece.bottom - piece.top)}" ${fill}/>`,
           );
         }
-        continue;
+        return;
       }
       // A blurred shadow is a mask-filter blit, which a region clip does not
       // split; an antialiased clip on whole device pixels has the same 0/1
@@ -342,7 +445,7 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
       ctx.svgParts.push(
         `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill}${filterAttr}${snappedClip}`, shadowShapeNumber)}`,
       );
-      continue;
+      return;
     }
     // On an opaque background Blink clips out the contour inset by 1px
     // (ClipToBorderEdge, box_painter_base.cc:185-187) and skips an empty one.
@@ -426,7 +529,7 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
       const aaId = aaRouteClip(ctx, sx, sy, sw, sh2);
       const shape = skRRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill} clip-path="url(#${aaId})"`, shadowShapeNumber);
       ctx.svgParts.push(clipAttr === "" ? `${indent}${shape}` : `${indent}<g${clipAttr}>${shape}</g>`);
-      continue;
+      return;
     }
     ctx.svgParts.push(
       `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill}${filterAttr}${clipAttr}`, shadowShapeNumber)}`,
@@ -442,9 +545,32 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
 // the padding box (a stroked-rect glow for the pure-blur-centered case). Mints a
 // filter + clip id per shadow, so clipIdx is threaded in and the advanced value
 // returned. Returns { svg, defs, clipIdx }.
-export function paintInsetBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners: CornerRadii, indent: string): void {
+export function paintInsetBoxShadow(
+  ctx: ShadowPaintCtx,
+  el: ShadowBox,
+  corners: CornerRadii,
+  indent: string,
+  fragment?: ShadowFragment,
+): void {
   const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
-  const inner = shadowInnerBorderContour(el, corners);
+  const sides = fragment == null || includesAllSides(fragment.sides) ? null : fragment.sides;
+  // A fragment's inner border drops the border widths of its excluded sides
+  // (`PixelSnappedContouredInnerBorder(style, rect, sides)`,
+  // box_painter_base.cc:388-405, contoured_border_geometry.cc:207-255).
+  const box: ShadowBox =
+    sides == null
+      ? el
+      : {
+          ...el,
+          styles: {
+            ...el.styles,
+            borderTopWidth: sides.top ? el.styles.borderTopWidth : "0px",
+            borderRightWidth: sides.right ? el.styles.borderRightWidth : "0px",
+            borderBottomWidth: sides.bottom ? el.styles.borderBottomWidth : "0px",
+            borderLeftWidth: sides.left ? el.styles.borderLeftWidth : "0px",
+          },
+        };
+  const inner = shadowInnerBorderContour(box, corners);
   const ibLeft = inner.x;
   const ibTop = inner.y;
   const ibW = inner.width;
@@ -453,7 +579,7 @@ export function paintInsetBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners:
   const innerRounded = [innerCorners.tl, innerCorners.tr, innerCorners.br, innerCorners.bl].some(
     (corner) => corner.h > 0 || corner.v > 0,
   );
-  const device = authenticBorderPaintSnap(el)?.device;
+  const device = authenticBorderPaintSnap(el)?.device ?? fragment?.device;
   // DM-699: CSS Backgrounds 3 §6.4 stacks shadows with the FIRST shadow
   // ON TOP. The outer-shadow loop above already iterates in reverse so
   // the topmost CSS shadow emits last; this inset loop was iterating
@@ -500,7 +626,7 @@ export function paintInsetBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners:
     // has zero area, so use the legacy stroked-rect approach which
     // produces the right soft glow on all sides. Stroke width = blur/2;
     // the Gaussian softens it into Chrome's inset-glow falloff. DM-366.
-    if (sh.x === 0 && sh.y === 0 && sh.spread === 0) {
+    if (sides == null && sh.x === 0 && sh.y === 0 && sh.spread === 0) {
       const ringWidth = Math.max(sh.blur / 2, 1);
       ctx.svgParts.push(
         `${indent}<g clip-path="url(#${cid})">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, `fill="none" stroke="${shadowColor}" stroke-width="${r(ringWidth)}"${filterAttr}`)}</g>`,
@@ -514,10 +640,16 @@ export function paintInsetBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners:
     // Even-odd fill paints the frame between the two subpaths with the
     // shadow color; blur softens; the clip-path keeps the result inside
     // the padding box.
-    const innerL = ibLeft + sh.x + sh.spread;
-    const innerT = ibTop + sh.y + sh.spread;
-    const innerW = ibW - 2 * sh.spread;
-    const innerH = ibH - 2 * sh.spread;
+    // A fragment stretches the hole past its excluded sides
+    // (AdjustRectForSideClipping, box_painter_base.cc:542-543).
+    const holeBase =
+      sides == null
+        ? { left: ibLeft, top: ibTop, right: ibLeft + ibW, bottom: ibTop + ibH }
+        : adjustRectForSideClipping({ left: ibLeft, top: ibTop, right: ibLeft + ibW, bottom: ibTop + ibH }, sh, sides);
+    const innerL = holeBase.left + sh.x + sh.spread;
+    const innerT = holeBase.top + sh.y + sh.spread;
+    const innerW = holeBase.right - holeBase.left - 2 * sh.spread;
+    const innerH = holeBase.bottom - holeBase.top - 2 * sh.spread;
     if (innerW <= 0 || innerH <= 0) {
       // Shadow shape collapsed: per spec the entire padding box fills
       // with shadow color (with blur halo) — emit a solid rect.

@@ -154,9 +154,8 @@ and443 outer sampling pixels. Border knockout fixes the400 interior pixels;
 the outer443 remain byte-identical to the old output (max alpha difference7).
 That is not full blur parity or a universal raster floor. Elliptical/unequal or
 other unauthenticated corner contours remain unadmitted under DM-H5DDDE; strict
-probe assertions are retained outside ordinary test discovery. Source-only
-fragmented clone/slice shadow ownership remains an investigation (DM-4RGP8Y),
-not a native defect inferred from the ordinary-box controls.
+probe assertions are retained outside ordinary test discovery. Fragmented
+clone/slice shadows paint per fragment with Blink's sides ([doc 277](../277-shadow-contour-authority.md#fragmented-box-shadows-dm-4rgp8y), DM-4RGP8Y).
 
 DM-H49Z50 and DM-HZPAYY own
 separate proved outline-only and pseudo-only root admission defects. These

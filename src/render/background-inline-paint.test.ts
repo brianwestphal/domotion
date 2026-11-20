@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { CapturedElement } from "../capture/types.js";
 import {
   deriveFragmentCorners,
+  fragmentShadowBox,
   paintBackgroundImageLayers,
   renderInlineFragments,
   type BackgroundLayerBuilder,
@@ -169,5 +170,75 @@ describe("background and inline-fragment paint owners", () => {
     renderInlineFragments(state, el, "  ", { r: 255, g: 0, b: 0, a: 1 }, corners, vi.fn(), () => false);
     expect(paintCtx.svgParts).toHaveLength(1);
     expect(paintCtx.svgParts[0]).toContain('fill="rgb(255,0,0)"');
+  });
+});
+
+// Blink paints each inline fragment's shadows from the fragment's own
+// pixel-snapped rect with its SidesToInclude() (inline_box_fragment_painter.cc
+// :189-213, :427-444, Chromium 7d859f27).
+describe("fragmentShadowBox", () => {
+  const element = {
+    x: 10.25,
+    y: 16,
+    width: 85.5,
+    height: 42,
+    borderPaintSnap: {
+      source: "blink-pixel-snapped-border-v1",
+      left: -0.25,
+      top: 0,
+      right: 0.25,
+      bottom: 0,
+      width: 85.5,
+      height: 42,
+      device: { x: 0.5, y: 0 },
+    },
+    styles: {
+      boxShadow: "rgb(255, 0, 0) 4px 4px 0px 0px",
+      backgroundColor: "rgba(0, 0, 0, 0)",
+      borderTopWidth: "1px",
+      borderRightWidth: "2px",
+      borderBottomWidth: "3px",
+      borderLeftWidth: "4px",
+      direction: "ltr",
+    },
+  } as unknown as CapturedElement;
+  const frag = { x: 32.5, y: 16, width: 63.25, height: 12 };
+
+  it("keeps every side for clone and the starting/ending sides for slice", () => {
+    expect(fragmentShadowBox(element, frag, true, false, false, false).fragment.sides).toEqual({
+      top: true,
+      right: true,
+      bottom: true,
+      left: true,
+    });
+    expect(fragmentShadowBox(element, frag, false, true, false, false).fragment.sides).toEqual({
+      top: true,
+      right: false,
+      bottom: true,
+      left: true,
+    });
+    expect(fragmentShadowBox(element, frag, false, false, true, true).fragment.sides).toEqual({
+      top: false,
+      right: true,
+      bottom: true,
+      left: true,
+    });
+    const rtl = { ...element, styles: { ...element.styles, direction: "rtl" } } as CapturedElement;
+    expect(fragmentShadowBox(rtl, frag, false, true, false, false).fragment.sides).toMatchObject({
+      left: false,
+      right: true,
+    });
+  });
+
+  it("derives the fragment's snap from the element's local paint offset", () => {
+    const { box, fragment } = fragmentShadowBox(element, frag, false, true, false, false);
+    // The element's left edge sits at local L with round(L) - L = -0.25, so
+    // the fragment's left (22.25 further) is at L + 22.25, a half pixel: it
+    // rounds up by 0.5. Its right edge (85.5 further, local .75) rounds up by 0.25.
+    expect(box.borderPaintSnap).toMatchObject({ left: 0.5, top: 0, right: 0.25, width: 63.25, height: 12 });
+    expect(box.styles.borderLeftWidth).toBe("4px");
+    expect(fragment.device).toEqual({ x: 0.5, y: 0 });
+    const unsnapped = { ...element, borderPaintSnap: undefined } as CapturedElement;
+    expect(fragmentShadowBox(unsnapped, frag, false, true, false, false).box.borderPaintSnap).toBeUndefined();
   });
 });

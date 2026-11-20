@@ -4609,7 +4609,10 @@
         "tests/box-shadow-border-knockout.e2e.test.ts",
         "tests/background-paint-snap.e2e.test.ts",
         "tests/box-shadow-native-contour-authority.e2e.test.ts",
-        "tests/capture-selected-shadow-root.e2e.test.ts"
+        "tests/capture-selected-shadow-root.e2e.test.ts",
+        "src/render/background-inline-paint.ts",
+        "src/capture/script/walker/fragmentation.ts",
+        "tests/inline-fragment-box-shadow.e2e.test.ts"
       ],
       "file": "277-shadow-contour-authority.md"
     },

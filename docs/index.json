@@ -6338,7 +6338,8 @@
           "DM-TFN8RD",
           "DM-S2EA2P",
           "DM-6A9J20",
-          "DM-8PMQPX"
+          "DM-8PMQPX",
+          "DM-4RGP8Y"
         ],
         "code": [
           "src/render/box-shadow-paint.ts",
@@ -6346,7 +6347,10 @@
           "tests/box-shadow-border-knockout.e2e.test.ts",
           "tests/background-paint-snap.e2e.test.ts",
           "tests/box-shadow-native-contour-authority.e2e.test.ts",
-          "tests/capture-selected-shadow-root.e2e.test.ts"
+          "tests/capture-selected-shadow-root.e2e.test.ts",
+          "src/render/background-inline-paint.ts",
+          "src/capture/script/walker/fragmentation.ts",
+          "tests/inline-fragment-box-shadow.e2e.test.ts"
         ],
         "aliases": ["docs/277-shadow-contour-authority.md", "doc-277"]
       }
