@@ -4606,6 +4606,23 @@
       "file": "278-native-css-shadow-isolation.md"
     },
     {
+      "id": "requirements/document-canvas-background",
+      "title": "Document canvas background propagation",
+      "kind": "contract",
+      "status": "partial",
+      "owners": ["paint-effects"],
+      "platforms": ["macos", "linux", "windows"],
+      "code": [
+        "src/capture/script/walker/canvas-background.ts",
+        "src/capture/script/walker/document-prepass.ts",
+        "src/render/element-tree-to-svg.ts",
+        "src/render/background-inline-paint.ts",
+        "src/render/document-canvas-background.test.ts",
+        "src/capture/document-canvas-background.e2e.test.ts"
+      ],
+      "file": "280-document-canvas-background.md"
+    },
+    {
       "id": "handbook/animation-and-interaction",
       "title": "Animation and interaction handbook",
       "kind": "contract",

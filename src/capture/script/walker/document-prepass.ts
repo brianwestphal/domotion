@@ -15,6 +15,7 @@ import { selectProjectiveRasterOwnerIndexes } from "../../projective-owner.js";
 import { backdropEffectNeutralizations, backdropRootReasons } from "../../backdrop-effect-space.js";
 import { composeEffectiveTransform, transformReferenceBox, transformWrapsAsAffine2D } from "./transforms.js";
 import { collectFontFeatureValues } from "../font-feature-values.js";
+import { documentCanvasSource, documentRootBox } from "./canvas-background.js";
 import type { CaptureScriptArgs, CapturedElement } from "../../types.js";
 import type { ProjectivePaintNodeFact } from "../../projective-owner.js";
 import type { CollapsedBorderFragmentRecord } from "../../collapsed-border-fragment-record.js";
@@ -772,6 +773,9 @@ export const attachRootPayloads = (
       result[0].styles.rootColorScheme = _isDark ? "dark" : "light";
       var _docCs = window.getComputedStyle(document.documentElement);
       result[0].styles.rootBgComputed = _docCs.backgroundColor;
+      // The canvas background's positioning area is the root element's box
+      // even when <body> supplies the background (DM-GFE90Q).
+      if (documentCanvasSource() === "body") result[0].documentRootBox = documentRootBox(args.viewport);
       // DM-1244: <html>'s overflow decides whether <body>'s overflow propagates
       // to the viewport (it only does when <html> is `overflow: visible`). The
       // renderer needs it to know whether to apply <body>'s own overflow clip.

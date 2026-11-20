@@ -6314,6 +6314,27 @@
       }
     },
     {
+      "file": "280-document-canvas-background.md",
+      "metadata": {
+        "id": "requirements/document-canvas-background",
+        "title": "Document canvas background propagation",
+        "kind": "contract",
+        "status": "partial",
+        "owners": ["paint-effects"],
+        "platforms": ["macos", "linux", "windows"],
+        "tickets": ["DM-GFE90Q", "DM-8F20GA"],
+        "code": [
+          "src/capture/script/walker/canvas-background.ts",
+          "src/capture/script/walker/document-prepass.ts",
+          "src/render/element-tree-to-svg.ts",
+          "src/render/background-inline-paint.ts",
+          "src/render/document-canvas-background.test.ts",
+          "src/capture/document-canvas-background.e2e.test.ts"
+        ],
+        "aliases": ["docs/280-document-canvas-background.md", "doc-280"]
+      }
+    },
+    {
       "file": "handbook/animation-and-interaction.md",
       "metadata": {
         "id": "handbook/animation-and-interaction",
@@ -6837,6 +6858,7 @@
     "275": ["requirements/playwright-zip-reader-investigation"],
     "277": ["requirements/shadow-contour-authority"],
     "278": ["requirements/native-css-shadow-isolation"],
+    "280": ["requirements/document-canvas-background"],
     "01": ["requirements/fidelity"],
     "02": ["requirements/writing-mode"],
     "03": ["requirements/font-family-chain"],

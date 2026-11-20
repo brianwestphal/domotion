@@ -348,6 +348,8 @@ export interface PaintCtx {
 // same objects. The two fragment counters are by-value, so they live ON the
 // struct (`state.fragmentMaskCounter++`) rather than being destructured.
 export interface RenderState {
+  /** The `<body>` whose background this render paints as the document canvas. */
+  canvasBackgroundOwner: CapturedElement | null;
   svgParts: string[];
   defsParts: string[];
   paintCtx: PaintCtx;
@@ -771,6 +773,82 @@ function paintBackgroundColor(
     out.push(`${indent}${roundedRectSvg(el.x, el.y, el.width, el.height, corners, `fill="${colorStr(bgColor)}"`)}`);
   }
   return out;
+}
+
+/** The captured top-document `<body>` whose background moved to the view. */
+function findCanvasBackgroundOwner(elements: CapturedElement[]): CapturedElement | null {
+  const stack = [...elements];
+  while (stack.length > 0) {
+    const el = stack.shift()!;
+    if (el.backgroundTransfersToView === true) return el;
+    if (el.tag === "body") continue;
+    stack.push(...el.children);
+  }
+  return null;
+}
+
+/**
+ * Paint the document canvas from a propagated `<body>` background before any
+ * content, as `ViewPainter::PaintBoxDecorationBackground` does ahead of the
+ * root stacking context's negative z-order children (core/paint/
+ * view_painter.cc:76-330, core/paint/paint_layer_painter.cc:471-479,
+ * Chromium 7d859f27). `PropagateStyleToViewport` clips every layer to the
+ * border box of the canvas — the painting area is the whole canvas — while
+ * the root element's box stays the positioning area
+ * (core/css/resolver/style_resolver.cc:3470-3488). An `<html>` background is
+ * painted by `transparentRootBgRect`; only its color is captured today.
+ */
+function paintDocumentCanvas(state: RenderState, elements: CapturedElement[], width: number, height: number): void {
+  const owner = findCanvasBackgroundOwner(elements);
+  const rootBox = elements[0]?.documentRootBox;
+  if (owner == null || rootBox == null) return;
+  state.canvasBackgroundOwner = owner;
+  const { svgParts, paintCtx, captureViewport } = state;
+  const start = svgParts.length;
+  const bgColor = parseColor(owner.styles.backgroundColor);
+  if (bgColor != null && bgColor.a > INVISIBLE_ALPHA) {
+    svgParts.push(`<rect x="0" y="0" width="${r(width)}" height="${r(height)}" fill="${colorStr(bgColor)}" />`);
+  }
+  const image = owner.styles.backgroundImage;
+  if (image == null || image === "" || image === "none") return;
+  const layerCount = splitTopLevelCommas(image).length;
+  const positioned: CapturedElement = {
+    ...owner,
+    x: rootBox.x,
+    y: rootBox.y,
+    width: rootBox.width,
+    height: rootBox.height,
+    children: [],
+    styles: {
+      ...owner.styles,
+      borderTopWidth: rootBox.borderTopWidth,
+      borderRightWidth: rootBox.borderRightWidth,
+      borderBottomWidth: rootBox.borderBottomWidth,
+      borderLeftWidth: rootBox.borderLeftWidth,
+      paddingTop: rootBox.paddingTop,
+      paddingRight: rootBox.paddingRight,
+      paddingBottom: rootBox.paddingBottom,
+      paddingLeft: rootBox.paddingLeft,
+      backgroundClip: Array.from({ length: layerCount }, () => "border-box").join(", "),
+    },
+  };
+  paintBackgroundImageLayers(
+    paintCtx,
+    positioned,
+    "",
+    parseCornerRadii({}, rootBox.width, rootBox.height),
+    false,
+    captureViewport,
+    buildBackgroundLayerDef,
+    backgroundColorClipsToText,
+    { x: 0, y: 0, width, height },
+  );
+  const blendLayers = splitTopLevelCommas(owner.styles.backgroundBlendMode ?? "normal");
+  if (blendLayers.some((mode) => mode.trim() !== "" && mode.trim() !== "normal") && svgParts.length > start) {
+    const stack = svgParts.slice(start).join("\n");
+    svgParts.length = start;
+    svgParts.push(`<g style="isolation:isolate">\n${stack}\n</g>`);
+  }
 }
 
 /** Blink associates background-color with the bottom FillLayer. Therefore the
@@ -1892,6 +1970,7 @@ function buildRenderState(
   // closures. Arrays/Maps/Sets are shared by reference; the two fragment
   // counters are owned here (mutated via `state.fragment*Counter++`).
   const state: RenderState = {
+    canvasBackgroundOwner: null,
     svgParts,
     defsParts,
     paintCtx,
@@ -2046,6 +2125,7 @@ function elementTreeToSvgInnerImpl(
     flat3d: null,
     pseudos: state.pseudoStacking.contexts.get(null) ?? [],
   };
+  paintDocumentCanvas(state, elements, width, height);
   renderChildBoxPhase(state, topPlan, 0);
   renderChildInlinePhase(state, topPlan, 0);
 
@@ -4005,7 +4085,12 @@ function paintElementBackgroundPhase(context: ElementPaintPhaseContext): Element
   // first layer paints on top — we emit in reverse so the rect order matches
   // CSS layering. The background-color paints *under* all layers.
   const backgroundStackStart = svgParts.length;
-  if (paintBoxPhase) {
+  // A body whose background moved to the view paints none of it on its own
+  // box (BoxFragmentPainter::PaintBoxDecorationBackgroundWithRect,
+  // core/paint/box_fragment_painter.cc:1923, Chromium 7d859f27); the layers
+  // were emitted as the document canvas before any content.
+  const paintsOwnBackground = paintBoxPhase && state.canvasBackgroundOwner !== el;
+  if (paintsOwnBackground) {
     svgParts.push(
       ...paintBackgroundColor(boxPaintEl, boxPaintCorners, indent, bgColor, useInlineFragments, suppressEmptyCell),
     );
@@ -4024,7 +4109,7 @@ function paintElementBackgroundPhase(context: ElementPaintPhaseContext): Element
   // Background-image layers + the background-clip:text fills consumed by
   // paintText. The layers belong to the box phase but the fills are consumed
   // in the inline phase, so they are stashed for the second pass to pick up.
-  if (paintBoxPhase) {
+  if (paintsOwnBackground) {
     const backgroundImageStart = svgParts.length;
     state.bgClipTextFills.set(
       el,

@@ -2288,6 +2288,34 @@ export interface CapturedElement {
    */
   imageLayoutNatural?: { w: number; h: number };
   /**
+   * The top document's first `<body>` whose background moved to the view
+   * (`LayoutBoxModelObject::BackgroundTransfersToView`,
+   * core/layout/layout_box_model_object.cc:1095-1126, Chromium 7d859f27):
+   * `<html>` has no background and neither element applies containment.
+   * The renderer paints this element's background layers as the document
+   * canvas and skips them on the box itself.
+   */
+  backgroundTransfersToView?: true;
+  /**
+   * The root element's border box and edge widths, in capture coordinates —
+   * the canvas background's positioning area. Only on the captured tree's
+   * first element, and only when `<body>` supplies the canvas background.
+   */
+  documentRootBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    borderTopWidth: string;
+    borderRightWidth: string;
+    borderBottomWidth: string;
+    borderLeftWidth: string;
+    paddingTop: string;
+    paddingRight: string;
+    paddingBottom: string;
+    paddingLeft: string;
+  };
+  /**
    * Blink `LayoutImage::UpdateNaturalSizeIfNeeded()` passes the element's
    * effective zoom into `ImageResource::GetNaturalDimensions()`. The renderer
    * multiplies `imageIntrinsic` by this value only for concrete object-fit

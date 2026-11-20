@@ -15,6 +15,7 @@ import { captureBorderPaintSnap } from "./border-paint-snap.js";
 import { detectInlineFragments } from "./fragmentation.js";
 import { captureInlineSvg } from "./inline-svg.js";
 import { captureImageElement } from "./image-elements.js";
+import { bodyBackgroundTransfersToView } from "./canvas-background.js";
 import { computeElementRaster } from "./text-segments.js";
 import { assembleCaptureResultPhase, captureGeometryStylePhase, captureTraversalPhase } from "./capture-phases.js";
 import { projectiveStateFor, transformSubtreeRasterFor, transformSubtreeRasterOwner } from "./projective-state.js";
@@ -249,6 +250,7 @@ const buildCapturedContent = (d: ElementCaptureDeps, f: ElementFacts) => {
     imageIntrinsic: f.image.imageIntrinsic,
     imageDecodedIntrinsic: f.image.imageDecodedIntrinsic,
     imageLayoutNatural: f.image.imageLayoutNatural,
+    backgroundTransfersToView: tag === "body" && bodyBackgroundTransfersToView(el) ? true : undefined,
     imageEffectiveZoom: f.image.imageEffectiveZoom,
     imageEmbeddingColorScheme: f.image.imageEmbeddingColorScheme,
     imageOrientationNone: f.image.imageOrientationNone,
