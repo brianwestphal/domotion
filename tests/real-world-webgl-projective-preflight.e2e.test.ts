@@ -84,7 +84,16 @@ async function installFixture(
     cross = false,
     parentPerspective = false,
     partlyVisibleHost = false,
-  }: { nested?: boolean; cross?: boolean; parentPerspective?: boolean; partlyVisibleHost?: boolean } = {},
+    perspective = 180,
+    outerStyle = "",
+  }: {
+    nested?: boolean;
+    cross?: boolean;
+    parentPerspective?: boolean;
+    partlyVisibleHost?: boolean;
+    perspective?: number;
+    outerStyle?: string;
+  } = {},
 ) {
   const leaf = paintedCanvas();
   const leafUrl = "https://leaf.third.test/canvas";
@@ -96,7 +105,7 @@ async function installFixture(
   await page.route("https://middle.separate.test/**", (route) =>
     route.fulfill({ contentType: "text/html", body: middle }),
   );
-  const root = `<!doctype html><body style="margin:0;width:600px;height:2200px"><div style="position:absolute;left:${partlyVisibleHost ? 50 : 200}px;top:${partlyVisibleHost ? 80 : 1000}px;${parentPerspective ? "perspective:180px;" : ""}"><iframe id=outer style="width:${nested ? 140 : 80.5}px;height:${nested ? 140 : 80}px;padding:5px;border:3px solid;transform:${transform};transform-origin:0 0" ${cross ? `src="${middleUrl}"` : `srcdoc="${escapeAttribute(middle)}"`}></iframe></div><script>window.__originalRaf=requestAnimationFrame;window.ticks=0;function tick(){window.ticks++;requestAnimationFrame(tick)}requestAnimationFrame(tick)</script>`;
+  const root = `<!doctype html><body style="margin:0;width:600px;height:2200px"><div style="position:absolute;left:${partlyVisibleHost ? 50 : 200}px;top:${partlyVisibleHost ? 80 : 1000}px;${parentPerspective ? `perspective:${perspective}px;` : ""}"><iframe id=outer style="width:${nested ? 140 : 80.5}px;height:${nested ? 140 : 80}px;padding:5px;border:3px solid;transform:${transform};transform-origin:0 0;${outerStyle}" ${cross ? `src="${middleUrl}"` : `srcdoc="${escapeAttribute(middle)}"`}></iframe></div><script>window.__originalRaf=requestAnimationFrame;window.ticks=0;function tick(){window.ticks++;requestAnimationFrame(tick)}requestAnimationFrame(tick)</script>`;
   await page.route("https://main.geometry.test/**", (route) => route.fulfill({ contentType: "text/html", body: root }));
   await page.goto("https://main.geometry.test/");
   const canvas = nested
@@ -216,9 +225,26 @@ it.each([
   { kind: "reflection", transform: "scaleX(-1)" },
   { kind: "direct-perspective", transform: "perspective(180px) rotateY(35deg)" },
   { kind: "parent-perspective", transform: "rotateY(35deg)", parentPerspective: true },
+  // Independent 3D properties under the parent camera, composed in ComputedStyle::ApplyTransform order.
+  { kind: "independent-parent-perspective", transform: "none", parentPerspective: true, outerStyle: "rotate:y 35deg" },
+  {
+    kind: "stroke-box-parent-perspective",
+    transform: "rotateY(35deg)",
+    parentPerspective: true,
+    outerStyle: "transform-box:stroke-box",
+  },
   // DM-PCT7GR tracks fully hidden cross-origin activation; these hosts stay partly visible while canvases are wholly offscreen.
   { kind: "cross-origin-rotation", transform: "rotate(35deg)", cross: true, partlyVisibleHost: true },
   { kind: "nested-projective", transform: "rotate(25deg)", nested: true, cross: true, partlyVisibleHost: true },
+  {
+    kind: "nested-independent-camera",
+    transform: "rotate(25deg)",
+    parentPerspective: true,
+    outerStyle: "rotate:y 20deg",
+    nested: true,
+    cross: true,
+    partlyVisibleHost: true,
+  },
 ])("captures real source paint through $kind with unchanged scroll and live rAF", async (fixture) => {
   const page = await browser.newPage({ viewport: { width: 200, height: 140 } });
   const observed = observeCaptures(page);
@@ -283,11 +309,34 @@ it.each([
   { kind: "behind-camera", transform: "perspective(120px) translateZ(240px)" },
   { kind: "camera-plane-crossing", transform: "perspective(40px) rotateY(80deg)", origin: "100% 50%" },
   { kind: "singular", transform: "scaleX(0)" },
+  // The same camera geometry through independent properties under a parent camera.
+  {
+    kind: "independent-behind-camera",
+    transform: "none",
+    parentPerspective: true,
+    perspective: 120,
+    outerStyle: "translate:0 0 240px",
+  },
+  {
+    kind: "independent-camera-plane-crossing",
+    transform: "none",
+    parentPerspective: true,
+    perspective: 40,
+    outerStyle: "rotate:y 80deg",
+    origin: "100% 50%",
+  },
+  // Resolved origin/percentages use the border box while paint uses the content box.
+  {
+    kind: "content-box-reference-under-camera",
+    transform: "rotateY(35deg)",
+    parentPerspective: true,
+    outerStyle: "transform-box:content-box",
+  },
 ])("refuses $kind instead of authenticating a misleading finite quad", async (fixture) => {
   const page = await browser.newPage({ viewport: { width: 200, height: 140 } });
   const observed = observeCaptures(page);
   try {
-    await installFixture(page, fixture.transform);
+    await installFixture(page, fixture.transform, fixture);
     if ("origin" in fixture)
       await page
         .locator("#outer")

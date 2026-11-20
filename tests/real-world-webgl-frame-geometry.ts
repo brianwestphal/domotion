@@ -124,18 +124,56 @@ export class PreflightFrameGeometry {
                 : null;
             if (perspective != null && !(perspective > 0)) supported = false;
             const projective = matrix.m14 !== 0 || matrix.m24 !== 0 || matrix.m34 !== 0 || perspective != null;
-            if (projective && !["view-box", "border-box"].includes(style.transformBox)) supported = false;
-            // Independent 2D properties preserve Z and W; independent 3D under a parent camera is unproved (DM-GQNPEN).
+            // ComputedStyle::UsedTransformBox (Chromium 7d859f27) maps stroke-box
+            // and view-box to border-box for a box with a CSS layout box. The
+            // resolved transform-origin and percentage transforms below are
+            // computed against PhysicalBorderBoxRect regardless of transform-box
+            // (ComputedStyleUtils::ReferenceBoxForTransform), while paint uses
+            // the content box for content-box/fill-box (ComputeReferenceBox), so
+            // those reference boxes cannot authenticate W from resolved values.
+            if (projective && !["view-box", "stroke-box", "border-box"].includes(style.transformBox)) supported = false;
+            // ComputedStyle::ApplyTransform composes T(origin) · translate ·
+            // rotate · scale · transform-list · T(-origin). The independent
+            // properties are affine factors left of the list, so they never
+            // change W on their own, but a parent camera reads the z they
+            // produce. Compose them from their computed values: translate's Z
+            // is always px, and its X/Y cannot reach the camera's W row.
+            let full = DOMMatrix.fromMatrix(matrix);
             if (perspective != null) {
-              const rotate = style.rotate.split(/\s+/),
-                translate = style.translate.split(/\s+/),
-                scale = style.scale.split(/\s+/);
-              if (
-                (rotate.length > 1 && rotate[0] !== "z") ||
-                (translate.length > 2 && parseFloat(translate[2]) !== 0) ||
-                (scale.length > 2 && Number(scale[2]) !== 1)
-              )
-                supported = false;
+              const rotate = style.rotate.trim().split(/\s+/),
+                translate = style.translate.trim().split(/\s+/),
+                scale = style.scale.trim().split(/\s+/);
+              const independent = new DOMMatrix();
+              const tz = translate.length > 2 ? Number.parseFloat(translate[2]) : 0;
+              if (!Number.isFinite(tz)) supported = false;
+              else independent.translateSelf(0, 0, tz);
+              if (rotate[0] !== "none") {
+                const angle = Number.parseFloat(rotate[rotate.length - 1]);
+                const named: Record<string, [number, number, number]> = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+                const axis =
+                  rotate.length === 1
+                    ? [0, 0, 1]
+                    : rotate.length === 2
+                      ? named[rotate[0]]
+                      : rotate.length === 4
+                        ? rotate.slice(0, 3).map(Number)
+                        : undefined;
+                if (
+                  axis == null ||
+                  !axis.every(Number.isFinite) ||
+                  !Number.isFinite(angle) ||
+                  !/deg$/.test(rotate[rotate.length - 1])
+                )
+                  supported = false;
+                else independent.rotateAxisAngleSelf(axis[0], axis[1], axis[2], angle);
+              }
+              if (scale[0] !== "none") {
+                const factors = scale.map(Number);
+                const [sx, sy = sx, sz = 1] = factors;
+                if (factors.length > 3 || ![sx, sy, sz].every(Number.isFinite)) supported = false;
+                else independent.scaleSelf(sx, sy, sz);
+              }
+              full = independent.multiplySelf(matrix);
             }
             const origin = style.transformOrigin.split(/\s+/).map(parseFloat);
             const ox = origin[0],
@@ -147,7 +185,7 @@ export class PreflightFrameGeometry {
               [left + width, top + height],
               [left, top + height],
             ]) {
-              const local = new DOMPoint(x - ox, y - oy, -oz, 1).matrixTransform(matrix);
+              const local = new DOMPoint(x - ox, y - oy, -oz, 1).matrixTransform(full);
               const w = perspective == null ? local.w : local.w - (local.z + oz * local.w) / perspective;
               if (!Number.isFinite(w) || w <= 1e-8) supported = false;
             }

@@ -938,11 +938,37 @@ nonordinary owners are outside this contract and are refused.
 Supported projective camera checks prove positive homogeneous W over the owner
 content plane using its computed transform and, where present, its immediate
 parent's perspective. Finite convex quads alone are insufficient: a native
-behind-camera plane also exposes one. More distant/projective ancestor cameras,
-unproved independent 3D properties under a camera, nondefault projective
-transform-box/zoom, nontrivial visual-viewport offsets/scale, camera crossings,
-degenerate planes and nonrectangular/ambiguous clip authority remain explicit
-skips (DM-GQNPEN). Authenticated zero-margin content/padding/border overflow
+behind-camera plane also exposes one.
+
+Under an immediate-parent camera, the owner's independent `translate`, `rotate`
+and `scale` are composed in the order of the pinned
+[`ComputedStyle::ApplyTransform`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/style/computed_style.cc):
+T(origin), then translate, rotate, scale and the transform list, then
+T(−origin). They are affine factors, so they cannot change W without a camera,
+but the camera reads the z they produce. The inputs are exact computed values:
+translate's Z is always px, rotate serializes a canonical axis and degrees, and
+scale serializes plain numbers. Translate X/Y never reach the camera's W row.
+
+`stroke-box` and `view-box` are used as `border-box`, per
+`ComputedStyle::UsedTransformBox`. `content-box` and `fill-box` stay skipped:
+`getComputedStyle` resolves transform-origin and percentage transforms against
+the border box (`ComputedStyleUtils::ReferenceBoxForTransform`), while paint
+uses the content box (`ComputeReferenceBox`), so resolved values cannot prove
+W.
+
+These cases remain explicit skips, because no source-proven 4D
+ancestry/flattening contract covers them yet (DM-GQNPEN):
+
+- more distant or projective ancestor cameras;
+- nontrivial preserve-3d ancestry;
+- projective zoom;
+- nontrivial visual-viewport offsets or scale;
+- camera crossings and degenerate planes;
+- nonrectangular or ambiguous clip authority.
+
+Native front, behind-camera, camera-crossing, `stroke-box`, `content-box` and
+nested cross-process witnesses cover the independent-property and
+transform-box routes. Authenticated zero-margin content/padding/border overflow
 rectangles and every enclosing iframe content clip are supported.
 
 Projection and paint activation have separate evidence. Default native
