@@ -33,7 +33,17 @@ export const DIRECT_SOURCE_FILES = Object.freeze([
   "external/chromium/third_party/blink/renderer/core/css/resolver/scoped_style_resolver.cc",
   "external/chromium/third_party/blink/renderer/core/css/style_rule_font_feature_values.cc",
   "external/chromium/third_party/blink/renderer/core/inspector/inspector_css_agent.cc",
+  "external/chromium/cc/paint/draw_looper.cc",
+  "external/chromium/third_party/blink/renderer/core/layout/geometry/physical_rect.h",
+  "external/chromium/third_party/blink/renderer/core/layout/transform_utils.cc",
+  "external/chromium/third_party/blink/renderer/core/paint/contoured_border_geometry.cc",
+  "external/chromium/third_party/blink/renderer/core/style/shadow_data.h",
   "external/chromium/third_party/blink/renderer/platform/fonts/font_variant_alternates.cc",
+  "external/chromium/third_party/blink/renderer/platform/geometry/contoured_rect.cc",
+  "external/chromium/third_party/blink/renderer/platform/geometry/float_rounded_rect.cc",
+  "external/chromium/third_party/blink/renderer/platform/geometry/layout_unit.h",
+  "external/chromium/third_party/blink/renderer/platform/graphics/graphics_context.cc",
+  "external/chromium/third_party/blink/renderer/platform/graphics/graphics_context.h",
   "external/chromium/third_party/blink/renderer/platform/fonts/shaping/harfbuzz_face.cc",
   "external/chromium/third_party/blink/renderer/platform/fonts/unicode_range_set.h",
   "external/chromium/third_party/blink/renderer/platform/text/character.cc",
@@ -49,6 +59,20 @@ export const DIRECT_SOURCE_FILES = Object.freeze([
   "external/harfbuzz/src/hb-ot-shaper-use-table.hh",
   "external/html-test/21-deep-anisotropic-scale.html",
   "external/html-test/21-deep-transform-origin.html",
+  // CPU raster paths (headless Chromium reports `rasterization:
+  // disabled_software`): AA clip, analytic path coverage, the rrect draw, and
+  // the mask-filter vs image-filter blur engines behind box-shadow parity.
+  "external/skia/src/core/SkAAClip.cpp",
+  "external/skia/src/core/SkBitmapDevice.cpp",
+  "external/skia/src/core/SkBlurEngine.cpp",
+  "external/skia/src/core/SkBlurMask.cpp",
+  "external/skia/src/core/SkBlurMaskFilterImpl.cpp",
+  "external/skia/src/core/SkDraw.cpp",
+  "external/skia/src/core/SkMaskBlurFilter.cpp",
+  "external/skia/src/core/SkRasterClip.cpp",
+  "external/skia/src/core/SkScan_AAAPath.cpp",
+  "external/skia/src/core/SkScan_AntiPath.cpp",
+  "external/skia/src/effects/imagefilters/SkBlurImageFilter.cpp",
 ]);
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
