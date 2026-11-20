@@ -30,6 +30,30 @@ const fixtures: Fixture[] = [
     body: '<style>[DATA-MARK]{fill:blue}</style><rect data-mark="red" width="40" height="40" fill="red"/>',
     raster: true,
   },
+  // Selectors outside the shared grammar: the lexical name pass admits canonical
+  // names and still refuses folded aliases (DM-EKTD3T).
+  {
+    name: "uppercase-css-type-under-lang",
+    body: '<style>:lang(en) RECT{fill:blue}</style><g xml:lang="en"><rect width="40" height="40" fill="red"/></g>',
+    raster: true,
+  },
+  {
+    name: "uppercase-css-attribute-in-nth-of-lang",
+    body: '<style>:nth-child(1 of :lang(en)[DATA-MARK]){fill:blue}</style><g xml:lang="en"><rect data-mark="x" width="40" height="40" fill="red"/></g>',
+    raster: true,
+  },
+  {
+    name: "canonical-lang-type",
+    body: '<style>:lang(en) rect{fill:blue}</style><g xml:lang="en"><rect width="40" height="40" fill="red"/></g>',
+    raster: false,
+    color: [0, 0, 255],
+  },
+  {
+    name: "canonical-not-lang-attribute",
+    body: '<style>rect:not(:lang(fr))[data-mark]{fill:blue}</style><g xml:lang="en"><rect data-mark="x" width="40" height="40" fill="red"/></g>',
+    raster: false,
+    color: [0, 0, 255],
+  },
   { name: "HREF", body: backdrop + image("HREF"), raster: true },
   { name: "mixed-href", body: backdrop + image("hReF"), raster: true },
   { name: "STYLE", body: '<rect width="40" height="40" fill="red" STYLE="fill:blue"/>', raster: true },

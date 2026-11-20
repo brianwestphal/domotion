@@ -108,6 +108,40 @@ it.each([
   ":nth-child(2 of rect)",
 ])("keeps canonical selector data: %s", (selector) => expect(imageHtmlSelectorNamesUnchanged(selector)).toBe(true));
 
+describe("lexical name pass beyond the shared selector grammar (DM-EKTD3T)", () => {
+  it.each([
+    ":lang(en) rect",
+    ':lang("en") rect',
+    ":dir(ltr) rect",
+    "rect::before",
+    "rect:not(:lang(fr))[data-mark]",
+    ":nth-child(1 of :lang(en))",
+    ":host(rect)",
+    "::part(RECT) rect", // part names are case-sensitive idents, never folded
+    "/*RECT*/:lang(en)/*[HREF]*/ rect",
+    ":lang(en) [data-mark|='x']",
+    ":lang(en) [data-mark='RECT' i]",
+  ])("admits canonical names: %s", (selector) => expect(imageHtmlSelectorNamesUnchanged(selector)).toBe(true));
+  it.each([
+    ":lang(en) RECT",
+    ":lang(en) [DATA-MARK]",
+    "::slotted(RECT)",
+    ":host-context([HREF])",
+    ":nth-child(1 of :lang(en) RECT)",
+    ":lang(en) r\\45 ct",
+    ":lang(en) svg|rect",
+    ":lang(en) [svg|href]",
+    ":lang(en) [*|href]",
+    ":lang(en) *|rect",
+    ":unknown(rect)",
+    ":lang(en) 'rect'",
+    ":lang(en) rect /* unterminated",
+    ":lang(en",
+  ])("refuses aliases, namespaces and unrecognized tokens: %s", (selector) =>
+    expect(imageHtmlSelectorNamesUnchanged(selector)).toBe(false),
+  );
+});
+
 it("authenticates attr() names without changing strings or canonical unknown reads", () => {
   for (const identityOnly of [false, true]) {
     const context = { prefix: "im_", ids: new Set<string>(), originals: new Map<string, string>(), identityOnly };

@@ -2563,7 +2563,8 @@
           "DM-SXDNW9",
           "DM-WT73T4",
           "DM-R7ME85",
-          "DM-N80HJW"
+          "DM-N80HJW",
+          "DM-EKTD3T"
         ],
         "code": [
           "src/capture/embed.ts",

@@ -31,6 +31,7 @@ tickets:
     "DM-WT73T4",
     "DM-R7ME85",
     "DM-N80HJW",
+    "DM-EKTD3T",
   ]
 code:
   [
@@ -123,6 +124,23 @@ Names must survive folding plus SVG adjustment unchanged. Canonical `viewBox`,
 attributes remain supported. The pass never repairs spelling by activating it;
 changed names retain the original image. Namespace/font/resource authority and
 host-reference refusal remain independent prerequisites.
+
+Selectors outside the shared image selector grammar (for example `:lang(en)`,
+`:dir()`, pseudo-elements, `:host()`, `::slotted()`) no longer refuse admission
+by themselves (DM-EKTD3T). A conservative lexical pass in
+`src/render/svg-image-html-identity.ts` checks exactly the names HTML CSS
+parsing folds at the pinned revision — type selectors
+(`css_selector_parser.cc:1322-1324`) and attribute names (`:1545-1547`) — and
+descends into every selector-bearing functional pseudo (`:is`/`:where`/`:not`/
+`:has`, `:host`/`:host-context`/`:-webkit-any`/`::cue`, `::slotted`, and
+`:nth-*child(… of S)`). Pseudos whose arguments are idents or strings only
+(`:lang`, `:dir`, `:state`, `::part`, `::highlight`, view-transition pseudos)
+are accepted without inspection. A namespace `|`, an unknown functional pseudo,
+a stray string, an unterminated comment or any unrecognized token still refuses.
+Native controls in `tests/img-svg-xml-case-identity.e2e.test.ts` compare the
+XML `<img>` with inline output for canonical `:lang`/`:not(:lang)` selectors
+(vector, blue) and folded `RECT`/`[DATA-MARK]` aliases under `:lang` (original
+image, red).
 
 Selector names use the shared selector grammar recursively, including logical,
 relative `:has()` and `:nth-child(... of ...)` lists. Canonical selector comparison
