@@ -128,6 +128,7 @@
         "src/render/advanced-gradient-raster.ts",
         "src/render/form-controls.ts",
         "src/render/gradient-defs.ts",
+        "src/render/gradient-tile.ts",
         "src/render/gradients.ts"
       ],
       "file": "07-gradient-fills.md"

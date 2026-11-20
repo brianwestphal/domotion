@@ -21,9 +21,9 @@ aliases: ["docs/280-document-canvas-background.md", "doc-280"]
 # Document canvas background propagation
 
 **Status:** a transferred `<body>` background is painted as the document
-canvas. An `<html>` background still paints only its color, and gradient
-layers do not yet tile by `background-size` (DM-8F20GA, which affects every
-element, not only the canvas).
+canvas. An `<html>` background still paints only its color. Gradient layers
+tile across the canvas from the root box like any element's (DM-8F20GA,
+doc 07).
 
 ## Source (Chromium `7d859f27`)
 
