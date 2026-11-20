@@ -3664,6 +3664,8 @@
         "src/capture/cross-origin-font-face.ts",
         "src/capture/font-face-family-identity.test.ts",
         "src/capture/script/font-metrics.ts",
+        "src/capture/script/font-metrics.test.ts",
+        "tests/standard-family-locale-metrics.e2e.test.ts",
         "tests/literal-family-whitespace.e2e.test.ts",
         "tests/font-family-stack-capture.e2e.test.ts",
         "tests/capture-script-determinism.test.ts",

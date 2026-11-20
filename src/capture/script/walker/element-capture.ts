@@ -73,6 +73,7 @@ export type ElementCaptureDeps = {
   textPaintSourceKeyFor: (el: Element) => string | undefined;
   pseudoFragmentFactsFor: (el: Element) => CapturedElement["pseudoFragments"] | undefined;
   fontFamilyStackFor: (el: Element, computedFontFamily: string, pseudo?: string) => unknown;
+  markStandardFamilyStyle: FontMetrics["markStandardFamilyStyle"];
   svgReferenceScope: (el: Element) => number;
   effectiveZoomFor: (el: Element | null) => number;
   measureFontMetrics: FontMetrics["measureFontMetrics"];
@@ -422,6 +423,11 @@ export const createElementCapture = () => {
     const textPaintFact = d.textPaintFactFor(el);
     const pseudoFragmentFacts = d.pseudoFragmentFactsFor(el);
     const capturedFontFamilyStack = d.fontFamilyStackFor(el, cs.fontFamily);
+    // A kStandardFamily element's computed family is the concrete settings
+    // name; its metrics must be measured as the standard family in the
+    // element's locale, not as that literal name (font-metrics.ts).
+    if ((capturedFontFamilyStack as { genericFamily?: string }).genericFamily === "standard")
+      d.markStandardFamilyStyle(cs);
     const projection = resolveElementProjection(d, el, cs, rect, textPaintFact);
     let transformSubtreeRaster = projection.transformSubtreeRaster;
     // DM-513: when an element's rect is outside the viewport, normally skip the

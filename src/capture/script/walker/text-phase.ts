@@ -198,12 +198,18 @@ export const createTextPhaseHandler = (ctx: {
     for (const _seg of textSegments) {
       var _segLogicalSize = _seg.fontSize ?? parseFloat(cs.fontSize);
       if (!isFinite(_segLogicalSize) || _segLogicalSize <= 0) continue;
-      var _segMetricStyle = {
-        fontStyle: _seg.fontStyle ?? cs.fontStyle,
-        fontWeight: _seg.fontWeight ?? cs.fontWeight,
-        fontSize: _segLogicalSize + "px",
-        fontFamily: _seg.fontFamily ?? cs.fontFamily,
-      };
+      // A segment with no font overrides is measured through the element's
+      // own live style, so it asks the same locale/family-type question the
+      // element's metrics did (font-metrics.ts).
+      var _segMetricStyle =
+        _seg.fontStyle == null && _seg.fontWeight == null && _seg.fontFamily == null && _seg.fontSize == null
+          ? cs
+          : {
+              fontStyle: _seg.fontStyle ?? cs.fontStyle,
+              fontWeight: _seg.fontWeight ?? cs.fontWeight,
+              fontSize: _segLogicalSize + "px",
+              fontFamily: _seg.fontFamily ?? cs.fontFamily,
+            };
       var _segLogicalMetrics = _measureFontMetrics(_segMetricStyle);
       var _segComputedMetrics = _measureFontMetrics(
         _segMetricStyle,

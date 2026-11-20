@@ -113,6 +113,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     measureFontMetrics: _measureFontMetrics,
     measureNormalLineSpacing: _measureNormalLineSpacing,
     substituteAliasedFamilies: _substituteAliasedFamilies,
+    markStandardFamilyStyle: _markStandardFamilyStyle,
   } = createFontMetrics();
   const { resolvePlaceholderShownBg: _resolvePlaceholderShownBg } = createPlaceholderShown();
   const {
@@ -343,6 +344,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     textPaintSourceKeyFor,
     pseudoFragmentFactsFor,
     fontFamilyStackFor: _fontFamilyStackFor,
+    markStandardFamilyStyle: _markStandardFamilyStyle,
     svgReferenceScope: _svgReferenceScope,
     effectiveZoomFor: _effectiveZoomFor,
     measureFontMetrics: _measureFontMetrics,

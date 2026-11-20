@@ -19,6 +19,7 @@ tickets:
     "DM-D8RS5E",
     "DM-XWGRJC",
     "DM-MGQCRJ",
+    "DM-DZVKRG",
   ]
 code:
   [
@@ -54,6 +55,8 @@ code:
     "src/capture/cross-origin-font-face.ts",
     "src/capture/font-face-family-identity.test.ts",
     "src/capture/script/font-metrics.ts",
+    "src/capture/script/font-metrics.test.ts",
+    "tests/standard-family-locale-metrics.e2e.test.ts",
     "tests/literal-family-whitespace.e2e.test.ts",
     "tests/font-family-stack-capture.e2e.test.ts",
     "tests/capture-script-determinism.test.ts",
@@ -406,6 +409,35 @@ DOMSnapshot read and adds decoded explicit layout-style locales to the existing
 per-script target set. This includes a script authored only in CSS, absent all
 DOM language attributes and response headers, and retains old/absent snapshot
 styles and invalid string indices safely. It adds no new CDP command or lifetime.
+
+**Baseline metrics follow the family type and locale (DM-DZVKRG).** Capture
+places the text baseline at the fragment top plus the primary font's ascent,
+and reads that ascent (and the `line-height: normal` spacing) from a probe in
+`src/capture/script/font-metrics.ts`. The ordinary probe is a detached canvas
+asking for the computed family string. That is not the element's question in
+two cases, because Blink resolves a generic description through
+`FontSelector::FamilyNameFromSettings` → `settings.<generic>(script)` with the
+script taken from the description's locale (`platform/fonts/font_selector.cc:20-80`,
+Chromium 7d859f27):
+
+- a kStandardFamily element, whose computed family is the concrete settings
+  name ("Times" on macOS), which a canvas treats as a literal family;
+- a stack containing a generic keyword under an explicit (non-`auto`) computed
+  `-webkit-locale`, which a detached canvas does not carry.
+
+Those are measured with a hidden in-document probe instead: `font-family:
+initial` for the standard family (or the computed stack for a generic keyword),
+the element's computed `-webkit-locale`, and a zero-size baseline-aligned
+inline-block that splits the inline box into ascent and descent. The walker
+marks the live computed style once the structured stack says `standard`.
+Measured on macOS for undeclared `lang=ja` text at 32px: canvas "Times" gave
+ascent/descent 29/8 (including Blink's macOS Times ascent adjustment,
+`font_metrics.cc:134-147`), while the element's primary font is Hiragino Kaku
+Gothic ProN at 28/4, so the embedded output sat one pixel low (1547 differing
+pixels). A literal `font-family: Times` keeps the canvas route and Times'
+metrics. A probe scaled by an inherited CSS `zoom` falls back to the canvas
+answer. Pseudo-element, list-marker and first-line styles still use the canvas
+route (follow-up).
 
 Pinned source authority:
 
