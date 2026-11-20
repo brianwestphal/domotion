@@ -10,12 +10,12 @@
 import type { CapturedElement } from "../capture/types.js";
 import { emitGaussianBlurFilter } from "./gaussian-blur.js";
 import { parseBoxShadow } from "./box-shadow.js";
-import { r } from "./format.js";
+import { formatNumberLoose, r } from "./format.js";
 import { parseColor, colorStr } from "./colors.js";
 import {
   constrainCornerRadiiToRect,
   insetCornerRadii,
-  outsetCornerRadiiForShadow,
+  outsetCornerRadiiWithCoverageCorrection,
   roundedRectPath,
   roundedRectSvg,
   type CornerRadii,
@@ -115,6 +115,41 @@ export function shadowInnerBorderContour(el: ShadowBox, corners: CornerRadii): S
   return { x, y, width: innerWidth, height: innerHeight, corners: insetCornerRadii(outer.corners, t, r, b, l) };
 }
 
+const shadowShapeNumber = (n: number): string => formatNumberLoose(n, 3);
+
+/**
+ * Corner radii of a normal shadow's shape. Blink's rounded branch
+ * (`PaintNormalBoxShadow`, box_painter_base.cc:371-380, Chromium 7d859f27)
+ * calls `ApplySpreadToShadowShape` (:91-97): nothing for a zero spread,
+ * otherwise `ContouredRect::OutsetWithCornerCorrection(spread)` then
+ * `ConstrainRadii()`. With the stable `ShadowContourFollowsBorder` feature
+ * (contoured_rect.cc:93-97) that is `FloatRoundedRect::Radii::
+ * OutsetWithCornerCorrectionUsingCoverageFactor` against the border rect's size
+ * (float_rounded_rect.cc:168-264): a radius smaller than the spread grows by
+ * less than the spread, a zero radius stays sharp, a negative spread shrinks
+ * each radius and clamps at zero. The constraint is against the spread rect.
+ */
+export function normalShadowCorners(
+  corners: CornerRadii,
+  spread: number,
+  borderWidth: number,
+  borderHeight: number,
+  shadowWidth: number,
+  shadowHeight: number,
+): CornerRadii {
+  if (spread === 0) return corners;
+  const outset = outsetCornerRadiiWithCoverageCorrection(
+    corners,
+    spread,
+    spread,
+    spread,
+    spread,
+    borderWidth,
+    borderHeight,
+  );
+  return constrainCornerRadiiToRect(outset, shadowWidth, shadowHeight);
+}
+
 export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners: CornerRadii, indent: string): void {
   // A display:contents element has no box for BoxPainterBase to decorate.
   if (el.styles.display === "contents") return;
@@ -140,12 +175,7 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
     const sw = border.width + sh.spread * 2;
     const sh2 = border.height + sh.spread * 2;
     if (sw <= 0 || sh2 <= 0) continue;
-    // Outer shadow corners per CSS Backgrounds 3 §6.4 / Chromium
-    // `FloatRoundedRect::Outset`: a non-zero source corner grows by
-    // `spread`; a zero source corner STAYS sharp. The naive grow-all
-    // path produced visibly rounded corners on the concentric-outline
-    // pattern (box-shadow: 0 0 0 Npx on a 0-radius box).
-    const shadowCorners = outsetCornerRadiiForShadow(corners, sh.spread);
+    const shadowCorners = normalShadowCorners(corners, sh.spread, border.width, border.height, sw, sh2);
     let filterAttr = "";
     if (sh.blur > 0) {
       const fid = ctx.nextClipId("sh");
@@ -179,8 +209,11 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
         clipAttr = ` clip-path="url(#${clipId})"`;
       }
     }
+    // The corner-corrected radii are arbitrary floats (2 → 5.504 for a 4px
+    // spread); the default one-decimal coordinate format would move the arc
+    // by up to 0.05px, so the shadow shape keeps three decimals.
     ctx.svgParts.push(
-      `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}${clipAttr}`)}`,
+      `${indent}${roundedRectSvg(sx, sy, sw, sh2, shadowCorners, `fill="${colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 })}"${filterAttr}${clipAttr}`, shadowShapeNumber)}`,
     );
   }
   return;

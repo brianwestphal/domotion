@@ -5,7 +5,7 @@ kind: "investigation"
 status: "current"
 owners: ["paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ", "DM-8N1VB2"]
+tickets: ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ", "DM-8N1VB2", "DM-B73YF5"]
 code:
   [
     "src/render/box-shadow-paint.ts",
@@ -184,3 +184,31 @@ ancestor translations and for each fail-closed space. Known remaining gaps:
   sharp normal shadow, 67 for a sharp inset).
 - The radii are constrained against the captured size and then again against
   the snapped size, rather than once against the snapped size.
+
+## Normal-shadow spread radii
+
+The rounded branch of `PaintNormalBoxShadow` (`box_painter_base.cc:371-380`,
+Chromium `7d859f27`) applies `ApplySpreadToShadowShape` (`:91-97`): nothing
+for a zero spread, otherwise `ContouredRect::OutsetWithCornerCorrection(spread)`
+and `ConstrainRadii()`. `ShadowContourFollowsBorder` is stable
+(`runtime_enabled_features.json5:5616`), so that is
+`FloatRoundedRect::Radii::OutsetWithCornerCorrectionUsingCoverageFactor`
+against the border rect's size (`float_rounded_rect.cc:168-264`,
+`contoured_rect.cc:93-97`): a radius at least the spread, or whose coverage of
+the edge exceeds 1, grows linearly; a smaller one grows by
+`spread · (1 − (1 − r/spread)³ · (1 − coverage³))`; a zero radius stays sharp;
+a negative spread shrinks each radius and clamps at zero. The constraint is
+against the spread rect. `normalShadowCorners` in `box-shadow-paint.ts`
+implements this (the renderer used to grow every nonzero radius linearly and
+never constrain), and the shadow shape is written with three decimals because
+the one-decimal coordinate format alone moved a 3.646px radius to 3.6px.
+
+On macOS, 20×20 boxes with `2px`/`4px`, `1px`/`8px` (offset 3,2), `3px`/`10px`
+and unequal `2px 0 4px 8px`/`5px` radius/spread previously differed from
+Chromium by a maximum alpha of 90, 255, 251 and 124; they now differ by at most
+10, 1, 1 and 3. That remainder is the same unattributed arc-coverage residual
+recorded above for elliptical and unequal contours, so the e2e bound in
+`tests/box-shadow-border-knockout.e2e.test.ts` is a small alpha residual rather
+than byte equality. Inset spread needs no change: a negative outset always
+takes the linear branch, which `insetCornerRadii` already implements. Inline
+fragment shadows (`background-inline-paint.ts`) still use the linear rule.

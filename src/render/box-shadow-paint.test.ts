@@ -5,6 +5,7 @@ import {
   paintInsetBoxShadow,
   shadowBorderContour,
   shadowInnerBorderContour,
+  normalShadowCorners,
   type ShadowBox,
   type ShadowPaintCtx,
 } from "./box-shadow-paint.js";
@@ -186,6 +187,47 @@ describe("normal box-shadow pixel-snapped border contour", () => {
 
   it("keeps the captured inset geometry without an authenticated snap", () => {
     expect(shadowInnerBorderContour(box(undefined), SHARP)).toMatchObject({ x: 20.5, y: 20.5, width: 20, height: 20 });
+  });
+
+  // ApplySpreadToShadowShape → OutsetWithCornerCorrectionUsingCoverageFactor
+  // (float_rounded_rect.cc:168-264, Chromium 7d859f27) then ConstrainRadii.
+  describe("normalShadowCorners", () => {
+    const uniform = (radius: number): CornerRadii => ({
+      tl: { h: radius, v: radius },
+      tr: { h: radius, v: radius },
+      br: { h: radius, v: radius },
+      bl: { h: radius, v: radius },
+      uniform: true,
+    });
+    it("leaves the radii untouched for a zero spread", () => {
+      const corners = uniform(30);
+      expect(normalShadowCorners(corners, 0, 20, 20, 20, 20)).toBe(corners);
+    });
+    it("grows a radius larger than the spread linearly", () => {
+      expect(normalShadowCorners(uniform(5), 2, 20, 20, 24, 24).tl.h).toBe(7);
+    });
+    it("grows a radius smaller than the spread by the coverage-corrected amount", () => {
+      // coverage 0.2, ratio 0.5: 2 + 4 * (1 - 0.5^3 * (1 - 0.2^3)) = 5.504
+      expect(normalShadowCorners(uniform(2), 4, 20, 20, 28, 28).tl.h).toBeCloseTo(5.504, 10);
+    });
+    it("keeps a sharp corner sharp and shrinks radii for a negative spread", () => {
+      expect(normalShadowCorners(SHARP, 4, 20, 20, 28, 28).tl).toEqual({ h: 0, v: 0 });
+      expect(normalShadowCorners(uniform(1), -2, 20, 20, 16, 16).tl).toEqual({ h: 0, v: 0 });
+      expect(normalShadowCorners(uniform(5), -0.125, 20, 20, 19.75, 19.75).tl.h).toBe(4.875);
+    });
+    it("constrains the corrected radii to the spread rect", () => {
+      expect(normalShadowCorners(uniform(12), 6, 20, 20, 32, 32).tl.h).toBeCloseTo(16, 10);
+    });
+    it("emits the corrected radius with three decimals", () => {
+      const ctx: ShadowPaintCtx = { svgParts: [], defsParts: [], nextClipId: (p) => p };
+      paintBoxShadow(
+        ctx,
+        { ...box(undefined), x: 20, y: 20, styles: { ...box().styles, boxShadow: "rgb(255, 0, 0) 0px 0px 0px 4px" } },
+        uniform(2),
+        "",
+      );
+      expect(ctx.svgParts[0]).toContain('rx="5.504"');
+    });
   });
 
   it("constrains radii against the snapped rect (FloatRoundedRect::ConstrainRadii)", () => {

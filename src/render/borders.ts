@@ -826,7 +826,14 @@ export function contouredRectIntersectionPaths(
 /** Emit an SVG path `d` attribute for a rounded rectangle with per-corner radii.
  *  Path goes clockwise from the top-left, using elliptical arc commands at each
  *  corner. Zero-radius corners collapse to a sharp 90° join. */
-export function roundedRectPath(x: number, y: number, w: number, h: number, c: CornerRadii): string {
+export function roundedRectPath(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  c: CornerRadii,
+  fmt: (n: number) => string = r,
+): string {
   // Each corner is at most clamped to fit; the spec scale-down already handled
   // edge-overlap, but clamp per-axis to half-extent as a safety net.
   const tl = { h: Math.min(c.tl.h, w), v: Math.min(c.tl.v, h) };
@@ -847,16 +854,17 @@ export function roundedRectPath(x: number, y: number, w: number, h: number, c: C
     commands.push("Z");
     return commands.join(" ");
   }
+  const f = fmt;
   return [
-    `M${r(x + tl.h)},${r(y)}`,
-    `L${r(x + w - tr.h)},${r(y)}`,
-    tr.h > 0 || tr.v > 0 ? `A${r(tr.h)},${r(tr.v)} 0 0 1 ${r(x + w)},${r(y + tr.v)}` : "",
-    `L${r(x + w)},${r(y + h - br.v)}`,
-    br.h > 0 || br.v > 0 ? `A${r(br.h)},${r(br.v)} 0 0 1 ${r(x + w - br.h)},${r(y + h)}` : "",
-    `L${r(x + bl.h)},${r(y + h)}`,
-    bl.h > 0 || bl.v > 0 ? `A${r(bl.h)},${r(bl.v)} 0 0 1 ${r(x)},${r(y + h - bl.v)}` : "",
-    `L${r(x)},${r(y + tl.v)}`,
-    tl.h > 0 || tl.v > 0 ? `A${r(tl.h)},${r(tl.v)} 0 0 1 ${r(x + tl.h)},${r(y)}` : "",
+    `M${f(x + tl.h)},${f(y)}`,
+    `L${f(x + w - tr.h)},${f(y)}`,
+    tr.h > 0 || tr.v > 0 ? `A${f(tr.h)},${f(tr.v)} 0 0 1 ${f(x + w)},${f(y + tr.v)}` : "",
+    `L${f(x + w)},${f(y + h - br.v)}`,
+    br.h > 0 || br.v > 0 ? `A${f(br.h)},${f(br.v)} 0 0 1 ${f(x + w - br.h)},${f(y + h)}` : "",
+    `L${f(x + bl.h)},${f(y + h)}`,
+    bl.h > 0 || bl.v > 0 ? `A${f(bl.h)},${f(bl.v)} 0 0 1 ${f(x)},${f(y + h - bl.v)}` : "",
+    `L${f(x)},${f(y + tl.v)}`,
+    tl.h > 0 || tl.v > 0 ? `A${f(tl.h)},${f(tl.v)} 0 0 1 ${f(x + tl.h)},${f(y)}` : "",
     `Z`,
   ]
     .filter((s) => s !== "")
@@ -867,12 +875,20 @@ export function roundedRectPath(x: number, y: number, w: number, h: number, c: C
  *  uniform (cheaper, less markup); falls back to `<path>` for asymmetric or
  *  elliptical corners. The `attrs` string is injected verbatim — pass in
  *  fill/stroke/etc. */
-export function roundedRectSvg(x: number, y: number, w: number, h: number, c: CornerRadii, attrs: string): string {
+export function roundedRectSvg(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  c: CornerRadii,
+  attrs: string,
+  fmt: (n: number) => string = r,
+): string {
   if (c.uniform) {
     const rx = Math.min(c.tl.h, w / 2, h / 2);
-    return `<rect x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}" rx="${r(rx)}" ${attrs} />`;
+    return `<rect x="${fmt(x)}" y="${fmt(y)}" width="${fmt(w)}" height="${fmt(h)}" rx="${fmt(rx)}" ${attrs} />`;
   }
-  return `<path d="${roundedRectPath(x, y, w, h, c)}" ${attrs} />`;
+  return `<path d="${roundedRectPath(x, y, w, h, c, fmt)}" ${attrs} />`;
 }
 
 export interface BorderSide {

@@ -209,6 +209,39 @@ it("keeps a display:contents selector transparent and captures its real child", 
   }
 });
 
+// ApplySpreadToShadowShape (box_painter_base.cc:91-97, Chromium 7d859f27) grows
+// a radius smaller than the spread by the coverage-factor corner correction,
+// not linearly. The shapes are geometrically Blink's, but these corners keep the
+// unattributed arc coverage residual tracked for elliptical/unequal contours,
+// so the bound is a small alpha residual, not byte equality. The linear rule
+// measured max alpha deltas of 90, 255, 251 and 124 on these cases.
+it.each([
+  { name: "small radius, larger spread", css: "box-shadow:0 0 0 4px red;border-radius:2px", maxAlpha: 10 },
+  { name: "offset with a large spread", css: "box-shadow:3px 2px 0 8px red;border-radius:1px", maxAlpha: 1 },
+  { name: "three times the radius", css: "box-shadow:0 0 0 10px red;border-radius:3px", maxAlpha: 1 },
+  { name: "unequal corners", css: "box-shadow:0 0 0 5px red;border-radius:2px 0 4px 8px", maxAlpha: 3 },
+])("corrects small shadow radii by the spread coverage factor: $name", async ({ css, maxAlpha }) => {
+  const page = await browser.newPage({ viewport }),
+    output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      `<style>body{margin:0}#only{width:20px;height:20px;margin:20px;${css}}</style><div id="container"><div id="only"></div></div>`,
+    );
+    const source = await rgba(await page.screenshot({ omitBackground: true }));
+    await output.setContent(
+      "<style>body{margin:0}</style>" +
+        elementTreeToSvg(await captureElementTree(page, "#container", viewport), 100, 100),
+    );
+    const actual = await rgba(await output.screenshot({ omitBackground: true }));
+    let worst = 0;
+    for (let i = 3; i < source.length; i += 4) worst = Math.max(worst, Math.abs(source[i] - actual[i]));
+    expect(worst).toBeLessThanOrEqual(maxAlpha);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
+
 // Blink snaps the border rect in LOCAL paint space and applies a pure
 // translation afterwards (subpixel accumulation, paint_property_tree_builder.cc
 // :733-779, Chromium 7d859f27), so the snap is computed before the captured
