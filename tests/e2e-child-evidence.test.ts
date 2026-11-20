@@ -18,7 +18,7 @@ import {
 import { SCREENSHOT_CAPTURE_FAILURE, evidenceDirectory } from "./e2e-browser-evidence.js";
 
 const FAILURE = "page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot";
-const PRELOAD = "/repo/tests/e2e-child-evidence-preload.mjs";
+const PRELOAD = "file:///repo/tests/e2e-child-evidence-preload.mjs";
 
 function steppingClock(start = Date.UTC(2026, 10, 20, 12, 0, 0)): () => Date {
   let now = start;
@@ -53,10 +53,16 @@ describe("configureChildBrowserEvidence", () => {
     expect(env["DOMOTION_E2E_EVIDENCE_DIR"]).toBe(resolve("out-linux", "e2e-browser-evidence"));
   });
 
-  it("names the real preload by default", () => {
+  // A bare Windows absolute path in `--import` parses as a URL whose scheme is
+  // the drive letter, so every Node child exited with
+  // ERR_UNSUPPORTED_ESM_URL_SCHEME; the owned review and scrubber servers
+  // died before reporting ready on the Windows runner.
+  it("names the real preload by its file: URL, never a bare path", () => {
     const env: NodeJS.ProcessEnv = {};
     configureChildBrowserEvidence(env);
-    expect(env["NODE_OPTIONS"]).toMatch(/^--import ".*[\\/]tests[\\/]e2e-child-evidence-preload\.mjs"$/);
+    const specifier = /^--import "([^"]*)"$/.exec(env["NODE_OPTIONS"] ?? "")?.[1] ?? "";
+    expect(specifier).toMatch(/^file:\/\/\/.*\/tests\/e2e-child-evidence-preload\.mjs$/);
+    expect(new URL(specifier).protocol).toBe("file:");
   });
 });
 

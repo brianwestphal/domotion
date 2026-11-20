@@ -10,7 +10,9 @@
  * "Unable to capture screenshot".
  *
  * The worker opts its children in through the environment they inherit.
- * `NODE_OPTIONS` gains `--import` for `e2e-child-evidence-preload.mjs`,
+ * `NODE_OPTIONS` gains `--import` for the `file:` URL of
+ * `e2e-child-evidence-preload.mjs` (a bare path breaks on Windows; see
+ * `PRELOAD_URL`),
  * `DOMOTION_E2E_CHILD_EVIDENCE=1` arms it, and `DOMOTION_E2E_EVIDENCE_DIR` is
  * pinned to the worker's absolute evidence directory, so a child running in a
  * temporary working directory still writes where the lane's artifact upload
@@ -25,16 +27,21 @@
  * `NODE_OPTIONS`, a non-Node child, and a child killed by SIGKILL are not
  * covered.
  */
-import { fileURLToPath } from "node:url";
 import { evidenceDirectory } from "./e2e-browser-evidence.js";
 
 /** Set in a child's environment to make the preload install its tap. */
 export const CHILD_EVIDENCE_FLAG = "DOMOTION_E2E_CHILD_EVIDENCE";
 
-const PRELOAD_PATH = fileURLToPath(new URL("./e2e-child-evidence-preload.mjs", import.meta.url));
+// A `file:` URL, never a filesystem path. Node's ESM loader treats an
+// `--import` specifier as a URL, so a Windows absolute path such as
+// `D:\a\tests\x.mjs` parses with the scheme `d:` and every Node child of the
+// worker exits with ERR_UNSUPPORTED_ESM_URL_SCHEME before running any of its
+// own code. On the Windows runner that killed the owned review and scrubber
+// servers before they could report ready. A URL resolves the same everywhere.
+const PRELOAD_URL = new URL("./e2e-child-evidence-preload.mjs", import.meta.url).href;
 
-function quoted(path: string): string {
-  return `"${path.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+function quoted(specifier: string): string {
+  return `"${specifier.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
 /**
@@ -43,7 +50,7 @@ function quoted(path: string): string {
  */
 export function configureChildBrowserEvidence(
   env: NodeJS.ProcessEnv = process.env,
-  preload: string = PRELOAD_PATH,
+  preload: string = PRELOAD_URL,
 ): void {
   env["DOMOTION_E2E_EVIDENCE_DIR"] = evidenceDirectory(env);
   env[CHILD_EVIDENCE_FLAG] = "1";

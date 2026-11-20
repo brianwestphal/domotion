@@ -542,7 +542,9 @@ an empty ring is not proof that no surface error occurred.
 - **Child processes.** Node children of an E2E worker are covered too. One
   example is the built CLI that some files run with
   `spawnSync(process.execPath, …)`. The setup appends
-  `--import tests/e2e-child-evidence-preload.mjs` (as an absolute path) to
+  `--import tests/e2e-child-evidence-preload.mjs` (as an absolute `file:`
+  URL; Node reads a bare Windows path such as `D:\…` as a URL with scheme
+  `d:` and every child exits with `ERR_UNSUPPORTED_ESM_URL_SCHEME`) to
   `NODE_OPTIONS`. It also sets
   `DOMOTION_E2E_CHILD_EVIDENCE=1` and pins `DOMOTION_E2E_EVIDENCE_DIR` to the
   worker's absolute evidence directory, so a child running in a temporary
