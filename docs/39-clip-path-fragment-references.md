@@ -26,6 +26,7 @@ tickets:
     "DM-VA1P9H",
     "DM-0A8SGG",
     "DM-K48QDG",
+    "DM-3N15PB",
   ]
 code:
   [
@@ -341,6 +342,37 @@ failure and foreign cleanup ownership in `tests/external-css-svg.e2e.test.ts`.
 The transport's pinned Chromium origin-copy and document-CSP source contract,
 and its distinction from the installed Chromium revision, are documented in
 [doc 24](24-inline-svg-icon-references.md).
+
+Restoring the swap must not reload the source's resource (DM-3N15PB).
+Re-parsing an author's `clip-path` declaration creates a new `CSSURIValue` and
+`ExternalSVGResource`. Its `Load()` fetches again (`svg_resource.cc:241-286`),
+and `ResourceFetcher` always reloads a no-store SVG document
+(`DetermineRevalidationPolicyInternal`, Chromium 7d859f27). Native
+measurements showed two consequences (the first is pinned as a negative control
+in `tests/external-css-svg.e2e.test.ts`):
+
+- Restoring by `setProperty`, `setAttribute("style")` or Typed OM issued a
+  second native request, and the source repainted with the new bytes.
+- A keep-alive element made it worse, because it loads a copy of its own.
+
+So a normal (not `!important`) inline `clip-path` on an HTML element is
+overridden from an owned `!important` rule in an adopted constructed sheet,
+which selects the element through a private per-prepass attribute. The author's
+declaration is never touched, and removing the rule (on cleanup, or on a
+paint-verification revert to native ownership) applies the original
+declaration and its already loaded resource again.
+
+Other targets keep the inline swap:
+
+- An author `!important` sheet rule that outranks the owned rule is detected by
+  the unchanged computed value and falls back to the inline swap.
+- A clip-path from a stylesheet already restores without a re-parse.
+- `mask-image` is reused within the document even when no-store
+  (`kReuseNoStoreImageOnSameSrcReassignment`). Re-applying a shadowed external
+  mask declaration instead left the native mask painting nothing.
+
+An inline `!important` `clip-path` still reloads on restore; it cannot be
+outranked from a sheet.
 
 Caveats: this only works over **http(s)** — Chrome doesn't resolve external clip-path refs over `file://`, and a sibling-file `fetch()` is blocked there (so the feature is validated via a loopback-HTTP test, `tests/external-svg-refs.e2e.test.ts`, not the `file://` feature runner). Any failure (fetch error / non-2xx / non-http origin / missing or non-`<clipPath>` fragment) leaves the ref intact, so the walk emits its existing warning and the element paints unclipped — the pre-DM-829 baseline. A parsed file is fetched once and shared across consumers (icon-set pattern).
 

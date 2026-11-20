@@ -39,11 +39,25 @@ interface SavedStyle {
   owned: string | null;
   properties: SavedProperty[];
 }
+/** One owned `!important` sheet rule overriding a normal inline author declaration. */
+interface SheetOverride {
+  element: HTMLElement;
+  property: Property;
+  /** Value of `overrideAttribute` that selects `element`. */
+  ordinal: string;
+  rule: CSSStyleRule;
+}
 export interface ExternalCssSvgJournal {
   token: string;
   prefix: string;
   targets: Target[];
   styles: SavedStyle[];
+  /** Private attribute selecting overridden elements; minted per prepass. */
+  overrideAttribute: string;
+  /** Adopted constructed sheet holding the owned override rules. */
+  overrideSheet: CSSStyleSheet | null;
+  overrides: SheetOverride[];
+  overrideSerial: number;
   host: SVGSVGElement | null;
   clones: Element[];
   ids: string[];
@@ -210,6 +224,24 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
                 failures++;
               }
             }
+            // Owned override rules go before the attributes selecting them, so
+            // the author's untouched declaration (and its loaded resource)
+            // applies again without a re-parse or a new fetch.
+            try {
+              const sheet = state.overrideSheet;
+              if (sheet != null) {
+                if (document.adoptedStyleSheets.includes(sheet))
+                  document.adoptedStyleSheets = document.adoptedStyleSheets.filter((adopted) => adopted !== sheet);
+                if (document.adoptedStyleSheets.includes(sheet)) failures++;
+              }
+              for (const override of state.overrides) {
+                if (override.element.getAttribute(state.overrideAttribute) === override.ordinal)
+                  override.element.removeAttribute(state.overrideAttribute);
+                if (override.element.getAttribute(state.overrideAttribute) === override.ordinal) failures++;
+              }
+            } catch {
+              failures++;
+            }
             if (state.host != null) {
               if (
                 state.host.outerHTML !== state.hostMarkup ||
@@ -272,7 +304,7 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
   try {
     await registry.tag(
       page,
-      ({ token, prefix }) => {
+      ({ token, prefix, overrideAttribute }) => {
         // Node tokenizes these computed values and decodes Blink's fragment
         // identity (src/capture/blink-url-fragment.ts); keep every candidate.
         const targets: Target[] = [];
@@ -289,6 +321,10 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
           prefix,
           targets,
           styles: [],
+          overrideAttribute,
+          overrideSheet: null,
+          overrides: [],
+          overrideSerial: 0,
           host: null,
           clones: [],
           ids: [],
@@ -296,7 +332,7 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
           rasterOwners: new Map(),
         };
       },
-      { token, prefix },
+      { token, prefix, overrideAttribute: privateCaptureKey("CssSvgOverride") },
     );
     const snapshot = await evaluateInFrame(
       page,
@@ -359,6 +395,24 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
         const state = (globalThis as typeof globalThis & Record<string, Journal>)[key];
         if (state?.token !== token) throw new Error("external CSS SVG source ownership changed");
         const swapped: SwappedTarget[] = [];
+        const paintFact = (target: Target): SwappedTarget => {
+          let left = Infinity,
+            top = Infinity,
+            right = -Infinity,
+            bottom = -Infinity;
+          for (const element of [target.element, ...target.element.querySelectorAll("*")])
+            for (const rect of element.getClientRects()) {
+              left = Math.min(left, rect.left);
+              top = Math.min(top, rect.top);
+              right = Math.max(right, rect.right);
+              bottom = Math.max(bottom, rect.bottom);
+            }
+          return {
+            index: state.targets.indexOf(target),
+            rect: right > left && bottom > top ? { x: left, y: top, width: right - left, height: bottom - top } : null,
+            animated: target.element.getAnimations({ subtree: true }).length > 0,
+          };
+        };
         const SVGNS = "http://www.w3.org/2000/svg";
         const parsed = new Map(
           documents.map(({ href, text }) => [href, new DOMParser().parseFromString(text, "image/svg+xml")]),
@@ -447,6 +501,49 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
             }
             value = value.slice(0, reference.start) + `url("#${id}")` + value.slice(reference.start + reference.length);
           }
+          // DM-3N15PB: a normal inline `clip-path` declaration is overridden
+          // from an owned sheet rule, so the declaration and its CSSURIValue
+          // (which owns the loaded ExternalSVGResource) are never re-parsed.
+          // Restoring by re-parsing creates a new resource whose Load() fetches
+          // again, and a no-store SVG document is always reloaded
+          // (resource_fetcher.cc DetermineRevalidationPolicyInternal,
+          // svg_resource.cc:241-286, Chromium 7d859f27), which could repaint
+          // the source with new bytes. `mask-image` keeps the inline swap: its
+          // image resource is reused within the document even when no-store
+          // (kReuseNoStoreImageOnSameSrcReassignment), and re-applying the
+          // shadowed author declaration instead left the native mask painting
+          // nothing.
+          const owned = target.element;
+          if (
+            target.property === "clip-path" &&
+            owned instanceof HTMLElement &&
+            owned.style.getPropertyValue(target.property) !== "" &&
+            owned.style.getPropertyPriority(target.property) === ""
+          ) {
+            if (state.overrideSheet == null) {
+              state.overrideSheet = new CSSStyleSheet();
+              document.adoptedStyleSheets = [...document.adoptedStyleSheets, state.overrideSheet];
+            }
+            const sheet = state.overrideSheet;
+            const existing = state.overrides.find((candidate) => candidate.element === owned);
+            const ordinal = existing?.ordinal ?? String(state.overrideSerial++);
+            const index = sheet.insertRule(`[${state.overrideAttribute}="${ordinal}"]{}`, sheet.cssRules.length);
+            const rule = sheet.cssRules[index] as CSSStyleRule;
+            const override: SheetOverride = { element: owned, property: target.property, ordinal, rule };
+            state.overrides.push(override);
+            if (existing == null) owned.setAttribute(state.overrideAttribute, ordinal);
+            rule.style.setProperty(target.property, value, "important");
+            // An author `!important` sheet rule can outrank the owned rule;
+            // such a target falls back to the inline override below.
+            if (getComputedStyle(owned).getPropertyValue(target.property) !== target.computed) {
+              swapped.push(paintFact(target));
+              continue;
+            }
+            sheet.deleteRule(Array.from(sheet.cssRules).indexOf(rule));
+            state.overrides.splice(state.overrides.indexOf(override), 1);
+            if (!state.overrides.some((candidate) => candidate.element === owned))
+              owned.removeAttribute(state.overrideAttribute);
+          }
           let saved = styles.get(target.element);
           if (saved == null) {
             saved = {
@@ -473,22 +570,7 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
           } finally {
             saved.owned = target.element.getAttribute("style");
           }
-          let left = Infinity,
-            top = Infinity,
-            right = -Infinity,
-            bottom = -Infinity;
-          for (const element of [target.element, ...target.element.querySelectorAll("*")])
-            for (const rect of element.getClientRects()) {
-              left = Math.min(left, rect.left);
-              top = Math.min(top, rect.top);
-              right = Math.max(right, rect.right);
-              bottom = Math.max(bottom, rect.bottom);
-            }
-          swapped.push({
-            index: state.targets.indexOf(target),
-            rect: right > left && bottom > top ? { x: left, y: top, width: right - left, height: bottom - top } : null,
-            animated: target.element.getAnimations({ subtree: true }).length > 0,
-          });
+          swapped.push(paintFact(target));
         }
         return swapped;
       },
@@ -520,6 +602,20 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
               }
               if (saved.before == null && saved.element.style.length === 0) saved.element.removeAttribute("style");
               saved.owned = saved.element.getAttribute("style");
+            }
+            // Removing an owned rule restores the author's declaration without
+            // re-parsing it, so native paint keeps the resource it loaded.
+            for (const override of state.overrides.filter((candidate) => revert(candidate.element))) {
+              const sheet = state.overrideSheet!;
+              const at = Array.from(sheet.cssRules).indexOf(override.rule);
+              if (at < 0) throw new Error("external CSS SVG owned rule changed while verifying");
+              sheet.deleteRule(at);
+              state.overrides.splice(state.overrides.indexOf(override), 1);
+              if (
+                !state.overrides.some((other) => other.element === override.element) &&
+                override.element.getAttribute(state.overrideAttribute) === override.ordinal
+              )
+                override.element.removeAttribute(state.overrideAttribute);
             }
             for (const target of state.targets) {
               if (!revert(target.element)) continue;

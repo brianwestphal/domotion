@@ -57,6 +57,7 @@ export const DIRECT_SOURCE_FILES = Object.freeze([
   "external/chromium/third_party/blink/renderer/core/paint/box_decoration_data.cc",
   "external/chromium/third_party/blink/renderer/core/paint/box_decoration_data.h",
   "external/chromium/third_party/blink/renderer/core/paint/contoured_border_geometry.cc",
+  "external/chromium/third_party/blink/renderer/core/svg/svg_resource.cc",
   "external/chromium/third_party/blink/renderer/core/style/border_edge.cc",
   "external/chromium/third_party/blink/renderer/core/style/border_edge.h",
   "external/chromium/third_party/blink/renderer/core/style/shadow_data.h",

@@ -20,6 +20,8 @@ let server: Server;
 let browser: Browser;
 let origin: string;
 const requests: Array<{ path: string; destination: string; closed: boolean; cookie: string }> = [];
+const sequenceRequests = new Map<string, number>();
+let sequenceKeys = 0;
 
 beforeAll(async () => {
   server = createServer((request, response) => {
@@ -54,6 +56,31 @@ beforeAll(async () => {
       response.setHeader("content-type", "text/html");
       response.end(
         `<!doctype html><body style="margin:0;background:white"><div id="box" style="width:32px;height:32px;background:red;${property}:url('/varying.svg?kind=${kind}&cache=${encodeURIComponent(cache)}#d')"></div><div id="other" style="margin-top:60px;width:32px;height:16px;background:blue;clip-path:url('/sprite.svg#clip')"></div>`,
+      );
+      return;
+    }
+    if (url.pathname === "/sequence.svg" || url.searchParams.has("sequence")) {
+      // DM-3N15PB: the first native request for a resource key gets a
+      // LEFT-half clip and every later one the RIGHT half, so a reload repaints.
+      if (url.pathname === "/sequence.svg") {
+        const key = url.searchParams.get("key") ?? "";
+        const seen = sequenceRequests.get(key) ?? 0;
+        if (request.headers["sec-fetch-dest"] === "image") sequenceRequests.set(key, seen + 1);
+        const x = seen === 0 ? 0 : 16;
+        response.setHeader("content-type", "image/svg+xml");
+        response.setHeader("cache-control", "no-store");
+        response.end(
+          `<svg xmlns="http://www.w3.org/2000/svg"><clipPath id="d" clipPathUnits="userSpaceOnUse"><rect x="${x}" width="16" height="32"/></clipPath></svg>`,
+        );
+        return;
+      }
+      const asset = `/sequence.svg?key=${sequenceKeys++}#d`;
+      const sheet = url.searchParams.has("important-sheet")
+        ? `<style>#box{clip-path:url('${asset}') !important}</style>`
+        : "";
+      response.setHeader("content-type", "text/html");
+      response.end(
+        `<!doctype html>${sheet}<body style="margin:0;background:white"><div id="box" style="width:32px;height:32px;background:red;clip-path:url('${asset}')"></div>`,
       );
       return;
     }
@@ -1419,6 +1446,118 @@ describe("readable external CSS SVG paint authority", () => {
       }
       expect(await page.locator("#box").getAttribute("style")).toBe(style);
       expect(await page.locator('svg [id^="__domotionCssSvgDefinition_"]').count()).toBe(0);
+    } finally {
+      await page.close();
+    }
+  });
+});
+
+describe("external CSS SVG cleanup keeps the loaded native resource (DM-3N15PB)", () => {
+  // Re-parsing the author's declaration on restore creates a new
+  // ExternalSVGResource whose Load() fetches again, and a no-store SVG document
+  // is always reloaded (resource_fetcher.cc DetermineRevalidationPolicyInternal,
+  // svg_resource.cc:241-286, Chromium 7d859f27). The owned override therefore
+  // lives in an adopted sheet rule and never touches a normal inline
+  // declaration. The `sequence` server answers its first native request with a
+  // LEFT-half definition and every later one with the RIGHT half, so a reload
+  // would also repaint the source.
+  const nativeRequests = (path: string, start: number) =>
+    requests.slice(start).filter((request) => request.path === path && request.destination === "image").length;
+
+  it.each([
+    { kind: "clip", cache: "no-store", native: true },
+    { kind: "mask", cache: "no-store", native: true },
+    { kind: "clip", cache: "max-age=600", native: false },
+  ] as const)("$kind with $cache adds no native request and keeps source paint", async ({ kind, cache, native }) => {
+    const page = await browser.newPage({ viewport: { width: 128, height: 128 } });
+    try {
+      await page.goto(`${origin}/?kind=${kind}&varying=${encodeURIComponent(cache)}`);
+      const before = await pixels(page);
+      const style = await page.locator("#box").getAttribute("style");
+      const attributes = await page.locator("#box").evaluate((element) => element.getAttributeNames());
+      await freezeRealWorldDom(page);
+      const start = requests.length;
+      const result = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 128, height: 128 }, {});
+      expect(result.warnings.some((warning) => warning.feature === "external-css-svg-raster")).toBe(native);
+      expect(nativeRequests("/varying.svg", start)).toBe(0);
+      expect((await pixels(page)).equals(before)).toBe(true);
+      expect(await page.locator("#box").getAttribute("style")).toBe(style);
+      expect(await page.locator("#box").evaluate((element) => element.getAttributeNames())).toEqual(attributes);
+      expect(await page.evaluate(() => document.adoptedStyleSheets.length)).toBe(0);
+      expect(await page.locator('svg [id^="__domotionCssSvgDefinition_"]').count()).toBe(0);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("does not reload or repaint a sequence-varying no-store clip after cleanup", async () => {
+    const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
+    try {
+      await page.goto(`${origin}/?sequence=clip`);
+      const before = await pixels(page);
+      expect([...before.subarray((16 * 64 + 8) * 3, (16 * 64 + 8) * 3 + 3)]).toEqual([255, 0, 0]);
+      expect([...before.subarray((16 * 64 + 24) * 3, (16 * 64 + 24) * 3 + 3)]).toEqual([255, 255, 255]);
+      await freezeRealWorldDom(page);
+      const start = requests.length;
+      const result = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 64, height: 64 }, {});
+      // Let a reload, had one been issued, land and repaint.
+      await page.waitForTimeout(200);
+      expect(nativeRequests("/sequence.svg", start)).toBe(0);
+      expect((await pixels(page)).equals(before)).toBe(true);
+      // The verification revert also keeps the loaded resource, so the native
+      // owner stamp records the source's own paint.
+      const output = await browser.newPage({ viewport: { width: 64, height: 64 } });
+      try {
+        await output.setContent(`<body style="margin:0">${elementTreeToSvg(result.tree, 64, 64, {})}`);
+        expect((await pixels(output)).equals(before)).toBe(true);
+      } finally {
+        await output.close();
+      }
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("negative control: re-parsing the inline declaration reloads and repaints it", async () => {
+    const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
+    try {
+      await page.goto(`${origin}/?sequence=clip`);
+      const before = await pixels(page);
+      const start = requests.length;
+      const authored = await page.locator("#box").evaluate((element) => {
+        const style = (element as HTMLElement).style;
+        const value = style.getPropertyValue("clip-path");
+        style.setProperty("clip-path", "none");
+        return value;
+      });
+      await screenshotAfterPresentedFrame(page);
+      await page
+        .locator("#box")
+        .evaluate((element, value) => (element as HTMLElement).style.setProperty("clip-path", value), authored);
+      await page.waitForTimeout(200);
+      expect(nativeRequests("/sequence.svg", start)).toBe(1);
+      expect((await pixels(page)).equals(before)).toBe(false);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("restores an author declaration that outranks the owned rule through the inline path", async () => {
+    const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
+    try {
+      await page.goto(`${origin}/?sequence=clip&important-sheet=1`);
+      const style = await page.locator("#box").getAttribute("style");
+      await freezeRealWorldDom(page);
+      const result = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 64, height: 64 }, {});
+      const output = await browser.newPage({ viewport: { width: 64, height: 64 } });
+      try {
+        await output.setContent(`<body style="margin:0">${elementTreeToSvg(result.tree, 64, 64, {})}`);
+        expect([...(await pixels(output)).subarray((16 * 64 + 8) * 3, (16 * 64 + 8) * 3 + 3)]).toEqual([255, 0, 0]);
+      } finally {
+        await output.close();
+      }
+      expect(await page.locator("#box").getAttribute("style")).toBe(style);
+      expect(await page.evaluate(() => document.adoptedStyleSheets.length)).toBe(0);
     } finally {
       await page.close();
     }
