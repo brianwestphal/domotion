@@ -235,6 +235,27 @@ export function paintsAtomicallyAsInlineBox(el: CapturedElement, parentDisplay: 
 }
 
 /**
+ * Source-owned whole surfaces (a Chromium raster or opaque SVG markup) already
+ * include every descendant's paint, generated boxes included. Their subtree is
+ * emitted as that one surface, so no descendant may be hoisted out of it into
+ * an enclosing stacking context's z-order list, where it would paint a second
+ * time.
+ */
+export function ownsOpaqueSurface(element: CapturedElement): boolean {
+  return (
+    element.projectiveHidden === true ||
+    element.nativeControlRaster != null ||
+    element.externalCssSvgRaster != null ||
+    element.svgContent != null ||
+    element.urlFilterRaster?.empty === true ||
+    element.urlFilterRaster?.dataUri != null ||
+    element.transformSubtreeRaster?.empty === true ||
+    element.transformSubtreeRaster?.dataUri != null ||
+    element.backdropCompositeRaster?.dataUri != null
+  );
+}
+
+/**
  * DM-473: build the flat paint list for one stacking context.
  *
  * For each direct child of the SC root, walk into the child's subtree only
@@ -413,7 +434,7 @@ export function gatherStackingContextChildren(
       // positioned descendants. Mark `c` as the overflow ancestor so any
       // descendant we hoist further down gets the clip-path applied.
       const cIsOverflowOnly = isOverflowOnlySC(c);
-      if (!establishesStackingContext(c, childParentDisplay) || cIsOverflowOnly) {
+      if ((!establishesStackingContext(c, childParentDisplay) || cIsOverflowOnly) && !ownsOpaqueSurface(c)) {
         // Block float hoisting from this point downward if `c` itself is a
         // positioned z=auto/0 element — its descendants' floats paint with
         // it atomically, not at the parent SC. Existing float-block state
@@ -428,7 +449,7 @@ export function gatherStackingContextChildren(
     if (hoistedOut.has(c)) continue;
     out.push(c);
     const cIsOverflowOnly = isOverflowOnlySC(c);
-    if (!establishesStackingContext(c, parentDisplay) || cIsOverflowOnly) {
+    if ((!establishesStackingContext(c, parentDisplay) || cIsOverflowOnly) && !ownsOpaqueSurface(c)) {
       // If `c` is a `position:relative/absolute` with `z-index: auto/0` it
       // paints atomically at step 6 — block float hoisting from its subtree
       // (matches the `cBlocks` rule inside collectFromNonSC).

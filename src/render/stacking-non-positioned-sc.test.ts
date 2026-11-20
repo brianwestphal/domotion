@@ -51,6 +51,23 @@ describe("non-positioned stacking contexts", () => {
     expect(hoisted.has(deep)).toBe(false);
   });
 
+  it("never hoists a layer out of a source-owned whole surface", () => {
+    // An overflow-only owner is normally recursed (DM-673); once it owns a
+    // Chromium subtree raster, its descendants are already in that bitmap.
+    const sc = node({ opacity: "0.99" });
+    const positioned = node({ position: "relative" });
+    const owner = node({ overflowX: "hidden", overflowY: "hidden" }, [sc, positioned]);
+    owner.transformSubtreeRaster = { x: 0, y: 0, width: 60, height: 60, dataUri: "data:image/png;base64,AA==" };
+    const hoisted = new Set<CapturedElement>();
+    expect(gatherStackingContextChildren([node({}, [owner])], hoisted, "block")).toHaveLength(1);
+    expect(hoisted.size).toBe(0);
+    // Control: the same tree without the surface hoists both layers.
+    delete owner.transformSubtreeRaster;
+    const control = new Set<CapturedElement>();
+    expect(gatherStackingContextChildren([node({}, [owner])], control, "block")).toHaveLength(3);
+    expect(control.has(sc) && control.has(positioned)).toBe(true);
+  });
+
   it("ignores an authored z-index that does not apply (EffectiveZIndex 0)", () => {
     const blue = node({ position: "absolute", zIndex: "1" });
     const sc = node({ opacity: "0.99", zIndex: "5" });

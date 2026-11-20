@@ -1,5 +1,10 @@
 import type { CapturedElement, CapturedPseudoFragmentSet } from "../capture/types.js";
-import { establishesStackingContext, isFlexOrGridContainerDisplay, isOverflowOnlySC } from "./stacking.js";
+import {
+  establishesStackingContext,
+  isFlexOrGridContainerDisplay,
+  isOverflowOnlySC,
+  ownsOpaqueSurface,
+} from "./stacking.js";
 
 export interface OwnedStackedPseudo {
   owner: CapturedElement;
@@ -17,21 +22,6 @@ export interface PseudoStackingContexts {
   treeOrder: Map<CapturedElement, number>;
   recordOrder: Map<CapturedPseudoFragmentSet, number>;
   unavailable: Array<{ owner: CapturedElement; reason: string }>;
-}
-
-/** Source-owned whole surfaces already include their generated descendants. */
-function ownsOpaqueSurface(element: CapturedElement): boolean {
-  return (
-    element.projectiveHidden === true ||
-    element.nativeControlRaster != null ||
-    element.externalCssSvgRaster != null ||
-    element.svgContent != null ||
-    element.urlFilterRaster?.empty === true ||
-    element.urlFilterRaster?.dataUri != null ||
-    element.transformSubtreeRaster?.empty === true ||
-    element.transformSubtreeRaster?.dataUri != null ||
-    element.backdropCompositeRaster?.dataUri != null
-  );
 }
 
 /**

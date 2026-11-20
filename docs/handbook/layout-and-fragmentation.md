@@ -98,5 +98,10 @@ context (opacity, transform, filter, isolation, will-change, containment, …)
 the same way it hoists positioned boxes; an overflow-only scroller is not
 stacked and stays in flow. `paintOrderBuckets` ignores a z-index that does not
 apply. Generated (`::before`/`::after`) stacked boxes still paint with their host
-(DM-SC2P4R). Covered by `src/render/stacking-non-positioned-sc.test.ts` and
+(DM-SC2P4R). The collection never descends into a source-owned whole surface
+(`ownsOpaqueSurface`: a Chromium subtree, URL-filter, external CSS SVG or
+native-control raster, or opaque inline SVG markup): that surface already holds
+its descendants' paint, so hoisting one of them would paint it twice (a
+projective inline SVG's preserve-3d host did). Covered by
+`src/render/stacking-non-positioned-sc.test.ts` and
 `src/capture/non-positioned-stacking.e2e.test.ts`.
