@@ -20,6 +20,7 @@ import {
   roundedRectPath,
   roundedRectSvg,
   skRRectSvg,
+  skRRectUnderAaClipSvg,
   type CornerRadii,
 } from "./borders.js";
 
@@ -221,6 +222,35 @@ function aaRouteClip(ctx: ShadowPaintCtx, x: number, y: number, width: number, h
     `<clipPath id="${id}" clipPathUnits="userSpaceOnUse"><rect x="${left}" y="${top}" width="${right - left}" height="${bottom - top}" rx="1"/></clipPath>`,
   );
   return id;
+}
+
+/**
+ * A rounded rect filled on Skia's antialiased-clip raster route: an SkRRect
+ * that SVG can express (`<rect rx ry>`) or a path is drawn under `aaRouteClip`;
+ * unequal round corners are a rect under a CSS `inset()` clip, which is itself
+ * the SkRRect rasterized as an AA clip (`skRRectUnderAaClipSvg`).
+ */
+function aaRouteRRectSvg(
+  ctx: ShadowPaintCtx,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  corners: CornerRadii,
+  attrs: string,
+): string {
+  return (
+    skRRectUnderAaClipSvg(x, y, width, height, corners, attrs) ??
+    skRRectSvg(
+      x,
+      y,
+      width,
+      height,
+      corners,
+      `${attrs} clip-path="url(#${aaRouteClip(ctx, x, y, width, height)})"`,
+      shadowShapeNumber,
+    )
+  );
 }
 
 /**
@@ -464,9 +494,17 @@ function paintNormalShadowLayer(
       const clipId = ctx.nextClipId("shcut");
       const contour = { x: border.x + 1, y: border.y + 1, width: border.width - 2, height: border.height - 2 };
       const contourCorners = insetCornerRadii(corners, 1, 1, 1, 1);
-      const contourClip = aaRouteClip(ctx, contour.x, contour.y, contour.width, contour.height);
+      const contourShape = aaRouteRRectSvg(
+        ctx,
+        contour.x,
+        contour.y,
+        contour.width,
+        contour.height,
+        contourCorners,
+        'fill="black"',
+      );
       ctx.defsParts.push(
-        `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${skRRectSvg(contour.x, contour.y, contour.width, contour.height, contourCorners, `fill="black" clip-path="url(#${contourClip})"`, shadowShapeNumber)}</mask>`,
+        `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${contourShape}</mask>`,
       );
       clipAttr = ` mask="url(#${clipId})"`;
     }
@@ -483,15 +521,7 @@ function paintNormalShadowLayer(
         // has no native control proving this one yet.
         const contour =
           sh.blur === 0
-            ? skRRectSvg(
-                border.x,
-                border.y,
-                border.width,
-                border.height,
-                corners,
-                `fill="black" clip-path="url(#${aaRouteClip(ctx, border.x, border.y, border.width, border.height)})"`,
-                shadowShapeNumber,
-              )
+            ? aaRouteRRectSvg(ctx, border.x, border.y, border.width, border.height, corners, 'fill="black"')
             : roundedRectSvg(border.x, border.y, border.width, border.height, corners, 'fill="black"');
         ctx.defsParts.push(
           `<mask id="${clipId}" maskUnits="userSpaceOnUse" x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" style="mask-type:luminance"><rect x="${r(sx - sw)}" y="${r(sy - sh2)}" width="${r(sw * 3)}" height="${r(sh2 * 3)}" fill="white"/>${contour}</mask>`,
@@ -526,8 +556,7 @@ function paintNormalShadowLayer(
     // spread); the default one-decimal coordinate format would move the arc
     // by up to 0.05px, so the shadow shape keeps three decimals.
     if (rasterUnderAaClip) {
-      const aaId = aaRouteClip(ctx, sx, sy, sw, sh2);
-      const shape = skRRectSvg(sx, sy, sw, sh2, shadowCorners, `${fill} clip-path="url(#${aaId})"`, shadowShapeNumber);
+      const shape = aaRouteRRectSvg(ctx, sx, sy, sw, sh2, shadowCorners, fill);
       ctx.svgParts.push(clipAttr === "" ? `${indent}${shape}` : `${indent}<g${clipAttr}>${shape}</g>`);
       return;
     }

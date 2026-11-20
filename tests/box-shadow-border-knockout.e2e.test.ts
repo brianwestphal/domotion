@@ -285,13 +285,29 @@ it("keeps a display:contents selector transparent and captures its real child", 
 //   coverage run by run (SkScan::AntiFillPath forceRLE, Skia 62efacd3
 //   SkScan_AntiPath.cpp:145-153), so the shape and the knockout contour are
 //   drawn under AA clips too.
-// - Four equal elliptical corners are an SVG <rect rx ry>, the same conic
-//   SkRRect; path arcs would become cubics.
+// - Four equal elliptical corners are an SVG <rect rx ry>, the same convex
+//   SkRRect. Unequal corners are a pixel-aligned rect under a CSS inset()
+//   clip: BasicShapeInset::GetPath builds that SkRRect (basic_shapes.cc:
+//   349-379), and Skia rasterizes it as an AA clip with the same run-based
+//   accumulator. Path arcs are float-computed conics and do not match.
 it.each([
   { name: "small radius, larger spread", css: "box-shadow:0 0 0 4px red;border-radius:2px" },
   { name: "offset with a large spread", css: "box-shadow:3px 2px 0 8px red;border-radius:1px" },
   { name: "three times the radius", css: "box-shadow:0 0 0 10px red;border-radius:3px" },
   { name: "unequal corners with spread", css: "box-shadow:0 0 0 5px red;border-radius:2px 0 4px 8px" },
+  { name: "unequal corners with a large spread", css: "box-shadow:0 0 0 12px red;border-radius:2px 0 4px 8px" },
+  {
+    name: "unequal corners with a large spread at a half pixel",
+    css: "box-shadow:0 0 0 12px red;border-radius:2px 0 4px 8px;margin:20.5px",
+  },
+  {
+    name: "unequal corners with a fractional offset and spread",
+    css: "box-shadow:3.5px 2.25px 0 7px red;border-radius:3px 9px 1px 5px",
+  },
+  {
+    name: "unequal fractional corners on an opaque box",
+    css: "box-shadow:4px 4px 0 red;border-radius:8.3px 0 3.7px 5px;background:blue",
+  },
   { name: "half-pixel horizontal offset", css: "box-shadow:.5px 0 0 red;border-radius:5px" },
   { name: "half-pixel vertical offset", css: "box-shadow:0 .5px 0 red;border-radius:5px" },
   { name: "elliptical corners", css: "box-shadow:4px 4px 0 red;border-radius:8px / 4px" },
@@ -313,6 +329,34 @@ it.each([
         elementTreeToSvg(await captureElementTree(page, "#container", viewport), 100, 100),
     );
     expect(await rgba(await output.screenshot({ omitBackground: true }))).toEqual(source);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
+
+// Negative control: the same SkRRect written as path arcs (the previous
+// construction) does not reproduce native coverage, so the inset() clip is
+// what makes the unequal-corner cases above exact.
+it("does not match native unequal-corner coverage with path arcs", async () => {
+  const page = await browser.newPage({ viewport }),
+    output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      '<style>body{margin:0}#only{width:20px;height:20px;margin:20px;box-shadow:0 0 0 12px red;border-radius:2px 0 4px 8px}</style><div id="container"><div id="only"></div></div>',
+    );
+    const source = await rgba(await page.screenshot({ omitBackground: true }));
+    const svg = elementTreeToSvg(await captureElementTree(page, "#container", viewport), 100, 100);
+    const inset =
+      /<rect x="7" y="7" width="46" height="46" (fill="[^"]+") style="clip-path:inset\([^"]+\) fill-box" \/>/;
+    expect(svg).toMatch(inset);
+    const arcs = svg.replace(
+      inset,
+      '<clipPath id="neg" clipPathUnits="userSpaceOnUse"><rect x="6" y="6" width="48" height="48" rx="1"/></clipPath>' +
+        '<path d="M15.111,8 L52,8 L52,39.328 A12.672,12.672 0 0 1 39.328,52 L27.783,52 A19.783,19.783 0 0 1 8,32.217 L8,15.111 A7.111,7.111 0 0 1 15.111,8 Z" $1 clip-path="url(#neg)" />',
+    );
+    await output.setContent("<style>body{margin:0}</style>" + arcs);
+    expect(await rgba(await output.screenshot({ omitBackground: true }))).not.toEqual(source);
   } finally {
     await page.close();
     await output.close();

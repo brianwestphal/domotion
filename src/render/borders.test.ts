@@ -9,6 +9,7 @@ import {
   snappedBorderEdges,
   snappedInsetBox,
   skRRectSvg,
+  skRRectUnderAaClipSvg,
   uniformDoubleBorderStripeBoxes,
   snapNinePieceDestinationGrid,
   findOffGridCollapsedCells,
@@ -888,5 +889,32 @@ describe("skRRectSvg", () => {
     expect(skRRectSvg(0, 0, 20, 20, corners(5, 5), "")).toContain('rx="5"');
     const unequal = { ...corners(8, 4), tr: { h: 0, v: 0 }, uniform: false };
     expect(skRRectSvg(0, 0, 20, 20, unequal, "")).toMatch(/^<path /);
+  });
+});
+
+describe("skRRectUnderAaClipSvg", () => {
+  const corners = (h: number, v: number) => ({
+    tl: { h, v },
+    tr: { h, v },
+    br: { h, v },
+    bl: { h, v },
+    uniform: h === v,
+  });
+  it("clips a pixel-aligned rect 1px larger than the shape by inset(… round …)", () => {
+    const unequal = { ...corners(3, 3), tr: { h: 9, v: 9 }, bl: { h: 5.25, v: 1.5 }, uniform: false };
+    expect(skRRectUnderAaClipSvg(10.5, 20.25, 30, 15.5, unequal, 'fill="red"')).toBe(
+      '<rect x="9" y="19" width="33" height="18" fill="red" style="clip-path:inset(1.25px 1.5px 1.25px 1.5px round 3px 9px 3px 5.25px / 3px 9px 3px 1.5px) fill-box" />',
+    );
+  });
+  it("leaves <rect rx ry> corners and non-round corner shapes to the caller", () => {
+    expect(skRRectUnderAaClipSvg(0, 0, 20, 20, corners(5, 5), "")).toBeNull();
+    expect(skRRectUnderAaClipSvg(0, 0, 20, 20, corners(8, 4), "")).toBeNull();
+    const squircle = {
+      ...corners(3, 3),
+      tr: { h: 0, v: 0 },
+      uniform: false,
+      curvature: { tl: 4, tr: 2, br: 2, bl: 2 },
+    };
+    expect(skRRectUnderAaClipSvg(0, 0, 20, 20, squircle, "")).toBeNull();
   });
 });

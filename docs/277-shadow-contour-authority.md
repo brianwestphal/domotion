@@ -20,6 +20,7 @@ tickets:
     "DM-8PMQPX",
     "DM-4RGP8Y",
     "DM-GX7XNJ",
+    "DM-PH6EK3",
   ]
 code:
   [
@@ -419,8 +420,9 @@ border radius and a known background:
   way. For an opaque background, the contour inset by 1px is now knocked out
   too, because it reaches visible pixels at a rounded corner.
 - **Corner representation.** Four equal elliptical corners are written as
-  `<rect rx ry>` (`skRRectSvg`), the same conic `SkRRect`. Path `A` commands are
-  decomposed into cubics and do not match.
+  `<rect rx ry>` (`skRRectSvg`), the same conic `SkRRect`. Unequal round corners
+  are a pixel-aligned `<rect>`, 1px larger than the shape, under a CSS
+  `clip-path: inset(… round …) fill-box` (`skRRectUnderAaClipSvg`, see below).
 
 These are now byte-exact native controls in
 `tests/box-shadow-border-knockout.e2e.test.ts`:
@@ -435,9 +437,8 @@ These are now byte-exact native controls in
 
 Two gaps remain:
 
-- **Unequal corners.** There is no SVG primitive for an `SkRRect` with unequal
-  radii; the path's cubic arcs stay. A 12px spread over `2px 0 4px 8px` still
-  differs by up to 54 alpha.
+- **Unequal corners (resolved by DM-PH6EK3, see below).** One edge-drift
+  residual remains.
 - **Blurred shadows.** These take the mask-filter route, which this change does
   not touch.
 
@@ -567,6 +568,61 @@ Remaining gaps, outside the shadow producer unless noted:
   `direction`.
 - **Vertical writing modes.** The fragment sides assume a horizontal inline
   axis.
+
+## Unequal-radius rounded rects (DM-PH6EK3)
+
+SVG has no element for an `SkRRect` with unequal corner radii. Path `A`
+commands are **not** decomposed into cubics at the pin: `SVGPathBuilder::EmitArcTo`
+calls `PathBuilder::ArcTo`, which calls `SkPathBuilder::arcTo(rad, angle, size,
+dir, end)` (`svg_path_builder.cc:100-106`, `platform/geometry/path_builder.cc:185-199`,
+Chromium 7d859f27). That builds one conic per arc of at most 120° (Skia 62efacd3
+`SkPathBuilder.cpp:563-680`). `SVGPathNormalizer::DecomposeArcToCubic` runs only for
+`getPathSegments({normalize: true})` (`svg_path_utilities.cc:89-101`).
+
+Those conics still are not the SkRRect:
+
+- Their control points and weight are recomputed in float. They are snapped to
+  integers only when radii and endpoints are integral (`expectIntegers`).
+- The fill resolves convexity from the points (`SkDraw.cpp:1050-1062`), and
+  `aaa_fill_path` picks the convex or the general edge walker from it
+  (`SkScan_AAAPath.cpp:1683`).
+
+At fractional radii the arcs covered pixels up to 54 alpha away from native.
+
+CSS `clip-path: inset()` does produce the SkRRect. `BasicShapeInset::GetPath`
+builds a `FloatRoundedRect`, constrains it, and returns
+`Path::MakeRoundedRect` (`basic_shapes.cc:349-379`). Skia builds that clip with
+`SkAAClip::setPath`, which goes through `AntiFillPath` with forceRLE. That is the
+run-based accumulator Blink's shadow fill takes under `ClipOutContouredRect`.
+
+`skRRectUnderAaClipSvg` therefore fills a pixel-aligned `<rect>`, 1px larger
+than the shape, under `clip-path: inset(t r b l round h… / v…) fill-box`. The
+rect's own coverage is 255 inside the clip, so the painted alpha is the clip's.
+`paintBoxShadow` uses it for the zero-blur shape and for both knockout contours
+whenever `<rect rx ry>` cannot carry the corners and every corner is round.
+
+Measured against native Chromium on macOS (full RGBA):
+
+| Case                            | Path arcs | inset() clip |
+| ------------------------------- | --------- | ------------ |
+| `2px 0 4px 8px`, 12px spread    | 53 px     | 0            |
+| the same at a half-pixel origin | 54 px     | 0            |
+| `5px 2px / 3px 7px`, 6px spread | 58 px     | 2 px         |
+
+The tests in `tests/box-shadow-border-knockout.e2e.test.ts` include a negative
+control: the same rrect written as path arcs does not match native.
+
+Limits:
+
+- **Edge drift.** The `5px 2px / 3px 7px` case keeps 2 pixels. Native paints
+  alpha 25 one pixel left of the shape's straight edge. The convex walker's drift
+  is bounded by the clip region, which is the whole layer natively but the
+  path's own bounds when Skia builds an `SkAAClip`.
+- **Fill routes.** The construction reproduces only the AA-clip (run-based)
+  route. Measured against a plain CSS background, which uses the mask
+  accumulator with no AA clip, the inset() clip is off by up to 18 alpha, while
+  `<rect rx>` is exact. Unequal-radius backgrounds, borders and clips therefore
+  keep their paths; see the follow-up filed from DM-PH6EK3.
 
 ## Blurred shadows (DM-RRWR8E)
 

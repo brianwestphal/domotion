@@ -167,7 +167,7 @@ already supported.
 The [native contour investigation](../277-shadow-contour-authority.md) retains
 source geometry, full-RGBA measurements and strict unresolved producer probes.
 Rounded zero-blur shadows now take Skia's AA-clip raster route and match
-natively except unequal corners with spread (DM-5KSA83, DM-ZNQ7PH). Normal shadows use Blink's [pixel-snapped border rectangle](../277-shadow-contour-authority.md#pixel-snapped-normal-shadow-paint-rectangle)
+natively (DM-5KSA83, DM-ZNQ7PH). Unequal round corners are a pixel-aligned rect under a CSS `inset()` clip, which Blink builds as the same SkRRect ([doc 277](../277-shadow-contour-authority.md#unequal-radius-rounded-rects-dm-ph6ek3), DM-PH6EK3). Normal shadows use Blink's [pixel-snapped border rectangle](../277-shadow-contour-authority.md#pixel-snapped-normal-shadow-paint-rectangle)
 when capture authenticates the local paint space (DM-WYY3ZZ); sharp boxes follow Blink's device-rounded [non-antialiased clips](../277-shadow-contour-authority.md#sharp-shadows-under-blinks-non-antialiased-clips-dm-8pmqpx) (DM-8PMQPX).
 DM-09GQAV omits
 the native-empty coincident shadow; root admission is guarded below.

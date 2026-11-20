@@ -141,6 +141,26 @@ describe("normal box-shadow pixel-snapped border contour", () => {
     expect(ctx.svgParts[0]).toMatch(/^<g mask="url\(#shcut0\)"><rect [^>]*clip-path="url\(#shaa2\)" \/><\/g>$/);
   });
 
+  // SVG has no unequal-radius rrect; a pixel-aligned rect under a CSS inset()
+  // clip is Blink's SkRRect rasterized as an AA clip (basic_shapes.cc:349-379).
+  it("draws unequal rounded corners as a rect under an inset() SkRRect clip", () => {
+    const unequal: CornerRadii = {
+      tl: { h: 2, v: 2 },
+      tr: { h: 0, v: 0 },
+      br: { h: 4, v: 4 },
+      bl: { h: 8, v: 8 },
+      uniform: false,
+    };
+    const ctx = paintNormal(box(snapHalf), unequal);
+    expect(ctx.svgParts[0]).toBe(
+      '<g mask="url(#shcut0)"><rect x="24" y="20" width="22" height="22" fill="rgb(255,0,0)" style="clip-path:inset(1px 1px 1px 1px round 2px 0px 4px 8px / 2px 0px 4px 8px) fill-box" /></g>',
+    );
+    expect(ctx.defsParts.join("")).toContain(
+      '<rect x="20" y="20" width="22" height="22" fill="black" style="clip-path:inset(1px 1px 1px 1px round 2px 0px 4px 8px / 2px 0px 4px 8px) fill-box" />',
+    );
+    expect(ctx.defsParts.join("")).not.toContain("shaa");
+  });
+
   it("leaves sharp and blurred shadows on the unclipped raster route", () => {
     expect(paintNormal(box(snapHalf), SHARP).defsParts.join("")).not.toContain("shaa");
     const blurred = paintNormal(

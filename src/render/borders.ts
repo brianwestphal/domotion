@@ -4,7 +4,7 @@
  * emitter (`renderBorderImage`).
  */
 
-import { r, esc } from "./format.js";
+import { r, esc, formatNumberLoose } from "./format.js";
 import { parseColor, type RGBA } from "./colors.js";
 import { editSvgRootAttributes, readSvgOpeningTag } from "./svg-inline.js";
 import type { CapturedElement } from "../capture/types.js";
@@ -1025,10 +1025,13 @@ export function roundedRectSvg(
 
 /**
  * `roundedRectSvg`, but four equal elliptical corners are written as
- * `<rect rx ry>`: Chromium turns that into the same SkRRect (conic corners)
- * Blink fills for a CSS rounded rect, whereas path arc commands are
- * decomposed into cubics and cover edge pixels differently. Used where a
- * native control proves it byte-exact (box-shadow shapes and their knockout).
+ * `<rect rx ry>`: Chromium turns that into the same convex SkRRect Blink fills
+ * for a CSS rounded rect. A path's `A` commands also become conics
+ * (`SVGPathBuilder::EmitArcTo` → `SkPathBuilder::arcTo`, Chromium 7d859f27 /
+ * Skia 62efacd3 SkPathBuilder.cpp:563-680), but their float-computed control
+ * points do not reproduce the SkRRect's coverage at fractional radii. Used
+ * where a native control proves it byte-exact (box-shadow shapes and their
+ * knockout).
  */
 export function skRRectSvg(
   x: number,
@@ -1058,6 +1061,61 @@ export function skRRectSvg(
     return `<rect x="${fmt(x)}" y="${fmt(y)}" width="${fmt(w)}" height="${fmt(h)}" rx="${fmt(c.tl.h)}" ry="${fmt(c.tl.v)}" ${attrs} />`;
   }
   return `<path d="${roundedRectPath(x, y, w, h, c, fmt)}" ${attrs} />`;
+}
+
+/** Whether `<rect rx ry>` can carry these corners (see `skRRectSvg`). */
+function isSingleSvgRectRRect(w: number, h: number, c: CornerRadii): boolean {
+  const same = (p: CornerRadiusPair) => p.h === c.tl.h && p.v === c.tl.v;
+  return (
+    same(c.tr) &&
+    same(c.br) &&
+    same(c.bl) &&
+    (c.uniform || (c.tl.h > 0 && c.tl.v > 0 && c.tl.h * 2 <= w && c.tl.v * 2 <= h))
+  );
+}
+
+const insetNumber = (n: number): string => formatNumberLoose(n, 5);
+
+/**
+ * A rounded rect with unequal corners, filled as Skia's SkRRect on the
+ * antialiased-clip raster route. SVG has no element for an unequal-radius
+ * rrect, and path arcs do not cover pixels like one. CSS `clip-path:
+ * inset(… round …)` does: `BasicShapeInset::GetPath` builds a
+ * `FloatRoundedRect` and `Path::MakeRoundedRect` (basic_shapes.cc:349-379,
+ * Chromium 7d859f27), so the clip is the convex SkRRect, and Skia builds the
+ * AA clip with the run-based accumulator (`SkAAClip::setPath` → AntiFillPath
+ * forceRLE, Skia 62efacd3 SkScan_AntiPath.cpp:145-153). A pixel-aligned rect
+ * 1px larger than the shape, filled under that clip, therefore paints exactly
+ * the coverage Skia gives the SkRRect under an AA clip — Blink's route for a
+ * rounded box shadow. A fill without an AA clip (the mask accumulator) is not
+ * reproduced by this construction.
+ *
+ * Returns null for corners `<rect rx ry>` already carries and for non-round
+ * `corner-shape` curvature (a ContouredRect path, not an SkRRect).
+ */
+export function skRRectUnderAaClipSvg(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  c: CornerRadii,
+  attrs: string,
+): string | null {
+  const round = (curvature: number | undefined) => curvature == null || curvature === ROUND_CURVATURE;
+  if (!round(c.curvature?.tl) || !round(c.curvature?.tr) || !round(c.curvature?.br) || !round(c.curvature?.bl)) {
+    return null;
+  }
+  if (isSingleSvgRectRRect(w, h, c) || w <= 0 || h <= 0) return null;
+  const left = Math.floor(x) - 1,
+    top = Math.floor(y) - 1;
+  const right = Math.ceil(x + w) + 1,
+    bottom = Math.ceil(y + h) + 1;
+  const f = insetNumber;
+  const insets = `${f(y - top)}px ${f(right - (x + w))}px ${f(bottom - (y + h))}px ${f(x - left)}px`;
+  const radii =
+    `${f(c.tl.h)}px ${f(c.tr.h)}px ${f(c.br.h)}px ${f(c.bl.h)}px / ` +
+    `${f(c.tl.v)}px ${f(c.tr.v)}px ${f(c.br.v)}px ${f(c.bl.v)}px`;
+  return `<rect x="${left}" y="${top}" width="${right - left}" height="${bottom - top}" ${attrs} style="clip-path:inset(${insets} round ${radii}) fill-box" />`;
 }
 
 export interface BorderSide {
