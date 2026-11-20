@@ -5151,7 +5151,8 @@
           "DM-D8RS5E",
           "DM-XWGRJC",
           "DM-MGQCRJ",
-          "DM-DZVKRG"
+          "DM-DZVKRG",
+          "DM-GREERW"
         ],
         "code": [
           "src/font-family-stack.test.ts",

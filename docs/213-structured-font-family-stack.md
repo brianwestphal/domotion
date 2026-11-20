@@ -20,6 +20,7 @@ tickets:
     "DM-XWGRJC",
     "DM-MGQCRJ",
     "DM-DZVKRG",
+    "DM-GREERW",
   ]
 code:
   [
@@ -322,9 +323,20 @@ advances (including Blink's 1/64 CSS-pixel layout quantum); usable captured type
 must select those same faces. Existing ZZR reset/literal/iframe/shadow controls
 remain strict. Matching source/legacy/current PNG/SVG evidence is retained, with
 raw pixel differences reported separately from semantic face/type assertions.
-Full-frame residual differences are not attributed by the improvement alone
-(DM-GREERW). Linux and Windows have a separate strict two-case native profile;
-local macOS evidence does not stand in for those target runners.
+Linux and Windows have a separate strict two-case native profile; local macOS
+evidence does not stand in for those target runners.
+
+The full-frame residual was then attributed row by row (DM-GREERW, macOS,
+Chromium 147). Every differing pixel in both stylesheet modes sat on a
+standard-family row, which was painted exactly one pixel lower than Chromium with
+identical ink mass and x positions. Every concrete row was byte-identical. That
+is the canvas baseline-metric defect fixed by the in-document probe described
+under DM-DZVKRG below. With it, readable goes from 2.404% to 0.029% differing
+pixels and opaque from 2.448% to 0.073%. What remains is one CDP-captured
+`::before` row in each mode (189 pixels, generated-content metrics, DM-MW7VJN),
+plus the explicitly unsupported animated-pseudo row in opaque mode (287
+pixels, DM-RRAX58). No hinting, advance, shorthand, cache or helper residual
+remains in this fixture.
 
 ## Owner matrix
 
