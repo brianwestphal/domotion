@@ -195,8 +195,10 @@ Capture: `src/capture/external-css-svg.ts` retains document/element selection in
 its private journal; `src/capture/script/walker/element-capture.ts` records
 `externalCssSvgRaster`; `src/capture/external-css-svg-raster.ts` isolates the
 authenticated native subtree with Node bounds, source-preserving visibility,
-transparent alpha readback and retryable CAS cleanup. Unsupported ancestor
-compositing, clipping, text and active animation explicitly refuse (DM-N933MV).
+transparent alpha readback and retryable CAS cleanup. Ancestor opacity is
+neutralized in the stamp and re-applied by the renderer's ancestor groups
+(DM-N933MV); ancestor transforms, filters, clipping, text and active animation
+explicitly refuse (DM-VA1P9H).
 Same-document definitions outside the owner that its subtree references stay at
 native paint when they are never-painted SVG content (`<defs>`, `<symbol>`,
 resource containers); a directly painted dependency refuses (DM-F19PYG).

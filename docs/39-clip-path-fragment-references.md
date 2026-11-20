@@ -23,6 +23,7 @@ tickets:
     "DM-C6YH8W",
     "DM-FMYC9Q",
     "DM-CN257K",
+    "DM-VA1P9H",
   ]
 code:
   [
@@ -238,10 +239,22 @@ vector fallback.
 
 The initial native boundary is static HTML owners in the main document. It
 refuses root body/html owners, animated/transitioning owners, backdrop blending,
-and ancestors with transformed/composited/clipped paint, propagated decoration
-or direct text. Potential isolation transitions, exposed root scrollbars and
-inherited paint changes also refuse; owner computed paint must remain unchanged
-through isolation/readback. These legitimate unsupported cases are tracked by DM-N933MV.
+and ancestors with transformed, filtered, blended or clipped paint, propagated
+decoration or direct text. Potential isolation transitions, exposed root
+scrollbars and inherited paint changes also refuse; owner computed paint must
+remain unchanged through isolation/readback. These legitimate unsupported cases
+are tracked by DM-VA1P9H.
+
+Ancestor `opacity` is supported (DM-N933MV). The renderer already emits each
+captured ancestor's opacity group around the owner's `<image>`, so the stamp
+must carry the owner's paint without it: isolation sets every ancestor to
+`opacity:1` alongside its other suppressed paint channels and verifies the
+computed value is `1` after isolation and after readback. Opacity is not
+inherited, so the owner fingerprint is unaffected; an opacity transition on an
+ancestor refuses like the other isolation channels. Native clip/mask controls
+with nested `.5`/`.6` ancestors match source within 2 channel levels (PNG
+quantization);
+without neutralization the same controls are off by 54 levels.
 
 Same-document definitions outside the owner (DM-F19PYG) keep their native
 paint. The owner subtree's `clip-path`, `mask-image`, `filter`, `fill`,

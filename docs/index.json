@@ -1102,7 +1102,8 @@
           "DM-HSABGR",
           "DM-C6YH8W",
           "DM-FMYC9Q",
-          "DM-CN257K"
+          "DM-CN257K",
+          "DM-VA1P9H"
         ],
         "code": [
           "src/capture/index.ts",

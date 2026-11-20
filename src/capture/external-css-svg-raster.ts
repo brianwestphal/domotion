@@ -25,11 +25,14 @@ interface AncestorPaint {
   boxShadow: string;
   borderImageSource: string;
   colors: string[];
+  /** Ancestor alpha is neutralized for the stamp; the renderer re-applies it. */
+  opacity: string;
 }
 function requireTransparentAncestors(facts: AncestorPaint[], message: string): void {
   if (
     facts.some(
       (fact) =>
+        fact.opacity !== "1" ||
         fact.backgroundImage !== "none" ||
         fact.boxShadow !== "none" ||
         fact.borderImageSource !== "none" ||
@@ -174,7 +177,6 @@ export async function rasterizeExternalCssSvgSurfaces(
               ancestors.add(ancestor);
               const style = getComputedStyle(ancestor);
               if (
-                style.opacity !== "1" ||
                 ancestor.getAnimations().length > 0 ||
                 style.transform !== "none" ||
                 style.filter !== "none" ||
@@ -324,7 +326,7 @@ export async function rasterizeExternalCssSvgSurfaces(
               for (const pseudo of ["", "::before", "::after"]) {
                 const style = getComputedStyle(element, pseudo || null);
                 const affected = ancestors.has(element)
-                  ? /^(all|visibility|background(?:-.*)?|border(?:-.*)?|box-shadow|outline(?:-.*)?)$/
+                  ? /^(all|visibility|opacity|background(?:-.*)?|border(?:-.*)?|box-shadow|outline(?:-.*)?)$/
                   : /^(all|visibility)$/;
                 if (
                   style.transitionProperty.split(",").some((name) => affected.test(name.trim())) &&
@@ -367,7 +369,7 @@ export async function rasterizeExternalCssSvgSurfaces(
             for (const ancestor of ancestors) {
               const index = String(isolation.marked.length);
               rules.push(
-                `[${attribute}="${index}"]${show}{background:transparent!important;border-color:transparent!important;border-image:none!important;box-shadow:none!important;outline-color:transparent!important}`,
+                `[${attribute}="${index}"]${show}{background:transparent!important;border-color:transparent!important;border-image:none!important;box-shadow:none!important;outline-color:transparent!important;opacity:1!important}`,
               );
               rules.push(
                 `[${attribute}="${index}"]${show}::before,[${attribute}="${index}"]${show}::after{visibility:hidden!important}`,
@@ -428,6 +430,7 @@ export async function rasterizeExternalCssSvgSurfaces(
                     style.borderLeftColor,
                     style.outlineColor,
                   ],
+                  opacity: style.opacity,
                 });
                 for (const pseudo of ["::before", "::after"])
                   if (getComputedStyle(element, pseudo).visibility !== "hidden")
@@ -495,6 +498,7 @@ export async function rasterizeExternalCssSvgSurfaces(
                     style.borderLeftColor,
                     style.outlineColor,
                   ],
+                  opacity: style.opacity,
                 });
               for (const pseudo of ancestor ? ["::before", "::after"] : ["", "::before", "::after"])
                 if (getComputedStyle(element, pseudo || null).visibility !== "hidden")

@@ -241,7 +241,52 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
       }
     },
   );
-  it.each(["opacity", "clipping", "text"] as const)(
+  it.each(["clip", "mask"] as const)(
+    "keeps native %s paint under nested ancestor opacity without double-applying alpha",
+    async (kind) => {
+      const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
+      try {
+        await page.goto(`${origin}/?kind=${kind}&csp=blocked`);
+        await page.locator("#box").evaluate((element) => {
+          const outer = document.createElement("div");
+          outer.style.cssText = "opacity:.5;background:transparent";
+          const inner = document.createElement("div");
+          inner.style.cssText = "opacity:.6";
+          element.replaceWith(outer);
+          outer.appendChild(inner);
+          inner.appendChild(element);
+        });
+        const before = await pixels(page);
+        // Native discriminator: 0.3-alpha red over white inside the clip/mask,
+        // untouched white outside it.
+        const inside = [...before.subarray((16 * 64 + 4) * 3, (16 * 64 + 4) * 3 + 3)];
+        expect(inside[0]).toBe(255);
+        expect(Math.abs(inside[1] - 178)).toBeLessThanOrEqual(1);
+        expect([...before.subarray((16 * 64 + 24) * 3, (16 * 64 + 24) * 3 + 3)]).toEqual([255, 255, 255]);
+        const markup = await page.evaluate(() => document.body.innerHTML);
+        await freezeRealWorldDom(page);
+        const result = await captureElementTreeWithWarnings(page, "body", viewport, {});
+        const output = await browser.newPage({ viewport: { width: 64, height: 64 } });
+        try {
+          await output.setContent(`<body style="margin:0">${elementTreeToSvg(result.tree, 64, 64, {})}`);
+          const captured = await pixels(output);
+          let maxDelta = 0;
+          for (let index = 0; index < captured.length; index++)
+            maxDelta = Math.max(maxDelta, Math.abs(captured[index] - before[index]));
+          // The PNG round-trip quantizes once; double application would land at
+          // ~0.09 alpha (g ≈ 232), far outside this bound.
+          expect(maxDelta).toBeLessThanOrEqual(2);
+        } finally {
+          await output.close();
+        }
+        expect((await pixels(page)).equals(before)).toBe(true);
+        expect(await page.evaluate(() => document.body.innerHTML)).toBe(markup);
+      } finally {
+        await page.close();
+      }
+    },
+  );
+  it.each(["clipping", "text"] as const)(
     "refuses unsupported ancestor %s without changing source paint",
     async (effect) => {
       const page = await browser.newPage({ viewport: { width: 64, height: 64 } });
@@ -249,8 +294,7 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
         await page.goto(`${origin}/?csp=blocked`);
         await page.locator("#box").evaluate((element, effect) => {
           const wrapper = document.createElement("div");
-          wrapper.style.cssText =
-            effect === "opacity" ? "opacity:.5" : effect === "clipping" ? "overflow:hidden;width:16px;height:16px" : "";
+          wrapper.style.cssText = effect === "clipping" ? "overflow:hidden;width:16px;height:16px" : "";
           element.replaceWith(wrapper);
           wrapper.appendChild(element);
           if (effect === "text") wrapper.append("native ancestor text");
