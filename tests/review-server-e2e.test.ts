@@ -3,12 +3,12 @@
 // guards: selecting a CI source must NOT block the page render on that gh fetch —
 // the page renders immediately with `sourceFetchNeeded`, and the client fetches
 // behind a loading overlay via /api/refresh-source. This test spawns the server
-// with a deliberately SLOW, failing `gh` on PATH and asserts the `/` route stays
+// with a deliberately SLOW, failing fake `gh` and asserts the `/` route stays
 // fast (would be ≥5s if someone re-introduced the blocking fetch).
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { networkInterfaces, tmpdir } from "node:os";
-import { delimiter, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { startOwnedUiServer, type OwnedUiServer } from "./owned-ui-server.js";
@@ -94,20 +94,12 @@ function linuxCjkResult(diffPct = 0.595): Record<string, unknown> {
   };
 }
 
-/** Put a `gh` on PATH that records its pid and `exec`s the owned Node fake, so
- * each server child is the recorded fake itself. Recording in the shim, before
- * Node starts, leaves no window in which a just-spawned fake is unrecorded.
- * Unix shim: the fixtures stay POSIX-only. */
-function installFakeGh(tmp: string): { binDir: string; pids: string } {
-  const binDir = join(tmp, "bin");
-  mkdirSync(binDir);
-  const gh = join(binDir, "gh");
-  writeFileSync(
-    gh,
-    `#!/bin/sh\necho $$ >> "$FAKE_GH_PIDS"\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(FAKE_GH)} "$@"\n`,
-  );
-  chmodSync(gh, 0o755);
-  return { binDir, pids: join(tmp, "gh-pids.log") };
+/** Run the owned Node fake as the server's `gh` through `REVIEW_GH_COMMAND`,
+ * so each server child is the fake itself on every platform (a PATH shim
+ * cannot be launched by execFile on Windows). The fake records its own pid as
+ * its first statement. */
+function installFakeGh(tmp: string): { command: string; pids: string } {
+  return { command: JSON.stringify([process.execPath, FAKE_GH]), pids: join(tmp, "gh-pids.log") };
 }
 
 const alive = (pid: number): boolean => {
@@ -132,9 +124,9 @@ async function expectFakeGhReleased(pids: string, timeoutMs = 3_000): Promise<vo
   expect(running, `fake gh processes still running after server close (of ${started.length})`).toEqual([]);
 }
 
-async function startReviewServer(env: NodeJS.ProcessEnv, binDir: string, startupTimeoutMs: number) {
+async function startReviewServer(env: NodeJS.ProcessEnv, ghCommand: string, startupTimeoutMs: number) {
   const server = await startOwnedUiServer(SERVER, ["--port", "0"], {
-    env: { ...env, PATH: `${binDir}${delimiter}${process.env.PATH}`, REVIEW_NO_OPEN: "1" },
+    env: { ...env, REVIEW_GH_COMMAND: ghCommand, REVIEW_NO_OPEN: "1" },
     startupTimeoutMs,
   });
   return { server, base: server.url, port: Number(new URL(server.url).port) };
@@ -207,7 +199,7 @@ describe("review-server async loading (DM-1665)", () => {
         DOMOTION_OUTPUT_DIR: localOut,
         REVIEW_OUTPUT_DIR: "",
       },
-      fake.binDir,
+      fake.command,
       35_000,
     ));
   }, 45_000);
@@ -408,7 +400,7 @@ describe("review-server lazy fetch: dedup + non-blocking (DM-1667)", () => {
         REVIEW_CI_BASE: ciBase,
         REVIEW_OUTPUT_DIR: join(tmp, "local"),
       },
-      fake.binDir,
+      fake.command,
       90_000,
     ));
   }, 120_000);

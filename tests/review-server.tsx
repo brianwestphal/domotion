@@ -52,6 +52,18 @@ import { promisify } from "node:util";
 // freezing every other request and defeating the in-flight dedup below.
 const execFileAsync = promisify(execFile);
 const GH_OPTS = { maxBuffer: 32 * 1024 * 1024 } as const;
+// `REVIEW_GH_COMMAND` (a JSON array: executable plus leading arguments) replaces
+// `gh` for tests. execFile without a shell cannot launch a .cmd or #!/bin/sh
+// shim on Windows, so the e2e runs its Node fake as `[node, fake.mjs]` instead.
+const GH_COMMAND: readonly string[] = (() => {
+  const raw = process.env["REVIEW_GH_COMMAND"];
+  if (raw == null || raw === "") return ["gh"];
+  const parsed: unknown = JSON.parse(raw);
+  if (!Array.isArray(parsed) || parsed.length === 0 || !parsed.every((part) => typeof part === "string"))
+    throw new Error("REVIEW_GH_COMMAND must be a non-empty JSON array of strings");
+  return parsed as string[];
+})();
+const ghArgs = (args: string[]): [string, string[]] => [GH_COMMAND[0]!, [...GH_COMMAND.slice(1), ...args]];
 import { raw } from "kerfjs";
 import { installShutdownHandlers, openInBrowser } from "../src/cli/common.js";
 import { reviewServerPort } from "./review-server-options.js";
@@ -460,8 +472,7 @@ const CI_IMAGES_REPO = "brianwestphal/domotion-ci-images";
 async function resolveImagesRepoSha(ciSuite: string, os: string): Promise<string | null> {
   try {
     const { stdout } = await execFileAsync(
-      "gh",
-      ["api", `repos/${CI_IMAGES_REPO}/git/refs/heads/${ciSuite}-${os}`, "--jq", ".object.sha"],
+      ...ghArgs(["api", `repos/${CI_IMAGES_REPO}/git/refs/heads/${ciSuite}-${os}`, "--jq", ".object.sha"]),
       { ...GH_OPTS, encoding: "utf8" },
     );
     const sha = stdout.trim();
@@ -537,8 +548,7 @@ function fetchShard(root: string, suite: SuiteName, meta: CiSourceMeta, shard: n
     try {
       console.log(`  ↓ lazy-fetching ${meta.os} shard ${shard} (run ${meta.runId})…`);
       await execFileAsync(
-        "gh",
-        ["run", "download", meta.runId, "--dir", tmp, "--pattern", `results-${meta.os}-shard${shard}`],
+        ...ghArgs(["run", "download", meta.runId, "--dir", tmp, "--pattern", `results-${meta.os}-shard${shard}`]),
         GH_OPTS,
       );
       const walk = (d: string): void => {
@@ -583,8 +593,7 @@ async function resolveLatestRun(ciSuite: string): Promise<string | null> {
     let runId: string | null = null;
     try {
       const { stdout } = await execFileAsync(
-        "gh",
-        [
+        ...ghArgs([
           "run",
           "list",
           "--workflow",
@@ -595,7 +604,7 @@ async function resolveLatestRun(ciSuite: string): Promise<string | null> {
           "40",
           "--json",
           "databaseId,displayTitle,conclusion",
-        ],
+        ]),
         { ...GH_OPTS, encoding: "utf8" },
       );
       const runs = JSON.parse(stdout) as Array<{ databaseId: number; displayTitle?: string }>;
@@ -681,7 +690,10 @@ async function ensureCiMetadata(root: string, os: string, suite: SuiteName): Pro
     const tmp = mkdtempSync(resolve(tmpdir(), "review-meta-"));
     try {
       console.log(`  ↓ fetching ${os} ${ciSuite} metadata (run ${runId})…`);
-      await execFileAsync("gh", ["run", "download", runId, "--dir", tmp, "--pattern", "visual-tests-meta"], GH_OPTS);
+      await execFileAsync(
+        ...ghArgs(["run", "download", runId, "--dir", tmp, "--pattern", "visual-tests-meta"]),
+        GH_OPTS,
+      );
       const sub = resolve(tmp, "visual-tests-meta");
       const src = existsSync(sub) ? sub : tmp;
       const slim = resolve(src, `results-${os}.slim.json`);

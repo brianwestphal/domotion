@@ -1,12 +1,13 @@
 // DM-W4BR21: an owned Node stand-in for `gh` in the review-server e2e. The
-// server runs it through a PATH shim that records its pid and `exec`s node, so
-// the server's own child IS this process. It never outlives the server: it
+// server runs it directly through REVIEW_GH_COMMAND, so the server's own child
+// IS this process; it records its pid before doing anything else. It never outlives the server: it
 // exits once its parent is gone, and a held download gives up at a fixed
 // bound, so a failed assertion cannot strand it.
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const { FAKE_GH_MODE: mode, FAKE_GH_COUNTER: counter, FAKE_GH_RELEASE: release } = process.env;
+const { FAKE_GH_MODE: mode, FAKE_GH_COUNTER: counter, FAKE_GH_RELEASE: release, FAKE_GH_PIDS: pids } = process.env;
+if (pids) appendFileSync(pids, `${process.pid}\n`);
 const HOLD_LIMIT_MS = 60_000;
 
 const parent = process.ppid;

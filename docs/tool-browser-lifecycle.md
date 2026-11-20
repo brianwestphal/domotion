@@ -93,8 +93,12 @@ changes address source-proven shared-port, port-reporting and ownership gaps.
 `tests/review-server-e2e.test.ts` (DM-W4BR21) now uses the same owned Node
 service with `--port 0` instead of fixed ports 4396/4397 and a detached
 npx→tsx group killed by negative PID. Its fake `gh` is an owned Node script
-(`tests/review-server-fake-gh.mjs`) behind a POSIX shim that records each pid
-before `exec`, so the server's child is the recorded fake itself. The fake
+(`tests/review-server-fake-gh.mjs`) that the review harness runs directly
+through `REVIEW_GH_COMMAND` (a JSON array: executable plus leading arguments,
+here `[node, fake]`), so the server's child is the fake itself and it records
+its own pid as its first statement. An earlier POSIX `#!/bin/sh` PATH shim could
+not be launched by `execFile` on Windows; the command override works on every
+platform, though this e2e has not yet run on a Windows lane. The fake
 exits when its parent is gone, and a held download gives up after 60 s. Every
 `afterAll` first releases any held download, then requires a clean owned
 shutdown, then requires every recorded fake pid to be gone within 3 s.
