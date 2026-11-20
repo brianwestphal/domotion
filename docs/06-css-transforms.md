@@ -142,6 +142,9 @@ after the walk sees the transformed paint. Each producer uses one of two routes:
   Replaced-element snapshots, the broken-image UA fallback facts and the
   closed-shadow input value-text quads use it, so a statically rotated or
   scaled input's value top is authorized by the same plane the walk measured.
+  A projective `transformSubtreeRaster` neutralizes only the owner's frozen
+  ancestors (`ancestorsOf`), because its own subtree's transforms belong in the
+  bitmap; the surface is then emitted inside those ancestors' wrappers as is.
 
 Known gaps: a backdrop-filter target or root composite under a neutralized
 rotated ancestor that also sits inside a frozen translate/scale keeps the older

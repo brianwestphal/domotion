@@ -4614,7 +4614,9 @@ function paintAtomicElementPhase(
       reason: "transform-subtree-raster",
     });
     const image = `<image href="${transformRaster.dataUri}" x="${r(transformRaster.x)}" y="${r(transformRaster.y)}" width="${r(transformRaster.width)}" height="${r(transformRaster.height)}" preserveAspectRatio="none"/>`;
-    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, viewportRasterMarkup(state, el, image, false))}`);
+    // Sampled with the frozen ancestor transforms neutralized: already in the
+    // plane of the wrappers open here.
+    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
     appendBoxReflection(state, el, reflectionFragmentStart, depth);
     return true;
   }

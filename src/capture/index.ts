@@ -2701,9 +2701,9 @@ export async function rasterizeProjectiveSurfaces(
           }
 
           // Ancestor effects represented by SVG wrappers must not be baked into
-          // this already-global bitmap and then applied a second time. Rotation /
-          // skew is likewise serialized by the capture walk; pure scale/translate
-          // stays live-baked and is intentionally left in place.
+          // this already-global bitmap and then applied a second time. Frozen
+          // ancestor transforms are neutralized around the screenshot below
+          // with the walker's own predicate.
           let ancestor = sourceOwner.parentElement;
           while (ancestor != null) {
             const html = ancestor as HTMLElement;
@@ -2719,24 +2719,6 @@ export async function rasterizeProjectiveSurfaces(
             }
             if (style.mixBlendMode !== "normal") neutral.push(["mix-blend-mode", "normal"]);
 
-            const transform = style.transform ?? "none";
-            const matrix2d = /^matrix\(\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)\s*,\s*([-.\deE+]+)/.exec(
-              transform,
-            );
-            const matrix3d = /^matrix3d\(([^)]+)\)/.exec(transform);
-            const rotatesOrSkews =
-              matrix2d != null
-                ? Math.abs(Number.parseFloat(matrix2d[2])) > 1e-6 || Math.abs(Number.parseFloat(matrix2d[3])) > 1e-6
-                : matrix3d != null
-                  ? (() => {
-                      const values = matrix3d[1].split(",").map(Number.parseFloat);
-                      return Math.abs(values[1] ?? 0) > 1e-6 || Math.abs(values[4] ?? 0) > 1e-6;
-                    })()
-                  : false;
-            const independentRotate = style.rotate != null && style.rotate !== "" && style.rotate !== "none";
-            if (rotatesOrSkews || independentRotate) {
-              neutral.push(["transform", "none"], ["translate", "none"], ["rotate", "none"], ["scale", "none"]);
-            }
             const neutralSnapshots = neutral.map(([property, value]) => ({
               property,
               value,
@@ -2763,11 +2745,14 @@ export async function rasterizeProjectiveSurfaces(
       );
       if (!prepared) throw new Error("projective raster owner detached before Chromium snapshot");
 
-      const shot = await page.screenshot({
-        clip: viewport,
-        omitBackground: true,
-        type: "png",
-      });
+      // The renderer emits this surface inside every frozen ancestor transform
+      // wrapper, so sample it in that local plane; the owner's own subtree
+      // keeps all of its transforms.
+      const shot = await withFrozenTransformsNeutralized(
+        page,
+        () => page.screenshot({ clip: viewport, omitBackground: true, type: "png" }),
+        { sourceNodeKey, index: sourceNodeIndex },
+      );
       const decoded = await sharp(shot).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
       const { data, info } = decoded;
       let minX = info.width;

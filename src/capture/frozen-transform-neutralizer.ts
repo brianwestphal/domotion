@@ -67,17 +67,42 @@ function evaluateWithFreezePredicate<Argument, Result>(
   return page.evaluate(expression) as Promise<Result>;
 }
 
+/**
+ * Limit neutralization to the ancestors of one live node, identified through a
+ * private source-node registry (`globalThis[sourceNodeKey][index]`). An atomic
+ * surface that owns its own subtree's transforms (a projective raster) must keep
+ * every descendant transform and drop only the ancestor ones the renderer's
+ * wrappers re-apply.
+ */
+export interface FrozenAncestorScope {
+  sourceNodeKey: string;
+  index: number;
+}
+
 /** Neutralize the frozen set in the main frame, run `work`, then restore. */
-export async function withFrozenTransformsNeutralized<T>(page: Page, work: () => Promise<T>): Promise<T> {
+export async function withFrozenTransformsNeutralized<T>(
+  page: Page,
+  work: () => Promise<T>,
+  ancestorsOf?: FrozenAncestorScope,
+): Promise<T> {
   const key = privateCaptureKey("FrozenTransformNeutralizer");
   try {
     await evaluateWithFreezePredicate(
       page,
-      (key: string, freezes) => {
+      ({ key, ancestorsOf }: { key: string; ancestorsOf: FrozenAncestorScope | null }, freezes) => {
         const saved: SavedStyle[] = [];
+        let candidates: Element[] = Array.from(document.querySelectorAll("*"));
+        if (ancestorsOf != null) {
+          const nodes = (globalThis as typeof globalThis & Record<string, unknown>)[ancestorsOf.sourceNodeKey] as
+            Element[] | undefined;
+          const source = nodes?.[ancestorsOf.index];
+          candidates = [];
+          for (let ancestor = source?.parentElement ?? null; ancestor != null; ancestor = ancestor.parentElement)
+            candidates.push(ancestor);
+        }
         // Decide every owner before writing any, so each decision reads the
         // same live styles the walk read.
-        for (const element of Array.from(document.querySelectorAll("*"))) {
+        for (const element of candidates) {
           if (!(element instanceof HTMLElement || element instanceof SVGElement)) continue;
           if (!freezes(element, getComputedStyle(element))) continue;
           saved.push({ element, style: element.getAttribute("style") });
@@ -92,7 +117,7 @@ export async function withFrozenTransformsNeutralized<T>(page: Page, work: () =>
         void document.documentElement.getBoundingClientRect();
         return saved.length;
       },
-      key,
+      { key, ancestorsOf: ancestorsOf ?? null },
     );
   } catch {
     // Neutralization is best effort: a failure leaves the live page as it
