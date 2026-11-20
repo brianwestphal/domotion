@@ -5,10 +5,7 @@ import {
   chmodSync,
   closeSync,
   copyFileSync,
-  constants,
   existsSync,
-  fstatSync,
-  ftruncateSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -20,7 +17,6 @@ import {
   rmdirSync,
   symlinkSync,
   writeFileSync,
-  writeSync,
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,12 +26,6 @@ import { parse } from "yaml";
 const SHA = /^[0-9a-f]{40}$/;
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const GATES = ["build", "typecheck", "lint", "test"];
-const GENERATED = "src/capture/script.generated.ts";
-// Identified by their module suffix. DM-WREGPJ made generation emit the portable
-// `node_modules/@domotion/text-engine/dist/...` form; the older
-// `[prefix/]packages/text-engine/dist/...` form is still recognized so a
-// validation checkout at an earlier shipping SHA keeps the same contract.
-const GENERATED_PATHS = ["text-engine/dist/capture/script/emoji-detect.js", "text-engine/dist/font-family-stack.js"];
 const VERSION = createHash("sha256")
   .update(readFileSync(fileURLToPath(import.meta.url)))
   .digest("hex");
@@ -109,106 +99,6 @@ function fileDigest(path) {
   } finally {
     closeSync(descriptor);
   }
-}
-
-/** Only the two esbuild module-path comments may differ; all JSON/wrapper/program bytes stay pinned. */
-export function generatedWitness(before, after) {
-  const decode = (bytes) => {
-    const text = bytes.toString("utf8");
-    requireThat(Buffer.from(text).equals(bytes), "generated_encoding_changed");
-    const match = /^([\s\S]*?export const CAPTURE_SCRIPT: string = )("(?:[^"\\]|\\.)*")(;\n)$/.exec(text);
-    requireThat(match, "generated_wrapper_unknown");
-    const program = JSON.parse(match[2]);
-    requireThat(JSON.stringify(program) === match[2], "generated_noncanonical_literal");
-    const lines = program.split("\n");
-    const allowed = GENERATED_PATHS.map((path) => {
-      const matches = lines.flatMap((line, index) =>
-        line.startsWith("// ") && line.endsWith(path) ? [{ path, index, text: line }] : [],
-      );
-      requireThat(matches.length === 1, "generated_allowed_line_ambiguous");
-      requireThat(
-        /^\/\/ [A-Za-z0-9_.:/@\\-]+$/.test(matches[0].text) &&
-          /^\/\/ (?:(?:[A-Za-z0-9_.:/\\-]+\/)?packages|node_modules\/@domotion)\/text-engine\/dist\//.test(
-            matches[0].text,
-          ),
-        "generated_path_comment_unknown",
-      );
-      return matches[0];
-    });
-    const normalized = [...lines];
-    for (const line of allowed) normalized[line.index] = `// ${line.path}`;
-    return { prefix: match[1], suffix: match[3], normalized: normalized.join("\n"), allowed };
-  };
-  const left = decode(before),
-    right = decode(after);
-  requireThat(
-    left.prefix === right.prefix && left.suffix === right.suffix && left.normalized === right.normalized,
-    "generated_program_or_wrapper_changed",
-  );
-  requireThat(
-    left.allowed.every((line, index) => line.index === right.allowed[index].index),
-    "generated_line_position_changed",
-  );
-  const changes = left.allowed.flatMap((line, index) =>
-    line.text === right.allowed[index].text
-      ? []
-      : [{ path: line.path, line: line.index + 1, before: line.text, after: right.allowed[index].text }],
-  );
-  requireThat(changes.length === 0 || changes.length === 2, "generated_partial_path_change");
-  return {
-    rawBeforeHash: digest(before),
-    rawAfterHash: digest(after),
-    normalizedProgramHash: digest(left.normalized),
-    allowedLines: changes,
-  };
-}
-
-function sameFile(left, right) {
-  return ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"].every((key) => left[key] === right[key]);
-}
-
-function generatedSnapshot(path) {
-  const before = lstatSync(path, { bigint: true });
-  requireThat(before.isFile() && before.nlink === 1n, "generated_regular_file_required");
-  const fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-  try {
-    requireThat(sameFile(before, fstatSync(fd, { bigint: true })), "generated_file_race");
-    const bytes = readFileSync(fd);
-    const after = fstatSync(fd, { bigint: true });
-    requireThat(sameFile(before, after) && sameFile(after, lstatSync(path, { bigint: true })), "generated_file_race");
-    return { bytes, stat: after };
-  } finally {
-    closeSync(fd);
-  }
-}
-
-function restoreGenerated(path, pristine, changed) {
-  const fd = openSync(path, constants.O_RDWR | (constants.O_NOFOLLOW ?? 0));
-  try {
-    requireThat(
-      sameFile(changed.stat, fstatSync(fd, { bigint: true })) &&
-        readFileSync(fd).equals(changed.bytes) &&
-        sameFile(changed.stat, fstatSync(fd, { bigint: true })) &&
-        sameFile(changed.stat, lstatSync(path, { bigint: true })),
-      "generated_restore_race",
-    );
-    let offset = 0;
-    while (offset < pristine.bytes.length) {
-      const written = writeSync(fd, pristine.bytes, offset, pristine.bytes.length - offset, offset);
-      requireThat(written > 0, "generated_restore_write_failed");
-      offset += written;
-    }
-    ftruncateSync(fd, pristine.bytes.length);
-  } finally {
-    closeSync(fd);
-  }
-  const restored = generatedSnapshot(path);
-  requireThat(
-    restored.stat.dev === pristine.stat.dev &&
-      restored.stat.ino === pristine.stat.ino &&
-      restored.bytes.equals(pristine.bytes),
-    "generated_restore_race",
-  );
 }
 
 function privateJson(path, value) {
@@ -551,8 +441,7 @@ export function cleanupAdapter(run = runCommand, progress = () => {}) {
         record.version === VERSION &&
         record.tree === tree &&
         record.commit === options.shipping &&
-        record.success === true &&
-        record.generated?.length === GATES.length,
+        record.success === true,
       "exact_tree_record_invalid",
     );
     return tree;
@@ -624,13 +513,6 @@ export function cleanupAdapter(run = runCommand, progress = () => {}) {
     );
     clean(validation);
     requireThat(git(validation, "rev-parse", "HEAD") === options.shipping, "validation_head_mismatch");
-    requireThat(
-      git(validation, "ls-files", "--error-unmatch", "--", GENERATED) === GENERATED,
-      "generated_tracked_file_required",
-    );
-    const artifact = join(validation, GENERATED);
-    const pristine = generatedSnapshot(artifact);
-    generatedWitness(pristine.bytes, pristine.bytes);
     const tree = git(validation, "rev-parse", "HEAD^{tree}");
     const lock = join(common, "domotion-cleanup-gates", "locks", tree);
     mkdirSync(dirname(lock), { recursive: true, mode: 0o700 });
@@ -640,7 +522,6 @@ export function cleanupAdapter(run = runCommand, progress = () => {}) {
     const recordId = randomUUID();
     const logDirectory = join(common, "domotion-cleanup-gates", "logs", tree, recordId);
     mkdirSync(logDirectory, { recursive: true, mode: 0o700 });
-    writeFileSync(join(logDirectory, "generated-before.txt"), pristine.bytes, { flag: "wx", mode: 0o600 });
     let invalidated = false;
     try {
       // A failed or interrupted rerun must never leave a prior successful receipt authoritative.
@@ -653,8 +534,6 @@ export function cleanupAdapter(run = runCommand, progress = () => {}) {
         started: new Date().toISOString(),
       });
       invalidated = true;
-      const generated = [];
-      let changed = pristine;
       for (const name of GATES) {
         progress({ status: "gate_running", command: name });
         const result = run("npm", ["run", name], validation, 30 * 60_000);
@@ -667,24 +546,11 @@ export function cleanupAdapter(run = runCommand, progress = () => {}) {
           stderr: result.stderr,
         });
         requireThat(!result.error && result.status === 0, "command_failed:npm");
-        changed = generatedSnapshot(artifact);
-        requireThat(
-          ["dev", "ino", "mode", "nlink"].every((key) => pristine.stat[key] === changed.stat[key]),
-          "generated_file_replaced",
-        );
-        generated.push({ command: name, ...generatedWitness(pristine.bytes, changed.bytes) });
-        requireThat(["", ` M ${GENERATED}\0`].includes(sourceStatus(validation)), "source_not_clean");
+        // Every gate must leave the exact shipping tree byte-identical, generated artifacts included.
+        requireThat(sourceStatus(validation) === "", "source_not_clean");
         indexClean(validation);
         requireThat(git(validation, "rev-parse", "HEAD") === options.shipping, "validation_head_moved");
         progress({ status: "gate_passed", command: name });
-      }
-      if (!pristine.bytes.equals(changed.bytes)) {
-        writeFileSync(join(logDirectory, "generated-after.txt"), changed.bytes, { flag: "wx", mode: 0o600 });
-        requireThat(
-          sourceStatus(validation) === ` M ${GENERATED}\0` && git(validation, "rev-parse", "HEAD") === options.shipping,
-          "generated_restore_race",
-        );
-        restoreGenerated(artifact, pristine, changed);
       }
       clean(validation);
       requireThat(git(validation, "rev-parse", "HEAD") === options.shipping, "validation_head_moved");
@@ -694,7 +560,6 @@ export function cleanupAdapter(run = runCommand, progress = () => {}) {
         tree,
         gates: GATES,
         success: true,
-        generated,
         completed: new Date().toISOString(),
       };
       const recordPath = join(common, "domotion-cleanup-gates", "records", tree, `${recordId}.json`);

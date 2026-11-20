@@ -11,7 +11,6 @@ import {
   lstatSync,
   linkSync,
   unlinkSync,
-  renameSync,
   rmSync,
   cpSync,
   writeSync,
@@ -22,7 +21,6 @@ import { after, test } from "node:test";
 
 import {
   cleanupAdapter,
-  generatedWitness,
   githubOriginRepository,
   parseOptions,
   runCommand as nativeRunCommand,
@@ -962,21 +960,15 @@ test("native runner scrubs inherited Git routing variables", () => {
   }
 });
 
-test("two gate-owned path comments are restored only after all four gates with immutable provenance", (t) => {
+test("a clean gate writes an immutable record that inspect verifies", (t) => {
   const f = fixture(t);
   const artifact = join(f.validation, GENERATED);
   const before = readFileSync(artifact);
-  const after = generatedFile(PROGRAM.replaceAll("../../../old/", ""));
-  f.generatedMutation = (_name, path) => writeFileSync(path, after);
   const { tree } = gate(f);
   assert.deepEqual(readFileSync(artifact), before);
   const receipt = JSON.parse(readFileSync(join(f.project, ".git", "domotion-cleanup-gates", `${tree}.json`), "utf8"));
-  assert.equal(receipt.generated.length, 4);
-  for (const witness of receipt.generated) {
-    assert.equal(witness.allowedLines.length, 2);
-    assert.notEqual(witness.rawBeforeHash, witness.rawAfterHash);
-    assert.match(witness.normalizedProgramHash, /^[0-9a-f]{64}$/);
-  }
+  assert.equal(receipt.success, true);
+  assert.equal("generated" in receipt, false);
   const immutable = join(f.project, ".git", "domotion-cleanup-gates", "records", tree, `${receipt.record}.json`);
   assert.equal(f.adapter.inspect(f.options).evidence.ci, 42);
   writeFileSync(immutable, "{}\n");
@@ -984,50 +976,22 @@ test("two gate-owned path comments are restored only after all four gates with i
   preserved(f);
 });
 
-const generatedRejections = [
-  ["functional code", generatedFile(PROGRAM.replace("emoji = 1", "emoji = 3"))],
-  ["third comment", generatedFile(PROGRAM + "// unrelated comment\n")],
-  ["header", Buffer.from(generatedFile().toString().replace("Generated fixture", "Changed header"))],
-  ["wrapper", Buffer.from(generatedFile().toString().replace(": string =", " ="))],
-  [
-    "only one allowed line",
-    generatedFile(
-      PROGRAM.replace("../../../old/packages/text-engine/dist/capture", "packages/text-engine/dist/capture"),
-    ),
-  ],
-  ["duplicate known comment", generatedFile(PROGRAM + "// packages/text-engine/dist/font-family-stack.js\n")],
-  ["unknown filename", generatedFile(PROGRAM.replace("font-family-stack.js", "unrelated.js"))],
-  ["non-path comment text", generatedFile(PROGRAM.replace("../../../old/", "some arbitrary prose /"))],
-  ["different JSON escape bytes", Buffer.from(generatedFile().toString().replace("emoji =", "\\u0065moji ="))],
-  ["missing final wrapper newline", generatedFile().subarray(0, -1)],
-  [
-    "Unicode line separator in comment",
-    generatedFile(PROGRAM.replace("../../../old/", "packages/text-engine/dist/\u2028evil//../../../old/")),
-  ],
-  [
-    "Unicode paragraph separator in comment",
-    generatedFile(PROGRAM.replace("../../../old/", "packages/text-engine/dist/\u2029evil//../../../old/")),
-  ],
-];
-for (const [name, changed] of generatedRejections)
-  test(`generated exception refuses ${name}`, () => {
-    assert.throws(() => generatedWitness(generatedFile(), changed));
-  });
-
-// DM-WREGPJ: portable generation emits node_modules/@domotion/... module comments.
-test("generated exception accepts the portable layout and the tracked artifact unchanged", () => {
-  const portable = generatedFile(PROGRAM.replaceAll("../../../old/packages/", "node_modules/@domotion/"));
-  assert.deepEqual(generatedWitness(portable, portable).allowedLines, []);
-  const tracked = readFileSync(new URL("../src/capture/script.generated.ts", import.meta.url));
-  assert.deepEqual(generatedWitness(tracked, tracked).allowedLines, []);
-  assert.throws(
-    () =>
-      generatedWitness(portable, generatedFile(PROGRAM.replaceAll("../../../old/packages/", "node_modules/@other/"))),
-    /generated_path_comment_unknown/,
-  );
+// DM-VJFCAQ: generation is portable, so a gate that rewrites even the
+// generated capture script's module-path comments is an unclean tree.
+test("a gate that rewrites the generated artifact is refused with its bytes retained", (t) => {
+  const f = fixture(t);
+  const artifact = join(f.validation, GENERATED);
+  const changed = generatedFile(PROGRAM.replaceAll("../../../old/", ""));
+  f.generatedMutation = (_name, path) => writeFileSync(path, changed);
+  const tree = f.git("rev-parse", `${f.shipping}^{tree}`);
+  assert.throws(() => gate(f), /source_not_clean/);
+  assert.deepEqual(readFileSync(artifact), changed);
+  const receipt = JSON.parse(readFileSync(join(f.project, ".git", "domotion-cleanup-gates", `${tree}.json`), "utf8"));
+  assert.equal(receipt.success, false);
+  assert.throws(() => f.adapter.inspect(f.options), /exact_tree_gate_invalid/);
 });
 
-test("preexisting generated dirt and the main checkout can never use the exception", (t) => {
+test("preexisting generated dirt and the main checkout are refused", (t) => {
   const f = fixture(t);
   assert.throws(
     () => f.adapter.gate({ project: f.project, shipping: f.shipping, validation: f.project }),
@@ -1046,41 +1010,6 @@ test("a generated symlink produced during a gate is refused and retained", (t) =
     unlinkSync(path);
     symlinkSync(join(f.project, GENERATED), path);
   };
-  assert.throws(() => gate(f), /generated_regular_file_required/);
-  assert.equal(readlinkSync(join(f.validation, GENERATED)), join(f.project, GENERATED));
-});
-
-test("a replaced generated inode is refused even with only the allowed comments", (t) => {
-  const f = fixture(t);
-  const changed = generatedFile(PROGRAM.replaceAll("../../../old/", ""));
-  f.generatedMutation = (_name, path) => {
-    writeFileSync(`${path}.new`, changed);
-    renameSync(`${path}.new`, path);
-  };
-  assert.throws(() => gate(f), /generated_file_replaced/);
-  assert.deepEqual(readFileSync(join(f.validation, GENERATED)), changed);
-});
-
-test("another tracked mutation refuses without restoring away the generated evidence", (t) => {
-  const f = fixture(t);
-  const changed = generatedFile(PROGRAM.replaceAll("../../../old/", ""));
-  f.generatedMutation = (_name, path) => {
-    writeFileSync(path, changed);
-    writeFileSync(join(f.validation, "source.txt"), "retain this failure evidence");
-  };
   assert.throws(() => gate(f), /source_not_clean/);
-  assert.deepEqual(readFileSync(join(f.validation, GENERATED)), changed);
-});
-
-test("a final generated-file race is refused with its new bytes intact", (t) => {
-  const f = fixture(t);
-  const artifact = join(f.validation, GENERATED);
-  const changed = generatedFile(PROGRAM.replaceAll("../../../old/", ""));
-  f.generatedMutation = (_name, path) => writeFileSync(path, changed);
-  let statuses = 0;
-  f.onStatus = () => {
-    if (++statuses === 6) writeFileSync(artifact, "retain racing bytes");
-  };
-  assert.throws(() => gate(f), /generated_restore_race/);
-  assert.equal(readFileSync(artifact, "utf8"), "retain racing bytes");
+  assert.equal(readlinkSync(join(f.validation, GENERATED)), join(f.project, GENERATED));
 });

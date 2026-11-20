@@ -83,8 +83,8 @@ prerequisites. It shares the main checkout's Git common directory. Do
 not stash, reset, or normalize the user's dirty main checkout for this purpose.
 The gate command runs fixed `npm run build`, `typecheck`, `lint`, and `test`
 commands, in that order. Each must exit successfully while HEAD, all other
-tracked files and untracked source state remain unchanged. The narrowly bounded
-generated-comment contract below is recorded explicitly. No user-supplied command or handwritten
+tracked files and untracked source state remain unchanged, generated artifacts
+included (see "Generated artifacts" below). No user-supplied command or handwritten
 "passed" marker can substitute for this receipt. Existing receipts from other
 tools do not qualify. An adapter source change invalidates earlier receipts.
 
@@ -107,44 +107,29 @@ invalidates previous success. A failed rerun cannot reuse an older green receipt
 An interrupted gate's remaining lock refuses cleanup until the integrator reviews
 the actual process and private logs; do not delete a lock to bypass running work.
 
-### Explicit generated-comment contract
+### Generated artifacts
 
-Capture generation before DM-WREGPJ included two esbuild source-path comments
-whose prefixes depended on checkout/dependency layout. DM-WREGPJ made the build
-emit portable `node_modules/@domotion/text-engine/dist/...` comments, so a
-validation checkout at a current shipping SHA regenerates the artifact
-unchanged and this exception records zero changed lines. It remains only so a
-validation checkout at an earlier shipping SHA keeps the same contract. The integrator authorized this specific gate contract; it is not
-a general normalization rule. The validation checkout must differ from the main
-checkout and start completely pristine. Its regular, single-link, tracked
-`src/capture/script.generated.ts` is fingerprinted before any gate. The main
-checkout's original user-dirty artifact is never eligible.
+Every gate must leave the validation checkout byte-identical, including
+`src/capture/script.generated.ts`. Capture generation emits portable
+`node_modules/@domotion/text-engine/dist/...` module comments, so a checkout at
+a shipping SHA regenerates that artifact unchanged. A rewritten, replaced or
+symlinked artifact is an unclean tree (`source_not_clean`). The tool never
+restores it; the changed bytes stay in the validation checkout for
+investigation. The validation checkout must differ from the main checkout and
+start completely pristine, so the main checkout's user-dirty files are never
+eligible.
 
-After each command, the only permitted dirty entry is that artifact with exactly
-both known path comments changed. They are identified by the module suffixes
-`text-engine/dist/capture/script/emoji-detect.js` and
-`text-engine/dist/font-family-stack.js` under either a `[prefix/]packages/` or
-a `node_modules/@domotion/` layout. Each occurs exactly once.
-The complete wrapper/header, canonical JSON string encoding, every other decoded
-program byte and the two line positions must remain identical. A one-line change,
-another comment, functional change, alternate JSON escaping, symlink, replacement
-inode, permission change, or any other tracked/untracked mutation refuses.
-
-Only after all four gates succeed does the tool retain the changed bytes in its
-private evidence directory and restore the exact pristine bytes through the
-verified original file descriptor. Identity/content checks before restoration
-and a final clean-tree check reject observed races; keep this owned validation
-checkout exclusive until the operation finishes. Failures leave the artifact and
-private evidence available for investigation. It never restores from main or
-discards arbitrary generated changes.
+Earlier versions tolerated a rewrite of exactly two esbuild source-path comments
+and restored the pristine bytes afterwards. Builds before the portable comments
+(shipping SHAs before `15692332`) needed that. The exception was retired once no
+retained ticket checkout needed validation at such a SHA; changing the tool also
+invalidated every receipt written under it.
 
 The completed per-run record is created once with exclusive creation under
-`domotion-cleanup-gates/records/<tree>/<run>.json`. It records each command's raw
-before/after hashes, normalized program hash and exact allowed-line witnesses.
-The current receipt points to that immutable record by its hash; inspection must
-verify both. New attempts invalidate the current receipt without overwriting
-earlier completed records. Pre-gate and accepted post-gate bytes remain private
-alongside command logs, including when later validation refuses cleanup.
+`domotion-cleanup-gates/records/<tree>/<run>.json`. The current receipt points to
+that immutable record by its hash; inspection must verify both. New attempts
+invalidate the current receipt without overwriting earlier completed records.
+Command logs remain private, including when later validation refuses cleanup.
 
 ## Inspect, then explicitly execute
 
