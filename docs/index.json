@@ -246,9 +246,12 @@
         "status": "current",
         "owners": ["layout"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2473", "DM-2475", "SK-1091", "SK-1127"],
+        "tickets": ["DM-2473", "DM-2475", "DM-WTSX24", "SK-1091", "SK-1127"],
         "code": [
           "src/capture/script/index.ts",
+          "src/capture/script/walker/transforms.ts",
+          "src/capture/raster-viewport-space.ts",
+          "src/capture/frozen-transform-neutralizer.ts",
           "src/render/element-tree-to-svg.ts",
           "src/render/stacking.ts",
           "src/render/transforms.ts"

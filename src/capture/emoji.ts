@@ -27,6 +27,7 @@ import { backdropLayerMapping, type BackdropQuad } from "./backdrop-layer-space.
 import { forEachElement } from "../tree-ops/for-each-element.js";
 import { appendBackdropRasterWarning, planBackdropIsolation, type SnapshotNode } from "./backdrop-isolation.js";
 import { prepareBackdropEffectSpace } from "./backdrop-effect-neutralization.js";
+import { createRasterViewportSpace, mapRectThroughAffine } from "./raster-viewport-space.js";
 import {
   materializeBackdropTerminalComposites,
   materializeBackdropRootComposites,
@@ -757,7 +758,12 @@ export async function rasterizeBackdropFilters(
     planBackdropTerminalComposites(tree),
     viewport,
   );
-  const coveredRootRasters = await materializeBackdropRootComposites(page, planBackdropRootComposites(tree), viewport);
+  const coveredRootRasters = await materializeBackdropRootComposites(
+    page,
+    planBackdropRootComposites(tree),
+    viewport,
+    tree,
+  );
   for (const target of targets) {
     if (terminalRasters.has(target.raster) || coveredRootRasters.has(target.raster)) {
       appendBackdropRasterWarning(warnings, target.selector, { status: "exact" });
@@ -767,6 +773,7 @@ export async function rasterizeBackdropFilters(
     (target) => !terminalRasters.has(target.raster) && !coveredRootRasters.has(target.raster),
   );
 
+  const space = createRasterViewportSpace(tree);
   let cdp: CDPSession | undefined;
   const captureCrop = async (
     target: Target,
@@ -794,13 +801,23 @@ export async function rasterizeBackdropFilters(
       preserveRelativeTransform: layerMapping != null,
     });
     try {
-      const clip = clipRectForScreenshot(layerMapping?.bounds ?? target.raster, viewport);
+      // The captured rect is the owner's local box. When no ancestor
+      // transform is neutralized for this screenshot, every frozen static
+      // transform is live in the page: crop where Chromium painted the box and
+      // let the renderer counter-map the image. A neutralized rotation/skew
+      // ancestor keeps its established local-space route.
+      const frozenCtm = layerMapping == null && !hasRelativeTransform ? space.frozenCtm(target.element) : null;
+      const cropRect =
+        layerMapping?.bounds ?? (frozenCtm == null ? target.raster : mapRectThroughAffine(target.raster, frozenCtm));
+      const clip = clipRectForScreenshot(cropRect, viewport);
       const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
       target.raster.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
       target.raster.x = clip.x - viewport.x;
       target.raster.y = clip.y - viewport.y;
       target.raster.width = clip.width;
       target.raster.height = clip.height;
+      if (frozenCtm != null) target.raster.viewportSpace = true;
+      else delete target.raster.viewportSpace;
       target.raster.layerSpace =
         layerMapping == null
           ? undefined
@@ -820,6 +837,7 @@ export async function rasterizeBackdropFilters(
           neutralizedEffects: [],
           ownerCount: 1,
           screenshotPasses: 1,
+          ...(frozenCtm == null ? {} : { viewportSpace: true as const }),
         };
         target.raster.dataUri = undefined;
       }

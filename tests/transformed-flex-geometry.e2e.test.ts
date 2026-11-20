@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { launchChromium } from "../src/index.js";
 import { captureElementTree, elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import type { CapturedElement } from "../src/capture/types.js";
+import { createRasterViewportSpace, mapRectThroughAffine } from "../src/capture/raster-viewport-space.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const env = await (async () => {
@@ -25,7 +26,6 @@ function find(tree: CapturedElement[], id: string): CapturedElement | null {
   }
   return null;
 }
-const rounded = (value: number) => Math.round(value * 10) / 10;
 
 describeBrowser("transformed flex descendant logical geometry", () => {
   it("keeps live, capture, and emitted geometry source-equivalent across the matrix", async () => {
@@ -50,20 +50,27 @@ describeBrowser("transformed flex descendant logical geometry", () => {
               ),
             )) as Record<string, Rect>;
             const tree = await captureElementTree(source, "body", { x: 0, y: 0, width: 520, height: 440 });
+            // Static transforms are frozen: the captured box is local and the
+            // emitted CTM (ancestor and own transforms) maps it to the live rect.
+            const space = createRasterViewportSpace(tree);
             for (const id of ["a", "b"]) {
               const captured = find(tree, id)!;
-              expect({ x: captured.x, y: captured.y, width: captured.width, height: captured.height }).toEqual(
-                live[id],
-              );
+              const local = { x: captured.x, y: captured.y, width: captured.width, height: captured.height };
+              const ctm = space.frozenCtm(captured);
+              const mapped = ctm == null ? local : mapRectThroughAffine(local, ctm);
+              expect(mapped.x).toBeCloseTo(live[id].x, 3);
+              expect(mapped.y).toBeCloseTo(live[id].y, 3);
+              expect(mapped.width).toBeCloseTo(live[id].width, 3);
+              expect(mapped.height).toBeCloseTo(live[id].height, 3);
             }
             await rendered.setContent(`<body style="margin:0">${elementTreeToSvg(tree, 520, 440)}</body>`);
             for (const id of ["a", "b"]) {
               const box = await rendered.locator(`.anim-${id}`).boundingBox();
               expect(box).not.toBeNull();
-              expect(box!.x).toBeCloseTo(rounded(live[id].x), 1);
-              expect(box!.y).toBeCloseTo(rounded(live[id].y), 1);
-              expect(box!.width).toBeCloseTo(rounded(live[id].width), 1);
-              expect(box!.height).toBeCloseTo(rounded(live[id].height), 1);
+              expect(box!.x).toBeCloseTo(live[id].x, 1);
+              expect(box!.y).toBeCloseTo(live[id].y, 1);
+              expect(box!.width).toBeCloseTo(live[id].width, 1);
+              expect(box!.height).toBeCloseTo(live[id].height, 1);
             }
             const key = `${scale}/${origin}`;
             const values = wrapperPairs.get(key) ?? [];

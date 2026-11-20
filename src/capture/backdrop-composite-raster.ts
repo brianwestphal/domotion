@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import sharp from "sharp";
 
 import { clipRectForScreenshot } from "./clip-rect.js";
+import { createRasterViewportSpace } from "./raster-viewport-space.js";
 import type { BackdropCompositeConsumedEffect, CapturedElement, CapturedBackdropCompositeRaster } from "./types.js";
 import type { BackdropEffectNeutralization } from "./backdrop-effect-space.js";
 
@@ -588,8 +589,11 @@ export async function materializeBackdropRootComposites(
   page: Page,
   jobs: BackdropRootCompositeJob[],
   viewport: { x: number; y: number; width: number; height: number },
+  /** The whole captured tree, so each root's frozen CTM includes its ancestors. */
+  tree: readonly CapturedElement[] = [],
 ): Promise<Set<BackdropRaster>> {
   const covered = new Set<BackdropRaster>();
+  const space = createRasterViewportSpace(tree);
   for (const job of jobs) {
     const maskCalibration = await captureMaskCalibration(page, job, viewport);
     const prepared = await prepareIsolatedBackdropRoot(page, job);
@@ -615,6 +619,11 @@ export async function materializeBackdropRootComposites(
         ownerCount: job.targets.length,
         screenshotPasses: maskCalibration == null ? 1 : 3,
       };
+      // The root's live bounding rect is in viewport space. With no own
+      // rotation/skew neutralized, every frozen transform was live for the
+      // screenshot; the renderer counter-maps it inside the root's wrappers.
+      if (!job.neutralizedEffects.includes("rotate-skew") && space.frozenCtm(job.root) != null)
+        composite.viewportSpace = true;
       job.root.backdropCompositeRaster = composite;
       for (const target of job.targets) covered.add(target.raster);
     } catch {

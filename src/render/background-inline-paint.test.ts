@@ -30,6 +30,7 @@ function paintContext(): PaintCtx {
       index += count;
     },
     emittedTextCtm: new Map(),
+    emittedParentCtm: new Map(),
   };
 }
 

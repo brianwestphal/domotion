@@ -1083,6 +1083,7 @@ function renderMeter(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
           peekClipIdx: () => 0,
           advanceClipIdx: () => undefined,
           emittedTextCtm: new WeakMap(),
+          emittedParentCtm: new WeakMap(),
         };
   if (paintCtx != null) {
     paintBoxShadow(

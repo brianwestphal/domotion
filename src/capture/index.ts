@@ -88,6 +88,7 @@ import {
   type StableReplacedMediaFrameState,
 } from "./replaced-media-frame.js";
 import { rasterizeReplacedElements, SNAPSHOT_HIDE_CSS } from "./replaced-element-raster.js";
+import { withFrozenTransformsNeutralized } from "./frozen-transform-neutralizer.js";
 import { resetLastCaptureWarnings } from "./warnings.js";
 import { captureImageDocumentSettings } from "./image-document-settings.js";
 import { probeFailureWarning } from "./probe-failure.js";
@@ -2467,7 +2468,12 @@ async function captureElementTreeWithWarningsInternal(
         // Chromium CDP. Consume their geometry/text/AX facts while the same private
         // live-node registry used by the projective/control passes is still alive.
         await reverifyAnimationFrame();
-        await captureBrokenImageFallbackFacts(page, typed.tree, viewport, warnings, projectiveProbe?.key);
+        // The UA fallback's CDP box models and icon crop are emitted inside the
+        // element's frozen-transform wrappers, so read them in that local space.
+        const brokenImageSourceKey = projectiveProbe?.key;
+        await withFrozenTransformsNeutralized(page, () =>
+          captureBrokenImageFallbackFacts(page, typed.tree, viewport, warnings, brokenImageSourceKey),
+        );
         await reverifyAnimationFrame();
         await captureSummaryMarkerGeometry(page, typed.tree, viewport, warnings, projectiveProbe?.key);
         await reverifyAnimationFrame();
@@ -2503,10 +2509,14 @@ async function captureElementTreeWithWarningsInternal(
         warnings,
       });
       await reverifyAnimationFrame();
-      await rasterizeReplacedElements(page, typed.tree, viewport, {
-        sourceImagePath: opts?.rasterizeFromImagePath,
-        warnings,
-      });
+      // Replaced surfaces are local sources the renderer wraps in every frozen
+      // transform; sample them with that whole set neutralized.
+      await withFrozenTransformsNeutralized(page, () =>
+        rasterizeReplacedElements(page, typed.tree, viewport, {
+          sourceImagePath: opts?.rasterizeFromImagePath,
+          warnings,
+        }),
+      );
       await warnLostCanvasContexts(page, typed.tree, selector, warnings);
       await reverifyAnimationFrame();
       const replacedMediaFrameState = await replacedMediaTransaction?.finalize(typed.tree);

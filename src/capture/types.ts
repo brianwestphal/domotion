@@ -60,6 +60,13 @@ export interface CapturedBackdropCompositeRaster {
   ownerCount: number;
   /** Explicit live screenshot count (mask calibration owns source/base/alpha). */
   screenshotPasses: 1 | 2 | 3;
+  /**
+   * x/y/width/height are viewport coordinates of a crop taken with every
+   * frozen static transform of the owner and its ancestors live, not the
+   * captured local box. The renderer places the image by inverting the SVG
+   * CTM open at its emission point.
+   */
+  viewportSpace?: true;
 }
 
 /**
@@ -2481,7 +2488,14 @@ export interface CapturedElement {
     /** Private warning context consumed and deleted by the raster post-pass. */
     selector?: string;
     /** Private marker for Blink-owned paint whose pixels advance with time. */
-    frameSensitive?: boolean;
+    frameSensitive?: boolean; /**
+     * x/y/width/height are viewport coordinates of the Chromium crop rather
+     * than the element's captured local box: a frozen static transform (own or
+     * ancestor) maps the local box into the viewport, where the live page
+     * painted it. The renderer places the image by inverting the SVG CTM open
+     * at its emission point.
+     */
+    viewportSpace?: true;
   };
   /**
    * Chromium-painted decoration layer for a structurally rendered form
@@ -2529,6 +2543,14 @@ export interface CapturedElement {
     }>;
     /** Private explicit discovery failure; never converted to synthetic paint. */
     unavailableReason?: string;
+    /**
+     * x/y/width/height are viewport coordinates of the Chromium crop rather
+     * than the element's captured local box: a frozen static transform (own or
+     * ancestor) maps the local box into the viewport, where the live page
+     * painted it. The renderer places the image by inverting the SVG CTM open
+     * at its emission point.
+     */
+    viewportSpace?: true;
   };
   /** Chromium-composited snapshot for a backdrop-filter isolation subtree. */
   backdropFilterRaster?: {
@@ -2538,6 +2560,13 @@ export interface CapturedElement {
     height: number;
     token?: string;
     dataUri?: string;
+    /**
+     * x/y/width/height are viewport coordinates of a crop taken with every
+     * frozen static transform of the owner and its ancestors live, not the
+     * captured local box. The renderer places the image by inverting the SVG
+     * CTM open at its emission point.
+     */
+    viewportSpace?: true;
     /**
      * DM-2497: the crop was captured after Skia mapped the prior parent
      * device into a transformed target layer. The image is consequently in

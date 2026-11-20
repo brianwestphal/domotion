@@ -124,7 +124,26 @@ export function buildEmittedTextCtmMap(
     const own = emittedElementTextAffine(el);
     const current = parent == null || own == null ? null : multiplyTextAffine(parent, own);
     output.set(el, current);
-    for (const child of el.children) visit(child, current);
+    for (const child of el.children ?? []) visit(child, current);
+  };
+  for (const root of roots) visit(root, IDENTITY_TEXT_AFFINE);
+  return output;
+}
+
+/**
+ * Map each captured element to the emitted SVG CTM of its parent: the
+ * transform wrappers already open around the element before its own transform
+ * wrapper. Atomic Chromium surfaces are emitted at that point.
+ */
+export function buildEmittedParentCtmMap(
+  roots: readonly CapturedElement[],
+): WeakMap<CapturedElement, CapturedTextPaintAffine | null> {
+  const output = new WeakMap<CapturedElement, CapturedTextPaintAffine | null>();
+  const visit = (el: CapturedElement, parent: CapturedTextPaintAffine | null): void => {
+    output.set(el, parent);
+    const own = emittedElementTextAffine(el);
+    const current = parent == null || own == null ? null : multiplyTextAffine(parent, own);
+    for (const child of el.children ?? []) visit(child, current);
   };
   for (const root of roots) visit(root, IDENTITY_TEXT_AFFINE);
   return output;

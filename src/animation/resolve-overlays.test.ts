@@ -302,6 +302,27 @@ describe("resolveAnchoredOverlaysInTree (DM-1799)", () => {
     expect(ov).toMatchObject({ x: 7, y: 9 });
   });
 
+  it("maps a transformed anchor to its painted viewport box, like getBoundingClientRect (DM-WTSX24)", () => {
+    // Captured boxes are untransformed; the renderer re-applies the CSS
+    // transform about its origin, so the anchor resolves where it paints.
+    const moved = el({ x: 0, y: 0, width: 40, height: 20 });
+    const scaled = el({
+      animId: "A1",
+      x: 10,
+      y: 10,
+      width: 40,
+      height: 20,
+      styles: { transform: "matrix(2, 0, 0, 2, 5, 0)", transformOrigin: "0px 0px" } as CapturedElement["styles"],
+    });
+    moved.children = [scaled];
+    const [ov] = resolveAnchoredOverlaysInTree(
+      tree(moved),
+      [{ kind: "interact", anchor: { selector: "#t", at: "top-left" } }],
+      idOf,
+    )!;
+    expect(ov).toMatchObject({ x: 15, y: 10, width: 80, height: 40 });
+  });
+
   it("auto-sizes + auto-rounds a shine/interact overlay from the captured box", () => {
     const [ov] = resolveAnchoredOverlaysInTree(
       tree(el({ animId: "A1" })),

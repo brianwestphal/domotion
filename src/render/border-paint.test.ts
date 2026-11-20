@@ -28,6 +28,7 @@ function context(): PaintCtx {
       index += count;
     },
     emittedTextCtm: new Map(),
+    emittedParentCtm: new Map(),
   };
 }
 

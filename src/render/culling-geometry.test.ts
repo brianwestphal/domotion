@@ -335,6 +335,36 @@ describe("renderer-owned viewBox-culling geometry", () => {
     });
   });
 
+  it("retains viewport-space crops placed through an inverse CTM", () => {
+    const control = el(900, 10, 100, 40);
+    control.tag = "input";
+    control.nativeControlRaster = {
+      x: 910,
+      y: 20,
+      width: 100,
+      height: 40,
+      dataUri: "data:image/png;base64,AA==",
+      viewportSpace: true,
+    };
+    const select = el(20, 30, 100, 40);
+    select.tag = "select";
+    select.nativeControlDecorationRaster = {
+      x: 30,
+      y: 40,
+      width: 102,
+      height: 42,
+      kinds: ["menulist-button-arrow"],
+      dataUri: "data:image/png;base64,AA==",
+      viewportSpace: true,
+    };
+    const index = buildRendererCullGeometry([control, select], 800, 600);
+    expect(index.get(control)!.visualBounds).toEqual({ kind: "unknown", reason: "atomic-raster-viewport-space" });
+    expect(index.get(select)!.visualBounds).toEqual({
+      kind: "unknown",
+      reason: "native-decoration-raster-viewport-space",
+    });
+  });
+
   it("retains unknown ink, empty facts, and singular static transforms", () => {
     const text = el(900, 0, 100, 20);
     text.text = "glyph ink";

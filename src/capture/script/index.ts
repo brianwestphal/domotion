@@ -34,7 +34,7 @@ import { createListsCountersHandler } from "./walker/lists-counters.js";
 import { createReplacedElementsHandler } from "./walker/replaced-elements.js";
 import { createMasksClipsHandler } from "./walker/masks-clips.js";
 import { createFormControlsHandler } from "./walker/form-controls.js";
-import { createTransformsHandler, composeEffectiveTransform } from "./walker/transforms.js";
+import { createTransformsHandler, composeEffectiveTransform, transformReferenceBox } from "./walker/transforms.js";
 import {
   createBordersBackgroundsHandler,
   physicalComputedGradientImage,
@@ -199,7 +199,9 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     measureFontMetrics: _measureFontMetrics,
     textNeedsRaster,
     resolveCounterValue,
-    composeEffectiveTransform,
+    // Pseudo translate percentages resolve against the pseudo's own border box.
+    composeEffectiveTransform: (style: CSSStyleDeclaration) =>
+      composeEffectiveTransform(style, transformReferenceBox(style)),
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     physicalComputedCssPixelTerms,
     physicalComputedGradientImage,

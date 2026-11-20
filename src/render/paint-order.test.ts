@@ -258,3 +258,44 @@ describe("hitTestTopmost: the memoized sequence follows the array, not the tree 
     expect(hitTestTopmost(roots, 10, 10)).toBe(high);
   });
 });
+
+describe("hitTestTopmost: transformed boxes (DM-WTSX24)", () => {
+  // Captured boxes are untransformed local boxes; the renderer re-applies each
+  // planar CSS transform, so hit-testing maps the point into local space.
+  it("hits a translated box where it paints, not at its layout box", () => {
+    const moved = el({ tag: "a", x: 0, y: 0, w: 20, h: 20, styles: { transform: "matrix(1, 0, 0, 1, 50, 0)" } });
+    const tree = [el({ x: 0, y: 0, w: 100, h: 100, children: [moved] })];
+    expect(hitTestTopmost(tree, 55, 10)).toBe(moved);
+    expect(hitTestTopmost(tree, 10, 10)).not.toBe(moved);
+  });
+
+  it("scales about the transform origin and carries the transform to descendants", () => {
+    const child = el({ tag: "a", x: 10, y: 10, w: 10, h: 10 });
+    const scaled = el({
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      styles: { transform: "matrix(2, 0, 0, 2, 0, 0)", transformOrigin: "0px 0px" },
+      children: [child],
+    });
+    const tree = [el({ x: 0, y: 0, w: 100, h: 100, children: [scaled] })];
+    expect(hitTestTopmost(tree, 35, 35)).toBe(child);
+    expect(hitTestTopmost(tree, 15, 15)).toBe(scaled);
+  });
+
+  it("clips descendants to a transformed overflow ancestor in its own space", () => {
+    const child = el({ tag: "a", x: 0, y: 0, w: 40, h: 10 });
+    const clip = el({
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 10,
+      styles: { transform: "matrix(1, 0, 0, 1, 30, 0)", overflowX: "hidden", overflowY: "hidden" },
+      children: [child],
+    });
+    const tree = [el({ x: 0, y: 0, w: 100, h: 100, children: [clip] })];
+    expect(hitTestTopmost(tree, 45, 5)).toBe(child);
+    expect(hitTestTopmost(tree, 55, 5)).not.toBe(child);
+  });
+});

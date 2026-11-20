@@ -12,6 +12,7 @@
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import { createPageRegistry } from "./page-registry.js";
+import { createRasterViewportSpace, mapRectThroughAffine } from "./raster-viewport-space.js";
 import {
   suppressSnapshotVisibilityTransitions,
   type SnapshotVisibilityState,
@@ -166,8 +167,33 @@ export async function rasterizeNativeControlDecorations(
     return;
   }
 
+  // A host under a frozen static transform was captured at its local box. The
+  // live page paints it (and its UA parts) transformed, and the isolation pass
+  // fingerprints parts by their live getBoundingClientRect, which is the
+  // axis-aligned bounds of the transformed box. Map every rectangle into that
+  // viewport space; the renderer counter-maps the decoration image.
+  const hostRects = new Map<DecorationTarget, IsolationRow["hostRect"]>();
+  const space = createRasterViewportSpace(tree);
+  for (const target of active) {
+    const ctm = space.frozenCtm(target.element);
+    if (ctm == null) continue;
+    const toClient = (rect: { x: number; y: number; width: number; height: number }) => {
+      const mapped = mapRectThroughAffine({ ...rect, x: rect.x - viewport.x, y: rect.y - viewport.y }, ctm);
+      return { ...mapped, x: mapped.x + viewport.x, y: mapped.y + viewport.y };
+    };
+    Object.assign(target.raster, mapRectThroughAffine(target.raster, ctm));
+    target.raster.viewportSpace = true;
+    for (const part of target.raster.parts ?? []) Object.assign(part, toClient(part));
+    const host = toClient({
+      x: target.element.x + viewport.x,
+      y: target.element.y + viewport.y,
+      width: target.element.width,
+      height: target.element.height,
+    });
+    hostRects.set(target, { left: host.x, top: host.y, width: host.width, height: host.height });
+  }
   const { plans, blocked } = planDecorationClips(active, viewport, options.warnings);
-  const { facts, isolated } = await captureIsolatedDecorations(page, viewport, active, {
+  const { facts, isolated } = await captureIsolatedDecorations(page, viewport, active, hostRects, {
     sourceNodeKey: options.sourceNodeKey,
     decorationNodeKey: options.decorationNodeKey,
   });
@@ -246,19 +272,26 @@ function planDecorationClips(
   return { plans, blocked };
 }
 
-function buildIsolationRows(active: DecorationTarget[], viewport: NativeControlViewport): IsolationRow[] {
-  return active.map(({ element, raster }) => ({
-    index: raster.sourceNodeIndex,
-    selectArrow: raster.selectArrow === true,
-    exactPartBox: raster.exactPartBox === true,
-    parts: raster.parts,
-    hostRect: {
-      left: element.x + viewport.x,
-      top: element.y + viewport.y,
-      width: element.width,
-      height: element.height,
-    },
-  }));
+function buildIsolationRows(
+  active: DecorationTarget[],
+  viewport: NativeControlViewport,
+  hostRects: ReadonlyMap<DecorationTarget, IsolationRow["hostRect"]>,
+): IsolationRow[] {
+  return active.map((target) => {
+    const { element, raster } = target;
+    return {
+      index: raster.sourceNodeIndex,
+      selectArrow: raster.selectArrow === true,
+      exactPartBox: raster.exactPartBox === true,
+      parts: raster.parts,
+      hostRect: hostRects.get(target) ?? {
+        left: element.x + viewport.x,
+        top: element.y + viewport.y,
+        width: element.width,
+        height: element.height,
+      },
+    };
+  });
 }
 
 /**
@@ -270,13 +303,14 @@ async function captureIsolatedDecorations(
   page: Page,
   viewport: NativeControlViewport,
   active: DecorationTarget[],
+  hostRects: ReadonlyMap<DecorationTarget, IsolationRow["hostRect"]>,
   keys: { sourceNodeKey: string; decorationNodeKey: string },
 ): Promise<{ facts: IsolationFact[]; isolated: IsolationFrame }> {
   const restoreRegistry = createPageRegistry<unknown>(page, "DecorationRestore");
   const restoreKey = restoreRegistry.key;
   let facts: IsolationFact[] = active.map(() => ({ connected: false, fingerprintMatches: false }));
   let isolated: IsolationFrame = null;
-  const isolationRows = buildIsolationRows(active, viewport);
+  const isolationRows = buildIsolationRows(active, viewport, hostRects);
   let visibilityTransitions: Awaited<ReturnType<typeof suppressSnapshotVisibilityTransitions>> | undefined;
   try {
     visibilityTransitions = await suppressSnapshotVisibilityTransitions(page, true);

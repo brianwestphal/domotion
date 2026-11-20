@@ -148,7 +148,13 @@ import {
   collectParentElements,
 } from "./render-state-collectors.js";
 import { renderBrokenImageFallback } from "./broken-image-fallback.js";
-import { buildEmittedTextCtmMap } from "./text-affine.js";
+import {
+  buildEmittedParentCtmMap,
+  buildEmittedTextCtmMap,
+  invertTextAffine,
+  textAffineEquals,
+  IDENTITY_TEXT_AFFINE,
+} from "./text-affine.js";
 import { renderRealTextLayer, withRealTextLayerVisualSemantics } from "./real-text-layer.js";
 import { paintOutline } from "./outline-paint.js";
 export { thinDottedEndpointPlan } from "./outline-paint.js";
@@ -327,6 +333,8 @@ export interface PaintCtx {
   advanceClipIdx(n: number): void;
   /** Static SVG CTM already surrounding each text branch (DM-2470). */
   emittedTextCtm: ReturnType<typeof buildEmittedTextCtmMap>;
+  /** Static SVG CTM open around each element before its own wrapper. */
+  emittedParentCtm: ReturnType<typeof buildEmittedParentCtmMap>;
 }
 
 // DM-1342: explicit render-context struct threaded through the lifted render
@@ -1756,6 +1764,7 @@ function buildRenderState(
       clipIdx += n;
     },
     emittedTextCtm: buildEmittedTextCtmMap(elements),
+    emittedParentCtm: buildEmittedParentCtmMap(elements),
   };
   // Form-control gradient defs (SK-1224) — renderFormControl pushes
   // <linearGradient> entries into defsParts via this context.
@@ -2830,6 +2839,33 @@ function openElementWrappers(
   }
   if (needsGroup) svgParts.push(`${indent}<g ${groupAttrs.join(" ")}>`);
   return wrapperStart;
+}
+
+/**
+ * DM-WTSX24: a Chromium screenshot is cropped in viewport space, where the
+ * element's CSS transforms are already painted. Captured geometry is the
+ * untransformed local box that the renderer wraps in those transforms, so a
+ * screenshot emitted inside the wrappers must be mapped back by the inverse
+ * of the CTM open at its emission point. `withOwn` is true when that point is
+ * inside the element's own wrapper (box-phase rasters); atomic surfaces are
+ * emitted before it. A projective CTM (null) is left to its own raster path.
+ * Producers that crop a captured local box mark the raster `viewportSpace`
+ * only when a frozen transform moved it; `viewportSpace = false` keeps such a
+ * raster in local coordinates.
+ */
+function viewportRasterMarkup(
+  state: RenderState,
+  el: CapturedElement,
+  markup: string,
+  withOwn: boolean,
+  viewportSpace = true,
+): string {
+  if (!viewportSpace) return markup;
+  const ctm = withOwn ? state.paintCtx.emittedTextCtm.get(el) : state.paintCtx.emittedParentCtm.get(el);
+  if (ctm == null || textAffineEquals(ctm, IDENTITY_TEXT_AFFINE)) return markup;
+  const inverse = invertTextAffine(ctm);
+  if (inverse == null) return markup;
+  return `<g transform="matrix(${inverse.map((value) => Number(value.toFixed(8))).join(" ")})">${markup}</g>`;
 }
 
 /**
@@ -4031,7 +4067,7 @@ function paintElementBackgroundPhase(context: ElementPaintPhaseContext): Element
     // putting the transparent crop after the border/text changes overlap for
     // thick borders, inset shadows, and tight vertical controls.
     svgParts.push(
-      `${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`,
+      `${indent}${viewportRasterMarkup(state, el, `<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`, true, nativeDecoration.viewportSpace === true)}`,
     );
   }
 
@@ -4168,7 +4204,7 @@ function paintElementContentPhase(
     if (shadow !== "") svgParts.push(shadow);
     if (nativeDecoration?.dataUri != null) {
       svgParts.push(
-        `${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`,
+        `${indent}${viewportRasterMarkup(state, el, `<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`, true, nativeDecoration.viewportSpace === true)}`,
       );
     }
   }
@@ -4180,7 +4216,7 @@ function paintElementContentPhase(
     // above the structural box and value text, unlike a complete native host
     // raster which terminates rendering near the top of this function.
     svgParts.push(
-      `${indent}<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`,
+      `${indent}${viewportRasterMarkup(state, el, `<image href="${nativeDecoration.dataUri}" x="${r(nativeDecoration.x)}" y="${r(nativeDecoration.y)}" width="${r(nativeDecoration.width)}" height="${r(nativeDecoration.height)}" preserveAspectRatio="none"/>`, true, nativeDecoration.viewportSpace === true)}`,
     );
   }
 
@@ -4546,7 +4582,7 @@ function paintAtomicElementPhase(
   if (urlFilterRaster?.empty === true) return true;
   if (urlFilterRaster?.dataUri != null) {
     const image = `<image href="${urlFilterRaster.dataUri}" x="${r(urlFilterRaster.x)}" y="${r(urlFilterRaster.y)}" width="${r(urlFilterRaster.width)}" height="${r(urlFilterRaster.height)}" preserveAspectRatio="none"/>`;
-    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
+    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, viewportRasterMarkup(state, el, image, false))}`);
     appendBoxReflection(state, el, reflectionFragmentStart, depth);
     return true;
   }
@@ -4564,7 +4600,7 @@ function paintAtomicElementPhase(
       reason: "transform-subtree-raster",
     });
     const image = `<image href="${transformRaster.dataUri}" x="${r(transformRaster.x)}" y="${r(transformRaster.y)}" width="${r(transformRaster.width)}" height="${r(transformRaster.height)}" preserveAspectRatio="none"/>`;
-    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
+    svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, viewportRasterMarkup(state, el, image, false))}`);
     appendBoxReflection(state, el, reflectionFragmentStart, depth);
     return true;
   }
@@ -4577,7 +4613,9 @@ function paintAtomicElementPhase(
   if (nativeControlRaster != null) {
     if (nativeControlRaster.dataUri != null && phase !== "inline") {
       const image = `<image href="${nativeControlRaster.dataUri}" x="${r(nativeControlRaster.x)}" y="${r(nativeControlRaster.y)}" width="${r(nativeControlRaster.width)}" height="${r(nativeControlRaster.height)}" preserveAspectRatio="none"/>`;
-      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
+      svgParts.push(
+        `${indent}${wrapAtomicRasterTimeline(el, viewportRasterMarkup(state, el, image, false, nativeControlRaster.viewportSpace === true))}`,
+      );
       appendBoxReflection(state, el, reflectionFragmentStart, depth);
     }
     return true;
@@ -4591,7 +4629,7 @@ function paintAtomicElementPhase(
   if (terminalBackdropComposite != null) {
     if (phase !== "inline") {
       const image = `<image data-domotion-no-hoist="effect-surface" href="${terminalBackdropComposite.dataUri}" x="${r(terminalBackdropComposite.x)}" y="${r(terminalBackdropComposite.y)}" width="${r(terminalBackdropComposite.width)}" height="${r(terminalBackdropComposite.height)}" preserveAspectRatio="none"/>`;
-      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, image)}`);
+      svgParts.push(`${indent}${wrapAtomicRasterTimeline(el, viewportRasterMarkup(state, el, image, false))}`);
       appendBoxReflection(state, el, reflectionFragmentStart, depth);
     }
     return true;
@@ -4666,7 +4704,8 @@ function renderElement(
       const counter = backdropFilterRaster.layerSpace?.counterTransform;
       const mapped =
         counter == null
-          ? image
+          ? // Emitted before this element's own wrapper.
+            viewportRasterMarkup(state, el, image, false, backdropFilterRaster.viewportSpace === true)
           : `<g transform="matrix(${counter.map((value) => Number(value.toFixed(8))).join(" ")})">${image}</g>`;
       svgParts.push(`${indent}${mapped}`);
     }
@@ -4853,8 +4892,9 @@ function renderElement(
     // phase, and retain only the outward wrappers not listed as consumed.
     svgParts.length = wrapperContentStart;
     if (paintBoxPhase) {
+      const image = `<image data-domotion-no-hoist="effect-surface" href="${backdropCompositeRaster.dataUri}" x="${r(backdropCompositeRaster.x)}" y="${r(backdropCompositeRaster.y)}" width="${r(backdropCompositeRaster.width)}" height="${r(backdropCompositeRaster.height)}" preserveAspectRatio="none"/>`;
       svgParts.push(
-        `${indent}<image data-domotion-no-hoist="effect-surface" href="${backdropCompositeRaster.dataUri}" x="${r(backdropCompositeRaster.x)}" y="${r(backdropCompositeRaster.y)}" width="${r(backdropCompositeRaster.width)}" height="${r(backdropCompositeRaster.height)}" preserveAspectRatio="none"/>`,
+        `${indent}${viewportRasterMarkup(state, el, image, true, backdropCompositeRaster.viewportSpace === true)}`,
       );
     }
     finish();

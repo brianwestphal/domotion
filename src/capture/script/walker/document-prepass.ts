@@ -13,7 +13,7 @@ import { isPaintedColor } from "../../../utils/transparent-background.js";
 import { parseBoxShadow } from "../../../render/box-shadow.js";
 import { selectProjectiveRasterOwnerIndexes } from "../../projective-owner.js";
 import { backdropEffectNeutralizations, backdropRootReasons } from "../../backdrop-effect-space.js";
-import { composeEffectiveTransform, transformHasRotationOrSkew } from "./transforms.js";
+import { composeEffectiveTransform, transformReferenceBox, transformWrapsAsAffine2D } from "./transforms.js";
 import { collectFontFeatureValues } from "../font-feature-values.js";
 import type { CaptureScriptArgs, CapturedElement } from "../../types.js";
 import type { ProjectivePaintNodeFact } from "../../projective-owner.js";
@@ -550,8 +550,8 @@ export const createBackgroundAttachmentPaintScale = () => {
     const _parent = paintScaleFor(el.parentElement);
     const _styleWindow = el.ownerDocument?.defaultView ?? window;
     const _style = _styleWindow.getComputedStyle(el);
-    const _effectiveTransform = composeEffectiveTransform(_style);
-    const _ownScale = transformHasRotationOrSkew(_effectiveTransform)
+    const _effectiveTransform = composeEffectiveTransform(_style, transformReferenceBox(_style));
+    const _ownScale = transformWrapsAsAffine2D(_effectiveTransform)
       ? [1, 1]
       : backgroundAttachmentAxisScale(_effectiveTransform);
     const _ownZoom = parseFloat(_style.zoom);

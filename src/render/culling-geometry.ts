@@ -400,6 +400,12 @@ function ownGeometry(el: CapturedElement): {
       const unknown = { kind: "unknown" as const, reason: "atomic-raster-reflection-owner" };
       return { fill: unknown, stroke: unknown, visual: unknown, atomic: true, suppressesDescendants: true };
     }
+    // A viewport-space crop is placed through the inverse of the open CTM, so
+    // its rectangle is not in this element's local reference space.
+    if ("viewportSpace" in atomicRaster && atomicRaster.viewportSpace === true) {
+      const unknown = { kind: "unknown" as const, reason: "atomic-raster-viewport-space" };
+      return { fill: unknown, stroke: unknown, visual: unknown, atomic: true, suppressesDescendants: true };
+    }
     const rasterBox = box(atomicRaster.x, atomicRaster.y, atomicRaster.width, atomicRaster.height);
     if (rasterBox == null || rasterBox.w === 0 || rasterBox.h === 0) {
       const unknown = { kind: "unknown" as const, reason: "atomic-raster-empty-or-invalid" };
@@ -654,7 +660,13 @@ function ownGeometry(el: CapturedElement): {
 
   const nativeDecoration = el.nativeControlDecorationRaster;
   if (nativeDecoration != null && nativeDecoration.empty !== true) {
-    if (nativeDecoration.dataUri == null) {
+    if (nativeDecoration.viewportSpace === true) {
+      // Placed through the inverse of the open CTM: not a local rectangle.
+      const unknown = { kind: "unknown" as const, reason: "native-decoration-raster-viewport-space" };
+      fill = unknown;
+      stroke = unknown;
+      visual = unknown;
+    } else if (nativeDecoration.dataUri == null) {
       // The capture reservation suppresses the sampled fallback even when
       // Chromium isolation failed. Retain the element: culling a later-valid
       // source surface from an animated/interpolated frame would turn that

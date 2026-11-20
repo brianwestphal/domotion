@@ -29,6 +29,7 @@
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import { createPageRegistry } from "./page-registry.js";
+import { createRasterViewportSpace, mapRectThroughAffine } from "./raster-viewport-space.js";
 import {
   suppressSnapshotVisibilityTransitions,
   type SnapshotVisibilityState,
@@ -318,6 +319,16 @@ export async function rasterizeNativeControlSurfaces(
     return;
   }
 
+  // A control under a frozen static transform was captured at its local box,
+  // but the live page paints it transformed. Crop the viewport rectangle that
+  // holds those pixels; the renderer counter-maps the image.
+  const space = createRasterViewportSpace(tree);
+  for (const target of targets) {
+    const ctm = space.frozenCtm(target.element);
+    if (ctm == null) continue;
+    Object.assign(target.raster, mapRectThroughAffine(target.raster, ctm));
+    target.raster.viewportSpace = true;
+  }
   const plans = targets.map((target) => planNativeControlClip(target.raster, viewport));
   for (let index = 0; index < targets.length; index++) {
     if (plans[index] == null)

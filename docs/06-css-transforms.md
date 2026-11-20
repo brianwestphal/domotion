@@ -5,10 +5,13 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2473", "DM-2475", "SK-1091", "SK-1127"]
+tickets: ["DM-2473", "DM-2475", "DM-WTSX24", "SK-1091", "SK-1127"]
 code:
   [
     "src/capture/script/index.ts",
+    "src/capture/script/walker/transforms.ts",
+    "src/capture/raster-viewport-space.ts",
+    "src/capture/frozen-transform-neutralizer.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/stacking.ts",
     "src/render/transforms.ts",
@@ -90,10 +93,61 @@ Domotion mirrors those separate decisions rather than inspecting matrix symptoms
 
 The per-named-function mapping above (`rotate(30deg)` → `rotate(30)`, `scale(2)` → `scale(2)`, …) turned out to be unnecessary: `getComputedStyle().transform` returns a resolved `matrix()` or `matrix3d()`. Ordinary 2D transforms still flow through `src/render/transforms.ts`. A matrix3d participating in a static 3D context instead uses the measured-plane path above, because taking only its 2D submatrix discards ancestor perspective and depth.
 
+## Capture model: freeze-and-wrap for static planar transforms (shipped)
+
+Blink paints a box's decorations in the box's local transform space and applies
+the transform afterwards: for example `BoxPainterBase` fills a non-rounded
+background color at `ToPixelSnappedRect` of the local paint rect
+(`third_party/blink/renderer/core/paint/box_painter_base.cc:1058`, Chromium
+`7d859f27`). A box laid out at x = 20.5 under `translate(-0.5px)` therefore
+snaps to 21 and paints at 20.5 with anti-aliased edges, and `scale(1.5)` scales
+its border and outline widths. A post-transform `getBoundingClientRect` cannot
+express either, so the capture walk freezes every static planar transform:
+
+- **Frozen** (`transformFreezes` in `src/capture/script/walker/transforms.ts`):
+  rotation and skew always; translate, scale, `matrix()` and an affine
+  `matrix3d()` (identity z row/column, no translateZ) unless a running CSS
+  animation or transition owns a transform property, or a declared transition
+  with positive combined duration covers one. The walk writes `translate(0)`,
+  which keeps the containing block, measures the untransformed box, and records
+  the composed transform; the renderer re-applies it as a `<g transform>`.
+- **Live** (`styles.transform: none`): animated/transitioned planar transforms,
+  whose live rect is exact for the sampled frame, and projective planes owned by
+  `transformSubtreeRaster`.
+- The `translate` longhand keeps percentages in its computed value; they resolve
+  against the border box (`transformReferenceBox`, `resolveTranslateComponent`),
+  including `calc()` of a length and a percentage, for elements and for
+  `::before`/`::after`.
+
+Consumers that read captured geometry use the emitted CTM: hit-testing
+(`paint-order.ts`) and the overlay resolver map points and boxes through it.
+
+**Chromium raster producers.** A Node-side pass that screenshots the live page
+after the walk sees the transformed paint. Each producer uses one of two routes:
+
+- **Viewport crop** (`src/capture/raster-viewport-space.ts`): the captured local
+  box is mapped through the same static CTM the renderer emits (own transform
+  included) to the viewport rectangle Chromium painted; the raster is marked
+  `viewportSpace` and the renderer places it through the inverse of the CTM open
+  at its emission point. Native-control surfaces and decorations (whose live
+  part fingerprints are compared against the mapped rectangles), backdrop-filter
+  target crops without a neutralized rotated ancestor, and backdrop-root
+  composites use this route, so Chromium's transformed paint is kept at full
+  resolution. Culling treats such a raster as unknown geometry.
+- **Neutralized sampling** (`src/capture/frozen-transform-neutralizer.ts`):
+  `withFrozenTransformsNeutralized` sets exactly the frozen set (the walker's
+  own predicate, shipped into the page as source) to `translate(0)` while a
+  pass runs, so CDP box models and screenshots come back in local space.
+  Replaced-element snapshots and the broken-image UA fallback facts use it.
+
+Known gaps: a backdrop-filter target or root composite under a neutralized
+rotated ancestor that also sits inside a frozen translate/scale keeps the older
+local route.
+
 ## Follow-ups to file
 
 - Implementation ticket: "SK-???: apply CSS 2D transforms to SVG rendered groups".
-- "Untransformed box capture for accuracy" — for higher fidelity, capture the pre-transform box (via temporary `style.transform = none` round-trip in CAPTURE_SCRIPT) so the visual is exact rather than approximate.
+- ~~"Untransformed box capture for accuracy"~~ — shipped as the freeze-and-wrap capture model above.
 - ~~"3D transform downgrade"~~ — shipped differently: static 3D transforms are measured as border-plane corners, and projective / preserve-3d / backface paint takes an atomic Chromium subtree snapshot rather than a lossy 2D projection (see the 3D bullets under Edge cases above, [doc 162](162-inline-svg-3d-transform-audit.md), and [doc 186](186-animated-3d-frame-state-parity.md)).
 
 ## Acceptance criteria

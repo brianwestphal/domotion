@@ -20,7 +20,8 @@
  */
 
 import type { Page } from "@playwright/test";
-import type { CapturedElement } from "../capture/types.js";
+import type { CapturedElement, CapturedTextPaintAffine } from "../capture/types.js";
+import { buildEmittedTextCtmMap } from "../render/text-affine.js";
 import { boxAnchorPoint, type BoxAnchor } from "../capture/content-box.js";
 import { firstLineBaseline } from "./caret-metrics.js";
 import type {
@@ -395,14 +396,37 @@ const numPx = (v: string | undefined): number => {
  *    element has a vertical scrollbar, which `clientWidth` excludes and the
  *    captured `width` does not. A scrollable anchor target is the one case this
  *    can differ, and it differs by the scrollbar's width.
- *  - **`fontAscent` / `fontDescent` are pre-scaled** by the element's cumulative
- *    ancestor scale at capture (DM-587), while the page probe measures the
- *    unscaled computed font. Inside a `transform: scale()` subtree the captured
- *    value is the one that matches painted output, so this resolver is if
- *    anything the more faithful of the two — but they are not interchangeable.
+ *  - **`fontAscent` / `fontDescent`** come from capture's own Hg measurement at
+ *    the computed (zoomed) font size, where the page probe reads the canvas
+ *    font bounding box of `cs.font`. Neither includes a CSS transform: since
+ *    DM-WTSX24 every planar transform is re-applied by the renderer's wrapper
+ *    rather than baked into captured geometry.
  */
-function anchorBoxFromCaptured(el: CapturedElement): AnchorBox {
+function anchorBoxFromCaptured(el: CapturedElement, ctm: CapturedTextPaintAffine | null): AnchorBox {
   const st = el.styles;
+  // The page probe reads getBoundingClientRect, the viewport AABB of the
+  // transformed box. Captured boxes are untransformed local boxes that the
+  // renderer wraps in their CSS transforms, so map the corners through the same
+  // emitted CTM (DM-WTSX24). A projective CTM (null) keeps the local box.
+  const rect = { x: el.x, y: el.y, width: el.width, height: el.height };
+  if (ctm != null) {
+    const [a, b, c, d, e, f] = ctm;
+    const xs: number[] = [];
+    const ys: number[] = [];
+    for (const [px, py] of [
+      [el.x, el.y],
+      [el.x + el.width, el.y],
+      [el.x, el.y + el.height],
+      [el.x + el.width, el.y + el.height],
+    ]) {
+      xs.push(a * px + c * py + e);
+      ys.push(b * px + d * py + f);
+    }
+    rect.x = Math.min(...xs);
+    rect.y = Math.min(...ys);
+    rect.width = Math.max(...xs) - rect.x;
+    rect.height = Math.max(...ys) - rect.y;
+  }
   const padL = numPx(st.paddingLeft);
   const padR = numPx(st.paddingRight);
   const bL = numPx(st.borderLeftWidth);
@@ -410,10 +434,10 @@ function anchorBoxFromCaptured(el: CapturedElement): AnchorBox {
   const bT = numPx(st.borderTopWidth);
   const bB = numPx(st.borderBottomWidth);
   const box: AnchorBox = {
-    x: el.x,
-    y: el.y,
-    width: el.width,
-    height: el.height,
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
     contentWidth: Math.max(0, el.width - bL - bR - padL - padR),
     borderRadius: numPx(st.borderTopLeftRadius),
     fontFamily: st.fontFamily,
@@ -426,8 +450,8 @@ function anchorBoxFromCaptured(el: CapturedElement): AnchorBox {
       lineHeightPx: numPx(st.lineHeight),
       fontAscentPx: el.fontAscent,
       fontDescentPx: el.fontDescent ?? 0,
-      contentTop: el.y + bT + numPx(st.paddingTop),
-      contentHeight: el.height - bT - bB - numPx(st.paddingTop) - numPx(st.paddingBottom),
+      contentTop: rect.y + bT + numPx(st.paddingTop),
+      contentHeight: rect.height - bT - bB - numPx(st.paddingTop) - numPx(st.paddingBottom),
       centerInContentBox: el.tag === "input",
     };
   }
@@ -452,6 +476,7 @@ export function resolveAnchoredOverlaysInTree<T extends AnchorableOverlay>(
   label: (kind: string) => string = (kind) => `resolveOverlays: ${kind} overlay`,
 ): T[] | undefined {
   if (overlays == null) return undefined;
+  let ctmMap: ReturnType<typeof buildEmittedTextCtmMap> | undefined;
   return overlays.map((ov) => {
     const anchor = ov.anchor;
     const needsBox = anchor != null || (ov.kind === "typing" && (ov.maxWidth != null || ov.fontFamily === "anchor"));
@@ -462,7 +487,8 @@ export function resolveAnchoredOverlaysInTree<T extends AnchorableOverlay>(
       const el = animId != null ? findByAnimId(tree, animId) : null;
       if (el == null)
         throw new Error(`${label(ov.kind)} anchor selector "${anchor.selector}" matched no captured element`);
-      box = anchorBoxFromCaptured(el);
+      ctmMap ??= buildEmittedTextCtmMap(tree);
+      box = anchorBoxFromCaptured(el, ctmMap.get(el) ?? null);
     }
     return applyAnchorBox(ov, box, label);
   });

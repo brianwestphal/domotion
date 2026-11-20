@@ -44,27 +44,23 @@
 // captured transforms. Empirically: stripe.com Payment Element's Affirm row
 // rendered at y≈1081 vs Chrome's 1127 = 46 px off per descendant.
 //
-// New model — closer to how Chrome itself works: layout is independent of
-// transforms, and transforms are a paint-time effect applied to laid-out
-// boxes. We capture every rect at its LIVE post-transform viewport position
-// (which IS Chrome's painted position), and mark every element's captured
-// `styles.transform` as `'none'` so the renderer doesn't wrap with a
-// duplicate transform `<g>`. The renderer's existing transform composition
-// code is a no-op for `transform: none`, so the rect emits at its captured
-// (=live) position directly.
+// That live-rect model is now limited to transforms a running animation or
+// transition owns, and to projective planes owned by transformSubtreeRaster.
+// Every other static planar transform (rotation, skew, translate, scale, an
+// affine matrix3d) is frozen again: DM-WTSX24 measured that Blink paints box
+// decorations at ToPixelSnappedRect(local paint rect) and only then applies
+// the transform (Chromium 7d859f27, core/paint/box_painter_base.cc:1058), so a
+// box at layout x=20.5 under translate(-0.5px) paints at 20.5 with
+// anti-aliased edges, and a scale(1.5) scales its border and outline widths.
+// Neither survives a post-transform viewport rect. Freezing records the local
+// box and the renderer's <g transform> reproduces both. Transforms do not feed
+// layout and the freeze writes `translate(0)`, which keeps the containing
+// block, so descendants keep their used positions; the stripe.com
+// measurement above has not been re-run under this model. Node-side raster
+// producers that run after the walk must work in the same space: see
+// src/capture/raster-viewport-space.ts and
+// src/capture/frozen-transform-neutralizer.ts.
 //
-// Trade-off: text/glyph rendering inside a scaled ancestor uses the
-// captured `font-size` (CSS px, unscaled) painted into a captured rect that
-// IS scaled. For pure scale-down ancestors (most common case — Stripe's
-// 0.69x, framer's 0.8x) text may visibly overflow its captured cell. The
-// existing visual-regression suite accepts a 3% diff threshold which absorbs
-// modest text overshoot; if a future test fails specifically on scaled-
-// container text size, capturing a scaled effective `font-size` is the
-// follow-up. Rotations/skews on ancestors are also unhandled — descendants
-// paint axis-aligned at the AABB rather than rotated, which would visibly
-// break any rotated-container fixture. None exist in the current real-world
-// suite or the feature suite (`inline-svg-use-symbol-animated` rotates an
-// SVG `<rect>`, not an HTML element).
 // Detect whether a CSS computed `transform` matrix string contains rotation or
 // skew components. Pure-translate / pure-scale matrices have b=c=0 in the 2D
 // form `matrix(a, b, c, d, e, f)`; rotation/skew produces non-zero b or c.
@@ -97,6 +93,38 @@ export const transformHasRotationOrSkew = (transformStr: string | null | undefin
   return false;
 };
 
+// DM-WTSX24: every planar affine transform is captured untransformed and
+// re-applied by the renderer's SVG wrapper. Blink snaps box paint in the
+// box's local transform space before applying the transform
+// (ToPixelSnappedRect on the local paint offset), so a live post-transform
+// rect, snapped in viewport space, loses fractional translation and stroke
+// scaling. matrix() is always planar affine. A matrix3d is when its z column
+// and row are identity: no perspective, no rotateX/Y and no translateZ. Under
+// an ancestor's perspective a translateZ projects and resizes the box. Anything
+// else stays on the live or projective owner path.
+export const transformWrapsAsAffine2D = (transformStr: string | null | undefined): boolean => {
+  if (!transformStr || transformStr === "none") return false;
+  if (transformHasRotationOrSkew(transformStr)) return true;
+  if (/^matrix\(/.test(transformStr)) return true;
+  const m3 = /^matrix3d\(([^)]+)\)$/.exec(transformStr);
+  if (m3 == null) return false;
+  const v = m3[1].split(",").map((part) => parseFloat(part));
+  if (v.length !== 16 || v.some((n) => !Number.isFinite(n))) return false;
+  const near = (n: number, target: number) => Math.abs(n - target) < 1e-6;
+  return (
+    near(v[2], 0) &&
+    near(v[3], 0) &&
+    near(v[6], 0) &&
+    near(v[7], 0) &&
+    near(v[8], 0) &&
+    near(v[9], 0) &&
+    near(v[10], 1) &&
+    near(v[11], 0) &&
+    near(v[14], 0) &&
+    near(v[15], 1)
+  );
+};
+
 // DM-943: CSS Transforms Level 2 introduced standalone `translate`,
 // `rotate`, `scale` properties that compose with `transform` per spec
 // order: translate → rotate → scale → transform. Chrome keeps them on
@@ -106,7 +134,43 @@ export const transformHasRotationOrSkew = (transformStr: string | null | undefin
 // renderer (which only parses matrix() / matrix3d()) picks them up
 // unchanged. Returns 'none' when all four properties are absent /
 // 'none', otherwise a `matrix(a, b, c, d, e, f)` string.
-export const composeEffectiveTransform = (cs: CSSStyleDeclaration): string => {
+//
+// The computed `translate` keeps percentages (CSS Transforms 2 §5.1: they
+// resolve against the reference box, the border box for HTML), so a
+// `translate: -50% 8px` cannot be read with parseFloat. `refBox` is that box;
+// without it a percentage resolves against zero.
+export const transformReferenceBox = (cs: CSSStyleDeclaration): { width: number; height: number } => {
+  const px = (value: string) => parseFloat(value) || 0;
+  let width = px(cs.width);
+  let height = px(cs.height);
+  if (cs.boxSizing !== "border-box") {
+    width += px(cs.paddingLeft) + px(cs.paddingRight) + px(cs.borderLeftWidth) + px(cs.borderRightWidth);
+    height += px(cs.paddingTop) + px(cs.paddingBottom) + px(cs.borderTopWidth) + px(cs.borderBottomWidth);
+  }
+  return { width, height };
+};
+
+// Resolve one computed `translate` component: a length, a percentage of
+// `reference`, or a calc() sum of the two.
+export const resolveTranslateComponent = (token: string, reference: number): number => {
+  const calc = /^calc\((.*)\)$/.exec(token.trim());
+  const terms = calc == null ? token.trim() : calc[1].replace(/\s+/g, "");
+  let total = 0;
+  let matched = false;
+  const termPattern = /([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)(px|%)?/gi;
+  for (let term = termPattern.exec(terms); term != null; term = termPattern.exec(terms)) {
+    if (term[0] === "") break;
+    matched = true;
+    const value = parseFloat(term[1]);
+    total += term[2] === "%" ? (value * reference) / 100 : value;
+  }
+  return matched && isFinite(total) ? total : 0;
+};
+
+export const composeEffectiveTransform = (
+  cs: CSSStyleDeclaration,
+  refBox: { width: number; height: number } = { width: 0, height: 0 },
+): string => {
   const t = cs.translate;
   const r = cs.rotate;
   const s = cs.scale;
@@ -123,11 +187,23 @@ export const composeEffectiveTransform = (cs: CSSStyleDeclaration): string => {
   // translate first, then rotate, scale, transform — matching CSS T2 §3.
   let m = new DOMMatrix();
   if (hasT) {
-    // cs.translate is "<x> [<y>] [<z>]" in px / computed length.
-    const ts = t.split(/\s+/).map((v: string) => parseFloat(v));
-    const tx = isFinite(ts[0]) ? ts[0] : 0;
-    const ty = ts.length > 1 && isFinite(ts[1]) ? ts[1] : 0;
-    const tz = ts.length > 2 && isFinite(ts[2]) ? ts[2] : 0;
+    // cs.translate is "<x> [<y>] [<z>]": lengths, percentages of the
+    // reference box, or calc() of both. Split on spaces outside parentheses.
+    const parts: string[] = [];
+    let depth = 0;
+    let current = "";
+    for (const ch of t.trim()) {
+      if (ch === "(") depth++;
+      if (ch === ")") depth--;
+      if (/\s/.test(ch) && depth === 0) {
+        if (current !== "") parts.push(current);
+        current = "";
+      } else current += ch;
+    }
+    if (current !== "") parts.push(current);
+    const tx = parts.length > 0 ? resolveTranslateComponent(parts[0], refBox.width) : 0;
+    const ty = parts.length > 1 ? resolveTranslateComponent(parts[1], refBox.height) : 0;
+    const tz = parts.length > 2 ? resolveTranslateComponent(parts[2], 0) : 0;
     m = m.translate(tx, ty, tz);
   }
   if (hasR) {
@@ -172,7 +248,7 @@ export const composeEffectiveTransform = (cs: CSSStyleDeclaration): string => {
   return `matrix3d(${m.m11}, ${m.m12}, ${m.m13}, ${m.m14}, ${m.m21}, ${m.m22}, ${m.m23}, ${m.m24}, ${m.m31}, ${m.m32}, ${m.m33}, ${m.m34}, ${m.m41}, ${m.m42}, ${m.m43}, ${m.m44})`;
 };
 
-const parseAngleToDeg = (a: string): number => {
+export const parseAngleToDeg = (a: string): number => {
   const m = /^([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)(deg|rad|grad|turn)?$/.exec(a);
   if (!m) return 0;
   const n = parseFloat(m[1]);
@@ -184,7 +260,68 @@ const parseAngleToDeg = (a: string): number => {
   return n;
 };
 
+// A running CSS animation or transition on the element's own transform
+// outranks the inline freeze in the cascade, and overriding it would mean
+// cancelling it. Such an element keeps the live-rect model, which reads the
+// animated rect exactly. Element.getAnimations() lists both CSS animations and
+// CSS transitions; their keyframes name the animated longhands.
+//
+// A declared transition covering a transform property is equally disqualifying.
+// The freeze's own inline write would start a transition, so the box would not
+// reach its untransformed position and transition events would fire on the
+// page. A transition starts when its combined duration, duration + max(delay,
+// 0), is positive (CSS Transitions §3).
+export const TRANSFORM_PROPERTIES = ["transform", "translate", "rotate", "scale"];
+export const transitionCoversTransform = (cs: CSSStyleDeclaration): boolean => {
+  const properties = (cs.transitionProperty || "").split(",").map((part) => part.trim());
+  const durations = (cs.transitionDuration || "0s").split(",").map((part) => parseFloat(part) || 0);
+  const delays = (cs.transitionDelay || "0s").split(",").map((part) => parseFloat(part) || 0);
+  return properties.some((property, index) => {
+    if (property !== "all" && TRANSFORM_PROPERTIES.indexOf(property) < 0) return false;
+    const duration = durations[index % durations.length];
+    const delay = delays[index % delays.length];
+    return duration + Math.max(delay, 0) > 0;
+  });
+};
+export const transformIsAnimated = (el: Element, cs: CSSStyleDeclaration): boolean => {
+  if (transitionCoversTransform(cs)) return true;
+  if (typeof el.getAnimations !== "function") return false;
+  for (const animation of el.getAnimations()) {
+    if (animation.playState === "finished" || animation.playState === "idle") continue;
+    const effect = animation.effect as KeyframeEffect | null;
+    if (effect == null || typeof effect.getKeyframes !== "function") continue;
+    for (const frame of effect.getKeyframes()) {
+      for (const property of TRANSFORM_PROPERTIES) if (property in frame) return true;
+    }
+  }
+  return false;
+};
+
+// The single freeze decision, shared by the walk and by the Node-side passes
+// that must neutralize exactly the transforms the renderer re-applies
+// (`src/capture/frozen-transform-neutralizer.ts` ships these functions' source
+// into the page). Rotation and skew always freeze. Every other planar affine
+// transform (translate, scale, an affine matrix3d without translateZ) freezes
+// unless a running animation or transition owns it: Blink snaps box paint in
+// local space before applying the transform (`ToPixelSnappedRect` on the local
+// paint rect, Chromium 7d859f27 core/paint/box_painter_base.cc:1058), which only
+// the untransformed box plus the renderer's wrapper reproduces. A projective
+// matrix3d stays live; transformSubtreeRaster owns it (DM-2380).
+export const transformFreezes = (el: Element, cs: CSSStyleDeclaration): boolean => {
+  const effective = composeEffectiveTransform(cs);
+  if (!effective || effective === "none") return false;
+  return (
+    transformHasRotationOrSkew(effective) ||
+    (transformWrapsAsAffine2D(effective) && !transformIsAnimated(el, cs)) ||
+    /\brotate\b/.test(effective) ||
+    /\bskew/.test(effective)
+  );
+};
+
 export const createTransformsHandler = () => {
+  // Computed styles of elements whose planar transform stayed live (animated),
+  // so threadFrozenTransform records `none` for them.
+  const liveTransformStyles = new WeakSet<CSSStyleDeclaration>();
   const wrapWithFrozenTransform = <T>(
     el: HTMLElement,
     cs: CSSStyleDeclaration,
@@ -195,15 +332,10 @@ export const createTransformsHandler = () => {
       frozenTransformOrigin: string | null,
     ) => T,
   ): T => {
-    // DM-587: for pure translate/scale transforms, do NOT clear — read the
-    // rect as Chrome currently paints it (the new live-rect model). For
-    // transforms that include rotation or skew, fall back to the older
-    // freeze-then-restore model so the captured rect represents the
-    // un-rotated layout box and the renderer can re-apply the rotation via
-    // an SVG `<g transform=...>` wrapper. Without this fallback, rotated
-    // HTML elements would paint as their axis-aligned bounding boxes (and
-    // overlap their neighbors) since `getBoundingClientRect` post-rotation
-    // returns the rotated AABB, not the original 160×160 layout box.
+    // transformFreezes decides between the freeze-then-restore model (the
+    // captured rect is the untransformed layout box and the renderer
+    // re-applies the transform via an SVG `<g transform=...>` wrapper) and
+    // the live-rect model (animated or projective transforms only).
     //
     // DM-943: compose the effective transform from `transform` PLUS the
     // CSS Transforms Level 2 standalone `translate` / `rotate` / `scale`
@@ -212,28 +344,15 @@ export const createTransformsHandler = () => {
     // `transform:` prefix) produced cs.transform === 'none' and rendered
     // the box axis-aligned. The composed string flows through the same
     // freeze logic as a plain `transform:` of the same shape.
-    const originalTransform = composeEffectiveTransform(cs);
+    const originalTransform = composeEffectiveTransform(cs, transformReferenceBox(cs));
     const hasTransform = originalTransform && originalTransform !== "none";
     if (!hasTransform) {
       return captureInner(el, cs, null, null);
     }
-    // Heuristic: do we need to clear inlines to capture an un-rotated layout
-    // box? Pure translate/scale leaves the layout box axis-aligned so we
-    // keep the live-rect model. Anything containing a rotate(...) or skew
-    // function — including the freshly composed string — needs the freeze.
-    // DM-2380: matrix3d() is not itself a reason to freeze. Its planar b/c
-    // terms use the same test as matrix(); an affine matrix3d scale/translate
-    // stays live and is baked once, while a genuinely projective context is
-    // owned by transformSubtreeRaster. Freezing every matrix3d but serializing
-    // only rotation/skew dropped affine scale before the replaced snapshot was
-    // emitted.
-    const needsFreeze =
-      transformHasRotationOrSkew(originalTransform) ||
-      /\brotate\b/.test(originalTransform) ||
-      /\bskew/.test(originalTransform);
+    const needsFreeze = transformFreezes(el, cs);
     if (needsFreeze) {
-      // Old model: clear so getBoundingClientRect returns the un-rotated
-      // layout box; renderer re-applies the original transform.
+      // Clear so getBoundingClientRect returns the untransformed layout box;
+      // the renderer re-applies the original transform.
       const inlineTransform = el.style.transform;
       const inlineRotate = el.style.rotate;
       const inlineScale = el.style.scale;
@@ -251,7 +370,9 @@ export const createTransformsHandler = () => {
         el.style.translate = inlineTranslate;
       }
     }
-    // Pure translate/scale: keep new live-rect model (no clear, no wrap).
+    // An animated planar transform, or a projective one owned by the
+    // transform-subtree raster: keep the live-rect model (no clear, no wrap).
+    liveTransformStyles.add(cs);
     return captureInner(el, cs, originalTransform, cs.transformOrigin);
   };
 
@@ -267,7 +388,10 @@ export const createTransformsHandler = () => {
     // position directly. frozenTransform is non-null whenever the element
     // originally had a non-none transform; we only stash the rotation/skew
     // string back into styles.transform.
-    transform: frozenTransform != null && transformHasRotationOrSkew(frozenTransform) ? frozenTransform : "none",
+    transform:
+      frozenTransform != null && !liveTransformStyles.has(cs) && transformWrapsAsAffine2D(frozenTransform)
+        ? frozenTransform
+        : "none",
     transformOrigin: cs.transformOrigin,
     // DM-751: extract `matrix3d` translateZ so the paint-order sort can
     // honor 3D Z position when the parent element has

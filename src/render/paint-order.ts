@@ -43,7 +43,7 @@
  * refinement against the same per-frame trees.
  */
 
-import type { CapturedElement } from "../capture/types.js";
+import type { CapturedElement, CapturedTextPaintAffine } from "../capture/types.js";
 import { isNonReplacedInline } from "./overflow-clip.js";
 import {
   establishesStackingContext,
@@ -52,18 +52,30 @@ import {
   trapsFixedDescendants,
   sortChildrenByPaintOrder,
 } from "./stacking.js";
+import { buildEmittedTextCtmMap, invertTextAffine } from "./text-affine.js";
 
 interface ClipRect {
   x: number;
   y: number;
   w: number;
   h: number;
+  /** Viewport-to-local inverse of the clip owner's emitted CTM. */
+  inverse?: CapturedTextPaintAffine | null;
 }
 
 interface HitEntry {
   el: CapturedElement;
   /** Overflow-clip rects this element's hit box is constrained to. */
   clips: ClipRect[];
+  /** Viewport-to-local inverse of the element's emitted CTM (DM-WTSX24). */
+  inverse?: CapturedTextPaintAffine | null;
+}
+
+/** Map a viewport point into the local space an inverse CTM describes. */
+function toLocal(inverse: CapturedTextPaintAffine | null | undefined, x: number, y: number): [number, number] {
+  if (inverse == null) return [x, y];
+  const [a, b, c, d, e, f] = inverse;
+  return [a * x + c * y + e, b * x + d * y + f];
 }
 
 function overflowClips(el: CapturedElement): boolean {
@@ -71,10 +83,6 @@ function overflowClips(el: CapturedElement): boolean {
   // DM-SFY5S7: overflow never clips a non-replaced inline box.
   if (isNonReplacedInline(el)) return false;
   return (s.overflowX != null && s.overflowX !== "visible") || (s.overflowY != null && s.overflowY !== "visible");
-}
-
-function rectOf(el: CapturedElement): ClipRect {
-  return { x: el.x, y: el.y, w: el.width, h: el.height };
 }
 
 /**
@@ -94,6 +102,21 @@ export function paintOrderHitSequence(elements: CapturedElement[]): HitEntry[] {
     for (const c of el.children) normalize(c);
   };
   for (const e of elements) normalize(e);
+  // Captured boxes are untransformed local layout boxes; the renderer wraps
+  // each transformed element in its CSS transform. Hit-testing maps the point
+  // into each box's local space through the same emitted CTM (DM-WTSX24).
+  const ctm = buildEmittedTextCtmMap(elements);
+  const inverseCtmOf = (el: CapturedElement): CapturedTextPaintAffine | null => {
+    const matrix = ctm.get(el);
+    return matrix == null ? null : invertTextAffine(matrix);
+  };
+  const rectOf = (el: CapturedElement): ClipRect => ({
+    x: el.x,
+    y: el.y,
+    w: el.width,
+    h: el.height,
+    inverse: inverseCtmOf(el),
+  });
   const out: HitEntry[] = [];
   const hoisted = new Set<CapturedElement>();
   const clipForHoisted = new Map<CapturedElement, CapturedElement>();
@@ -143,7 +166,7 @@ export function paintOrderHitSequence(elements: CapturedElement[]): HitEntry[] {
     return [];
   };
   const visit = (el: CapturedElement, parentDisplay: string | undefined, clips: ClipRect[]): void => {
-    out.push({ el, clips });
+    out.push({ el, clips, inverse: inverseCtmOf(el) });
     if (el.children == null || el.children.length === 0) return;
     const childClips = overflowClips(el) ? [...clips, rectOf(el)] : clips;
     childClipsOf.set(el, childClips);
@@ -219,13 +242,15 @@ export function hitTestTopmost(elements: CapturedElement[], x: number, y: number
     sequenceCache.set(elements, seq);
   }
   let best: CapturedElement | null = null;
-  for (const { el, clips } of seq) {
+  for (const { el, clips, inverse } of seq) {
     if (el.styles.pointerEvents === "none") continue;
     if (el.width <= 0 || el.height <= 0) continue;
-    if (x < el.x || x >= el.x + el.width || y < el.y || y >= el.y + el.height) continue;
+    const [lx, ly] = toLocal(inverse, x, y);
+    if (lx < el.x || lx >= el.x + el.width || ly < el.y || ly >= el.y + el.height) continue;
     let clipped = false;
     for (const c of clips) {
-      if (x < c.x || x >= c.x + c.w || y < c.y || y >= c.y + c.h) {
+      const [cx, cy] = toLocal(c.inverse, x, y);
+      if (cx < c.x || cx >= c.x + c.w || cy < c.y || cy >= c.y + c.h) {
         clipped = true;
         break;
       }

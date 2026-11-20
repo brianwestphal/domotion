@@ -244,13 +244,16 @@ describeBrowser("DM-2380 transformed replaced snapshots", () => {
     const sourcePath = join(directory, "source.png");
     try {
       await page.setContent(
-        `<style>html,body{margin:0;background:white}canvas{position:absolute;left:-12.25px;top:24.5px;width:80px;height:60px;transform:matrix3d(1.5,0,0,0,0,.75,0,0,0,0,1,0,0,0,0,1);transform-origin:0 0}</style><canvas width="80" height="60"></canvas>`,
+        `<style>html,body{margin:0;background:white}canvas{position:absolute;left:-12.25px;top:24.5px;width:80px;height:60px;transform:matrix3d(1.5,0,0,0,0,.75,0,0,0,0,1,0,0,0,0,1);transform-origin:0 0;animation:hold 10s infinite}@keyframes hold{from,to{transform:matrix3d(1.5,0,0,0,0,.75,0,0,0,0,1,0,0,0,0,1)}}</style><canvas width="80" height="60"></canvas>`,
       );
       await page.locator("canvas").evaluate((element) => {
         const context = (element as HTMLCanvasElement).getContext("2d")!;
         context.fillStyle = "rgb(237,18,52)";
         context.fillRect(0, 0, 80, 60);
       });
+      // A running transform animation keeps the transform live (not frozen
+      // into an SVG wrapper), so this target still takes the source-image crop
+      // route whose DPR mapping is under test.
       await writeFile(sourcePath, await page.screenshot());
       const { tree } = await captureElementTreeWithWarnings(
         page,
