@@ -46,6 +46,25 @@ describe("buildGradientTilePatternDef", () => {
     expect(Number(match![1])).toBeLessThanOrEqual(0);
   });
 
+  it("ignores a repeat confined to a band an opaque border covers", () => {
+    const paintingArea = { x: 0, y: 0, width: 120, height: 120 };
+    expect(
+      buildGradientTilePatternDef({
+        ...base,
+        paintingArea,
+        visiblePaintingArea: { x: 10, y: 10, width: 100, height: 100 },
+      }),
+    ).toBeNull();
+    // A partly covered band still shows the repeat.
+    expect(
+      buildGradientTilePatternDef({
+        ...base,
+        paintingArea,
+        visiblePaintingArea: { x: 5, y: 10, width: 105, height: 100 },
+      }),
+    ).not.toBeNull();
+  });
+
   it("paints a no-repeat tile once inside a painting-area-sized pattern", () => {
     const def = buildGradientTilePatternDef({
       ...base,

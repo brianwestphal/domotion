@@ -5157,6 +5157,7 @@ function buildBackgroundLayerDef(
   fixedViewport: { w: number; h: number } | null = null,
   selectedImage: CapturedBackgroundImage | null = null,
   paintingArea: { x: number; y: number; width: number; height: number } | null = null,
+  visiblePaintingArea: { x: number; y: number; width: number; height: number } | null = null,
 ): { def: string } {
   // Computed style deliberately serializes the complete image-set. The live
   // capture record—not this renderer—owns Blink's DPR/type candidate choice.
@@ -5235,6 +5236,7 @@ function buildBackgroundLayerDef(
       repeating: /^repeating-/i.test(layer),
       positioningArea: { x: gradX, y: gradY, width: gradW, height: gradH },
       paintingArea,
+      visiblePaintingArea,
       size: sizeCss,
       position: posCss,
       repeat: repeatCss,

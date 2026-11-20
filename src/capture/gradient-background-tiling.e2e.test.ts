@@ -66,4 +66,11 @@ describe("gradient background tiling (DM-8F20GA)", () => {
     },
     60_000,
   );
+
+  it("keeps the single gradient under an opaque solid border (no pattern resampling)", async () => {
+    await page.setContent(div(linear, "border:3px solid rgb(71,85,105);padding:12px"));
+    const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: W, height: H });
+    expect(elementTreeToSvg(tree, W, H)).not.toContain("<pattern");
+    expect(await diffAgainstChromium(div(linear, "border:3px solid rgb(71,85,105);padding:12px"))).toBe(0);
+  }, 60_000);
 });

@@ -60,6 +60,9 @@ export function buildGradientTilePatternDef(input: {
   repeating: boolean;
   positioningArea: BackgroundRect;
   paintingArea: BackgroundRect | null;
+  /** The painting area minus the box's own opaque border band; only decides
+   * whether one stretched gradient already paints every visible pixel. */
+  visiblePaintingArea?: BackgroundRect | null;
   size: string;
   position: string;
   repeat: string;
@@ -84,9 +87,10 @@ export function buildGradientTilePatternDef(input: {
   const stepX = tileW + geometry.spacing.width;
   const stepY = tileH + geometry.spacing.height;
   const area = input.positioningArea;
+  const visible = input.visiblePaintingArea ?? paint;
   if (
-    axisIsSingleTile(paint.x, paint.width, area.x, area.width, originX, tileW, stepX, noRepeatX) &&
-    axisIsSingleTile(paint.y, paint.height, area.y, area.height, originY, tileH, stepY, noRepeatY)
+    axisIsSingleTile(visible.x, visible.width, area.x, area.width, originX, tileW, stepX, noRepeatX) &&
+    axisIsSingleTile(visible.y, visible.height, area.y, area.height, originY, tileH, stepY, noRepeatY)
   ) {
     return null;
   }

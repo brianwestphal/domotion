@@ -186,7 +186,11 @@ the positioning area and covers the painting area (within 0.5 px of pixel
 snapping), the established single stretched `<linearGradient>` /
 `<radialGradient>` is kept byte-for-byte. A gradient therefore now repeats into
 the border area of a `background-clip: border-box` box whose origin is the
-padding box, as in Chromium. Covered by `src/render/gradient-tile.test.ts` and
+padding box, as in Chromium. That decision ignores the band under the box's
+own opaque solid border, which paints over the background: a repeat visible
+only there would be covered, and Chromium's SVG pattern rasterization differs
+from a direct gradient by up to 2 channel levels, so such boxes keep the direct
+gradient. Covered by `src/render/gradient-tile.test.ts` and
 `src/capture/gradient-background-tiling.e2e.test.ts`. Form-control pseudo slots
 keep their own path (below).
 
