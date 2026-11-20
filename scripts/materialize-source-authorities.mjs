@@ -16,6 +16,10 @@ export const SOURCE_AUTHORITY_PINS = Object.freeze({
 // These files are read by unit/drift tests but are more specific than the
 // directory-level authority references in tools/semantic-coverage.json.
 export const DIRECT_SOURCE_FILES = Object.freeze([
+  "external/chromium/base/command_line.cc",
+  "external/chromium/content/browser/renderer_host/render_process_host_impl.cc",
+  "external/chromium/content/renderer/render_thread_impl.cc",
+  "external/chromium/content/renderer/renderer_blink_platform_impl.cc",
   "external/chromium/third_party/blink/renderer/core/animation/css/css_animations.cc",
   "external/chromium/third_party/blink/renderer/core/animation/css_default_interpolation_type.cc",
   "external/chromium/third_party/blink/renderer/core/animation/effect_stack.cc",
@@ -33,11 +37,17 @@ export const DIRECT_SOURCE_FILES = Object.freeze([
   "external/chromium/third_party/blink/renderer/core/css/resolver/scoped_style_resolver.cc",
   "external/chromium/third_party/blink/renderer/core/css/style_rule_font_feature_values.cc",
   "external/chromium/third_party/blink/renderer/core/inspector/inspector_css_agent.cc",
+  "external/chromium/third_party/blink/renderer/platform/fonts/font_description.h",
+  "external/chromium/third_party/blink/renderer/platform/fonts/font_fallback_list.cc",
+  "external/chromium/third_party/blink/renderer/platform/fonts/font_selector.cc",
   "external/chromium/third_party/blink/renderer/platform/fonts/font_variant_alternates.cc",
+  "external/chromium/third_party/blink/renderer/platform/fonts/mac/font_cache_mac.mm",
   "external/chromium/third_party/blink/renderer/platform/fonts/shaping/harfbuzz_face.cc",
   "external/chromium/third_party/blink/renderer/platform/fonts/unicode_range_set.h",
+  "external/chromium/third_party/blink/renderer/platform/language.cc",
   "external/chromium/third_party/blink/renderer/platform/text/character.cc",
   "external/chromium/third_party/blink/renderer/platform/text/character_property_data.h",
+  "external/chromium/third_party/blink/renderer/platform/text/layout_locale.cc",
   "external/chromium/third_party/blink/renderer/platform/text/mathml_operator_dictionary.cc",
   "external/chromium/third_party/icu/source/data/unidata/emoji-sequences.txt",
   "external/chromium/third_party/icu/source/data/unidata/emoji-zwj-sequences.txt",

@@ -10,13 +10,25 @@ export function computedFontLocaleLanguage(fontLocale: string | undefined): stri
   return token != null && token.end === value.length ? token.value : undefined;
 }
 
-/** Preserve DOM language as metadata and as the compatibility route for old
- * captures, auto, and unavailable data. Empty explicit strings are data, not
- * an invitation to borrow a different DOM language. DM-3972FJ owns auto. */
+/** Is this computed -webkit-locale the `auto` keyword (a null FontDescription
+ * locale, so Blink uses `LayoutLocale::GetDefault()`)? */
+export function isAutoFontLocale(fontLocale: string | undefined): boolean {
+  return fontLocale != null && fontLocale.trim().toLowerCase() === "auto";
+}
+
+/** Font-selection language: an explicit computed CSS locale string; for
+ * `auto`, Blink's default locale (the renderer's `--lang`) when the capture
+ * authenticated it; otherwise DOM language, the compatibility route for old
+ * captures and unavailable data. Empty explicit strings are data, not an
+ * invitation to borrow a different DOM language. */
 export function fontSelectionLanguage(value: {
   fontLocale?: string;
+  defaultFontLocale?: string;
   lang?: string;
   language?: string;
 }): string | undefined {
-  return computedFontLocaleLanguage(value.fontLocale) ?? value.lang ?? value.language;
+  const explicit = computedFontLocaleLanguage(value.fontLocale);
+  if (explicit != null) return explicit;
+  if (isAutoFontLocale(value.fontLocale) && value.defaultFontLocale != null) return value.defaultFontLocale;
+  return value.lang ?? value.language;
 }

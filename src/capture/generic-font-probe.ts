@@ -434,11 +434,14 @@ async function readPageGenericFamilies(
 export async function probePageGenericFamilies(
   page: Page,
   onFailure?: GenericProbeFailure,
+  /** Locales no DOM/CSS fact names but Blink still selects with — the
+   * renderer default locale behind `font-locale: auto`. */
+  additionalLanguages: readonly string[] = [],
 ): Promise<SessionGenericFamilyProbe | null> {
   let cdp: CDPSession | null = null;
   try {
     cdp = await persistentTargetProbeSession(page);
-    const targets = genericFamilyProbeTargets(await pageLanguageFacts(cdp, onFailure));
+    const targets = genericFamilyProbeTargets([...(await pageLanguageFacts(cdp, onFailure)), ...additionalLanguages]);
     // A fresh page can still be receiving Playwright's launch-time
     // `Page.setFontFamilies` overlay, so the first read may legitimately see the
     // profile table. Accept the first two consecutive reads that agree.
@@ -571,11 +574,12 @@ export function sessionGenericFamilyProbesEqual(
 export async function ensureSessionGenericFamilyOverrides(
   page: Page,
   onFailure?: GenericProbeFailure,
+  additionalLanguages: readonly string[] = [],
 ): Promise<SessionGenericFamilyProbe | null> {
   if (!genericProbeArmed()) return null;
   // Do not cache by Page: Page.setFontFamilies is guarded once per
   // InspectorPageAgent SESSION, so another CDP session can legitimately
   // mutate the same page between two captures. Re-probing is the only source-
   // honest invalidation policy available through the public protocol.
-  return await probePageGenericFamilies(page, onFailure);
+  return await probePageGenericFamilies(page, onFailure, additionalLanguages);
 }

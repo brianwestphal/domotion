@@ -114,8 +114,12 @@ describe("computed font locale distinct from document language (DM-PJG8E9)", () 
         const row = rows.find((r) => r.id === c.id)!;
         expect(owner!.styles.lang, c.id).toBe(c.lang);
         expect(owner!.styles.fontLocale, c.id).toBe(row.locale);
-        expect(fontSelectionLanguage(owner!.styles), c.id).toBe("unknown" in c ? c.lang : c.expected);
-        if (!("unknown" in c)) {
+        // `auto`/`initial` select with Blink's default locale — the launched
+        // renderer's --lang (DM-JRG1BD) — and keep the DOM-language route only
+        // when that authority is unavailable.
+        const autoLocale = "unknown" in c ? (owner!.styles.defaultFontLocale ?? c.lang) : c.expected;
+        expect(fontSelectionLanguage(owner!.styles), c.id).toBe(autoLocale);
+        if (!("unknown" in c) || owner!.styles.defaultFontLocale != null) {
           const fontKey = resolveFontKey(
             capturedFontFamilyCss(owner!.styles.fontFamily, owner!.styles.fontFamilyStack),
             fontSelectionLanguage(owner!.styles),

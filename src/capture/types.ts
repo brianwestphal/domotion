@@ -534,8 +534,11 @@ export interface CapturedPseudoTypography {
   whiteSpace: string;
   language: string;
   /** Raw computed CSS -webkit-locale; explicit strings route font selection
-   * independently of document language. Auto remains guarded (DM-3972FJ). */
+   * independently of document language. */
   fontLocale?: string;
+  /** Blink's default font locale (the launched renderer's last `--lang`),
+   * recorded only where `fontLocale` is `auto`; see renderer-default-locale.ts. */
+  defaultFontLocale?: string;
   effectiveZoom: number;
   primaryFontAscent: number;
   primaryFontDescent: number;
@@ -1506,9 +1509,12 @@ export interface CapturedStyles {
    *  variant (TC / HK / MO) or Hiragino Kaku for `ja`. (DM-394) */
   lang?: string;
   /** Raw computed CSS -webkit-locale, kept separate from DOM language.
-   * An explicit string supplies font selection locale; auto/default authority
-   * remains unavailable and retains the prior route (DM-3972FJ). */
+   * An explicit string supplies font selection locale. */
   fontLocale?: string;
+  /** Blink's default font locale (the launched renderer's last `--lang`),
+   * recorded only where `fontLocale` is `auto`. Absent (older trees, or an
+   * unauthenticated renderer) keeps the prior DOM-language route. */
+  defaultFontLocale?: string;
   /** `text-decoration-line` — 'underline', 'line-through', 'overline', or
    *  combinations. 'none' means no decoration; renderer draws an SVG line
    *  below / through / above the text when present. */

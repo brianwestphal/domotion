@@ -39,4 +39,12 @@ describe("explicit computed font locale (DM-PJG8E9)", () => {
     expect(fontSelectionLanguage({ language: "ko", fontLocale: "auto" })).toBe("ko");
     expect(fontSelectionLanguage({})).toBeUndefined();
   });
+  it("uses the authenticated renderer default only for auto (DM-JRG1BD)", () => {
+    expect(fontSelectionLanguage({ lang: "ja", fontLocale: "auto", defaultFontLocale: "en-US" })).toBe("en-US");
+    expect(fontSelectionLanguage({ fontLocale: " AUTO ", defaultFontLocale: "zh-TW" })).toBe("zh-TW");
+    // Explicit strings — including an empty one — and old trees keep their routes.
+    expect(fontSelectionLanguage({ fontLocale: '"ko"', defaultFontLocale: "ja" })).toBe("ko");
+    expect(fontSelectionLanguage({ fontLocale: '""', defaultFontLocale: "ja" })).toBe("");
+    expect(fontSelectionLanguage({ lang: "ja", defaultFontLocale: "en-US" })).toBe("ja");
+  });
 });

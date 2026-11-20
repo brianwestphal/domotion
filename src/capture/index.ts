@@ -58,6 +58,7 @@ import {
   serializeSessionGenericFamilyProbe,
 } from "./generic-font-probe.js";
 import { createCapturedTreeEnvelope, promoteCapturedSubtree } from "./tree-envelope.js";
+import { annotateDefaultFontLocale, rendererDefaultLocaleForPage } from "./renderer-default-locale.js";
 import { primeDecodedImageRatios } from "./decoded-image-ratio.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
@@ -2282,17 +2283,24 @@ async function captureElementTreeWithWarningsInternal(
     // The renderer scopes either form to this tree, so independently captured
     // pages cannot contaminate one another. See `generic-font-probe.ts`.
     const genericProbeWarnings: CaptureWarning[] = [];
-    const sessionGenericFamilies = await ensureSessionGenericFamilyOverrides(page, (probe, cause) =>
-      genericProbeWarnings.push(
-        probeFailureWarning({
-          selector,
-          feature: "generic-font-families",
-          probe,
-          cause,
-          effect:
-            "the captured tree carries no session generic-family record, so the renderer substitutes its defaults",
-        }),
-      ),
+    // Blink's default font locale (the launched renderer's last --lang) is what
+    // `font-locale: auto` selects with; probe its script too. Unknown keeps the
+    // prior DOM-language route. See renderer-default-locale.ts.
+    const rendererLocale = await rendererDefaultLocaleForPage(page);
+    const sessionGenericFamilies = await ensureSessionGenericFamilyOverrides(
+      page,
+      (probe, cause) =>
+        genericProbeWarnings.push(
+          probeFailureWarning({
+            selector,
+            feature: "generic-font-families",
+            probe,
+            cause,
+            effect:
+              "the captured tree carries no session generic-family record, so the renderer substitutes its defaults",
+          }),
+        ),
+      "locale" in rendererLocale ? [rendererLocale.locale] : [],
     );
     await assertGenericFamilyTargetConsistency(page, sessionGenericFamilies);
     await reverifyAnimationFrame();
@@ -2529,6 +2537,7 @@ async function captureElementTreeWithWarningsInternal(
         const captured = serializeSessionGenericFamilyProbe(sessionGenericFamilies);
         for (const root of typed.tree) root.sessionGenericFamilies = captured;
       }
+      if ("locale" in rendererLocale) annotateDefaultFontLocale(typed.tree, rendererLocale.locale);
       resetLastCaptureWarnings(warnings);
       return {
         tree: typed.tree,

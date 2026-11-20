@@ -345,7 +345,8 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > stop inherited authored witnesses. Computed names do not choose the type.
 > Standard adoption is independently gated by usable computed-font-locale
 > authority: explicit CSS string routing or existing DOM-language compatibility
-> (DM-PJG8E9; unproved auto/default remains DM-3972FJ). An animation that wins
+> (DM-PJG8E9; `auto` routes through the authenticated renderer default locale,
+> DM-JRG1BD). An animation that wins
 > the family cascade is classified by its authored keyframe — Blink applies that
 > CSSValue itself — chosen by a transcription of Blink's keyframe sampler and
 > joined to the Blink-resolved `cssKeyframesRules` or specified WAAPI keyframes
@@ -3582,8 +3583,13 @@ on captured CSS family lists.
 
 Capture retains raw computed `fontLocale` alongside unchanged DOM `lang` (or
 pseudo `language`). `fontSelectionLanguage` decodes an explicit CSS string for
-the existing platform-aware font/shaping/metric routes. Old trees and unproved
-`auto` continue through their prior language route; authenticated renderer
-default locale remains DM-3972FJ. The Page-owned generic probe includes explicit
-computed locale scripts from its existing flattened DOMSnapshot. See
+the existing platform-aware font/shaping/metric routes. Computed `auto` uses
+Blink's default locale — the launched renderer's last `--lang`, authenticated
+from the process tree (`src/capture/renderer-default-locale.ts`, DM-JRG1BD) and
+recorded as `defaultFontLocale`; it reaches every platform through the per-script
+generic settings and the appended `-webkit-standard` family, plus fontconfig's
+`FC_LANG` on Linux and `GetDefault()` on Windows. Old trees and an
+unauthenticated renderer continue through their prior language route. The
+Page-owned generic probe includes explicit computed locale scripts from its
+existing flattened DOMSnapshot and the renderer default locale's script. See
 [the captured schema and source contract](213-structured-font-family-stack.md#computed-font-locale-and-language-metadata-dm-pjg8e9).
