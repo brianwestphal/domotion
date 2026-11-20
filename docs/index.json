@@ -1107,7 +1107,8 @@
           "DM-C6YH8W",
           "DM-FMYC9Q",
           "DM-CN257K",
-          "DM-VA1P9H"
+          "DM-VA1P9H",
+          "DM-0A8SGG"
         ],
         "code": [
           "src/capture/index.ts",

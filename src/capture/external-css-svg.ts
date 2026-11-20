@@ -1,5 +1,6 @@
 /** Own temporary CSS external-fragment definitions without author fetch/timers. */
 import type { Page } from "@playwright/test";
+import sharp from "sharp";
 import type { AsyncDisposable } from "./cdp-lifecycle.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 import { openExternalSvgTransport } from "./external-svg-transport.js";
@@ -51,6 +52,107 @@ export interface ExternalCssSvgJournal {
   isolation?: CssSvgIsolation;
 }
 type Journal = ExternalCssSvgJournal;
+interface SwappedTarget {
+  index: number;
+  /** Union of the target subtree's client rects, in CSS px; null when it paints nothing. */
+  rect: { x: number; y: number; width: number; height: number } | null;
+  animated: boolean;
+}
+interface PrimeFrame {
+  data: Buffer;
+  width: number;
+  height: number;
+  /** Device pixels per CSS px. */
+  scale: number;
+}
+
+async function primeFrame(page: Page): Promise<PrimeFrame> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const [shot, cssWidth] = await Promise.race([
+      Promise.all([
+        page.screenshot({ type: "png", timeout: 5000 }),
+        // The screenshot covers the whole layout viewport, scrollbars included.
+        evaluateInFrame(page, () => innerWidth),
+      ]),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("external CSS SVG paint verification timed out")), 5000);
+      }),
+    ]);
+    const { data, info } = await sharp(shot).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const scale = Number.isFinite(cssWidth) && cssWidth > 0 ? info.width / cssWidth : 1;
+    return { data, width: info.width, height: info.height, scale };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Two pre-swap frames; pixels that differ between them are not evidence. */
+async function stablePrimeFrames(page: Page): Promise<{ frame: PrimeFrame; unstable: Uint8Array }> {
+  const first = await primeFrame(page);
+  const second = await primeFrame(page);
+  if (first.width !== second.width || first.height !== second.height)
+    throw new Error("external CSS SVG paint verification viewport changed");
+  const unstable = new Uint8Array(first.width * first.height);
+  for (let pixel = 0; pixel < unstable.length; pixel++)
+    for (let channel = 0; channel < 3; channel++)
+      if (first.data[pixel * 3 + channel] !== second.data[pixel * 3 + channel]) unstable[pixel] = 1;
+  return { frame: second, unstable };
+}
+
+/**
+ * Targets whose swap changed a stable source pixel. A changed pixel inside one
+ * or more targets' subtree rects (grown by a margin for shadows/outlines) is
+ * attributed to them; a change no target covers implicates every non-animated
+ * target. Animated targets cannot be verified this way and keep the vector path.
+ */
+export function attributePaintChanges(
+  before: { frame: PrimeFrame; unstable: Uint8Array },
+  after: PrimeFrame,
+  swapped: SwappedTarget[],
+  margin = 16,
+): number[] {
+  if (after.width !== before.frame.width || after.height !== before.frame.height)
+    throw new Error("external CSS SVG paint verification viewport changed");
+  const scale = before.frame.scale;
+  const boxes = swapped.map((target) =>
+    target.rect == null || target.animated
+      ? null
+      : {
+          left: Math.floor((target.rect.x - margin) * scale),
+          top: Math.floor((target.rect.y - margin) * scale),
+          right: Math.ceil((target.rect.x + target.rect.width + margin) * scale),
+          bottom: Math.ceil((target.rect.y + target.rect.height + margin) * scale),
+        },
+  );
+  const mismatched = new Set<number>();
+  let unattributed = false;
+  for (let y = 0; y < after.height; y++)
+    for (let x = 0; x < after.width; x++) {
+      const pixel = y * after.width + x;
+      if (before.unstable[pixel] === 1) continue;
+      const offset = pixel * 3;
+      if (
+        after.data[offset] === before.frame.data[offset] &&
+        after.data[offset + 1] === before.frame.data[offset + 1] &&
+        after.data[offset + 2] === before.frame.data[offset + 2]
+      )
+        continue;
+      let attributed = false;
+      boxes.forEach((box, index) => {
+        if (box != null && x >= box.left && x < box.right && y >= box.top && y < box.bottom) {
+          mismatched.add(swapped[index].index);
+          attributed = true;
+        }
+      });
+      if (!attributed) unattributed = true;
+    }
+  if (unattributed)
+    swapped.forEach((target, index) => {
+      if (boxes[index] != null) mismatched.add(target.index);
+    });
+  return [...mismatched].sort((a, b) => a - b);
+}
 export interface ExternalCssSvgPrime extends AsyncDisposable {
   registryKey: string;
   rasterize(tree: CapturedElement[], viewport: { x: number; y: number; width: number; height: number }): Promise<void>;
@@ -244,11 +346,19 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
         documents.push({ href, text: result.text });
       }
     }
-    await evaluateInFrame(
+    // The readable path copies the auxiliary response, whose bytes are not
+    // proven to be the ones Chromium selected for native paint (a no-store
+    // resource may differ per request). Byte identity is unobservable through
+    // public CDP, so verify paint instead: two pre-swap frames identify unstable
+    // pixels, and any stable pixel the swap changes sends its owner(s) back to
+    // native paint.
+    const verify = documents.length > 0 ? await stablePrimeFrames(page) : null;
+    const swapped = await evaluateInFrame(
       page,
       ({ key, token, documents, unreadable }) => {
         const state = (globalThis as typeof globalThis & Record<string, Journal>)[key];
         if (state?.token !== token) throw new Error("external CSS SVG source ownership changed");
+        const swapped: SwappedTarget[] = [];
         const SVGNS = "http://www.w3.org/2000/svg";
         const parsed = new Map(
           documents.map(({ href, text }) => [href, new DOMParser().parseFromString(text, "image/svg+xml")]),
@@ -363,10 +473,71 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
           } finally {
             saved.owned = target.element.getAttribute("style");
           }
+          let left = Infinity,
+            top = Infinity,
+            right = -Infinity,
+            bottom = -Infinity;
+          for (const element of [target.element, ...target.element.querySelectorAll("*")])
+            for (const rect of element.getClientRects()) {
+              left = Math.min(left, rect.left);
+              top = Math.min(top, rect.top);
+              right = Math.max(right, rect.right);
+              bottom = Math.max(bottom, rect.bottom);
+            }
+          swapped.push({
+            index: state.targets.indexOf(target),
+            rect: right > left && bottom > top ? { x: left, y: top, width: right - left, height: bottom - top } : null,
+            animated: target.element.getAnimations({ subtree: true }).length > 0,
+          });
         }
+        return swapped;
       },
       { key: registry.key, token, documents, unreadable },
     );
+    if (verify != null && swapped.length > 0) {
+      const after = await primeFrame(page);
+      const mismatched = attributePaintChanges(verify, after, swapped);
+      if (mismatched.length > 0)
+        await evaluateInFrame(
+          page,
+          ({ key, token, indices }) => {
+            const state = (globalThis as typeof globalThis & Record<string, Journal>)[key];
+            if (state?.token !== token) throw new Error("external CSS SVG source ownership changed while verifying");
+            const owners = new Set(indices.map((index) => state.targets[index].element));
+            const revert = (element: Element) =>
+              [...owners].some((owner) => owner === element || owner.contains(element));
+            for (const saved of state.styles) {
+              if (!revert(saved.element)) continue;
+              for (const property of saved.properties.splice(0)) {
+                const style = saved.element.style;
+                if (
+                  style.getPropertyValue(property.name) !== property.owned ||
+                  style.getPropertyPriority(property.name) !== property.ownedPriority
+                )
+                  throw new Error("external CSS SVG owned property changed while verifying");
+                if (property.before === "") style.removeProperty(property.name);
+                else style.setProperty(property.name, property.before, property.priority);
+              }
+              if (saved.before == null && saved.element.style.length === 0) saved.element.removeAttribute("style");
+              saved.owned = saved.element.getAttribute("style");
+            }
+            for (const target of state.targets) {
+              if (!revert(target.element)) continue;
+              if (getComputedStyle(target.element).getPropertyValue(target.property) !== target.computed)
+                throw new Error("external CSS SVG source paint could not be restored for native ownership");
+              // Descendants stay inside their native owner's stamp.
+              if (!owners.has(target.element)) continue;
+              let owner = state.rasterOwners.get(target.element);
+              if (owner == null) {
+                owner = { token: `${state.prefix}_raster_${state.rasterOwners.size}`, properties: [] };
+                state.rasterOwners.set(target.element, owner);
+              }
+              owner.properties.push({ property: target.property, computed: target.computed });
+            }
+          },
+          { key: registry.key, token, indices: mismatched },
+        );
+    }
     await transport?.dispose();
     transport = undefined;
     return { registryKey: registry.key, dispose, rasterize };

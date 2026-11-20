@@ -24,6 +24,7 @@ tickets:
     "DM-FMYC9Q",
     "DM-CN257K",
     "DM-VA1P9H",
+    "DM-0A8SGG",
   ]
 code:
   [
@@ -273,9 +274,21 @@ style must be unchanged after isolation and after readback, their subtree may
 not gain children, and foreign siblings in the same SVG stay verified hidden.
 A directly painted target (for example a rendered `<rect>` reached through a
 mask's `<use>`), an HTML target, or one containing the owner still refuses.
-Auxiliary readable-response identity is a separate investigation, DM-HSABGR:
-a no-store resource that varies by request destination is captured with the
-auxiliary bytes (follow-up DM-CN257K gates that path on paint equivalence).
+A readable auxiliary response is not proof of the resource Chromium selected
+for native paint: a no-store resource that varies by request destination was
+captured with the auxiliary bytes (DM-HSABGR). Byte identity is not observable
+through public CDP, so the prepass verifies paint instead (DM-CN257K): two
+viewport frames before the swap mark unstable pixels, one frame after it is
+compared on the stable ones, and a changed pixel inside a swapped target's
+subtree rect (grown by 16 CSS px for shadows/outlines) sends that owner back to
+its native paint as a `rasterOwners` entry, restoring its owned properties and
+any swapped descendants. A change no target covers implicates every verifiable
+target. Targets whose subtree is animated, paints nothing, or lies outside the
+viewport (only its visible part is compared) cannot be fully verified this way
+and keep the vector path (follow-up DM-0A8SGG).
+Native controls cover clip and mask with a destination-varying no-store
+resource (now native, byte-identical) and the cacheable control plus an
+unrelated deterministic owner (still vector).
 the refusal is not support parity. SVG-use redirect admission remains the
 separate DM-N8EYNT caller policy. Native controls cover frozen clip/mask pixels,
 generated layers, overlap, scrolled viewports, real missing resources, exact rollback,

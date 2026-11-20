@@ -34,6 +34,29 @@ beforeAll(async () => {
     response.once("close", () => {
       fact.closed = true;
     });
+    if (url.pathname === "/varying.svg" || url.searchParams.has("varying")) {
+      // Native image requests get left-half geometry, any other request the
+      // right half: the auxiliary read is not the selected resource.
+      const kind = url.searchParams.get("kind") === "mask" ? "mask" : "clip";
+      if (url.pathname === "/varying.svg") {
+        const x = request.headers["sec-fetch-dest"] === "image" ? 0 : 16;
+        response.setHeader("content-type", "image/svg+xml");
+        response.setHeader("cache-control", url.searchParams.get("cache") ?? "no-store");
+        response.end(
+          kind === "clip"
+            ? `<svg xmlns="http://www.w3.org/2000/svg"><clipPath id="d" clipPathUnits="userSpaceOnUse"><rect x="${x}" width="16" height="32"/></clipPath></svg>`
+            : `<svg xmlns="http://www.w3.org/2000/svg"><mask id="d" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect x="${x}" width="16" height="32" fill="white"/></mask></svg>`,
+        );
+        return;
+      }
+      const property = kind === "clip" ? "clip-path" : "mask-image";
+      const cache = url.searchParams.get("varying") ?? "no-store";
+      response.setHeader("content-type", "text/html");
+      response.end(
+        `<!doctype html><body style="margin:0;background:white"><div id="box" style="width:32px;height:32px;background:red;${property}:url('/varying.svg?kind=${kind}&cache=${encodeURIComponent(cache)}#d')"></div><div id="other" style="margin-top:60px;width:32px;height:16px;background:blue;clip-path:url('/sprite.svg#clip')"></div>`,
+      );
+      return;
+    }
     if (url.pathname === "/encoded.svg" || url.searchParams.has("spelled")) {
       // Authored resource ID versus CSS fragment spelling (encoded identity).
       const kind = url.searchParams.get("kind") === "mask" ? "mask" : "clip";
@@ -1145,4 +1168,53 @@ describe("encoded external CSS SVG fragment identity", () => {
       }
     },
   );
+});
+
+describe("readable external CSS SVG paint authority", () => {
+  // The auxiliary fetch is not the natively selected resource. A no-store
+  // resource that varies by request destination must keep its native paint;
+  // a cacheable one (served to the transport from the HTTP cache) and an
+  // unrelated deterministic owner stay on the vector path.
+  it.each([
+    { kind: "clip", cache: "no-store", native: true },
+    { kind: "mask", cache: "no-store", native: true },
+    { kind: "clip", cache: "max-age=600", native: false },
+    { kind: "mask", cache: "max-age=600", native: false },
+  ] as const)("$kind with $cache keeps source paint (native owner: $native)", async ({ kind, cache, native }) => {
+    const page = await browser.newPage({ viewport: { width: 128, height: 128 } });
+    try {
+      await page.goto(`${origin}/?kind=${kind}&varying=${encodeURIComponent(cache)}`);
+      const before = await sharp(await page.screenshot())
+        .removeAlpha()
+        .raw()
+        .toBuffer();
+      const at = (x: number, y: number) => [...before.subarray((y * 128 + x) * 3, (y * 128 + x) * 3 + 3)];
+      // Native discriminator: the selected resource clips/masks to the LEFT half.
+      expect(at(8, 16)).toEqual([255, 0, 0]);
+      expect(at(24, 16)).toEqual([255, 255, 255]);
+      const style = await page.locator("#box").getAttribute("style");
+      await freezeRealWorldDom(page);
+      const result = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 128, height: 128 }, {});
+      expect(
+        result.warnings
+          .filter((warning) => warning.feature === "external-css-svg-raster")
+          .map((warning) => warning.selector),
+      ).toEqual(native ? ["div#box"] : []);
+      const output = await browser.newPage({ viewport: { width: 128, height: 128 } });
+      try {
+        await output.setContent(`<body style="margin:0">${elementTreeToSvg(result.tree, 128, 128, {})}`);
+        const captured = await sharp(await output.screenshot())
+          .removeAlpha()
+          .raw()
+          .toBuffer();
+        expect(captured.equals(before)).toBe(true);
+      } finally {
+        await output.close();
+      }
+      expect(await page.locator("#box").getAttribute("style")).toBe(style);
+      expect(await page.locator('svg [id^="__domotionCssSvgDefinition_"]').count()).toBe(0);
+    } finally {
+      await page.close();
+    }
+  });
 });
