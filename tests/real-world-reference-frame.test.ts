@@ -24,6 +24,8 @@ it.each([false, true])(
   async (entirePage) => {
     let frames = 0;
     const page = {
+      // The presentation capture waits for a presented frame first.
+      evaluate: async () => true,
       screenshot: async () => {
         calls.events.push(++frames === 1 ? "present" : "reference");
       },
@@ -45,7 +47,7 @@ it.each([false, true])(
 it("does not publish a reference after the owner refuses the park", async () => {
   const screenshot = vi.fn().mockResolvedValue(undefined);
   await expect(
-    captureRealWorldReferenceFrame({ screenshot } as unknown as Page, {
+    captureRealWorldReferenceFrame({ evaluate: async () => true, screenshot } as unknown as Page, {
       path: "expected.png",
       clip: { x: 0, y: 0, width: 80, height: 80 },
       entirePage: false,
