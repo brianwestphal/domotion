@@ -1,0 +1,35 @@
+# TEMPORARY throwaway-branch workflow (never merged): hosted-macOS repro for
+# production first-capture screenshot paths (svg-to-image, scratch pages).
+name: tmp production first-capture repro
+on:
+  push:
+    branches: [tmp/screenshot-production-repro]
+jobs:
+  repro:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.21.0", cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install chromium
+      - name: svg-to-image bin, fresh browser per run
+        run: node .github/tmp-repro2/probe.mjs
+        env: { ARM: cli, ITERATIONS: "300", PARALLEL: "6", OUT: "repro-cli-${{ matrix.shard }}.jsonl" }
+      - name: warm browser, new page, immediate capture
+        run: node .github/tmp-repro2/probe.mjs
+        env: { ARM: warm, ITERATIONS: "600", PARALLEL: "6", OUT: "repro-warm-${{ matrix.shard }}.jsonl" }
+      - name: warm browser, new page, capture after two frames
+        run: node .github/tmp-repro2/probe.mjs
+        env: { ARM: warm-raf, ITERATIONS: "600", PARALLEL: "6", OUT: "repro-warmraf-${{ matrix.shard }}.jsonl" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: repro2-${{ matrix.shard }}
+          path: "*.jsonl"
