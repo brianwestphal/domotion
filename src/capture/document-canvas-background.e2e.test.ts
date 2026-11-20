@@ -16,6 +16,8 @@ const W = 120;
 const H = 120;
 const tilePng =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAFElEQVQYlWP4z8CABzGMSjNgCQMAt8pjnanKDKUAAAAASUVORK5CYII=";
+// A painted child so a body without its own background still yields a tree.
+const block = `<div style="width:10px;height:10px;background:rgb(0,0,0)"></div>`;
 const negative = `<div style="position:relative;width:80px;height:80px;margin:10px"><div style="position:absolute;inset:0;background:rgb(128,0,128);z-index:-1"></div></div>`;
 
 let browser: Browser;
@@ -52,8 +54,34 @@ const compare = async (html: string) => {
   const actual = diffPixels(expected, await renderRaw(tree));
   delete body.backgroundTransfersToView;
   delete body.documentRootBox;
+  delete body.documentCanvasBackground;
   const legacy = diffPixels(expected, await renderRaw(tree));
   return { actual, legacy, facts };
+};
+
+/** Capture a sub-rectangle rooted at `selector`, compared against Chromium's
+ * paint of the same clip; the negative arm drops only the canvas record. */
+const compareRooted = async (html: string, selector: string, clip: { x: number; y: number; w: number; h: number }) => {
+  await page.setContent(html);
+  await page.evaluate(() => Promise.all(Array.from(document.images, (image) => image.decode())));
+  const expected = await rgbaPixels(
+    await page.screenshot({ clip: { x: clip.x, y: clip.y, width: clip.w, height: clip.h } }),
+  );
+  const tree = await captureElementTree(page, selector, { x: clip.x, y: clip.y, width: clip.w, height: clip.h });
+  const render = async () => {
+    await generated.setViewportSize({ width: clip.w, height: clip.h });
+    await generated.setContent(
+      `<style>html,body{margin:0;background:white}</style>${elementTreeToSvg(tree, clip.w, clip.h)}`,
+    );
+    const pixels = await rgbaPixels(await generated.screenshot());
+    await generated.setViewportSize({ width: W, height: H });
+    return pixels;
+  };
+  const record = tree[0].documentCanvasBackground;
+  const actual = diffPixels(expected, await render());
+  delete tree[0].documentCanvasBackground;
+  const withoutRecord = diffPixels(expected, await render());
+  return { actual, withoutRecord, record, rootTag: tree[0].tag };
 };
 
 describe("document canvas background propagation (DM-GFE90Q)", () => {
@@ -87,19 +115,60 @@ describe("document canvas background propagation (DM-GFE90Q)", () => {
   }, 60_000);
 
   it("leaves non-transferring roots on their existing paths", async () => {
-    for (const html of [
+    for (const [html, htmlOwnsCanvas] of [
       // <html> owns the canvas: body keeps its own box background above the
       // negative layer.
-      `<style>html{background:rgb(255,255,0)}body{margin:10px;background:white;height:100px}</style><div style="position:relative;width:80px;height:80px"><div style="position:absolute;inset:0 -20px -20px 0;background:rgb(128,0,128);z-index:-1"></div></div>`,
+      [
+        `<style>html{background:rgb(255,255,0)}body{margin:10px;background:white;height:100px}</style><div style="position:relative;width:80px;height:80px"><div style="position:absolute;inset:0 -20px -20px 0;background:rgb(128,0,128);z-index:-1"></div></div>`,
+        true,
+      ],
+      // A translucent <html> color is painted exactly once.
+      [`<style>html{background:rgba(255,0,0,0.5)}body{margin:10px;height:50px}</style>${block}`, true],
       // Containment on body stops propagation.
-      `<style>body{margin:10px;height:50px;background:rgb(0,200,255);contain:paint}</style>`,
+      [`<style>body{margin:10px;height:50px;background:rgb(0,200,255);contain:paint}</style>`, false],
       // No background anywhere.
-      `<style>body{margin:10px}</style>${negative}`,
-    ]) {
+      [`<style>body{margin:10px}</style>${negative}`, false],
+    ] as const) {
       const result = await compare(html);
-      expect(result.facts, html).toEqual({ transfers: undefined, rootBox: undefined });
+      expect(result.facts.transfers, html).toBeUndefined();
+      expect(result.facts.rootBox != null, html).toBe(htmlOwnsCanvas);
       expect(result.actual, html).toBe(0);
       expect(result.legacy, html).toBe(0);
+    }
+  }, 60_000);
+
+  it("paints <html>-owned image layers as the canvas", async () => {
+    for (const html of [
+      // A gradient on a short <html>: the canvas repeats the root-box tile
+      // down the whole viewport.
+      `<style>html{background:linear-gradient(rgb(255,0,0),rgb(0,0,255));height:60px}body{margin:0}</style>${block}`,
+      // URL tiles positioned against an <html> with border and padding, over
+      // an <html> color, beneath a real negative layer.
+      `<style>html{padding:7px;border:3px solid transparent;background:rgb(255,255,0) url(${tilePng}) 5px 5px/15px 15px}body{margin:10px}</style>${negative}`,
+    ]) {
+      const result = await compare(html);
+      expect(result.facts, html).toMatchObject({ transfers: undefined, rootBox: { x: 0, y: 0, width: W } });
+      expect(result.actual, html).toBe(0);
+      expect(result.legacy, html).toBeGreaterThan(1000);
+    }
+  }, 60_000);
+
+  it("paints the canvas around a capture rooted below <body>", async () => {
+    const card = `<div class="card" style="margin:30px;width:40px;height:40px;background:rgb(255,255,255)"></div>`;
+    for (const html of [
+      // Transferred body color and gradient: the clip shows them around the card.
+      `<style>body{margin:0;background:rgb(0,200,255)}</style>${card}`,
+      `<style>body{margin:0;background:linear-gradient(90deg,rgb(255,0,0),rgb(0,0,255))}</style>${card}`,
+      // <html>-owned gradient layer.
+      `<style>html{background:linear-gradient(rgb(0,128,0),rgb(255,255,0))}body{margin:0}</style>${card}`,
+    ]) {
+      // Skia dithers gradients on a 4 x 4 device-space matrix, so the clip
+      // origin stays on that grid (a rasterization phase, not geometry).
+      const result = await compareRooted(html, ".card", { x: 8, y: 8, w: 80, h: 80 });
+      expect(result.rootTag, html).toBe("div");
+      expect(result.record?.children, html).toEqual([]);
+      expect(result.actual, html).toBe(0);
+      expect(result.withoutRecord, html).toBeGreaterThan(1000);
     }
   }, 60_000);
 });

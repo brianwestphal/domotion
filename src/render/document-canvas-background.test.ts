@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { elementTreeToSvgInner } from "./element-tree-to-svg.js";
+import { elementTreeToSvg, elementTreeToSvgInner } from "./element-tree-to-svg.js";
 import { capturedElement } from "../test-support/captured-fixtures.js";
 import type { CapturedElement } from "../capture/types.js";
 
@@ -91,5 +91,82 @@ describe("document canvas background (DM-GFE90Q)", () => {
     expect((((Number(tile![1]) - 8) % 15) + 15) % 15).toBe(0);
     expect((((Number(tile![2]) - 8) % 15) + 15) % 15).toBe(0);
     expect(svg).toMatch(/<rect x="0" y="0" width="120" height="120" rx="0" fill="url\(#bg\d+\)"/);
+  });
+});
+
+// DM-84Q07C: the canvas layers come from the captured canvas record, which
+// exists whether <html> or <body> supplies them and wherever the capture is
+// rooted, and the canvas spans each render's own extent.
+function canvasRecord(tag: "html" | "body", backgroundColor: string, image = "none"): CapturedElement {
+  return capturedElement({
+    tag,
+    text: "",
+    x: rootBox.x,
+    y: rootBox.y,
+    width: rootBox.width,
+    height: rootBox.height,
+    children: [],
+    styles: {
+      backgroundColor,
+      backgroundImage: image,
+      backgroundSize: "auto",
+      backgroundPosition: "0% 0%",
+      backgroundRepeat: "repeat",
+      backgroundClip: "border-box",
+      backgroundOrigin: "padding-box",
+      backgroundAttachment: "scroll",
+      color: "black",
+      borderColor: "black",
+    },
+  });
+}
+
+function card(record: CapturedElement, box = rootBox): CapturedElement {
+  return capturedElement({
+    tag: "div",
+    text: "",
+    x: 40,
+    y: 40,
+    width: 20,
+    height: 20,
+    children: [],
+    styles: { backgroundColor: "rgb(255, 255, 255)", color: "black", borderColor: "black" },
+    documentRootBox: box,
+    documentCanvasBackground: record,
+  });
+}
+
+describe("document canvas background record (DM-84Q07C)", () => {
+  it("paints a transferred body background around a capture rooted below <body>", () => {
+    const svg = elementTreeToSvgInner([card(canvasRecord("body", "rgb(0, 200, 255)"))], 80, 80);
+    const canvas = svg.indexOf('<rect x="0" y="0" width="80" height="80" fill="rgb(0,200,255)" />');
+    expect(canvas).toBeGreaterThanOrEqual(0);
+    expect(canvas).toBeLessThan(svg.indexOf("rgb(255,255,255)"));
+    // Without the record nothing supplies the canvas.
+    const bare = card(canvasRecord("body", "rgb(0, 200, 255)"));
+    delete bare.documentCanvasBackground;
+    expect(elementTreeToSvgInner([bare], 80, 80)).not.toContain("rgb(0,200,255)");
+  });
+
+  it("paints <html> image layers but leaves its color to the root rect", () => {
+    const record = canvasRecord("html", "rgba(255, 0, 0, 0.5)", "linear-gradient(rgb(0, 128, 0), rgb(255, 255, 0))");
+    const tree = [card(record)];
+    const inner = elementTreeToSvgInner(tree, 80, 80);
+    expect(inner).toMatch(/<rect x="0" y="0" width="80" height="80" rx="0" fill="url\(#bg\d+\)"/);
+    expect(inner).not.toContain("255,0,0");
+    tree[0].styles.rootBgComputed = "rgba(255, 0, 0, 0.5)";
+    const doc = elementTreeToSvg(tree, 80, 80);
+    expect(doc.match(/rgba\(255, 0, 0, 0\.5\)/g)).toHaveLength(1);
+  });
+
+  it("spans each render's own extent, frame by frame", () => {
+    for (const [w, h] of [
+      [80, 80],
+      [320, 40],
+      [64, 900],
+    ] as const) {
+      const svg = elementTreeToSvgInner([card(canvasRecord("body", "rgb(0, 200, 255)"))], w, h);
+      expect(svg, `${w}x${h}`).toContain(`<rect x="0" y="0" width="${w}" height="${h}" fill="rgb(0,200,255)" />`);
+    }
   });
 });

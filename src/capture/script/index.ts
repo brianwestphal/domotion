@@ -53,6 +53,7 @@ import { captureFontFamilyStack } from "../../font-family-stack.js";
 import { createCounterScopes } from "./walker/counter-scopes.js";
 import { createIframeRecursionHandler } from "./walker/iframe-recursion.js";
 import { createStyleRecordBuilder } from "./walker/style-record.js";
+import { stampDocumentCanvasBackground } from "./walker/canvas-background.js";
 import { createNativeControlsHandler } from "./walker/native-controls.js";
 import { createTextPhaseHandler } from "./walker/text-phase.js";
 import { createFidelityWarnings } from "./walker/fidelity-warnings.js";
@@ -390,6 +391,15 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     filterDefs: _filterDefs,
     maskRasters: _maskRasters,
   });
+  try {
+    stampDocumentCanvasBackground(
+      result,
+      buildStyleRecord as Parameters<typeof stampDocumentCanvasBackground>[1],
+      _fontFamilyStackFor,
+    );
+  } catch (_e) {
+    /* no-op — never block capture on the canvas record */
+  }
   return { tree: result, warnings: _warnings };
 };
 

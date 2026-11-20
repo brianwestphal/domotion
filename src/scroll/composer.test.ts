@@ -1081,3 +1081,45 @@ describe("composeScrollSvg — warnings option", () => {
     }
   });
 });
+
+// ── Document canvas per segment ─────────────────────────────────────────────
+
+describe("composeScrollSvg: document canvas (DM-84Q07C)", () => {
+  it("paints the canvas over each segment's own viewport extent", () => {
+    const segmentAt = (scrollY: number, start: number, end: number): ScrollSegmentCapture => {
+      const root = el({ tag: "div", x: 10, y: 10 - scrollY });
+      root.documentRootBox = {
+        x: 0,
+        y: -scrollY,
+        width: 800,
+        height: 2400,
+        borderTopWidth: "0px",
+        borderRightWidth: "0px",
+        borderBottomWidth: "0px",
+        borderLeftWidth: "0px",
+        paddingTop: "0px",
+        paddingRight: "0px",
+        paddingBottom: "0px",
+        paddingLeft: "0px",
+      };
+      root.documentCanvasBackground = el({
+        tag: "body",
+        x: 0,
+        y: -scrollY,
+        width: 800,
+        height: 2400,
+        styles: { backgroundColor: "rgb(0, 200, 255)" } as CapturedElement["styles"],
+      });
+      return makeSeg(scrollY, start, end, [root]);
+    };
+    const svg = composeScrollSvg([segmentAt(0, 0, 1000), segmentAt(600, 1000, 2000), segmentAt(1200, 2000, 3000)], {
+      viewportW: 800,
+      viewportH: 600,
+    });
+    const segments = svg.match(/<g [^>]*transform="translate\(0 \d+\)"><svg [^>]*viewBox="0 0 800 600">.*?<\/svg>/gs);
+    expect(segments).toHaveLength(3);
+    for (const segment of segments!) {
+      expect(segment).toContain('<rect x="0" y="0" width="800" height="600" fill="rgb(0,200,255)" />');
+    }
+  });
+});

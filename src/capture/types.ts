@@ -2330,9 +2330,23 @@ export interface CapturedElement {
    */
   backgroundTransfersToView?: true;
   /**
+   * The document canvas background, captured from whichever element
+   * `StyleResolver::PropagateStyleToViewport` takes it from (`<html>`, or the
+   * first `<body>` when `<html>` has none and neither applies containment;
+   * core/css/resolver/style_resolver.cc:3448-3487, Chromium 7d859f27). A
+   * child-less record whose `tag` names the source, whose `styles` are that
+   * element's full style record (layers, selected-image facts, attachment
+   * record), and whose geometry is the stitched root box — the positioning
+   * area. Present even when the source element itself is not captured (a
+   * capture rooted below `<body>`). Only on the captured tree's first
+   * element; never painted as a box.
+   */
+  documentCanvasBackground?: CapturedElement;
+  /**
    * The root element's border box and edge widths, in capture coordinates —
    * the canvas background's positioning area. Only on the captured tree's
-   * first element, and only when `<body>` supplies the canvas background.
+   * first element, and only when `<html>` or `<body>` supplies a canvas
+   * background.
    */
   documentRootBox?: {
     x: number;

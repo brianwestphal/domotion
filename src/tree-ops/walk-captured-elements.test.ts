@@ -14,4 +14,12 @@ describe("walkCapturedElements", () => {
     );
     expect(tags).toEqual(["a", "b", "c", "d", "e"]);
   });
+
+  it("visits the document canvas background record right after its host", () => {
+    const tags: string[] = [];
+    const root = element("body", [element("main")]);
+    root.documentCanvasBackground = element("html");
+    walkCapturedElements([root], (item) => tags.push(item.tag));
+    expect(tags).toEqual(["body", "html", "main"]);
+  });
 });

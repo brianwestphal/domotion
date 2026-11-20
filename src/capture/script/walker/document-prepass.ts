@@ -774,8 +774,8 @@ export const attachRootPayloads = (
       var _docCs = window.getComputedStyle(document.documentElement);
       result[0].styles.rootBgComputed = _docCs.backgroundColor;
       // The canvas background's positioning area is the root element's box
-      // even when <body> supplies the background (DM-GFE90Q).
-      if (documentCanvasSource() === "body") result[0].documentRootBox = documentRootBox(args.viewport);
+      // whichever of <html> / <body> supplies the background (DM-GFE90Q).
+      if (documentCanvasSource() != null) result[0].documentRootBox = documentRootBox(args.viewport);
       // DM-1244: <html>'s overflow decides whether <body>'s overflow propagates
       // to the viewport (it only does when <html> is `overflow: visible`). The
       // renderer needs it to know whether to apply <body>'s own overflow clip.

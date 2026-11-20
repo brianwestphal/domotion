@@ -5,25 +5,31 @@ kind: "contract"
 status: "partial"
 owners: ["paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-GFE90Q", "DM-8F20GA"]
+tickets: ["DM-GFE90Q", "DM-8F20GA", "DM-84Q07C", "DM-G89D0B"]
 code:
   [
     "src/capture/script/walker/canvas-background.ts",
     "src/capture/script/walker/document-prepass.ts",
     "src/render/element-tree-to-svg.ts",
     "src/render/background-inline-paint.ts",
+    "src/tree-ops/walk-captured-elements.ts",
+    "src/capture/embed.ts",
     "src/render/document-canvas-background.test.ts",
     "src/capture/document-canvas-background.e2e.test.ts",
+    "src/scroll/composer.test.ts",
   ]
 aliases: ["docs/280-document-canvas-background.md", "doc-280"]
 ---
 
 # Document canvas background propagation
 
-**Status:** a transferred `<body>` background is painted as the document
-canvas. An `<html>` background still paints only its color. Gradient layers
-tile across the canvas from the root box like any element's (DM-8F20GA,
-doc 07).
+**Status:** the document canvas paints its full background — color and every
+image layer — whether `<html>` or a transferred `<body>` supplies it, and
+whatever element the capture is rooted at. Gradient layers tile across the
+canvas from the root box like any element's (DM-8F20GA, doc 07). Open: a
+capture whose tree is empty (the page paints nothing but its canvas) still
+emits a blank SVG, because the root payloads have no element to ride on
+(DM-G89D0B).
 
 ## Source (Chromium `7d859f27`)
 
@@ -45,17 +51,34 @@ doc 07).
 ## Domotion
 
 - Capture flags the top document's transferring body with
-  `backgroundTransfersToView` and stamps `documentRootBox` (the root border box
-  stitched to its scroll size, plus border and padding widths, in capture
-  coordinates) on the tree root. Iframe documents never transfer to the outer
-  canvas.
-- The renderer paints the body's color over the capture canvas and its image
-  layers positioned against `documentRootBox` (all clips `border-box`) before any
-  content, then skips both on the body box. URL layers also keep their live
-  canvas attachment record (doc 163).
-- `rootBgComputed` still paints only `<html>`'s color, through
-  `transparentRootBgRect`. A capture rooted below `<body>` gets no canvas layer
-  because there is no captured body to supply its layers.
+  `backgroundTransfersToView` and stamps two root payloads on the tree's first
+  element whenever `<html>` or `<body>` supplies a canvas background:
+  `documentRootBox` (the root border box stitched to its scroll size, plus
+  border and padding widths, in capture coordinates) and
+  `documentCanvasBackground`, a child-less record for the source element (its
+  `tag` names the source) carrying that element's full style record from the
+  same builder every captured element uses — layers, selected-image facts and
+  the canvas attachment record (doc 163) — with the root box as its geometry.
+  The record exists even when the source element is not captured (a capture
+  rooted below `<body>`, e.g. a selector for one card). Iframe documents never
+  transfer to the outer canvas.
+- Resource passes that walk the tree — `walkCapturedElements` (conic and
+  advanced-gradient rasters, embedded-image resizing) and
+  `embedRemoteImages` — visit the record right after its host, so its URL and
+  raster-backed layers resolve like any element's.
+- The renderer paints the canvas before any content: a `<body>` source's color
+  over the render's whole `width × height`, then the source's image layers
+  positioned against `documentRootBox` (all clips `border-box`). A transferring
+  body skips both on its own box. An `<html>` source's color is not painted
+  here: `transparentRootBgRect` (and the multi-frame composers' root rect)
+  already paints `rootBgComputed` once beneath it, so a translucent color is not
+  doubled. Older trees without the record fall back to the captured
+  transferring body.
+- Multi-frame output: every animator frame and every scroll segment renders
+  through `elementTreeToSvgInner(tree, width, height)`, so the canvas spans that
+  frame's or segment's own extent; page-scroll segments each carry their
+  capture's root box (shifted by their scroll offset), and element-scroll
+  segments, which keep only the scroll owner, paint no canvas of their own.
 
 ## Evidence
 
@@ -66,3 +89,13 @@ with that child 13865 → 0; URL tiles with a negative child, positioned against
 `<html>` with border and padding, both 0 (the legacy body box had covered the
 negative layer). Controls unchanged at 0: `<html>` owning the canvas, body
 `contain:paint`, and no background.
+
+DM-84Q07C, same harness: `<html>` gradient on a 60 px root (tiling down the
+canvas) and `<html>` URL tiles over an `<html>` color beneath a negative layer
+both 0 px, with the record removed both > 1000 px; captures rooted at an
+80 × 80 clip around a card below a body color, a body gradient and an `<html>`
+gradient all 0 px, > 1000 px without the record. A translucent `<html>` color
+stays 0 px (painted once). Gradient comparisons keep the clip origin on a
+multiple of 4 px: Skia dithers gradients on a 4 × 4 device-space matrix, so an
+off-grid clip differs by 1 level in a regular pattern (rasterization phase,
+not geometry).

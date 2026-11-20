@@ -11,6 +11,8 @@
 // core/layout/layout_box_model_object.cc:1095-1126). The root element's box
 // is the positioning area; the painting area is the whole canvas.
 
+import type { CapturedElement } from "../../types.js";
+
 /** `ComputedStyle::HasBackground`: a visible color or any image layer. */
 const hasBackground = (cs: CSSStyleDeclaration): boolean => {
   const image = cs.backgroundImage;
@@ -57,6 +59,13 @@ export const documentCanvasSource = (): "html" | "body" | null => {
   return hasBackground(getComputedStyle(body)) ? "body" : null;
 };
 
+/** The element the top document's canvas background comes from, if any. */
+export const documentCanvasSourceElement = (): Element | null => {
+  const source = documentCanvasSource();
+  if (source === "html") return document.documentElement;
+  return source === "body" ? firstBody(document) : null;
+};
+
 /** True for the top document's body when its background moved to the view. */
 export const bodyBackgroundTransfersToView = (el: Element): boolean =>
   el.ownerDocument === document && el === firstBody(document) && documentCanvasSource() === "body";
@@ -85,5 +94,48 @@ export const documentRootBox = (vp: { x: number; y: number }) => {
     paddingRight: px(cs.paddingRight),
     paddingBottom: px(cs.paddingBottom),
     paddingLeft: px(cs.paddingLeft),
+  };
+};
+
+/**
+ * Stamp the canvas background record on the captured tree's first element:
+ * the source element's full style record (the same builder every captured
+ * element uses, so URL selections, intrinsic sizes and the canvas attachment
+ * record come along) positioned at the root box. Independent of where the
+ * capture is rooted: Blink paints the canvas from the viewport style whatever
+ * element a screenshot clips to.
+ */
+export const stampDocumentCanvasBackground = (
+  result: CapturedElement[],
+  buildStyleRecord: (scope: {
+    el: HTMLElement;
+    cs: CSSStyleDeclaration;
+    tag: string;
+    rect: DOMRect;
+    _capturedFontFamilyStack: unknown;
+  }) => unknown,
+  fontFamilyStackFor: (el: Element, computedFontFamily: string) => unknown,
+) => {
+  if (result.length === 0) return;
+  const rootBox = result[0].documentRootBox;
+  const source = documentCanvasSourceElement();
+  if (rootBox == null || source == null) return;
+  const cs = getComputedStyle(source);
+  const tag = source.localName;
+  result[0].documentCanvasBackground = {
+    tag,
+    text: "",
+    x: rootBox.x,
+    y: rootBox.y,
+    width: rootBox.width,
+    height: rootBox.height,
+    children: [],
+    styles: buildStyleRecord({
+      el: source as HTMLElement,
+      cs,
+      tag,
+      rect: source.getBoundingClientRect(),
+      _capturedFontFamilyStack: fontFamilyStackFor(source, cs.fontFamily),
+    }) as CapturedElement["styles"],
   };
 };

@@ -6362,14 +6362,17 @@
         "status": "partial",
         "owners": ["paint-effects"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-GFE90Q", "DM-8F20GA"],
+        "tickets": ["DM-GFE90Q", "DM-8F20GA", "DM-84Q07C", "DM-G89D0B"],
         "code": [
           "src/capture/script/walker/canvas-background.ts",
           "src/capture/script/walker/document-prepass.ts",
           "src/render/element-tree-to-svg.ts",
           "src/render/background-inline-paint.ts",
+          "src/tree-ops/walk-captured-elements.ts",
+          "src/capture/embed.ts",
           "src/render/document-canvas-background.test.ts",
-          "src/capture/document-canvas-background.e2e.test.ts"
+          "src/capture/document-canvas-background.e2e.test.ts",
+          "src/scroll/composer.test.ts"
         ],
         "aliases": ["docs/280-document-canvas-background.md", "doc-280"]
       }

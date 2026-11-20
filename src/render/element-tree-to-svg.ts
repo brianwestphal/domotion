@@ -814,24 +814,31 @@ function findCanvasBackgroundOwner(elements: CapturedElement[]): CapturedElement
 }
 
 /**
- * Paint the document canvas from a propagated `<body>` background before any
- * content, as `ViewPainter::PaintBoxDecorationBackground` does ahead of the
- * root stacking context's negative z-order children (core/paint/
- * view_painter.cc:76-330, core/paint/paint_layer_painter.cc:471-479,
- * Chromium 7d859f27). `PropagateStyleToViewport` clips every layer to the
- * border box of the canvas — the painting area is the whole canvas — while
- * the root element's box stays the positioning area
- * (core/css/resolver/style_resolver.cc:3470-3488). An `<html>` background is
- * painted by `transparentRootBgRect`; only its color is captured today.
+ * Paint the document canvas background before any content, as
+ * `ViewPainter::PaintBoxDecorationBackground` does ahead of the root stacking
+ * context's negative z-order children (core/paint/view_painter.cc:76-330,
+ * core/paint/paint_layer_painter.cc:471-479, Chromium 7d859f27).
+ * `PropagateStyleToViewport` clips every layer to the border box of the
+ * canvas — the painting area is the whole canvas — while the root element's
+ * box stays the positioning area (core/css/resolver/style_resolver.cc:3470-3488).
+ *
+ * The layers come from the captured canvas record (`documentCanvasBackground`),
+ * which exists whatever element the capture is rooted at; trees from before
+ * that record fall back to the captured transferring `<body>`. An `<html>`
+ * source's color is already painted once, beneath this, by
+ * `transparentRootBgRect` (or the multi-frame composers' root rect), so only
+ * its image layers are painted here.
  */
 function paintDocumentCanvas(state: RenderState, elements: CapturedElement[], width: number, height: number): void {
-  const owner = findCanvasBackgroundOwner(elements);
   const rootBox = elements[0]?.documentRootBox;
-  if (owner == null || rootBox == null) return;
-  state.canvasBackgroundOwner = owner;
+  if (rootBox == null) return;
+  const transferringBody = findCanvasBackgroundOwner(elements);
+  state.canvasBackgroundOwner = transferringBody;
+  const owner = elements[0].documentCanvasBackground ?? transferringBody;
+  if (owner == null) return;
   const { svgParts, paintCtx, captureViewport } = state;
   const start = svgParts.length;
-  const bgColor = parseColor(owner.styles.backgroundColor);
+  const bgColor = owner.tag === "html" ? null : parseColor(owner.styles.backgroundColor);
   if (bgColor != null && bgColor.a > INVISIBLE_ALPHA) {
     svgParts.push(`<rect x="0" y="0" width="${r(width)}" height="${r(height)}" fill="${colorStr(bgColor)}" />`);
   }

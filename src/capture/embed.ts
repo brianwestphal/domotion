@@ -398,6 +398,8 @@ export async function embedRemoteImages(
       collectFromCss(el.styles.maskImage, sel);
       collectFromCss(el.styles.borderImageSource, sel);
       collectFromCss(el.styles.listStyleImage, sel);
+      // The canvas background record's URL layers paint like any element's.
+      if (el.documentCanvasBackground != null) walk([el.documentCanvasBackground], "");
       if (el.children.length > 0) walk(el.children, sel);
     }
   };

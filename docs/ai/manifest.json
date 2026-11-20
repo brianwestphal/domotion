@@ -4635,8 +4635,11 @@
         "src/capture/script/walker/document-prepass.ts",
         "src/render/element-tree-to-svg.ts",
         "src/render/background-inline-paint.ts",
+        "src/tree-ops/walk-captured-elements.ts",
+        "src/capture/embed.ts",
         "src/render/document-canvas-background.test.ts",
-        "src/capture/document-canvas-background.e2e.test.ts"
+        "src/capture/document-canvas-background.e2e.test.ts",
+        "src/scroll/composer.test.ts"
       ],
       "file": "280-document-canvas-background.md"
     },
