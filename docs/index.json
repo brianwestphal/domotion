@@ -4427,7 +4427,8 @@
           "DM-XWPSPP",
           "DM-NAG7AD",
           "DM-5YF0BB",
-          "DM-9PEZBK"
+          "DM-9PEZBK",
+          "DM-C5GEMW"
         ],
         "code": [
           ".github/workflows/pseudo-fragment-render-parity.yml",
