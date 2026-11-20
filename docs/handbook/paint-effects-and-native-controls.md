@@ -203,8 +203,8 @@ Local20.5px positioning followed by an own or ancestor0.5px translation gives
 integer viewport bounds `(21,21,20,20)` but still differs134 pixels (max255).
 Therefore viewport-integral bounds alone cannot authorize the shadow path.
 Ordinary integral sharp/rounded controls remain byte-exact. Source DOM values
-and the existing container renderer remain unchanged, including its measured
-preexisting failure; no broad rendering correctness claim follows from refusal.
+stay unchanged. The container producer now paints these cases from the
+authenticated snap record (DM-8N1VB2): the untransformed ones are byte-exact.
 
 The exact upstream source is Chromium
 `6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050`:
@@ -213,10 +213,9 @@ The exact upstream source is Chromium
 `ContouredBorderGeometry::PixelSnappedContouredBorderWithOutsets` (lines207–254
 in `core/paint/contoured_border_geometry.cc`). It rounds the local physical
 origin and snaps size allowing zero before deriving rounded-border radii.
-Capture's layout rectangle does not provide that separate paint-space basis.
-DM-8N1VB2 tracks obtaining authenticated inset paint geometry and repairing the
-producer; the related normal-shadow paint rectangle has its own measured record
-under DM-WYY3ZZ. These are distinct from this selected-root eligibility guard.
+Capture's layout rectangle alone does not provide that paint-space basis; the
+`borderPaintSnap` record ([doc 277](../277-shadow-contour-authority.md)) does,
+for normal and inset shadows alike. This selected-root guard is separate.
 Native verification here is macOS evidence; Linux/Windows execution is not
 implied by the platform-neutral Blink rule.
 

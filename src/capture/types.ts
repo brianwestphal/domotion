@@ -2029,7 +2029,12 @@ export interface CapturedBrokenImageFallback {
   selector?: string;
 }
 
-/** Signed deltas from the captured border-box edges to Blink's snapped paint edges, in CSS px. */
+/**
+ * Per physical edge of the captured border box, `LayoutUnit::Round(edge) -
+ * edge` in the box's local paint space, in CSS px. The renderer derives
+ * Blink's outer (`ToPixelSnappedRect`) and integer-inset
+ * (`PixelSnappedContouredInnerBorder`) snapped rects from these deltas.
+ */
 export interface CapturedBorderPaintSnap {
   source: "blink-pixel-snapped-border-v1";
   left: number;

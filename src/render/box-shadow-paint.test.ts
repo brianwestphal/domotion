@@ -4,6 +4,7 @@ import {
   paintBoxShadow,
   paintInsetBoxShadow,
   shadowBorderContour,
+  shadowInnerBorderContour,
   type ShadowBox,
   type ShadowPaintCtx,
 } from "./box-shadow-paint.js";
@@ -131,6 +132,60 @@ describe("normal box-shadow pixel-snapped border contour", () => {
       height: 20,
       corners: ROUND5,
     });
+  });
+
+  it("keeps a nonzero snapped size of at least one pixel (SnapSizeToPixel)", () => {
+    // 20.125 + 0.25 rounds both edges to 20, but a 0.25px box keeps 1px.
+    const tiny = { source: "blink-pixel-snapped-border-v1", left: -0.125, top: 0, right: -0.375, bottom: 0 } as const;
+    const contour = shadowBorderContour({ ...box(tiny), x: 20.125, width: 0.25 }, SHARP);
+    expect(contour.x).toBe(20);
+    expect(contour.width).toBe(1);
+    // An empty box stays empty.
+    const empty = { source: "blink-pixel-snapped-border-v1", left: -0.125, top: 0, right: -0.125, bottom: 0 } as const;
+    expect(shadowBorderContour({ ...box(empty), x: 20.125, width: 0 }, SHARP).width).toBe(0);
+  });
+
+  // PixelSnappedContouredInnerBorder (contoured_border_geometry.cc:207-255,
+  // Chromium 7d859f27): the inset rect is the snapped outer edges moved by the
+  // truncated integer border widths, allowing zero, with the outer radii
+  // inset by the same widths.
+  it("derives the inset clip from the snapped outer edges and integer borders", () => {
+    const bordered: ShadowBox = {
+      ...box(snapHalf),
+      width: 24,
+      height: 24,
+      styles: {
+        ...box().styles,
+        borderTopWidth: "2px",
+        borderRightWidth: "2px",
+        borderBottomWidth: "2px",
+        borderLeftWidth: "2px",
+      },
+    };
+    const contour = shadowInnerBorderContour(bordered, ROUND5);
+    expect(contour).toMatchObject({ x: 23, y: 23, width: 20, height: 20 });
+    expect(contour.corners.tl).toEqual({ h: 3, v: 3 });
+    const ctx: ShadowPaintCtx = { svgParts: [], defsParts: [], nextClipId: (p) => p };
+    paintInsetBoxShadow(
+      ctx,
+      { ...bordered, styles: { ...bordered.styles, boxShadow: "rgb(255, 0, 0) 0px 0px 0px 3px inset" } },
+      ROUND5,
+      "",
+    );
+    expect(ctx.defsParts.join("")).toContain('x="23" y="23" width="20" height="20"');
+  });
+
+  it("collapses the inset contour to zero size when borders consume the box", () => {
+    const thick: ShadowBox = {
+      ...box(snapHalf),
+      styles: { ...box().styles, borderLeftWidth: "10px", borderRightWidth: "10.9px" },
+    };
+    expect(shadowInnerBorderContour(thick, SHARP).width).toBe(0);
+    expect(shadowInnerBorderContour(thick, SHARP).height).toBe(20);
+  });
+
+  it("keeps the captured inset geometry without an authenticated snap", () => {
+    expect(shadowInnerBorderContour(box(undefined), SHARP)).toMatchObject({ x: 20.5, y: 20.5, width: 20, height: 20 });
   });
 
   it("constrains radii against the snapped rect (FloatRoundedRect::ConstrainRadii)", () => {

@@ -79,6 +79,22 @@ const cases = [
     extra: "border-radius:5px;margin:20.25px 20.75px",
   },
   { name: "fractional origin with spread", shadow: "0 0 0 2px red", extra: "border-radius:5px;margin:20.5px" },
+  // PaintInsetBoxShadowWithBorderRect clips to PixelSnappedContouredInnerBorder:
+  // the same local snap, inset by integer border widths.
+  { name: "fractional sharp inset", shadow: "inset 0 0 0 3px red", extra: "margin:20.5px" },
+  { name: "fractional rounded inset", shadow: "inset 0 0 0 3px red", extra: "margin:20.5px;border-radius:5px" },
+  { name: "fractional inset width", shadow: "inset 0 0 0 3px red", extra: "width:20.5px" },
+  {
+    name: "quarter-pixel offset inset",
+    shadow: "inset 0 -3px 0 red",
+    extra: "margin:20.25px 20.75px;border-radius:4px",
+  },
+  {
+    name: "fractional bordered inset",
+    shadow: "inset 2px 3px 0 1px red",
+    extra: "margin:20.5px;border:2px solid rgba(0,0,255,.5);border-radius:6px",
+    ownsOtherRootPaint: true,
+  },
 ];
 it.each(cases)(
   "matches complete native pixels for $name",

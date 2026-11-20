@@ -5,7 +5,7 @@ kind: "investigation"
 status: "current"
 owners: ["paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ"]
+tickets: ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ", "DM-8N1VB2"]
 code:
   [
     "src/render/box-shadow-paint.ts",
@@ -154,17 +154,33 @@ positioning, a captured box that differs from the live border box (a fieldset
 legend notch), and table-grid or scrollbar/resizer substitutes. Captured DOM
 geometry is never changed.
 
-`paintBoxShadow` applies the record through `shadowBorderContour`. Native
-full-RGBA controls in `tests/box-shadow-border-knockout.e2e.test.ts` (fractional
-rounded and sharp origins, fractional width, quarter-pixel origins, spread) are
-byte-exact on macOS, and that file pins the record for own and ancestor
-translations and for each fail-closed space. Known remaining gaps:
+The record holds each local edge's `LayoutUnit::Round` delta. Because
+`round(x) + SnapSizeToPixelAllowingZero(w, x)` is `round(x + w)`
+(`layout_unit.h:815-818`) and border widths enter as integers
+(`PhysicalBoxStrut::FromInts`), the same deltas give both snaps Blink takes:
+
+- `paintBoxShadow` uses `shadowBorderContour`: the snapped outer rect, with
+  `SnapSizeToPixel`'s rule that a nonzero size of more than four LayoutUnits
+  keeps one pixel (`:805-813`).
+- `paintInsetBoxShadow` uses `shadowInnerBorderContour`, Blink's
+  `PixelSnappedContouredInnerBorder` (`contoured_border_geometry.cc:207-255`,
+  from `PaintInsetBoxShadowWithBorderRect`, `box_painter_base.cc:388-405`):
+  the snapped outer edges moved by the truncated border widths, a size of zero
+  when the borders consume the box, and the snapped outer radii inset by the
+  same widths (`FloatRoundedRect::Radii::Outset`).
+
+Native full-RGBA controls in `tests/box-shadow-border-knockout.e2e.test.ts` are
+byte-exact on macOS: normal shadows at fractional rounded and sharp origins,
+fractional width, quarter-pixel origins and with spread (previously 87, 80
+and 40 differing pixels), and inset shadows at fractional sharp and rounded
+origins, fractional width, a quarter-pixel offset inset and a bordered inset
+(previously 136, 148 and 70). That file also pins the record for own and
+ancestor translations and for each fail-closed space. Known remaining gaps:
 
 - Under a fractional device translation (a `translate(.5px)` on the box or an
   ancestor), the snapped geometry now matches Chromium (21.5..41.5), but Blink's
-  sharp `ClipOut` is not antialiased (`graphics_context.h:385-387`) while the
-  SVG clip is, so the clip edge still differs (57 pixels for the sharp case).
-- Inset shadows still paint from the captured geometry; they snap through
-  `PixelSnappedContouredInnerBorder` and can reuse this record.
+  sharp `ClipOut` and inset `Clip` are not antialiased (`graphics_context.h:385-394`)
+  while the SVG clips are, so the clip edge still differs (57 pixels for a
+  sharp normal shadow, 67 for a sharp inset).
 - The radii are constrained against the captured size and then again against
   the snapped size, rather than once against the snapped size.

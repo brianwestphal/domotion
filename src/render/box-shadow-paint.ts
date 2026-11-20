@@ -41,6 +41,15 @@ export interface ShadowBox {
   borderPaintSnap?: CapturedElement["borderPaintSnap"];
 }
 
+/** A shadow's source contour: a rectangle and its constrained corner radii. */
+export interface ShadowContour {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  corners: CornerRadii;
+}
+
 /**
  * The border contour normal shadows are painted from. Blink's
  * `BoxPainterBase::PaintNormalBoxShadow` (core/paint/box_painter_base.cc:294,
@@ -50,17 +59,60 @@ export interface ShadowBox {
  * (contoured_border_geometry.cc:136-140, 178-185). The capture authenticates
  * that rect as `borderPaintSnap`; without it the captured geometry is kept.
  */
-export function shadowBorderContour(
-  el: ShadowBox,
-  corners: CornerRadii,
-): { x: number; y: number; width: number; height: number; corners: CornerRadii } {
+export function shadowBorderContour(el: ShadowBox, corners: CornerRadii): ShadowContour {
   const snap = el.borderPaintSnap;
   if (snap == null) return { x: el.x, y: el.y, width: el.width, height: el.height, corners };
   const x = el.x + snap.left,
     y = el.y + snap.top;
-  const width = el.x + el.width + snap.right - x,
-    height = el.y + el.height + snap.bottom - y;
+  // SnapSizeToPixel (layout_unit.h:805-813) keeps a nonzero size of more than
+  // four LayoutUnits at one pixel; the record holds plain edge rounding.
+  const snapSize = (snapped: number, size: number) =>
+    snapped === 0 && Math.abs(size) > 4 / 64 ? Math.sign(size) : snapped;
+  const width = snapSize(el.x + el.width + snap.right - x, el.width),
+    height = snapSize(el.y + el.height + snap.bottom - y, el.height);
   return { x, y, width, height, corners: constrainCornerRadiiToRect(corners, width, height) };
+}
+
+/**
+ * The padding-box contour inset shadows clip to and cut their hole from.
+ * `PaintInsetBoxShadowWithBorderRect` uses `PixelSnappedContouredInnerBorder`
+ * (box_painter_base.cc:388-405), i.e. `PixelSnappedContouredBorderWithOutsets`
+ * with the border widths as integer insets (`PhysicalBoxStrut::FromInts`,
+ * contoured_border_geometry.cc:207-255): the inset rect clamps a negative size
+ * to zero, rounds its origin, snaps its size allowing zero, and takes the
+ * snapped outer contour's radii outset by the same insets
+ * (`FloatRoundedRect::Radii::Outset` grows only nonzero components and clamps
+ * at zero). Without an authenticated `borderPaintSnap` the captured geometry
+ * and float border widths are kept.
+ */
+export function shadowInnerBorderContour(el: ShadowBox, corners: CornerRadii): ShadowContour {
+  const width = (value: string | undefined) => parseFloat(value ?? "0") || 0;
+  const snap = el.borderPaintSnap;
+  if (snap == null) {
+    const l = width(el.styles.borderLeftWidth),
+      r = width(el.styles.borderRightWidth),
+      t = width(el.styles.borderTopWidth),
+      b = width(el.styles.borderBottomWidth);
+    return {
+      x: el.x + l,
+      y: el.y + t,
+      width: Math.max(0, el.width - l - r),
+      height: Math.max(0, el.height - t - b),
+      corners: insetCornerRadii(corners, t, r, b, l),
+    };
+  }
+  const l = Math.trunc(width(el.styles.borderLeftWidth)),
+    r = Math.trunc(width(el.styles.borderRightWidth)),
+    t = Math.trunc(width(el.styles.borderTopWidth)),
+    b = Math.trunc(width(el.styles.borderBottomWidth));
+  const outer = shadowBorderContour(el, corners);
+  // An integer inset moves an edge by whole pixels, so the snapped inset edge
+  // is the snapped outer edge (from the same edge rounding) minus the inset.
+  const x = el.x + snap.left + l,
+    y = el.y + snap.top + t;
+  const innerWidth = el.width - l - r > 0 ? el.x + el.width + snap.right - r - x : 0;
+  const innerHeight = el.height - t - b > 0 ? el.y + el.height + snap.bottom - b - y : 0;
+  return { x, y, width: innerWidth, height: innerHeight, corners: insetCornerRadii(outer.corners, t, r, b, l) };
 }
 
 export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners: CornerRadii, indent: string): void {
@@ -143,15 +195,12 @@ export function paintBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, sourceCorners
 // returned. Returns { svg, defs, clipIdx }.
 export function paintInsetBoxShadow(ctx: ShadowPaintCtx, el: ShadowBox, corners: CornerRadii, indent: string): void {
   const shadows = parseBoxShadow(el.styles.boxShadow ?? "none");
-  const sbwL = parseFloat(el.styles.borderLeftWidth ?? "0") || 0;
-  const sbwR = parseFloat(el.styles.borderRightWidth ?? "0") || 0;
-  const sbwT = parseFloat(el.styles.borderTopWidth ?? "0") || 0;
-  const sbwB = parseFloat(el.styles.borderBottomWidth ?? "0") || 0;
-  const ibLeft = el.x + sbwL;
-  const ibTop = el.y + sbwT;
-  const ibW = Math.max(0, el.width - sbwL - sbwR);
-  const ibH = Math.max(0, el.height - sbwT - sbwB);
-  const innerCorners = insetCornerRadii(corners, sbwT, sbwR, sbwB, sbwL);
+  const inner = shadowInnerBorderContour(el, corners);
+  const ibLeft = inner.x;
+  const ibTop = inner.y;
+  const ibW = inner.width;
+  const ibH = inner.height;
+  const innerCorners = inner.corners;
   // DM-699: CSS Backgrounds 3 §6.4 stacks shadows with the FIRST shadow
   // ON TOP. The outer-shadow loop above already iterates in reverse so
   // the topmost CSS shadow emits last; this inset loop was iterating

@@ -45,16 +45,6 @@ const composedParent = (node: Element): Element | null => {
   return root instanceof ShadowRoot ? root.host : null;
 };
 
-// LayoutUnit::Round (layout_unit.h:294-297) equals Math.round on the 1/64
-// grid getBoundingClientRect reports; SnapSizeToPixel forces a nonzero size of
-// more than four LayoutUnit epsilons to one pixel.
-const snapSizeToPixel = (size: number, location: number): number => {
-  const fraction = location % 1;
-  const result = Math.round(fraction + size) - Math.round(fraction);
-  if (result === 0 && Math.abs(size) > 4 / 64) return size > 0 ? 1 : -1;
-  return result;
-};
-
 /** Pure 2D translation of one element's effective transform, or null. */
 const pureTranslation = (cs: CSSStyleDeclaration): { x: number; y: number } | null => {
   const parts = [cs.transform, cs.translate, cs.rotate, cs.scale];
@@ -130,20 +120,23 @@ export const captureBorderPaintSnap = (
     return undefined;
   }
   // Local paint space up to whole pixels: undo the summed post-snap
-  // translations, snap there, and return edge deltas (translation-invariant).
-  // Re-quantize to the LayoutUnit 1/64 grid so float translation round-off
-  // cannot move a half-pixel edge across the rounding boundary.
+  // translations and return each edge's LayoutUnit::Round delta there
+  // (translation-invariant). LayoutUnit::Round (layout_unit.h:294-297) equals
+  // Math.round on the 1/64 grid, and `round(x) + SnapSizeToPixelAllowingZero(
+  // w, x)` (:815-818) is `round(x + w)`, so an edge delta serves both the
+  // outer snap and every integer-outset snap derived from it; the renderer
+  // applies SnapSizeToPixel's nonzero-size rule (:805-813) where Blink does.
+  // Re-quantize to the 1/64 grid so float translation round-off cannot move a
+  // half-pixel edge across the rounding boundary.
   const localLeft = Math.round((rect.left - tx) * 64) / 64,
     localTop = Math.round((rect.top - ty) * 64) / 64;
-  const snappedLeft = Math.round(localLeft),
-    snappedTop = Math.round(localTop);
-  const snappedRight = snappedLeft + snapSizeToPixel(rect.width, localLeft);
-  const snappedBottom = snappedTop + snapSizeToPixel(rect.height, localTop);
+  const localRight = localLeft + rect.width,
+    localBottom = localTop + rect.height;
   return {
     source: "blink-pixel-snapped-border-v1",
-    left: snappedLeft - localLeft,
-    top: snappedTop - localTop,
-    right: snappedRight - (localLeft + rect.width),
-    bottom: snappedBottom - (localTop + rect.height),
+    left: Math.round(localLeft) - localLeft,
+    top: Math.round(localTop) - localTop,
+    right: Math.round(localRight) - localRight,
+    bottom: Math.round(localBottom) - localBottom,
   };
 };
