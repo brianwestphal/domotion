@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["text-fonts"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9", "DM-WREGPJ"]
+tickets: ["DM-2518", "DM-VY5DHJ", "DM-JQ57WW", "DM-N80HJW", "DM-ESH89H", "DM-PJG8E9", "DM-WREGPJ", "DM-ZAXD0C"]
 code:
   [
     "src/font-family-stack.test.ts",
@@ -17,6 +17,10 @@ code:
     "src/capture/font-family-cascade.test.ts",
     "src/capture/font-family-cascade-cdp.ts",
     "src/capture/font-family-cascade-cdp.test.ts",
+    "src/capture/font-family-animation.ts",
+    "src/capture/font-family-animation.test.ts",
+    "src/capture/font-family-animation-cdp.ts",
+    "tests/font-family-animation-provenance.e2e.test.ts",
     "src/capture/font-locale.ts",
     "src/capture/font-locale.test.ts",
     "tests/computed-font-locale.e2e.test.ts",
@@ -196,11 +200,49 @@ DM-3972FJ), without changing existing language metadata. Pseudos have their own 
 unknown/blocked pseudo evidence cannot borrow a newly proved host standard type.
 Native query failure preserves an independently valid ZZR literal witness.
 
+### Animated family type
+
+An animation that wins the family cascade keeps its keyframe's type. Chromium
+has no interpolation type for `font-family`: `CSSDefaultInterpolationType`
+applies the keyframe's own CSSValue (`interpolation_types_map.cc:497-504`,
+`css_default_interpolation_type.cc:64-83`, Chromium 7d859f27), so an `initial`
+keyframe applies the standard family even though every serialization prints the
+concrete-looking `Times`. `src/capture/font-family-animation.ts` transcribes the
+sampler that picks the keyframe:
+
+- interval records with open first/last ranges and coincident-offset collapse
+  (`keyframe_effect_model.cc:567-627`), synthetic neutral boundaries and the
+  zero-offset easing (`:509-553,846-864`), and `RemoveRedundantKeyframes`
+  (`:694-711`);
+- the local fraction eased by the interval's START keyframe
+  (`interpolation_effect.cc:27-41`) with gfx cubic-bezier, `steps()` and
+  `linear()` (`ui/gfx/animation/keyframe/timing_function.cc`);
+- the discrete flip `fraction < 0.5 ? start : end`
+  (`primitive_interpolation.h:127-143`, chosen by
+  `invalidatable_interpolation.cc:168-206`); a neutral side leaves the lower
+  layer or static cascade in place, and a value replaces whatever is below it,
+  because `CSSDefaultInterpolationType::Composite` is a plain set.
+
+`src/capture/font-family-animation-cdp.ts` joins the element's own
+`getAnimations()` (composite order, `getComputedTiming().progress`, keyframe
+offsets and easings) with the authored values: the Blink-resolved
+`cssKeyframesRules` from `CSS.getMatchedStylesForNode` for CSS animations (the
+last block per offset wins, `css_animations.cc:406-711`), or the specified
+`Element.animate()` keyframes. The keyframe chosen for a CSS animation must
+reproduce the element's computed family, which rejects a wrong interval or flip
+side outright. CSS transitions (their keyframes are computed values), scroll and
+view timelines, pseudo-element targets, `font`/`all` keys, running animations
+whose keyframes change type, step boundaries whose result depends on the phase
+limit direction, results within solver tolerance of the flip, and an empty page
+join all stay unknown. `tests/font-family-animation-provenance.e2e.test.ts`
+proves each admitted case against natively painted static `initial` and
+same-named concrete controls, with a negative control that breaks the join.
+
 Assigned-slot/author-shadow inheritance, nested or anonymous layer identity,
 scoped/starting rules and injected sheets whose author/user origin is not exposed,
-unsupported direct functions, unproved `all` substitution and interpolated family
-type remain explicit unknowns (DM-RRAX58). No broader cascade or animation parity
-is claimed. Inheritance is capped at 64 scopes, computed style at 4,096 properties,
+unsupported direct functions, unproved `all` substitution and transition-driven
+family type remain explicit unknowns (DM-RRAX58, DM-D8RS5E). No broader cascade
+parity is claimed. Inheritance is capped at 64 scopes, computed style at 4,096 properties,
 and substitution at 64 KiB/32 nested levels/256 expansions. New native reads have
 Node bounds; late reads cannot start another query or install a family fact.
 Object groups, sessions and private keys retain their owned cleanup.

@@ -345,7 +345,11 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > stop inherited authored witnesses. Computed names do not choose the type.
 > Standard adoption is independently gated by usable computed-font-locale
 > authority: explicit CSS string routing or existing DOM-language compatibility
-> (DM-PJG8E9; unproved auto/default remains DM-3972FJ); unsupported animation/tree/layer authority remains
+> (DM-PJG8E9; unproved auto/default remains DM-3972FJ). An animation that wins
+> the family cascade is classified by its authored keyframe — Blink applies that
+> CSSValue itself — chosen by a transcription of Blink's keyframe sampler and
+> joined to the Blink-resolved `cssKeyframesRules` or specified WAAPI keyframes
+> (DM-ZAXD0C); transitions, pseudo targets and tree/layer authority remain
 > unknown (DM-RRAX58). See doc213 for the exact bounded contract.
 > Genuine initial routing remains enabled with unrelated opaque sheets. Facts
 > use removed private expandos and released CDP object groups, never authored
@@ -369,7 +373,8 @@ script-keyed STANDARD family, matching Blink's `kFontFamily` iteration.
 > Within each style, [canonical CSSOM entries](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/inspector/inspector_style_sheet.cc#L918)
 > discard overwritten raw declarations and normalize escapes/priorities before
 > classification. Inspector animation values are already computed, so they
-> cannot authenticate the original generic-family type. Pseudo witnesses also
+> cannot authenticate the original generic-family type on their own; only the
+> keyframe join above does. Pseudo witnesses also
 > reject active subtree family animations rather than interpreting their
 > serialized concrete name as a new author fact.
 >

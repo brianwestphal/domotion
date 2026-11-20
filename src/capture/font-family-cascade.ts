@@ -23,8 +23,19 @@ export interface FamilyScope {
   animationStyles?: Array<{ style?: FamilyStyle }>;
   transitionsStyle?: FamilyStyle;
 }
+export interface FamilyKeyframeRule {
+  keyText?: { text?: string };
+  style?: FamilyStyle;
+}
+export interface FamilyKeyframesRule {
+  animationName?: { text?: string };
+  keyframes?: FamilyKeyframeRule[];
+}
 export interface FamilyMatched extends FamilyScope {
   inherited?: FamilyScope[];
+  /** Blink-resolved @keyframes rules for the element's animation-name list
+   * (`InspectorCSSAgent::AnimationsForNode`). */
+  cssKeyframesRules?: FamilyKeyframesRule[];
 }
 export interface NativeFamilyLayers {
   name: string;
@@ -36,6 +47,11 @@ export interface FamilyCascadeContext {
   /** Only a single authenticated document tree is admitted by this resolver. */
   treeScopeId: number;
   resolve(value: string, shorthand: boolean, scope: number): Promise<FamilyValue>;
+  /** Native animation authority for a scope whose cascade winner is an
+   * animation. `base` means every animation layer currently applies a neutral
+   * keyframe, so the static cascade value shows through. Absent: the
+   * interpolated value is refused as before. */
+  resolveAnimation?(scope: number): Promise<FamilyResolution | { base: true }>;
 }
 export type FamilyResolution = { type: ProvenFamilyType } | { reason: string };
 type Origin = "ua" | "user" | "hint" | "author" | "animation" | "transition";
@@ -69,7 +85,7 @@ const compare = (a: Candidate, b: Candidate) =>
     [major(b), Number(b.inline), b.important ? -b.layer : b.layer, b.order],
   );
 const clean = (value: string) => value.replace(/\/\*[\s\S]*?\*\//g, " ").trim();
-function canonicalFamily(
+export function canonicalFamily(
   style: FamilyStyle | undefined,
 ): Array<{ value: string; shorthand: boolean; important: boolean; wideOnly?: boolean }> | string {
   if (style == null) return [];
@@ -191,6 +207,12 @@ export async function resolveMatchedFontFamilyType(
     let remaining = [...candidates];
     while (remaining.length) {
       const winner = remaining.at(-1)!;
+      if (winner.origin === "animation" && context.resolveAnimation != null) {
+        const animated = await context.resolveAnimation(index);
+        if (!("base" in animated)) return animated;
+        remaining = remaining.filter((c) => c.origin !== "animation");
+        continue;
+      }
       if (winner.origin === "animation" || winner.origin === "transition")
         return { reason: "interpolated family lost original type" };
       const resolved = await context.resolve(winner.value, winner.shorthand, index);
@@ -216,6 +238,22 @@ export async function resolveMatchedFontFamilyType(
     }
   }
   return { type: "standard" };
+}
+
+/** Type of a family value Blink APPLIES directly — an animation keyframe's
+ * authored CSSValue (`CSSDefaultInterpolationType::Apply`). CSS-wide keywords
+ * other than `initial` would need the parent/rollback cascade, which a keyframe
+ * value does not carry here, so they stay unknown. */
+export function classifyAppliedFamily(resolved: FamilyValue): FamilyResolution {
+  if (resolved.kind === "unknown") return { reason: resolved.reason };
+  if (resolved.kind === "invalid") return { reason: "keyframe family is invalid at computed-value time" };
+  const keyword = parseCssFontFamilyEntries(clean(resolved.value));
+  const wide = keyword.length === 1 && !keyword[0].quoted ? keyword[0].name.toLowerCase() : "";
+  if (wide === "initial") return { type: "standard" };
+  if (/^(?:inherit|unset|revert(?:-layer|-rule)?)$/.test(wide))
+    return { reason: `keyframe family ${wide} is unproved` };
+  if (keyword.length && keyword.every((entry) => entry.type === "family-name")) return { type: "concrete" };
+  return { reason: "unsupported generic or unresolved family value" };
 }
 
 /** The current renderer consumes captured DOM language, not CSS -webkit-locale.
