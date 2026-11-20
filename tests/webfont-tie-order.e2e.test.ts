@@ -74,10 +74,17 @@ async function nativeIndex(page: Page, groups: Group[]): Promise<number> {
     range.selectNodeContents(document.getElementById("t")!);
     return range.getBoundingClientRect().width;
   });
-  // JetBrains Mono advances 0.6 em: ten glyphs at 40px are 240px at 100%.
-  const index = (width / 240 - 1) * 10;
-  expect(Math.abs(index - Math.round(index))).toBeLessThan(0.01);
-  return Math.round(index);
+  // JetBrains Mono advances 0.6 em: ten glyphs at 40px are 240px at 100%, and
+  // group i's size-adjust scales that by 1 + i/10. Linux turns subpixel
+  // positioning off at device scale factor 1 (`font_render_params_linux.cc:
+  // 262-267`, Chromium 7d859f27), so each advance is a whole pixel there.
+  const advance = (i: number) => {
+    const exact = 24 * (1 + i / 10);
+    return process.platform === "linux" ? Math.round(exact) : exact;
+  };
+  const index = groups.findIndex((_, i) => Math.abs(width - 10 * advance(i)) < 0.1);
+  expect(index, `width ${width}`).toBeGreaterThanOrEqual(0);
+  return index;
 }
 
 let browser: Browser;
