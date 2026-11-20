@@ -17,6 +17,7 @@ tickets:
     "DM-ZAXD0C",
     "DM-JRG1BD",
     "DM-XWGRJC",
+    "DM-MGQCRJ",
   ]
 code:
   [
@@ -400,15 +401,34 @@ to `LayoutLocale::GetDefault()`, both through the same `lang` route.
 
 **Platform status.** macOS and Windows (CIM) read the renderer argv in full; the
 e2e passes on both (Windows via the fidelity workflow). On Linux, renderers are
-forked from the zygote and retitle themselves inside the zygote's argv area, so
-`/proc/<pid>/cmdline` is truncated before the appended `--lang`; the authority
-refuses there and the DOM-language route stays. Linux also ignores `--lang` for
-the application locale: headless sets ICU from `l10n_util::GetApplicationLocale`
-(`headless_content_main_delegate.cc:178-181`), whose non-Apple, non-Windows branch
-reads the environment (`ui/base/l10n/l10n_util.cc:508-577`), and headless
-`GetApplicationLocale()` returns that ICU locale
-(`headless_content_browser_client.cc:317-319`); a measured utility process under
-`--lang=ja` carried `--lang=en-US@posix`.
+forked from the zygote and retitle themselves (`setproctitle`) inside the
+zygote's argv area, so `/proc/<pid>/cmdline` is one space-joined title cut before
+the appended `--lang`. Its visible `--lang`, when present, is the headless
+accept-language switch that precedes it
+(`headless/lib/browser/headless_content_browser_client.cc:285-300`), so a
+retitled renderer argv is never read for the value (DM-MGQCRJ). The value comes
+instead from the browser's utility children: `UtilityProcessHost` appends
+`--lang=<GetApplicationLocale()>` from the same `ContentBrowserClient` call the
+renderer's final `--lang` comes from
+(`content/browser/service_host/utility_process_host.cc:385-386` versus
+`render_process_host_impl.cc:3763-3765`), propagates no browser `--lang`, and
+receives no headless accept-language switch. Every utility that descends from the
+launched browser and shows a `--lang` (never a retitled title's final, possibly
+cut token) must agree, and an untruncated renderer must agree with them.
+
+Linux also ignores `--lang` for the application locale: headless sets ICU from
+`l10n_util::GetApplicationLocale` (`headless_content_main_delegate.cc:178-181`),
+whose non-Apple, non-Windows branch reads the environment
+(`ui/base/l10n/l10n_util.cc:508-577`), and headless `GetApplicationLocale()`
+returns that ICU locale (`headless_content_browser_client.cc:317-319`). Measured in
+the Playwright Linux image: under `LANG=C.UTF-8` every utility carries
+`--lang=en-US@posix` whatever `--lang` says, and `LANG=tr_TR.UTF-8`,
+`ja_JP.UTF-8`, `zh_TW.UTF-8` and `ko_KR.UTF-8` give `tr-TR`, `ja-JP`, `zh-TW` and
+`ko-KR`. `en-US@posix` is kept verbatim, as `DefaultLanguage()` keeps it
+(`platform/language.cc`, only `_` becomes `-`): its font-selection script is Latin
+(`LocaleToScriptCodeForFontSelection` strips `-` subtags to `en`), and it is the
+string Blink hands fontconfig through `LocaleOrDefault()`. The Linux e2e cases
+therefore set the locale environment rather than `--lang`.
 
 Navigator language comes from AcceptLanguages and Intl locale can be separately
 overridden (`Emulation.setLocaleOverride` changes ICU/V8 only); neither is Blink's

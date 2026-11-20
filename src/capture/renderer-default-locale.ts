@@ -23,8 +23,22 @@ import { isAutoFontLocale } from "./font-locale.js";
  *
  * Neither `navigator.language` (accept languages), `Intl` (ICU/V8, changed by
  * `Emulation.setLocaleOverride`) nor `Browser.getBrowserCommandLine` (the
- * browser process) is this value. The only authority is the renderer argv of
- * a browser this process launched; anything else is reported unknown.
+ * browser process) is this value. The authority is the renderer argv of a
+ * browser this process launched; anything else is reported unknown.
+ *
+ * Linux zygote-forked renderers retitle themselves (`setproctitle`) inside the
+ * zygote's short argv area, so `/proc/<pid>/cmdline` holds one space-joined
+ * string cut before the appended `--lang`. For such a renderer the value comes
+ * from a utility child of the same browser: `UtilityProcessHost` appends
+ * `--lang=<GetApplicationLocale()>` from the same `ContentBrowserClient` call
+ * (`content/browser/service_host/utility_process_host.cc:385-386`, Chromium
+ * 7d859f27), forwards no `--lang` from the browser, and the headless client
+ * appends its accept-language `--lang` to renderers only
+ * (`headless/lib/browser/headless_content_browser_client.cc:285-300`). The
+ * headless `GetApplicationLocale()` is the process-wide ICU configured locale
+ * (`:317-319`), set once at startup by `l10n_util::GetApplicationLocale`, which
+ * on Linux reads the environment rather than `--lang`
+ * (`ui/base/l10n/l10n_util.cc:508-577`).
  */
 export type RendererDefaultLocale = { locale: string } | { reason: string };
 
@@ -45,6 +59,14 @@ export function lastLangSwitch(argv: readonly string[]): string | undefined {
 interface ProcessFacts {
   ppid: number;
   argv: string[];
+  /** The process retitled itself, so `argv` was split from one space-joined
+   * title that may be cut short (Linux zygote children). */
+  retitled?: boolean;
+}
+
+/** A retitled argv's final token may itself be cut, so it is never read. */
+function langSwitchOf(facts: ProcessFacts): string | undefined {
+  return lastLangSwitch(facts.retitled === true ? facts.argv.slice(0, -1) : facts.argv);
 }
 
 const run = (file: string, args: string[]): Promise<string> =>
@@ -67,7 +89,11 @@ export async function readProcessFacts(
     ]);
     // Field 4 follows the parenthesized comm, which may itself contain spaces.
     const ppid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]);
-    return { ppid, argv: cmdline.split("\0").filter((a) => a !== "") };
+    const argv = cmdline.split("\0").filter((a) => a !== "");
+    // A child Chromium process always carries switches, so one element holding
+    // whitespace is a `setproctitle` title, not a real argv.
+    if (argv.length === 1 && /\s/.test(argv[0])) return { ppid, argv: argv[0].split(/\s+/), retitled: true };
+    return { ppid, argv };
   }
   if (platform === "win32") {
     const out = await run("powershell.exe", [
@@ -129,14 +155,48 @@ export async function decideRendererDefaultLocale(deps: RendererLocaleDeps): Pro
   // An in-process renderer patches the browser's own command line.
   const pids = renderers.length > 0 ? renderers : [browserPid];
   const locales = new Set<string>();
+  let retitled = false;
   for (const pid of pids) {
     if (!(await descendsFrom(pid, browserPid, deps.facts)))
       return { reason: "renderer process does not descend from the launched browser" };
-    const locale = lastLangSwitch((await deps.facts(pid)).argv);
+    const facts = await deps.facts(pid);
+    // A retitled renderer's visible --lang may be the headless accept-language
+    // one that precedes the cut-off application locale, so none is read.
+    if (facts.retitled === true && pid !== browserPid) {
+      retitled = true;
+      continue;
+    }
+    const locale = lastLangSwitch(facts.argv);
     if (locale == null) return { reason: "renderer command line carries no --lang switch" };
     locales.add(locale);
   }
+  if (retitled) {
+    const sibling = await utilityApplicationLocale(deps, processes, browserPid);
+    if ("reason" in sibling) return sibling;
+    locales.add(sibling.locale);
+  }
   if (locales.size !== 1) return { reason: "renderers disagree on --lang" };
+  return { locale: [...locales][0] };
+}
+
+/** The application locale every utility child of the browser was launched
+ * with (`--type=utility`, one `--lang`); all of them must agree. */
+async function utilityApplicationLocale(
+  deps: RendererLocaleDeps,
+  processes: Array<{ type: string; id: number }>,
+  browserPid: number,
+): Promise<RendererDefaultLocale> {
+  const locales = new Set<string>();
+  for (const { type, id } of processes) {
+    if (type === "browser" || type === "renderer" || id === browserPid) continue;
+    const facts = await deps.facts(id);
+    if (!facts.argv.includes("--type=utility")) continue;
+    if (!(await descendsFrom(id, browserPid, deps.facts))) continue;
+    const locale = langSwitchOf(facts);
+    if (locale != null) locales.add(locale);
+  }
+  if (locales.size === 0) return { reason: "renderer command line is truncated and no utility process carries --lang" };
+  if (locales.size !== 1) return { reason: "utility processes disagree on --lang" };
   return { locale: [...locales][0] };
 }
 
