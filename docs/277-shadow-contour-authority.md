@@ -5,7 +5,7 @@ kind: "investigation"
 status: "current"
 owners: ["paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ", "DM-8N1VB2", "DM-B73YF5"]
+tickets: ["DM-H5DDDE", "DM-J2WVF3", "DM-09GQAV", "DM-7P69DC", "DM-WYY3ZZ", "DM-8N1VB2", "DM-B73YF5", "DM-TFN8RD"]
 code:
   [
     "src/render/box-shadow-paint.ts",
@@ -212,3 +212,13 @@ recorded above for elliptical and unequal contours, so the e2e bound in
 than byte equality. Inset spread needs no change: a negative outset always
 takes the linear branch, which `insetCornerRadii` already implements. Inline
 fragment shadows (`background-inline-paint.ts`) still use the linear rule.
+
+The three-decimal shape output also resolves the fractional-spread residual: a
+20×20 radius-5 box with `0 0 0 -.125px` paints Chromium's 20.125..39.875 shape
+with 4.875px radii, which the one-decimal format wrote as 20.1/19.8/4.9 (24
+differing pixels, maximum alpha delta 25). Source geometry was already right
+(`ApplySpreadToShadowShape` takes the linear branch for a negative spread);
+fractional negative, positive and translucent-background spreads are now
+byte-exact native controls. Negative spread still paints: Chromium's antialiased
+`ClipOutContouredRect` leaves coverage at the corners, so the all-zero
+coincident skip must not extend to it.

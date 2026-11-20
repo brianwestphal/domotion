@@ -95,6 +95,16 @@ const cases = [
     extra: "margin:20.5px;border:2px solid rgba(0,0,255,.5);border-radius:6px",
     ownsOtherRootPaint: true,
   },
+  // A fractional spread puts the shadow shape on quarter/eighth-pixel edges;
+  // the shape must keep those digits (one decimal moved 20.125 to 20.1).
+  { name: "fractional negative circular spread", shadow: "0 0 0 -.125px red", extra: "border-radius:5px" },
+  { name: "fractional positive circular spread", shadow: "0 0 0 .375px red", extra: "border-radius:5px" },
+  {
+    name: "fractional negative spread under a translucent background",
+    shadow: "0 0 0 -.125px red",
+    extra: "border-radius:5px;background:rgba(0,0,255,.5)",
+    ownsOtherRootPaint: true,
+  },
 ];
 it.each(cases)(
   "matches complete native pixels for $name",
