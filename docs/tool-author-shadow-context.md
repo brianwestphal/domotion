@@ -64,9 +64,11 @@ undefined, null, nonfinite numbers, negative zero, Unicode, plain objects,
 arrays, aliases and cycles. Sparse holes become own undefined entries and
 `__proto__` is omitted, matching Playwright1.59.1. Other dynamic keys use safe own
 data properties. The iterative graph walk adds no arbitrary captured-tree cap.
-Functions, DOM nodes, Date/RegExp/Map/Set and other exotic objects are explicitly
-outside this private data contract. This is not a replacement for general
-Page.evaluate. Native parity includes the actual ordinary CAPTURE_SCRIPT and a
+Recursed frame prepasses can allocate text and scrollbar facts in a child realm.
+The codec accepts that realm's intrinsic Object prototype by checking its
+constructor's native identity and exact prototype relationship. Class instances,
+lookalike prototypes, functions, DOM nodes, Date/RegExp/Map/Set and other exotic
+objects stay outside the contract. Native parity includes the actual CAPTURE_SCRIPT and a
 50-level plain graph. A separate baseline-only investigation found the existing
 Page.evaluate stalls at a 100-level graph; no helper failure or new limit is
 inferred from that experiment.

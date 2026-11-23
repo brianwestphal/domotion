@@ -1,3 +1,4 @@
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { encodePlainCaptureValue, decodePlainCaptureValue } from "./plain-capture-value.js";
 const roundtrip = (value: unknown) =>
@@ -51,6 +52,25 @@ describe("plain capture transport", () => {
       result = result.next as { next?: object };
     }
     expect(depth).toBe(12000);
+  });
+  it("preserves plain iframe facts allocated against another realm's Object.prototype", () => {
+    const foreign: unknown = runInNewContext("({ scrollbars: { horizontal: { offset: 3 }, vertical: undefined } })");
+    const result = roundtrip({ foreign, alias: foreign });
+    expect(result).toEqual({
+      foreign: { scrollbars: { horizontal: { offset: 3 }, vertical: undefined } },
+      alias: { scrollbars: { horizontal: { offset: 3 }, vertical: undefined } },
+    });
+    const decoded = result as { foreign: { scrollbars: object }; alias: object };
+    expect(decoded.foreign).toBe(decoded.alias);
+    expect(Object.hasOwn(decoded.foreign.scrollbars, "vertical")).toBe(true);
+  });
+  it.each([
+    "new (class Record {})()",
+    "new Map()",
+    "Object.create(Object.assign(Object.create(null), { constructor: Object }))",
+    "Object.create(Object.assign(Object.create(null), { constructor: function Object() {} }))",
+  ])("refuses a foreign non-plain or lookalike object from %s", (source) => {
+    expect(() => encodePlainCaptureValue(runInNewContext(source))).toThrow(/refuses non-plain objects/);
   });
   it.each([new Date(), /x/, new Map(), new Set(), new Uint8Array([1]), () => 1, Symbol("x"), 1n])(
     "explicitly refuses unsupported non-plain data",

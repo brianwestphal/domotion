@@ -19,6 +19,24 @@ export function encodePlainCaptureValue(value: unknown): PlainCaptureWire {
   const containers: Container[] = [];
   const objects: object[] = [];
   const seen = new Map<object, number>();
+  const plainPrototypes = new Set<object | null>([Object.prototype, null]);
+  const nativeObject = Function.prototype.toString.call(Object);
+  const isPlainPrototype = (prototype: object | null): boolean => {
+    if (plainPrototypes.has(prototype)) return true;
+    // Frame prepasses allocate text and scrollbar facts in the child's realm.
+    // Identify its intrinsic Object prototype without consulting an inherited
+    // constructor or a user-defined tag.
+    if (prototype === null || Object.getPrototypeOf(prototype) !== null) return false;
+    const constructor = Object.getOwnPropertyDescriptor(prototype, "constructor")?.value;
+    if (
+      typeof constructor !== "function" ||
+      Function.prototype.toString.call(constructor) !== nativeObject ||
+      Object.getOwnPropertyDescriptor(constructor, "prototype")?.value !== prototype
+    )
+      return false;
+    plainPrototypes.add(prototype);
+    return true;
+  };
   const atom = (input: unknown): Atom => {
     if (input === undefined) return { k: "u" };
     if (input === null) return { k: "null" };
@@ -35,7 +53,7 @@ export function encodePlainCaptureValue(value: unknown): PlainCaptureWire {
     const previous = seen.get(input);
     if (previous !== undefined) return { k: "ref", v: previous };
     const array = Array.isArray(input);
-    if (!array && Object.getPrototypeOf(input) !== Object.prototype && Object.getPrototypeOf(input) !== null)
+    if (!array && !isPlainPrototype(Object.getPrototypeOf(input)))
       throw new Error("plain capture transport refuses non-plain objects");
     const id = containers.length;
     seen.set(input, id);
