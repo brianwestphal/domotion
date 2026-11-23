@@ -176,10 +176,20 @@ express either, so the capture walk freezes every static planar transform:
   and SVG wrapper. The read-only probe does not pause the page or replace
   the owner's animation. If its source changes between reads, capture
   uses the existing text path.
+  The same proof covers one static inline-block child with a single box
+  and direct wrapped horizontal ASCII text. The child has no transform or
+  own animation. Read-only capture joins the child's exact Range and CDP
+  fragments and verifies both boxes and the source paint styles before
+  adoption. Decoration paint is limited to opaque solid background and
+  square solid outlines with zero outline offset. Captured fill and both
+  outline edges must project to whole device pixels at DPR 1. A fractional
+  edge can pick up different coverage from Chromium's composited layer
+  even when the SVG's local paint geometry is exact (DM-YG7K2M).
 - **Live rect** (`styles.transform: none`): other animated/transitioned
   planar transforms and projective planes owned by `transformSubtreeRaster`.
-  Unsupported reconstruction inputs include descendant or mixed text, native raster
-  producers, nested transforms, multi-fragment boxes, CSS zoom, and
+  Unsupported reconstruction inputs include other descendant or mixed text,
+  fractional decorated child edges, native raster producers, nested transforms,
+  multi-fragment boxes, CSS zoom, and
   active or paused one-axis and identity samples. An active composited
   scale can drop accumulation on both axes even when the sampled matrix
   leaves one axis unchanged. Those samples require evidence of the

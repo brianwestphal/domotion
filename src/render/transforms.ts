@@ -24,6 +24,9 @@
 const COORD_PRECISION = 6;
 const MATRIX_PRECISION = 5;
 
+export const svgTransformCoordinate = (value: number): number => Number(value.toFixed(COORD_PRECISION));
+export const svgTransformCoefficient = (value: number): number => Number(value.toFixed(MATRIX_PRECISION));
+
 export function cssTransformToSvg(transform: string | undefined, originX: number, originY: number): string {
   if (transform == null || transform === "" || transform === "none") return "";
   const m2 =
@@ -58,9 +61,9 @@ export function cssTransformToSvg(transform: string | undefined, originX: number
   // origin: SVG `translate(ox,oy) matrix(...) translate(-ox,-oy)`. When the
   // CSS matrix has a translation component (e, f), that already shifts; the
   // outer translate-origin pair makes the rotate/scale pivot correct.
-  const ox = Number(originX.toFixed(COORD_PRECISION));
-  const oy = Number(originY.toFixed(COORD_PRECISION));
-  const matrixStr = `matrix(${Number(a.toFixed(MATRIX_PRECISION))} ${Number(b.toFixed(MATRIX_PRECISION))} ${Number(c.toFixed(MATRIX_PRECISION))} ${Number(d.toFixed(MATRIX_PRECISION))} ${Number(e.toFixed(COORD_PRECISION))} ${Number(f.toFixed(COORD_PRECISION))})`;
+  const ox = svgTransformCoordinate(originX);
+  const oy = svgTransformCoordinate(originY);
+  const matrixStr = `matrix(${svgTransformCoefficient(a)} ${svgTransformCoefficient(b)} ${svgTransformCoefficient(c)} ${svgTransformCoefficient(d)} ${svgTransformCoordinate(e)} ${svgTransformCoordinate(f)})`;
   if (ox === 0 && oy === 0) return matrixStr;
   return `translate(${ox} ${oy}) ${matrixStr} translate(${-ox} ${-oy})`;
 }

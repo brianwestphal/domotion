@@ -8,6 +8,10 @@ import { withCdpSession } from "./cdp-lifecycle.js";
 import { createPageRegistry } from "./page-registry.js";
 import type { CapturedElement, CapturedTextPaintQuad, CaptureWarning } from "./types.js";
 import { probeFailureWarning } from "./probe-failure.js";
+import { authenticBorderPaintSnap, snappedBorderEdges } from "../render/borders.js";
+import { parseColor } from "../render/colors.js";
+import { emittedElementTextAffine } from "../render/text-affine.js";
+import { svgTransformCoefficient, svgTransformCoordinate } from "../render/transforms.js";
 import { withTimeout } from "../utils/with-timeout.js";
 import { buildCapturedTextPaintGeometry, type ProtocolTextNodeGeometry } from "./text-fragment-geometry.js";
 import type { BlinkRangeFragmentProbe } from "./text-fragment-spans.js";
@@ -38,7 +42,7 @@ interface PreparedFrame {
   token: string;
   rows: FrameRow[];
   hasTransformOwners: boolean;
-  hasDirectLiveTextCandidate?: boolean;
+  hasReadOnlyLiveTextCandidate?: boolean;
 }
 
 interface MeasuredRow extends FrameRow {
@@ -251,13 +255,14 @@ async function setupFrameRegistry(
           snapshots: null,
           factsByElement: Object.create(null),
         };
-        const hasDirectLiveTextCandidate =
+        const hasReadOnlyLiveTextCandidate =
           isTop &&
           owners.size === 1 &&
           textRows.length > 0 &&
-          owners.has(textRows[0].element) &&
+          (owners.has(textRows[0].element) ||
+            (textRows[0].element.parentElement != null && owners.has(textRows[0].element.parentElement))) &&
           textRows.every(({ element }) => element === textRows[0].element);
-        return { rows: result, hasTransformOwners: textTransformOwners.size > 0, hasDirectLiveTextCandidate };
+        return { rows: result, hasTransformOwners: textTransformOwners.size > 0, hasReadOnlyLiveTextCandidate };
       },
       { selector, key, token, isTop: frame === frame.page().mainFrame() },
     );
@@ -266,7 +271,7 @@ async function setupFrameRegistry(
       token,
       rows: prepared.rows,
       hasTransformOwners: prepared.hasTransformOwners,
-      hasDirectLiveTextCandidate: prepared.hasDirectLiveTextCandidate,
+      hasReadOnlyLiveTextCandidate: prepared.hasReadOnlyLiveTextCandidate,
     };
   } catch {
     return null;
@@ -637,6 +642,8 @@ function factsByFrame(
 
 interface LiveTextFrameSample {
   ownerBox: LiveTextRect;
+  memberBox?: LiveTextRect;
+  memberStyles?: string[][];
   origin: { x: number; y: number };
   transform: { a: number; b: number; c: number; d: number; e: number; f: number };
   children: { type: number; data: string | null }[];
@@ -647,15 +654,17 @@ interface LiveTextFrameSample {
 
 /** Read the candidate afresh, with no CSS writes, animation override or CDP
  * playback-rate change. All rows belong directly to one paused
- * top-document owner. Each row may contain several horizontal fragments. */
-async function sampleDirectLiveTextFrame(frame: Frame, key: string): Promise<LiveTextFrameSample | undefined> {
+ * top-document owner or its one static inline-block member. Each row may
+ * contain several horizontal fragments. */
+async function sampleReadOnlyLiveTextFrame(frame: Frame, key: string): Promise<LiveTextFrameSample | undefined> {
   return evaluateInFrame(
     frame,
     (registryKey) => {
-      const { textRows } = (globalThis as PageRegistryScope)[registryKey] ?? {};
-      if (textRows == null || textRows.length === 0) return;
+      const { owners, textRows } = (globalThis as PageRegistryScope)[registryKey] ?? {};
+      if (owners?.length !== 1 || textRows == null || textRows.length === 0) return;
+      const [owner] = owners;
       const { element } = textRows[0];
-      if (!element.isConnected) return;
+      if (!owner.isConnected || !element.isConnected) return;
       if (element.ownerDocument.fonts.status !== "loaded") return;
       const children = Array.from(element.childNodes);
       const directTextNodes: Text[] = [];
@@ -673,31 +682,112 @@ async function sampleDirectLiveTextFrame(frame: Frame, key: string): Promise<Liv
         return;
 
       const style = getComputedStyle(element);
+      const ownerStyle = owner === element ? style : getComputedStyle(owner);
+      const isMember = owner !== element;
+      if (isMember) {
+        if (
+          devicePixelRatio !== 1 ||
+          (visualViewport?.scale ?? 1) !== 1 ||
+          element.parentElement !== owner ||
+          Array.from(owner.childNodes).some(
+            (node) =>
+              node !== element &&
+              node.nodeType !== Node.COMMENT_NODE &&
+              (node.nodeType !== Node.TEXT_NODE || node.textContent?.trim() !== ""),
+          ) ||
+          style.display !== "inline-block" ||
+          style.position !== "static" ||
+          element.getAnimations().length !== 0
+        )
+          return;
+        // An ancestor clip, transform, or compositing effect can move the
+        // sample off the authenticated device basis even when its DOM box
+        // stays fixed. Recheck those boundaries with each member sample.
+        for (let ancestor = owner.parentElement; ancestor != null; ancestor = ancestor.parentElement) {
+          const cs = getComputedStyle(ancestor);
+          if (
+            cs.transform !== "none" ||
+            cs.translate !== "none" ||
+            cs.rotate !== "none" ||
+            cs.scale !== "none" ||
+            cs.perspective !== "none" ||
+            cs.transformStyle !== "flat" ||
+            cs.contain !== "none" ||
+            cs.opacity !== "1" ||
+            cs.filter !== "none" ||
+            cs.backdropFilter !== "none" ||
+            cs.clipPath !== "none" ||
+            cs.maskImage !== "none" ||
+            cs.mixBlendMode !== "normal" ||
+            cs.willChange !== "auto" ||
+            cs.isolation !== "auto" ||
+            cs.overflowX !== "visible" ||
+            cs.overflowY !== "visible" ||
+            ancestor.getAnimations().length !== 0
+          )
+            return;
+        }
+        for (const cs of [ownerStyle, style]) {
+          if (
+            cs.opacity !== "1" ||
+            cs.mixBlendMode !== "normal" ||
+            cs.willChange !== "auto" ||
+            cs.appearance !== "none" ||
+            cs.content !== "normal" ||
+            cs.getPropertyValue("-webkit-box-reflect") !== "none" ||
+            cs.boxShadow !== "none" ||
+            cs.textShadow !== "none" ||
+            cs.textDecorationLine !== "none" ||
+            cs.textEmphasisStyle !== "none" ||
+            cs.textOverflow !== "clip" ||
+            cs.getPropertyValue("-webkit-line-clamp") !== "none" ||
+            cs.getPropertyValue("-webkit-text-stroke-width") !== "0px" ||
+            cs.backgroundClip !== "border-box" ||
+            cs.backgroundBlendMode !== "normal" ||
+            !["none", "solid"].includes(cs.outlineStyle) ||
+            cs.outlineOffset !== "0px" ||
+            [
+              cs.borderLeftWidth,
+              cs.borderTopWidth,
+              cs.borderRightWidth,
+              cs.borderBottomWidth,
+              cs.borderTopLeftRadius,
+              cs.borderTopRightRadius,
+              cs.borderBottomRightRadius,
+              cs.borderBottomLeftRadius,
+            ].some((value) => value !== "0px") ||
+            !["none", ""].includes(cs.getPropertyValue("border-shape"))
+          )
+            return;
+        }
+      }
       if (
         style.writingMode !== "horizontal-tb" ||
         style.direction !== "ltr" ||
         style.textTransform !== "none" ||
-        style.translate !== "none" ||
-        style.rotate !== "none" ||
-        style.scale !== "none" ||
-        style.transformBox === "content-box" ||
-        style.transformBox === "fill-box" ||
-        !style.transform.startsWith("matrix(")
+        ownerStyle.translate !== "none" ||
+        ownerStyle.rotate !== "none" ||
+        ownerStyle.scale !== "none" ||
+        ownerStyle.transformBox === "content-box" ||
+        ownerStyle.transformBox === "fill-box" ||
+        !ownerStyle.transform.startsWith("matrix(")
       )
         return;
 
-      const animations = element.getAnimations();
+      const animations = owner.getAnimations();
       if (animations.length !== 1 || animations[0].playState !== "paused" || animations[0].pending) return;
       const active = animations[0];
       if (
         !(active.effect instanceof KeyframeEffect) ||
-        active.effect.target !== element ||
+        active.effect.target !== owner ||
         !active.effect.getKeyframes().some((keyframe) => "transform" in keyframe) ||
         (active.currentTime != null && typeof active.currentTime !== "number")
       )
         return;
-      for (const pseudo of ["::before", "::after"]) {
-        if (!["none", "normal", ""].includes(getComputedStyle(element, pseudo).content)) return;
+      for (const textBox of isMember ? [owner, element] : [element]) {
+        for (const pseudo of ["::before", "::after"]) {
+          if (!["none", "normal", ""].includes(getComputedStyle(textBox, pseudo).content)) return;
+        }
       }
       const comparedProperties = ["font-size", "font-family", "font-weight", "font-style", "color", "text-shadow"];
       const spacingProperties = ["line-height", "letter-spacing", "word-spacing"];
@@ -728,12 +818,18 @@ async function sampleDirectLiveTextFrame(frame: Frame, key: string): Promise<Liv
           return;
       }
 
-      const originParts = style.transformOrigin.trim().split(/\s+/);
+      const originParts = ownerStyle.transformOrigin.trim().split(/\s+/);
       if (originParts.length !== 2 || originParts.some((part) => !/^-?(?:\d+\.?\d*|\.\d+)px$/.test(part))) return;
       const [originX, originY] = originParts.map(Number.parseFloat);
-      const { a, b, c, d, e, f } = new DOMMatrix(style.transform);
+      const { a, b, c, d, e, f } = new DOMMatrix(ownerStyle.transform);
       return {
-        ownerBox: rectRecord(element.getBoundingClientRect()),
+        ownerBox: rectRecord(owner.getBoundingClientRect()),
+        ...(isMember
+          ? {
+              memberBox: rectRecord(element.getBoundingClientRect()),
+              memberStyles: [ownerStyle, style].map((cs) => Array.from(cs, (name) => cs.getPropertyValue(name))),
+            }
+          : {}),
         origin: { x: originX, y: originY },
         transform: { a, b, c, d, e, f },
         children: children.map(({ nodeType, nodeValue }) => ({ type: nodeType, data: nodeValue })),
@@ -761,7 +857,69 @@ interface TextProbeTree {
   tree: CapturedElement[];
 }
 
-async function prepareReadOnlyDirectText(
+/** Animated compositor paint with a fractional device edge can differ from
+ * an exact SVG stroke or fill (DM-YG7K2M). Only admit whole device edges,
+ * including the outer edges of solid outlines. */
+function hasAlignedLiveTextMemberPaint(
+  owner: CapturedElement,
+  member: CapturedElement,
+  viewport: { x: number; y: number },
+  sample: LiveTextFrameSample,
+): boolean {
+  if (
+    !Number.isInteger(viewport.x) ||
+    !Number.isInteger(viewport.y) ||
+    owner.elementRaster != null ||
+    owner.transformSubtreeRaster != null ||
+    member.elementRaster != null ||
+    member.transformSubtreeRaster != null
+  )
+    return false;
+  const matrix = emittedElementTextAffine(owner);
+  const { a, d, e, f } = sample.transform;
+  const shift = owner.styles.transformPaintShift ?? [0, 0];
+  const coordinates = [owner.x + sample.origin.x, owner.y + sample.origin.y, e + shift[0], f + shift[1]];
+  if (
+    matrix == null ||
+    matrix[0] !== a ||
+    matrix[3] !== d ||
+    matrix[1] !== 0 ||
+    matrix[2] !== 0 ||
+    [a, d].some((n) => svgTransformCoefficient(n) !== n) ||
+    coordinates.some((n) => svgTransformCoordinate(n) !== n)
+  )
+    return false;
+  for (const box of [owner, member]) {
+    const background = parseColor(box.styles.backgroundColor);
+    const outline =
+      box.styles.outlineStyle === "solid" ? parseColor(box.styles.outlineColor ?? box.styles.color) : null;
+    if (
+      background == null ||
+      (background.a !== 0 && background.a !== 1) ||
+      (box.styles.outlineStyle === "solid" && outline?.a !== 0 && outline?.a !== 1)
+    )
+      return false;
+    const width = outline?.a === 1 ? Number.parseFloat(box.styles.outlineWidth ?? "") : 0;
+    if (!Number.isInteger(width) || width < 0) return false;
+    if (background.a === 0 && width === 0) continue;
+    if (authenticBorderPaintSnap(box) == null) return false;
+    const { left, top, right, bottom } = snappedBorderEdges(box);
+    if (right <= left || bottom <= top) return false;
+    const xEdges = [left, right, left - width, right + width];
+    const yEdges = [top, bottom, top - width, bottom + width];
+    // The current opaque background and solid rectangular outline serialize
+    // snap-backed coordinates to six decimals.
+    if ([...xEdges, ...yEdges].some((n) => svgTransformCoordinate(n) !== n)) return false;
+    if (
+      xEdges.some((x) => !Number.isInteger(a * x + matrix[4])) ||
+      yEdges.some((y) => !Number.isInteger(d * y + matrix[5]))
+    )
+      return false;
+  }
+  return true;
+}
+
+async function prepareReadOnlyLiveText(
   session: CDPSession,
   prepared: readonly PreparedFrame[],
   key: string,
@@ -769,14 +927,15 @@ async function prepareReadOnlyDirectText(
   captureReadOnlyTree: (key: string) => Promise<TextProbeTree>,
 ): Promise<{ verify: () => Promise<boolean> } | undefined> {
   const preparedFrame = prepared[0];
-  if (prepared.length !== 1 || !preparedFrame.hasDirectLiveTextCandidate) return;
+  if (prepared.length !== 1 || !preparedFrame.hasReadOnlyLiveTextCandidate) return;
   const { frame, token, rows } = preparedFrame;
-  const ownerKey = rows[0].sourceKey;
-  const start = await sampleDirectLiveTextFrame(frame, key);
+  const textKey = rows[0].sourceKey;
+  const ownerKey = rows[0].surfaceOwnerKey;
+  const start = await sampleReadOnlyLiveTextFrame(frame, key);
   if (start == null || start.ranges.length !== rows.length) return;
   const inverse = liveTextInverse(start.ownerBox, start.transform, start.origin);
   if (inverse == null) return;
-  const verify = async () => JSON.stringify(await sampleDirectLiveTextFrame(frame, key)) === JSON.stringify(start);
+  const verify = async () => JSON.stringify(await sampleReadOnlyLiveTextFrame(frame, key)) === JSON.stringify(start);
   let adopted = false;
   try {
     const contexts = await defaultRuntimeContexts(session, key);
@@ -825,10 +984,27 @@ async function prepareReadOnlyDirectText(
       neutralOwner.height !== localBox.height
     )
       return;
+    if (start.memberBox != null) {
+      const member = bySourceKey.get(textKey);
+      const localMember = invertLiveTextRect(start.memberBox, inverse);
+      if (
+        member == null ||
+        localMember == null ||
+        neutralOwner.children.length !== 1 ||
+        neutralOwner.children[0] !== member ||
+        member.children.length !== 0 ||
+        member.x !== localMember.x - viewport.x ||
+        member.y !== localMember.y - viewport.y ||
+        member.width !== localMember.width ||
+        member.height !== localMember.height ||
+        !hasAlignedLiveTextMemberPaint(neutralOwner, member, viewport, start)
+      )
+        return;
+    }
     const facts = factsByFrame(prepared, measured, neutral.tree as ProbeTreeElement[]).get(token);
-    const ownerIndex = ownerKey.slice(ownerKey.indexOf(":") + 1);
-    const owner = facts?.[ownerIndex] as { geometry?: unknown } | undefined;
-    if (owner?.geometry == null || !(await verify())) return;
+    const textIndex = textKey.slice(textKey.indexOf(":") + 1);
+    const text = facts?.[textIndex] as { geometry?: unknown } | undefined;
+    if (text?.geometry == null || !(await verify())) return;
     const finalQuads = await measureTextPaintRows(session, key, prepared, contexts, viewport);
     for (const { sourceTextNodeIndex, paintQuads } of measured) {
       const lastQuads = finalQuads.get(`${token}:${sourceTextNodeIndex}`);
@@ -882,10 +1058,10 @@ export async function prepareTextPaintGeometry(
     captureReadOnlyTree != null &&
     page.frames().length === 1 &&
     prepared.length === 1 &&
-    prepared[0].hasDirectLiveTextCandidate
+    prepared[0].hasReadOnlyLiveTextCandidate
   ) {
     const readOnly = await withCdpSession(page, (session) =>
-      prepareReadOnlyDirectText(session, prepared, key, viewport, captureReadOnlyTree),
+      prepareReadOnlyLiveText(session, prepared, key, viewport, captureReadOnlyTree),
     ).catch(() => undefined);
     if (readOnly != null) {
       return {

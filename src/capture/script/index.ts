@@ -98,7 +98,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     textPaintFactFor,
     textPaintSourceKeyFor,
     textPaintSourceTextNodeIndexFor,
-    readOnlyDirectTextScope,
+    readOnlyLiveTextScope,
     pseudoFragmentFactsFor,
   } = createCaptureFactRegistries(args);
 
@@ -183,7 +183,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     physicalComputedGradientImage,
   });
   const { wrapWithFrozenTransform, threadFrozenTransform, liveTextInverseFor } = createTransformsHandler(
-    readOnlyDirectTextScope(document.documentElement),
+    readOnlyLiveTextScope(document.documentElement),
   );
   const _collapsedBorderFragmentByTable = buildCollapsedBorderFragmentLookup(args);
   const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({

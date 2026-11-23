@@ -45,7 +45,7 @@ export const reconstructLiveTransformPaintSpace = (
   owner: Element,
   style: CSSStyleDeclaration,
   transform: string,
-  { allowDirectText, declaredTransition }: { allowDirectText: boolean; declaredTransition: boolean },
+  { textElement, declaredTransition }: { textElement?: Element; declaredTransition: boolean },
 ): LiveTransformPaintSpace | undefined => {
   const doc = owner.ownerDocument;
   const view = doc.defaultView;
@@ -60,7 +60,7 @@ export const reconstructLiveTransformPaintSpace = (
   const oneAxis = matrix.a === 1 || matrix.d === 1;
   if (
     oneAxis &&
-    (allowDirectText || !declaredTransition || style.willChange !== "auto" || !hasNoCurrentAnimations(owner))
+    (textElement != null || !declaredTransition || style.willChange !== "auto" || !hasNoCurrentAnimations(owner))
   ) {
     return undefined;
   }
@@ -79,16 +79,19 @@ export const reconstructLiveTransformPaintSpace = (
   // A descendant's own layout can be changed by resolving relative
   // coordinates in a producer that still reads live quads or screenshots.
   // Authenticate the entire retained subtree before emitting any wrapper.
-  const hasQualifiedText =
-    allowDirectText &&
-    Array.from(owner.childNodes).every(({ nodeType }) => nodeType === Node.TEXT_NODE || nodeType === Node.COMMENT_NODE);
-  if (!hasQualifiedText && (owner.textContent ?? "").trim() !== "") return undefined;
-  const boxes = new Map<Element, DOMRect>();
+  if (textElement != null && textElement !== owner && textElement.parentElement !== owner) return undefined;
   const elements = [owner, ...owner.getElementsByTagName("*")];
+  if (textElement != null && textElement !== owner && elements.length !== 2) return undefined;
+  const boxes = new Map<Element, DOMRect>();
   const liveOwner = owner.getBoundingClientRect();
   const left = liveOwner.left - matrix.e - (1 - matrix.a) * ox;
   const top = liveOwner.top - matrix.f - (1 - matrix.d) * oy;
   for (const element of elements) {
+    const containsDirectText = Array.from(element.childNodes).some(
+      (child) => child.nodeType === Node.TEXT_NODE && child.textContent?.trim() !== "",
+    );
+    if (containsDirectText && element !== textElement) return undefined;
+    if (element === textElement && element.childElementCount !== 0) return undefined;
     const cs = element === owner ? style : view.getComputedStyle(element);
     if (
       !ordinaryBox.test(element.tagName) ||

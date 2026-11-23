@@ -30,6 +30,7 @@ type TextPaintRegistry = {
   factsByElement?: Array<{ geometry?: CapturedElement["textPaintGeometry"] }>;
   token: string;
   indexByTextNode?: WeakMap<Node, number>;
+  owners?: Element[];
   textRows?: Array<{ element: Element }>;
   liveTextInverse?: LiveTextInverse;
 };
@@ -93,12 +94,13 @@ export const createCaptureFactRegistries = (args: CaptureScriptArgs) => {
         : undefined;
     return registry != null && registry.indexByTextNode != null ? registry.indexByTextNode.get(node) : undefined;
   }
-  function readOnlyDirectTextScope(root: Element) {
+  function readOnlyLiveTextScope(root: Element) {
     const registry = textPaintRegistryFor(root);
-    const owner = registry?.textRows?.[0]?.element;
-    return owner == null || registry?.liveTextInverse == null
+    const owner = registry?.owners?.[0];
+    const text = registry?.textRows?.[0]?.element;
+    return owner == null || text == null || registry?.liveTextInverse == null
       ? undefined
-      : { owner, inverse: registry.liveTextInverse };
+      : { owner, text, inverse: registry.liveTextInverse };
   }
   function pseudoFragmentFactsFor(el: Element) {
     if (typeof args.pseudoFragmentKey !== "string" || args.pseudoFragmentKey === "") return undefined;
@@ -116,7 +118,7 @@ export const createCaptureFactRegistries = (args: CaptureScriptArgs) => {
     textPaintFactFor,
     textPaintSourceKeyFor,
     textPaintSourceTextNodeIndexFor,
-    readOnlyDirectTextScope,
+    readOnlyLiveTextScope,
     pseudoFragmentFactsFor,
   };
 };
