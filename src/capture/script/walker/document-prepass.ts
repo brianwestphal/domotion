@@ -23,12 +23,15 @@ import type { InsetRootShadowContextRecord } from "../../inset-root-shadow-conte
 import { curvedCornerShapes, shadowOnlyRootIsAdmissible, sharpBorderRadii } from "../../shadow-root-admission.js";
 import { adoptAuthorShadowContext, type AuthorShadowContextCapability } from "../../author-shadow-context-record.js";
 import { captureBorderPaintSnap } from "./border-paint-snap.js";
+import type { LiveTextInverse } from "../../live-text-inverse.js";
 
 type TextPaintRegistry = {
   indexByElement?: WeakMap<Element, number>;
   factsByElement?: Array<{ geometry?: CapturedElement["textPaintGeometry"] }>;
   token: string;
   indexByTextNode?: WeakMap<Node, number>;
+  textRows?: Array<{ element: Element }>;
+  liveTextInverse?: LiveTextInverse;
 };
 type PseudoFragmentRegistry = {
   indexByElement?: WeakMap<Element, number>;
@@ -90,6 +93,13 @@ export const createCaptureFactRegistries = (args: CaptureScriptArgs) => {
         : undefined;
     return registry != null && registry.indexByTextNode != null ? registry.indexByTextNode.get(node) : undefined;
   }
+  function readOnlyDirectTextScope(root: Element) {
+    const registry = textPaintRegistryFor(root);
+    const owner = registry?.textRows?.length === 1 ? registry.textRows[0].element : undefined;
+    return owner == null || registry?.liveTextInverse == null
+      ? undefined
+      : { owner, inverse: registry.liveTextInverse };
+  }
   function pseudoFragmentFactsFor(el: Element) {
     if (typeof args.pseudoFragmentKey !== "string" || args.pseudoFragmentKey === "") return undefined;
     var view = el.ownerDocument != null ? el.ownerDocument.defaultView : undefined;
@@ -106,6 +116,7 @@ export const createCaptureFactRegistries = (args: CaptureScriptArgs) => {
     textPaintFactFor,
     textPaintSourceKeyFor,
     textPaintSourceTextNodeIndexFor,
+    readOnlyDirectTextScope,
     pseudoFragmentFactsFor,
   };
 };

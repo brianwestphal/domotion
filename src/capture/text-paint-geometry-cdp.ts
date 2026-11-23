@@ -11,6 +11,13 @@ import { probeFailureWarning } from "./probe-failure.js";
 import { withTimeout } from "../utils/with-timeout.js";
 import { buildCapturedTextPaintGeometry, type ProtocolTextNodeGeometry } from "./text-fragment-geometry.js";
 import type { BlinkRangeFragmentProbe } from "./text-fragment-spans.js";
+import {
+  invertLiveTextQuad,
+  invertLiveTextRect,
+  liveTextInverse,
+  type LiveTextInverse,
+  type LiveTextRect,
+} from "./live-text-inverse.js";
 
 // Defined in every evaluateInFrame scope (browserCallbackExpression).
 declare const neutralizeTransformForFreeze: typeof NeutralizeTransformForFreeze;
@@ -31,6 +38,7 @@ interface PreparedFrame {
   token: string;
   rows: FrameRow[];
   hasTransformOwners: boolean;
+  hasDirectLiveTextCandidate?: boolean;
 }
 
 interface MeasuredRow extends FrameRow {
@@ -50,6 +58,7 @@ interface PageTextPaintRegistry {
   textRows: Array<{ element: Element; textNode: Text }>;
   snapshots: Array<{ owner: HTMLElement; styleAttribute: string | null; restore: () => void }> | null;
   factsByElement: Record<string, unknown>;
+  liveTextInverse?: LiveTextInverse;
 }
 /** `globalThis` as the page callbacks see it: registries keyed by the probe key. */
 type PageRegistryScope = typeof globalThis & Record<string, PageTextPaintRegistry | undefined>;
@@ -57,6 +66,7 @@ type PageRegistryScope = typeof globalThis & Record<string, PageTextPaintRegistr
 export interface TextPaintGeometryProbe {
   key: string;
   warnings: CaptureWarning[];
+  verifyLiveTextFrame?: () => Promise<boolean>;
   /** Run a post-capture materializer in the same pre-transform paint plane. */
   withNeutralTransforms<T>(work: () => Promise<T>): Promise<T>;
   dispose(): Promise<void>;
@@ -241,11 +251,19 @@ async function setupFrameRegistry(
           snapshots: null,
           factsByElement: Object.create(null),
         };
-        return { rows: result, hasTransformOwners: textTransformOwners.size > 0 };
+        const hasDirectLiveTextCandidate =
+          isTop && owners.size === 1 && textRows.length === 1 && owners.has(textRows[0].element);
+        return { rows: result, hasTransformOwners: textTransformOwners.size > 0, hasDirectLiveTextCandidate };
       },
       { selector, key, token, isTop: frame === frame.page().mainFrame() },
     );
-    return { frame, token, rows: prepared.rows, hasTransformOwners: prepared.hasTransformOwners };
+    return {
+      frame,
+      token,
+      rows: prepared.rows,
+      hasTransformOwners: prepared.hasTransformOwners,
+      hasDirectLiveTextCandidate: prepared.hasDirectLiveTextCandidate,
+    };
   } catch {
     return null;
   }
@@ -613,6 +631,190 @@ function factsByFrame(
   return output;
 }
 
+interface LiveTextFrameSample {
+  ownerBox: LiveTextRect;
+  origin: { x: number; y: number };
+  transform: { a: number; b: number; c: number; d: number; e: number; f: number };
+  text: string;
+  range: LiveTextRect;
+  typography: string[];
+  animations: { currentTime: number | null; playbackRate: number }[];
+}
+
+/** Read the candidate afresh, with no CSS writes, animation override or CDP
+ * playback-rate change. One paused top-document owner and one direct
+ * horizontal fragment intentionally keep the read-only branch bounded. */
+async function sampleDirectLiveTextFrame(frame: Frame, key: string): Promise<LiveTextFrameSample | undefined> {
+  return evaluateInFrame(
+    frame,
+    (registryKey) => {
+      const { textRows } = (globalThis as PageRegistryScope)[registryKey] ?? {};
+      if (textRows?.length !== 1) return;
+      const { element, textNode } = textRows[0];
+      if (!element.isConnected || textNode.parentNode !== element || element.childNodes.length !== 1) return;
+      if (element.ownerDocument.fonts.status !== "loaded") return;
+      if (!/^[ -~]+$/.test(textNode.data) || !textNode.data.trim()) return;
+
+      const style = getComputedStyle(element);
+      if (
+        style.writingMode !== "horizontal-tb" ||
+        style.direction !== "ltr" ||
+        style.textTransform !== "none" ||
+        style.translate !== "none" ||
+        style.rotate !== "none" ||
+        style.scale !== "none" ||
+        style.transformBox === "content-box" ||
+        style.transformBox === "fill-box" ||
+        !style.transform.startsWith("matrix(")
+      )
+        return;
+
+      const animations = element.getAnimations();
+      if (animations.length !== 1 || animations[0].playState !== "paused" || animations[0].pending) return;
+      const active = animations[0];
+      if (
+        !(active.effect instanceof KeyframeEffect) ||
+        active.effect.target !== element ||
+        !active.effect.getKeyframes().some((keyframe) => "transform" in keyframe) ||
+        (active.currentTime != null && typeof active.currentTime !== "number")
+      )
+        return;
+      for (const pseudo of ["::before", "::after"]) {
+        if (!["none", "normal", ""].includes(getComputedStyle(element, pseudo).content)) return;
+      }
+      const comparedProperties = ["font-size", "font-family", "font-weight", "font-style", "color", "text-shadow"];
+      for (const pseudo of ["::first-letter", "::first-line"]) {
+        const pseudoStyle = getComputedStyle(element, pseudo);
+        if (!["", "auto", "normal"].includes(pseudoStyle.getPropertyValue("initial-letter"))) return;
+        if (
+          comparedProperties.some((property) => {
+            const value = pseudoStyle.getPropertyValue(property);
+            return value !== "" && value !== style.getPropertyValue(property);
+          })
+        )
+          return;
+      }
+
+      const originParts = style.transformOrigin.trim().split(/\s+/);
+      if (originParts.length !== 2 || originParts.some((part) => !/^-?(?:\d+\.?\d*|\.\d+)px$/.test(part))) return;
+      const [originX, originY] = originParts.map(Number.parseFloat);
+      const { a, b, c, d, e, f } = new DOMMatrix(style.transform);
+      const rectRecord = ({ x, y, width, height }: DOMRect): LiveTextRect => ({ x, y, width, height });
+      const range = document.createRange();
+      range.selectNodeContents(textNode);
+      const rects = range.getClientRects();
+      if (rects.length !== 1 || rects[0].width === 0 || rects[0].height === 0) return;
+      return {
+        ownerBox: rectRecord(element.getBoundingClientRect()),
+        origin: { x: originX, y: originY },
+        transform: { a, b, c, d, e, f },
+        text: textNode.data,
+        range: rectRecord(rects[0]),
+        typography: [...comparedProperties, "line-height", "letter-spacing", "word-spacing"].map((property) =>
+          style.getPropertyValue(property),
+        ),
+        animations: [{ currentTime: active.currentTime, playbackRate: active.playbackRate }],
+      };
+    },
+    key,
+  );
+}
+
+async function storeLiveTextInverse(frame: Frame, key: string, inverse?: LiveTextInverse): Promise<void> {
+  await evaluateInFrame(
+    frame,
+    ({ key, inverse }) => {
+      const registry = (globalThis as PageRegistryScope)[key];
+      if (registry != null) registry.liveTextInverse = inverse;
+    },
+    { key, inverse },
+  );
+}
+
+interface TextProbeTree {
+  tree: CapturedElement[];
+}
+
+async function prepareReadOnlyDirectText(
+  session: CDPSession,
+  prepared: readonly PreparedFrame[],
+  key: string,
+  viewport: { x: number; y: number },
+  captureReadOnlyTree: (key: string) => Promise<TextProbeTree>,
+): Promise<{ verify: () => Promise<boolean> } | undefined> {
+  const preparedFrame = prepared[0];
+  if (prepared.length !== 1 || !preparedFrame.hasDirectLiveTextCandidate) return;
+  const {
+    frame,
+    token,
+    rows: [row],
+  } = preparedFrame;
+  const start = await sampleDirectLiveTextFrame(frame, key);
+  if (start == null) return;
+  const inverse = liveTextInverse(start.ownerBox, start.transform, start.origin);
+  if (inverse == null) return;
+  const verify = async () => JSON.stringify(await sampleDirectLiveTextFrame(frame, key)) === JSON.stringify(start);
+  let adopted = false;
+  try {
+    const contexts = await defaultRuntimeContexts(session, key);
+    const measurementKey = `${token}:${row.sourceTextNodeIndex}`;
+    const [live, ranges] = await Promise.all([
+      measureTextPaintRows(session, key, prepared, contexts, viewport),
+      measureRangeFragments(prepared, key, () => {}),
+    ]);
+    const paintQuads = live.get(measurementKey);
+    const range = ranges.get(measurementKey);
+    if (paintQuads?.length !== 1 || range?.fragments.length !== 1 || range.failureReason != null) return;
+    const liveRange = range.fragments[0].neutralRangeRect;
+    if (JSON.stringify(liveRange) !== JSON.stringify(start.range)) return;
+    const neutralQuad = invertLiveTextQuad(paintQuads[0], inverse, viewport);
+    const neutralRangeRect = invertLiveTextRect(liveRange, inverse);
+    if (neutralQuad == null || neutralRangeRect == null || !(await verify())) return;
+
+    await storeLiveTextInverse(frame, key, inverse);
+    const neutral = await captureReadOnlyTree(key);
+    const localBox = invertLiveTextRect(start.ownerBox, inverse);
+    const bySourceKey = new Map<string, ProbeTreeElement>();
+    walkProbeTree(neutral.tree as ProbeTreeElement[], bySourceKey);
+    const neutralOwner = bySourceKey.get(row.sourceKey);
+    if (
+      localBox == null ||
+      neutralOwner == null ||
+      neutralOwner.x !== localBox.x - viewport.x ||
+      neutralOwner.y !== localBox.y - viewport.y ||
+      neutralOwner.width !== localBox.width ||
+      neutralOwner.height !== localBox.height
+    )
+      return;
+    const measured: MeasuredRow = {
+      ...row,
+      paintQuads,
+      neutralQuads: [neutralQuad],
+      rangeFragments: [{ ...range.fragments[0], neutralRangeRect }],
+    };
+    const facts = factsByFrame(prepared, [measured], neutral.tree as ProbeTreeElement[]).get(token);
+    const ownerIndex = row.sourceKey.slice(row.sourceKey.indexOf(":") + 1);
+    const owner = facts?.[ownerIndex] as { geometry?: unknown } | undefined;
+    if (owner?.geometry == null || !(await verify())) return;
+    const lastQuads = (await measureTextPaintRows(session, key, prepared, contexts, viewport)).get(measurementKey);
+    if (lastQuads == null || quadSetDistance(paintQuads, lastQuads) !== 0 || !(await verify())) return;
+    await evaluateInFrame(
+      frame,
+      ({ key, facts }) => {
+        const registry = (globalThis as PageRegistryScope)[key];
+        if (registry != null) registry.factsByElement = facts;
+      },
+      { key, facts: facts ?? {} },
+    );
+    adopted = true;
+    return { verify };
+  } catch {
+    return;
+  } finally {
+    if (!adopted) await storeLiveTextInverse(frame, key).catch(() => undefined);
+  }
+}
+
 /**
  * Measure one coherent live/neutral/restored frame and leave per-element facts
  * in private frame globals for the synchronous capture script to consume.
@@ -621,7 +823,8 @@ export async function prepareTextPaintGeometry(
   page: Page,
   selector: string,
   viewport: { x: number; y: number; width: number; height: number },
-  captureNeutralTree: (key: string) => Promise<{ tree: CapturedElement[] }>,
+  captureNeutralTree: (key: string) => Promise<TextProbeTree>,
+  captureReadOnlyTree?: (key: string) => Promise<TextProbeTree>,
 ): Promise<TextPaintGeometryProbe> {
   const registry = createPageRegistry<unknown>(page, "TextPaintGeometry");
   const key = registry.key;
@@ -638,6 +841,25 @@ export async function prepareTextPaintGeometry(
   const warnings: CaptureWarning[] = [];
   let playbackRate: number | undefined;
   let neutral = false;
+  if (
+    captureReadOnlyTree != null &&
+    page.frames().length === 1 &&
+    prepared.length === 1 &&
+    prepared[0].hasDirectLiveTextCandidate
+  ) {
+    const readOnly = await withCdpSession(page, (session) =>
+      prepareReadOnlyDirectText(session, prepared, key, viewport, captureReadOnlyTree),
+    ).catch(() => undefined);
+    if (readOnly != null) {
+      return {
+        key,
+        warnings,
+        verifyLiveTextFrame: readOnly.verify,
+        withNeutralTransforms: (work) => work(),
+        dispose: () => registry.dispose(),
+      };
+    }
+  }
   try {
     await withCdpSession(page, async (session) => {
       try {

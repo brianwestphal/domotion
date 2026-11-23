@@ -2534,12 +2534,19 @@ async function captureElementTreeWithWarningsInternal(
         externalSvgUseKey: externalSvgUsePrime.registryKey,
         externalCssSvgKey: externalCssSvg.registryKey,
       };
-      textPaintProbe = await prepareTextPaintGeometry(page, selector, viewport, async (textPaintKey) => {
+      const captureNeutralTextTree = async (textPaintKey: string) => {
         const neutralResult = await page.evaluate(
           `(${CAPTURE_SCRIPT})(${JSON.stringify({ ...captureArgs, textPaintGeometryKey: textPaintKey, textPaintProbe: true })})`,
         );
         return assertCapturedTreeShape(neutralResult, "neutral text-paint capture") as { tree: CapturedElement[] };
-      });
+      };
+      textPaintProbe = await prepareTextPaintGeometry(
+        page,
+        selector,
+        viewport,
+        captureNeutralTextTree,
+        captureNeutralTextTree,
+      );
       await reverifyAnimationFrame();
       const candidates = await evaluateInFrame(
         page,
@@ -2558,17 +2565,38 @@ async function captureElementTreeWithWarningsInternal(
         },
         selector,
       );
-      const finalArgs = { ...captureArgs, textPaintGeometryKey: textPaintProbe.key };
-      if (candidates.outline || candidates.inlineSvg) {
-        authorShadowScope = createAuthorShadowScope(page);
-        if (candidates.outline)
-          await authorShadowScope.prepare(selector, { mode: "selected-root", purpose: "outline root admission" });
-        if (candidates.inlineSvg)
-          await authorShadowScope.prepare(selector, { mode: "inline-svg-roots", purpose: "inline SVG root paint" });
-        await reverifyAnimationFrame();
-        result = await authorShadowScope.evaluateCapture(CAPTURE_SCRIPT, finalArgs);
+      const captureWithText = async (textPaintGeometryKey: string) => {
+        const finalArgs = { ...captureArgs, textPaintGeometryKey };
+        if (candidates.outline || candidates.inlineSvg) {
+          authorShadowScope = createAuthorShadowScope(page);
+          if (candidates.outline)
+            await authorShadowScope.prepare(selector, { mode: "selected-root", purpose: "outline root admission" });
+          if (candidates.inlineSvg)
+            await authorShadowScope.prepare(selector, { mode: "inline-svg-roots", purpose: "inline SVG root paint" });
+          await reverifyAnimationFrame();
+          return authorShadowScope.evaluateCapture(CAPTURE_SCRIPT, finalArgs);
+        }
+        return page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(finalArgs)})`);
+      };
+      const verifyLiveTextFrame = textPaintProbe.verifyLiveTextFrame;
+      if (verifyLiveTextFrame == null) {
+        result = await captureWithText(textPaintProbe.key);
       } else {
-        result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(finalArgs)})`);
+        let frameMatches = await verifyLiveTextFrame();
+        if (frameMatches) {
+          // A capture execution or author-shadow authority failure is terminal.
+          // Only a separate successful sample can establish source-frame drift.
+          const candidate = await captureWithText(textPaintProbe.key);
+          frameMatches = await verifyLiveTextFrame();
+          if (frameMatches) result = candidate;
+        }
+        if (!frameMatches) {
+          await disposeAll(authorShadowScope, textPaintProbe);
+          authorShadowScope = undefined;
+          textPaintProbe = await prepareTextPaintGeometry(page, selector, viewport, captureNeutralTextTree);
+          await reverifyAnimationFrame();
+          result = await captureWithText(textPaintProbe.key);
+        }
       }
     } finally {
       await disposeAll(

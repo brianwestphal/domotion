@@ -15,6 +15,7 @@ tickets:
     "DM-9VS6RT",
     "DM-6AX9BY",
     "DM-CVAZ2S",
+    "DM-2CF8YE",
     "SK-1091",
     "SK-1127",
   ]
@@ -24,6 +25,8 @@ code:
     "src/capture/script/walker/transforms.ts",
     "src/capture/script/walker/live-transform-paint-space.ts",
     "tests/live-transform-paint-space.e2e.test.ts",
+    "tests/live-direct-text-probe.e2e.test.ts",
+    "src/capture/live-text-inverse.ts",
     "src/capture/script/walker/border-paint-snap.ts",
     "src/capture/raster-viewport-space.ts",
     "src/capture/frozen-transform-neutralizer.ts",
@@ -157,9 +160,16 @@ express either, so the capture walk freezes every static planar transform:
   and the scale branch (`CanPropagateSubpixelAccumulation`, Chromium
   `7d859f27`). Verification covers a declared transition, a sampled
   transition and a paused CSS animation, including fractional child paint.
+  DM-2CF8YE also admits a direct horizontal ASCII text fragment on one
+  paused owner in the top document. The capture uses the same inverse on
+  Range rectangles and CDP content quads, checks frame coherence before
+  and after the tree walk, and reuses the existing affine text geometry
+  and SVG wrapper. The read-only probe does not pause the page or replace
+  the owner's animation. If its source changes between reads, capture
+  uses the existing text path.
 - **Live rect** (`styles.transform: none`): other animated/transitioned
   planar transforms and projective planes owned by `transformSubtreeRaster`.
-  Unsupported reconstruction inputs include mixed text or native raster
+  Unsupported reconstruction inputs include mixed or fragmented text, native raster
   producers, nested transforms, multi-fragment geometry, CSS zoom, and
   samples where either axis has scale 1. An active composited scale can drop
   accumulation on both axes even when the sampled matrix leaves one axis

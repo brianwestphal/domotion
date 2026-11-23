@@ -42,6 +42,7 @@ export const reconstructLiveTransformPaintSpace = (
   owner: Element,
   style: CSSStyleDeclaration,
   transform: string,
+  allowDirectText = false,
 ): LiveTransformPaintSpace | undefined => {
   const doc = owner.ownerDocument;
   const view = doc.defaultView;
@@ -64,7 +65,9 @@ export const reconstructLiveTransformPaintSpace = (
   // A descendant's own layout can be changed by resolving relative
   // coordinates in a producer that still reads live quads or screenshots.
   // Authenticate the entire retained subtree before emitting any wrapper.
-  if ((owner.textContent ?? "").trim() !== "") return undefined;
+  const hasQualifiedText =
+    allowDirectText && owner.childNodes.length === 1 && owner.firstChild?.nodeType === Node.TEXT_NODE;
+  if (!hasQualifiedText && (owner.textContent ?? "").trim() !== "") return undefined;
   const boxes = new Map<Element, DOMRect>();
   const elements = [owner, ...owner.getElementsByTagName("*")];
   const liveOwner = owner.getBoundingClientRect();

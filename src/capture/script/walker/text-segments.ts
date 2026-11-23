@@ -1,5 +1,6 @@
 import { isPaintedColor } from "../../../utils/transparent-background.js";
 import type { CapturedTextSegmentSourceMapping, TextSegment } from "../../types.js";
+import { invertLiveTextRect, type LiveTextInverse } from "../../live-text-inverse.js";
 import {
   blinkUsesTextCombine,
   isMixedVerticalUpright,
@@ -76,6 +77,7 @@ type TextServices = {
   finalizeLineClampText?: (el: Element, cs: CSSStyleDeclaration, result: TextCaptureResult) => TextCaptureResult;
   fontFamilyStackFor: (el: Element, family: string, pseudo?: string) => TextSegment["fontFamilyStack"];
   sourceTextNodeIndexFor?: (node: Node) => number | undefined;
+  liveTextInverseFor?: (element: Element) => LiveTextInverse | undefined;
 };
 //
 // Text-node walker: builds the per-line `textSegments` array from the host
@@ -836,7 +838,16 @@ const buildTextSegmentsHandler = ({
   finalizeLineClampText,
   fontFamilyStackFor,
   sourceTextNodeIndexFor,
+  liveTextInverseFor,
 }: TextServices) => {
+  const readHorizontalRangeRect = (el: Element, range: Range): DOMRectReadOnly => {
+    const rect = range.getBoundingClientRect();
+    const inverse = liveTextInverseFor?.(el);
+    if (inverse == null) return rect;
+    const local = invertLiveTextRect(rect, inverse);
+    if (local == null) throw new Error("live text Range geometry no longer matches its layout frame");
+    return new DOMRectReadOnly(local.x, local.y, local.width, local.height);
+  };
   const finishLineClamp = (el: Element, cs: CSSStyleDeclaration, result: TextCaptureResult) =>
     finalizeLineClampText == null ? result : finalizeLineClampText(el, cs, result);
   const sourceMappingForChars = sourceMappingForTextChars;
@@ -1018,7 +1029,7 @@ const buildTextSegmentsHandler = ({
         const r = document.createRange();
         r.setStart(node, part.sourceStart);
         r.setEnd(node, part.sourceEnd);
-        const cr = r.getBoundingClientRect();
+        const cr = readHorizontalRangeRect(el, r);
         const isWs = /^\s+$/.test(part.sourceText);
         if (cr.width === 0 && (cr.height === 0 || isWs)) continue;
         let ch = part.rendered;
@@ -1054,7 +1065,7 @@ const buildTextSegmentsHandler = ({
               const pr = document.createRange();
               pr.setStart(node, peekPart.sourceStart);
               pr.setEnd(node, peekPart.sourceEnd);
-              const pcr = pr.getBoundingClientRect();
+              const pcr = readHorizontalRangeRect(el, pr);
               if (pcr.height > 0 && pcr.height < refH * 1.5) {
                 topForGroup = pcr.top;
                 bottomForGroup = pcr.bottom;

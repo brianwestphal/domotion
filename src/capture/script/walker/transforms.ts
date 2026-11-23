@@ -62,6 +62,7 @@
 // src/capture/frozen-transform-neutralizer.ts.
 //
 import { reconstructLiveTransformPaintSpace, type LiveTransformPaintSpace } from "./live-transform-paint-space.js";
+import type { LiveTextInverse } from "../../live-text-inverse.js";
 import {
   registerFrozenPaintBase,
   registerPaintTransformTranslation,
@@ -469,7 +470,7 @@ export const zoomTransformOrigin = (origin: string, zoom: number): string => {
   return parts.map((part) => `${parseFloat(part) * zoom}px`).join(" ");
 };
 
-export const createTransformsHandler = () => {
+export const createTransformsHandler = (readOnlyDirectText?: { owner: Element; inverse: LiveTextInverse }) => {
   // Computed styles taking the live-rect fallback suppress the wrapper.
   const liveTransformStyles = new WeakSet<CSSStyleDeclaration>();
   let livePaintSpace: LiveTransformPaintSpace | undefined;
@@ -502,6 +503,9 @@ export const createTransformsHandler = () => {
       return captureInner(el, cs, null, null, livePaintSpace?.localRect(el));
     }
     const needsFreeze = transformFreezes(el, cs);
+    if (readOnlyDirectText != null && (readOnlyDirectText.owner !== el || needsFreeze)) {
+      throw new Error("read-only text paint frame gained an unsupported transform");
+    }
     if (needsFreeze) {
       // Neutralize so getBoundingClientRect returns the untransformed layout
       // box; the renderer re-applies the original transform. This holds for an
@@ -531,7 +535,12 @@ export const createTransformsHandler = () => {
     // This route does not install an override animation or change source style.
     // The reconstruction proves that the whole supported subtree shares the
     // inverse before any child is recorded in the wrapper's coordinates.
-    const reconstructed = reconstructLiveTransformPaintSpace(el, cs, originalTransform);
+    const reconstructed = reconstructLiveTransformPaintSpace(
+      el,
+      cs,
+      originalTransform,
+      readOnlyDirectText?.owner === el,
+    );
     const shift =
       reconstructed == null ? undefined : registerFrozenPaintBase(el, originalTransform, cs, reconstructed.ownerBox);
     if (reconstructed != null && shift != null) {
@@ -548,6 +557,9 @@ export const createTransformsHandler = () => {
         releasePaintTransformTranslation(el);
         livePaintSpace = undefined;
       }
+    }
+    if (readOnlyDirectText?.owner === el) {
+      throw new Error("read-only text paint frame does not have a supported local box");
     }
     // Keep the live rect for unsupported animated transforms and projective surfaces.
     liveTransformStyles.add(cs);
@@ -606,5 +618,7 @@ export const createTransformsHandler = () => {
     transformCreatesSc: frozenTransform != null,
   });
 
-  return { wrapWithFrozenTransform, threadFrozenTransform };
+  const liveTextInverseFor = (el: Element) =>
+    livePaintSpace != null && readOnlyDirectText?.owner === el ? readOnlyDirectText.inverse : undefined;
+  return { wrapWithFrozenTransform, threadFrozenTransform, liveTextInverseFor };
 };

@@ -94,8 +94,13 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
   // wrong document during a multi-segment scroll capture.
   const _frameScrollKey = typeof args.frameScrollPropertyKey === "string" ? args.frameScrollPropertyKey : "";
   const _svgReferenceScope = createSvgReferenceScopes();
-  const { textPaintFactFor, textPaintSourceKeyFor, textPaintSourceTextNodeIndexFor, pseudoFragmentFactsFor } =
-    createCaptureFactRegistries(args);
+  const {
+    textPaintFactFor,
+    textPaintSourceKeyFor,
+    textPaintSourceTextNodeIndexFor,
+    readOnlyDirectTextScope,
+    pseudoFragmentFactsFor,
+  } = createCaptureFactRegistries(args);
 
   // Wire up per-concern helpers. Each factory closes over its own state and
   // returns the handles the element walk / the orchestration tail call.
@@ -177,7 +182,9 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     physicalComputedGradientImage,
   });
-  const { wrapWithFrozenTransform, threadFrozenTransform } = createTransformsHandler();
+  const { wrapWithFrozenTransform, threadFrozenTransform, liveTextInverseFor } = createTransformsHandler(
+    readOnlyDirectTextScope(document.documentElement),
+  );
   const _collapsedBorderFragmentByTable = buildCollapsedBorderFragmentLookup(args);
   const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({
     normColor,
@@ -236,6 +243,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     finalizeLineClampText,
     fontFamilyStackFor: _fontFamilyStackFor,
     sourceTextNodeIndexFor: textPaintSourceTextNodeIndexFor,
+    liveTextInverseFor,
   });
   const { injectPseudoSegments } = createPseudoInjectHandler();
   const { captureResizeHandle } = createResizeHandleHandler({

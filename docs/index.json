@@ -255,6 +255,7 @@
           "DM-9VS6RT",
           "DM-6AX9BY",
           "DM-CVAZ2S",
+          "DM-2CF8YE",
           "SK-1091",
           "SK-1127"
         ],
@@ -263,6 +264,8 @@
           "src/capture/script/walker/transforms.ts",
           "src/capture/script/walker/live-transform-paint-space.ts",
           "tests/live-transform-paint-space.e2e.test.ts",
+          "tests/live-direct-text-probe.e2e.test.ts",
+          "src/capture/live-text-inverse.ts",
           "src/capture/script/walker/border-paint-snap.ts",
           "src/capture/raster-viewport-space.ts",
           "src/capture/frozen-transform-neutralizer.ts",
