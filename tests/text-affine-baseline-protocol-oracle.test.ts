@@ -7,6 +7,7 @@ import {
   TEXT_BASELINE_PROTOCOL_SOURCE_PINS,
   decodeBlinkTextLineOrigin,
   decodeVerticalRlBaseline,
+  deriveBlinkPaintOffsetShift,
   mapTextBaselinePoint,
   solveTextBaselineAffine,
   validateTextBaselineProtocolCorpus,
@@ -48,6 +49,27 @@ describe("Blink affine text baseline protocol investigation", () => {
     expect(mapTextBaselinePoint(solved!, neutralBaseline)).toEqual(mapTextBaselinePoint(expected, neutralBaseline));
   });
 
+  it("rounds nested paint offsets in their local basis before mapping their shifts through outer transforms", () => {
+    const neutral = [
+      { id: "outer", position: { x: 100.25, y: 80.375 }, linear: null },
+      { id: "target", position: { x: 105.5, y: 84 }, linear: null },
+    ];
+    expect(
+      deriveBlinkPaintOffsetShift(
+        [
+          { ...neutral[0], linear: [0, 1, -1, 0] },
+          { ...neutral[1], linear: [1, 0.25, 0, 1] },
+        ],
+        neutral,
+      ),
+    ).toEqual({ x: -0.625, y: -0.625 });
+    expect(deriveBlinkPaintOffsetShift([neutral[0], { ...neutral[1], linear: [1, 0.25, 0, 1] }], neutral)).toEqual({
+      x: 0.5,
+      y: 0,
+    });
+    expect(deriveBlinkPaintOffsetShift([neutral[0], { ...neutral[1], linear: [1.5, 0, 0, 1] }], neutral)).toBeNull();
+  });
+
   it("keeps vertical-rl line-relative and physical baseline planes distinct", () => {
     expect(decodeVerticalRlBaseline([10, 20, 40, 20, 40, 100, 10, 100], 12)).toEqual({
       lineRelative: { x: 10, y: 32 },
@@ -73,6 +95,7 @@ describe("Blink affine text baseline protocol investigation", () => {
       "collapse-mixed-fragments",
       "vertical-horizontal-plane",
       "drop-fragment-relative-top",
+      "omit-paint-offset-translation",
     ]);
   });
 });

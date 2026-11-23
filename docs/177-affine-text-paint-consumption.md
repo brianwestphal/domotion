@@ -135,7 +135,7 @@ transformed clamped owner remains one explicit Chromium surface.
 - `src/capture/text-line-origin.test.ts` proves all writing-mode maps, exact
   fractional decomposition, and wrong-plane/provenance/zoom rejection.
 - `tools/text-affine-baseline-protocol-oracle.ts` (`npm run transform:text-baseline-protocol`) proves seven live logical rows
-  and eight destructive mutations before raster comparison.
+  and nine destructive mutations before raster comparison.
 - `tests/text-affine-render.e2e.test.ts` compares Chromium and generated-SVG ink
   bounds at DPR 1 and 2 across identity, translation, nested transforms,
   anisotropy, skew/reflection, wrap, RTL, vertical writing, zoom,

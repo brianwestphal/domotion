@@ -217,11 +217,18 @@ The 2026-08-24 local line-origin run passed 7/7 rows with verdict
 `source-exact-line-origin`: fractional horizontal, nested zoom, mixed-script
 physical fragments, vertical-rl, vertical-lr, sideways-rl, and sideways-lr.
 All rows independently agree on neutral Range geometry, CDP quads, captured
-record fields, the writing map, decoded physical origin, transform-origin-aware
-matrix, and emitted origin. The formerly collapsed mixed-script row now retains
-all `3/3/3` Range/CDP/captured fragments as vectors.
+record fields, the writing map, decoded physical origin, and transform-origin-aware
+matrix. The formerly collapsed mixed-script row retains all `3/3/3`
+Range/CDP/captured fragments as vectors.
 
-Eight destructive controls are mandatory:
+DM-CE1VZD checks horizontal SVG emission against the source's painted baseline.
+The separate Range/CDP and capture checks still use the geometric baseline.
+For each static rotate or skew owner the oracle independently derives Blink's
+rounded paint-offset translation from its untransformed DOM position, then
+maps the delta through the outer transforms. The report retains both expected
+positions. The SVG probe keeps its existing 1/32 CSS px tolerance.
+
+Nine destructive controls are mandatory:
 
 | Mutation                                            | Local discriminator |
 | --------------------------------------------------- | ------------------: |
@@ -233,6 +240,7 @@ Eight destructive controls are mandatory:
 | collapse mixed physical fragments                   |  `3 -> 1` fragments |
 | interpret a vertical origin in the horizontal plane |  `22.561028` CSS px |
 | drop the fractional fragment-relative top           |   `0.375000` CSS px |
+| omit Blink’s rounded paint-offset translation       |   `0.446797` CSS px |
 
 Run the exact source-span/shaping oracle with:
 
@@ -267,7 +275,7 @@ flag or FragmentItem/line-origin tolerance knob.
   deduplication, and collapse/reorder/wrong-span rejection.
 - `src/render/text-affine.test.ts` proves the record is consumed once before
   the residual affine matrix and malformed records fail closed.
-- `tests/text-affine-baseline-protocol-oracle.test.ts` pins the seven-row/eight-
+- `tests/text-affine-baseline-protocol-oracle.test.ts` pins the seven-row/nine-
   mutation corpus; `tests/text-affine-line-origin-workflow.test.ts` pins the
   native release wiring.
 - `tests/text-fragment-span-oracle.test.ts` pins the source and shaping corpus;

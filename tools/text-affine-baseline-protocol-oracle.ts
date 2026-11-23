@@ -104,7 +104,8 @@ export type TextBaselineMutationKind =
   | "drop-transform-origin-translation"
   | "collapse-mixed-fragments"
   | "vertical-horizontal-plane"
-  | "drop-fragment-relative-top";
+  | "drop-fragment-relative-top"
+  | "omit-paint-offset-translation";
 
 export const REQUIRED_TEXT_BASELINE_MUTATIONS: readonly TextBaselineMutationKind[] = [
   "post-transform-aabb-plus-ascent",
@@ -115,6 +116,7 @@ export const REQUIRED_TEXT_BASELINE_MUTATIONS: readonly TextBaselineMutationKind
   "collapse-mixed-fragments",
   "vertical-horizontal-plane",
   "drop-fragment-relative-top",
+  "omit-paint-offset-translation",
 ] as const;
 
 interface Point {
@@ -128,11 +130,18 @@ interface Rect {
   height: number;
 }
 
+interface SourcePaintOwner {
+  id: string;
+  position: Point;
+  linear: [a: number, b: number, c: number, d: number] | "outside-corpus" | null;
+}
+
 interface BrowserTextState {
   rangeBounds: Rect;
   rangeClientRects: Rect[];
   codeUnitRects: Rect[][];
   baselineWitness: Point;
+  paintOwners: SourcePaintOwner[];
   computed: {
     writingMode: string;
     direction: string;
@@ -176,6 +185,8 @@ export interface TextBaselineProtocolRow {
     sourceAscent: number;
     neutralBaselinePoint: Point | null;
     liveBaselinePoint: Point | null;
+    livePaintOffsetShift: Point | null;
+    livePaintBaselinePoint: Point | null;
     capturedPaintBaselinePoint: Point | null;
     independentLineRelativeOrigin: Point | null;
     independentPhysicalBaselinePoint: Point | null;
@@ -185,6 +196,7 @@ export interface TextBaselineProtocolRow {
     maxCapturedMatrixDelta: number;
     maxLiveCaptureBaselineDeltaCssPx: number;
     maxLiveEmittedBaselineDeltaCssPx: number;
+    maxLiveGeometryEmittedBaselineDeltaCssPx: number;
   };
   controls: Record<string, boolean>;
   pass: boolean;
@@ -370,6 +382,47 @@ function sourceSpans(state: BrowserTextState): Array<{ fragmentIndex: number; so
   }));
 }
 
+/**
+ * Independently recover the paint translation of the static rotate/skew
+ * owners in this corpus from their transform-neutral DOM positions. Blink
+ * rounds a new paint-offset translation, then discards both fractional axes
+ * for these transforms. At each new owner the neutral offset is relative to
+ * the last such owner, and its rounding delta travels through every outer
+ * transform. CSS zoom is already in the measured neutral coordinates.
+ *
+ * Chromium 7d859f27, core/paint/paint_property_tree_builder.cc:698-782.
+ */
+export function deriveBlinkPaintOffsetShift(
+  live: readonly SourcePaintOwner[],
+  neutral: readonly SourcePaintOwner[],
+): Point | null {
+  if (live.length !== neutral.length || live.length === 0) return null;
+  const shift = { x: 0, y: 0 };
+  let origin: Point | undefined;
+  let a = 1,
+    b = 0,
+    c = 0,
+    d = 1;
+  for (const [index, owner] of live.entries()) {
+    const other = neutral[index];
+    if (other.id !== owner.id || other.linear != null) return null;
+    if (owner.linear == null) continue;
+    if (owner.linear === "outside-corpus") return null;
+    const [oa, ob, oc, od] = owner.linear;
+    if (![oa, ob, oc, od, other.position.x, other.position.y].every(Number.isFinite) || (ob === 0 && oc === 0))
+      return null;
+    const x = other.position.x - (origin?.x ?? 0);
+    const y = other.position.y - (origin?.y ?? 0);
+    const dx = Math.round(x) - x;
+    const dy = Math.round(y) - y;
+    shift.x += a * dx + c * dy;
+    shift.y += b * dx + d * dy;
+    [a, b, c, d] = [a * oa + c * ob, b * oa + d * ob, a * oc + c * od, b * oc + d * od];
+    origin = other.position;
+  }
+  return origin == null ? null : shift;
+}
+
 async function animationFrame(page: Page): Promise<void> {
   await page.evaluate(
     () => new Promise<void>((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame()))),
@@ -398,6 +451,32 @@ async function browserState(page: Page, session: CDPSession): Promise<BrowserTex
       codeUnitRects.push(rects);
     }
     const markerRect = target.querySelector<HTMLElement>(".baseline-probe")!.getBoundingClientRect();
+    const paintOwners: SourcePaintOwner[] = [];
+    for (let owner: HTMLElement | null = target; owner != null; owner = owner.parentElement) {
+      const { x, y } = owner.getBoundingClientRect();
+      const cs = getComputedStyle(owner);
+      const unsupported =
+        cs.translate !== "none" ||
+        cs.rotate !== "none" ||
+        cs.scale !== "none" ||
+        cs.perspective !== "none" ||
+        cs.transformStyle !== "flat" ||
+        cs.contain !== "none" ||
+        cs.willChange !== "auto" ||
+        owner.getAnimations().length !== 0;
+      const matrix = cs.transform === "none" ? null : new DOMMatrix(cs.transform);
+      if (!owner.hasAttribute("data-affine-owner") && !unsupported && matrix == null) continue;
+      paintOwners.unshift({
+        id: owner.id,
+        position: { x, y },
+        linear:
+          unsupported || (matrix != null && !matrix.is2D)
+            ? "outside-corpus"
+            : matrix == null
+              ? null
+              : [matrix.a, matrix.b, matrix.c, matrix.d],
+      });
+    }
     const style = getComputedStyle(target);
     let effectiveZoom = 1;
     for (let owner: HTMLElement | null = target; owner != null; owner = owner.parentElement) {
@@ -413,6 +492,7 @@ async function browserState(page: Page, session: CDPSession): Promise<BrowserTex
       rangeClientRects,
       codeUnitRects,
       baselineWitness: { x: markerRect.x, y: markerRect.y },
+      paintOwners,
       computed: {
         writingMode: style.writingMode,
         direction: style.direction,
@@ -569,12 +649,20 @@ async function runCase(
         ? Number.POSITIVE_INFINITY
         : maxNumericDelta(firstFragment.paintMatrix, independentMatrix);
     const maxLiveCaptureBaselineDeltaCssPx = pointDistance(liveBaselinePoint, capturedPaintBaselinePoint);
+    const livePaintOffsetShift = deriveBlinkPaintOffsetShift(live.paintOwners, neutral.paintOwners);
+    const livePaintBaselinePoint =
+      liveBaselinePoint == null || livePaintOffsetShift == null
+        ? null
+        : { x: liveBaselinePoint.x + livePaintOffsetShift.x, y: liveBaselinePoint.y + livePaintOffsetShift.y };
     const maxLiveEmittedBaselineDeltaCssPx =
-      writingMode === "horizontal-tb" ? pointDistance(liveBaselinePoint, emitted.firstBaselineStart) : 0;
+      writingMode === "horizontal-tb" ? pointDistance(livePaintBaselinePoint, emitted.firstBaselineStart) : 0;
+    const maxLiveGeometryEmittedBaselineDeltaCssPx = pointDistance(liveBaselinePoint, emitted.firstBaselineStart);
     const logical = {
       sourceAscent,
       neutralBaselinePoint,
       liveBaselinePoint,
+      livePaintOffsetShift,
+      livePaintBaselinePoint,
       capturedPaintBaselinePoint,
       independentLineRelativeOrigin: decoded?.lineRelative ?? null,
       independentPhysicalBaselinePoint: decoded?.physical ?? null,
@@ -584,9 +672,11 @@ async function runCase(
       maxCapturedMatrixDelta,
       maxLiveCaptureBaselineDeltaCssPx,
       maxLiveEmittedBaselineDeltaCssPx,
+      maxLiveGeometryEmittedBaselineDeltaCssPx,
     };
     const sharedControls = {
       liveAndRestoredQuadsMatch: logical.maxRestorationDeltaCssPx <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+      liveAndRestoredPaintOwnersMatch: JSON.stringify(live.paintOwners) === JSON.stringify(restored.paintOwners),
       rangeAndCdpFragmentCountsMatch: neutral.rangeClientRects.length === neutral.quads.length,
       everyRangeFragmentHasSourceOffsets: logical.rangeFragmentSourceSpans.every(
         (fragment) => fragment.sourceOffsets.length > 0,
@@ -627,6 +717,7 @@ async function runCase(
         matrixMapsBaselineBeforeTransform:
           pointDistance(liveBaselinePoint, capturedPaintBaselinePoint) <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
         capturedBaselineMapsToLive: logical.maxLiveCaptureBaselineDeltaCssPx <= TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX,
+        frozenPaintOffsetDerived: livePaintOffsetShift != null,
         emittedBaselineMapsToLive:
           writingMode !== "horizontal-tb" ||
           logical.maxLiveEmittedBaselineDeltaCssPx <= TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,
@@ -727,6 +818,12 @@ export function evaluateTextBaselineMutations(rows: readonly TextBaselineProtoco
     mutationResult("collapse-mixed-fragments", mixed?.neutral.quads.length ?? Infinity, 1, 0),
     mutationResult("vertical-horizontal-plane", 0, wrongVerticalPlane, 1),
     mutationResult("drop-fragment-relative-top", 0, fragmentTopDelta, TEXT_BASELINE_LOGICAL_EPSILON_CSS_PX),
+    mutationResult(
+      "omit-paint-offset-translation",
+      fractional?.logical.maxLiveEmittedBaselineDeltaCssPx ?? Infinity,
+      fractional?.logical.maxLiveGeometryEmittedBaselineDeltaCssPx ?? Infinity,
+      TEXT_BASELINE_EMITTED_SERIALIZATION_EPSILON_CSS_PX,
+    ),
   ].map((mutation) =>
     mutation.kind === "collapse-mixed-fragments"
       ? {
