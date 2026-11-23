@@ -95,74 +95,85 @@ describe("native containment stacking eligibility (DM-5YF0BB)", () => {
     }
   }, 90_000);
 
-  it("caches neutral built-ins without modifying or constructing source custom elements", async () => {
-    const page = await browser.newPage({ viewport: { width: 200, height: 100 } });
-    try {
-      await page.setContent(
-        "<style>x-containment-guard,span{display:block;contain:layout;width:40px;height:20px}</style><x-containment-guard></x-containment-guard><span></span><span></span>",
-      );
-      await page.evaluate(() => {
-        const state = { constructed: 0, connected: 0, probes: 0, probeSourceMutations: 0, probeCallbacks: 0 };
-        let probing = false;
-        customElements.define(
-          "x-containment-guard",
-          class extends HTMLElement {
-            static get observedAttributes() {
-              return ["style"];
-            }
-            constructor() {
-              super();
-              state.constructed++;
-            }
-            connectedCallback() {
-              state.connected++;
-            }
-            attributeChangedCallback() {
-              if (probing) state.probeCallbacks++;
-            }
-          },
+  it.each([
+    { mode: "box-only", text: "", probes: 1 },
+    { mode: "text-bearing", text: "measured", probes: 2 },
+  ])(
+    "caches neutral built-ins without modifying or constructing source custom elements ($mode)",
+    async ({ text, probes }) => {
+      const page = await browser.newPage({ viewport: { width: 200, height: 100 } });
+      try {
+        await page.setContent(
+          `<style>x-containment-guard,span{display:block;contain:layout;width:40px;height:20px}</style><x-containment-guard></x-containment-guard><span>${text}</span><span></span>`,
         );
-        const source = document.querySelector("x-containment-guard")!;
-        const observer = new MutationObserver(() => {});
-        observer.observe(source, { attributes: true, childList: true, subtree: true });
-        const isProbe = (node: Node): boolean =>
-          node instanceof HTMLElement && node.getAttribute("aria-hidden") === "true" && node.style.contain === "layout";
-        const append = Node.prototype.appendChild;
-        Node.prototype.appendChild = function <T extends Node>(node: T): T {
-          if (isProbe(node)) {
-            observer.takeRecords();
-            probing = true;
-            state.probes++;
-          }
-          return append.call(this, node) as T;
-        };
-        const remove = Element.prototype.remove;
-        Element.prototype.remove = function (): void {
-          if (isProbe(this)) {
-            state.probeSourceMutations += observer.takeRecords().length;
-            probing = false;
-          }
-          remove.call(this);
-        };
-        Object.defineProperty(window, "__containmentTest", { value: state, configurable: true });
-      });
-      const before = await page.locator("x-containment-guard").evaluate((node) => node.outerHTML);
-      const captured = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 200, height: 100 });
-      expect(await page.locator("x-containment-guard").evaluate((node) => node.outerHTML)).toBe(before);
-      // DM-D8Y3WJ tracks full native-control style-attribute restoration.
-      // This contract measures our neutral probe interval without hiding it.
-      // Capture runs text-geometry discovery and the final walk separately;
-      // three matching owners need one cached probe in each invocation.
-      expect(
-        await page.evaluate(() => (window as typeof window & { __containmentTest: unknown }).__containmentTest),
-      ).toEqual({ constructed: 1, connected: 1, probes: 2, probeSourceMutations: 0, probeCallbacks: 0 });
-      const hosts = walk(captured.tree).filter((node) => ["x-containment-guard", "span", "button"].includes(node.tag));
-      expect(hosts).toHaveLength(3);
-      expect(hosts.every((node) => node.styles.paintOrLayoutContainmentEligible === true)).toBe(true);
-    } finally {
-      await page.close();
-    }
-  }, 60_000);
+        await page.evaluate(() => {
+          const state = { constructed: 0, connected: 0, probes: 0, probeSourceMutations: 0, probeCallbacks: 0 };
+          let probing = false;
+          customElements.define(
+            "x-containment-guard",
+            class extends HTMLElement {
+              static get observedAttributes() {
+                return ["style"];
+              }
+              constructor() {
+                super();
+                state.constructed++;
+              }
+              connectedCallback() {
+                state.connected++;
+              }
+              attributeChangedCallback() {
+                if (probing) state.probeCallbacks++;
+              }
+            },
+          );
+          const source = document.querySelector("x-containment-guard")!;
+          const observer = new MutationObserver(() => {});
+          observer.observe(source, { attributes: true, childList: true, subtree: true });
+          const isProbe = (node: Node): boolean =>
+            node instanceof HTMLElement &&
+            node.getAttribute("aria-hidden") === "true" &&
+            node.style.contain === "layout";
+          const append = Node.prototype.appendChild;
+          Node.prototype.appendChild = function <T extends Node>(node: T): T {
+            if (isProbe(node)) {
+              observer.takeRecords();
+              probing = true;
+              state.probes++;
+            }
+            return append.call(this, node) as T;
+          };
+          const remove = Element.prototype.remove;
+          Element.prototype.remove = function (): void {
+            if (isProbe(this)) {
+              state.probeSourceMutations += observer.takeRecords().length;
+              probing = false;
+            }
+            remove.call(this);
+          };
+          Object.defineProperty(window, "__containmentTest", { value: state, configurable: true });
+        });
+        const before = await page.locator("x-containment-guard").evaluate((node) => node.outerHTML);
+        const captured = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 200, height: 100 });
+        expect(await page.locator("x-containment-guard").evaluate((node) => node.outerHTML)).toBe(before);
+        // DM-D8Y3WJ tracks full native-control style-attribute restoration.
+        // This contract measures our neutral probe interval without hiding it.
+        // Three matching owners share one cached probe per walker invocation.
+        // A text-bearing tree also needs the neutral text-geometry walk.
+        expect(
+          await page.evaluate(() => (window as typeof window & { __containmentTest: unknown }).__containmentTest),
+        ).toEqual({ constructed: 1, connected: 1, probes, probeSourceMutations: 0, probeCallbacks: 0 });
+        const hosts = walk(captured.tree).filter((node) =>
+          ["x-containment-guard", "span", "button"].includes(node.tag),
+        );
+        expect(hosts).toHaveLength(3);
+        expect(hosts.every((node) => node.styles.paintOrLayoutContainmentEligible === true)).toBe(true);
+      } finally {
+        await page.close();
+      }
+    },
+    60_000,
+  );
 
   it("measures safe built-in button hosts instead of inferring eligibility from a source tag", async () => {
     const page = await browser.newPage({ viewport: { width: 100, height: 80 } });
