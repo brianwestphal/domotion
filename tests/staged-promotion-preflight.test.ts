@@ -12,6 +12,10 @@ const STAGED = "b".repeat(40);
 const OTHER = "c".repeat(40);
 const REPOSITORY = "brianwestphal/domotion";
 const ACTIONS_APP = 15368;
+const LINUX_RUNS = `actions/workflows/test-linux.yml/runs?branch=integration&event=push&head_sha=${STAGED}&per_page=100`;
+const WINDOWS_RUNS = `actions/workflows/windows-fidelity.yml/runs?branch=integration&event=push&head_sha=${STAGED}&per_page=100`;
+const LINUX_JOBS = "actions/runs/71/attempts/2/jobs?per_page=100";
+const WINDOWS_JOBS = "actions/runs/72/attempts/2/jobs?per_page=100";
 const LINUX = "Linux fidelity regression";
 const WINDOWS = "Windows fidelity regression";
 const RUNS = `actions/workflows/ci.yml/runs?branch=integration&event=push&head_sha=${STAGED}&per_page=100`;
@@ -43,8 +47,35 @@ function checkRun(id: number, name: string, options: Record<string, unknown> = {
     name,
     head_sha: STAGED,
     app: { id: ACTIONS_APP },
+    url: `https://api.github.com/repos/${REPOSITORY}/check-runs/${id}`,
+    check_suite: { id: id + 200 },
     status: "completed",
     conclusion: "success",
+    ...options,
+  };
+}
+
+function nativeRun(context: string, options: Record<string, unknown> = {}) {
+  const linux = context === LINUX;
+  return workflowRun({
+    id: linux ? 71 : 72,
+    check_suite_id: linux ? 251 : 252,
+    path: linux ? ".github/workflows/test-linux.yml" : ".github/workflows/windows-fidelity.yml",
+    ...options,
+  });
+}
+
+function nativeJob(id: number, context: string, options: Record<string, unknown> = {}) {
+  return {
+    id,
+    name: context,
+    run_id: context === LINUX ? 71 : 72,
+    run_attempt: 2,
+    head_branch: "integration",
+    head_sha: STAGED,
+    status: "completed",
+    conclusion: "success",
+    check_run_url: `https://api.github.com/repos/${REPOSITORY}/check-runs/${id}`,
     ...options,
   };
 }
@@ -70,6 +101,12 @@ function fixture(
 ) {
   const responses = {
     [RUNS]: [page("workflow_runs", [workflowRun()])],
+    [LINUX_RUNS]: [page("workflow_runs", [nativeRun(LINUX)])],
+    [WINDOWS_RUNS]: [page("workflow_runs", [nativeRun(WINDOWS)])],
+    [LINUX_JOBS]: [page("jobs", [nativeJob(51, LINUX)])],
+    [WINDOWS_JOBS]: [page("jobs", [nativeJob(52, WINDOWS)])],
+    "check-runs/51": checkRun(51, LINUX),
+    "check-runs/52": checkRun(52, WINDOWS),
     [PROTECTION]: {
       strict: true,
       contexts: [LINUX, WINDOWS],
@@ -96,7 +133,9 @@ function fixture(
       expect(args.slice(0, 5)).toEqual(["api", "--hostname", "github.com", "--method", "GET"]);
       const endpoint = args.at(-1)?.replace(`repos/${REPOSITORY}/`, "") ?? "";
       expect(args.at(-1)).toBe(`repos/${REPOSITORY}/${endpoint}`);
-      expect(args.slice(5, -1)).toEqual(endpoint === PROTECTION ? [] : ["--paginate", "--slurp"]);
+      expect(args.slice(5, -1)).toEqual(
+        endpoint === PROTECTION || endpoint.startsWith("check-runs/") ? [] : ["--paginate", "--slurp"],
+      );
       if (endpoint === overrides.failEndpoint) return result(JSON.stringify(responses[endpoint]), 1);
       if (endpoint === overrides.malformedEndpoint) return result("{");
       if (Object.hasOwn(responses, endpoint)) return result(JSON.stringify(responses[endpoint]));
@@ -115,12 +154,90 @@ describe("staged promotion preflight (DM-Q8ASR2)", () => {
       main: MAIN,
       integration: STAGED,
       stagedRun: { id: 42, attempt: 2, url: `https://github.com/${REPOSITORY}/actions/runs/42` },
+      nativeRuns: [
+        {
+          context: LINUX,
+          id: 71,
+          attempt: 2,
+          event: "push",
+          branch: "integration",
+          workflow: ".github/workflows/test-linux.yml",
+          checkRunId: 51,
+        },
+        {
+          context: WINDOWS,
+          id: 72,
+          attempt: 2,
+          event: "push",
+          branch: "integration",
+          workflow: ".github/workflows/windows-fidelity.yml",
+          checkRunId: 52,
+        },
+      ],
       requiredChecks: [
         { context: LINUX, appId: ACTIONS_APP, checkRunIds: [51], commitStatusId: null },
         { context: WINDOWS, appId: ACTIONS_APP, checkRunIds: [52], commitStatusId: null },
       ],
     });
     expect(run.mock.calls.filter(([program, args]) => program === "git" && args[0] === "ls-remote")).toHaveLength(2);
+  });
+
+  it("refuses manual-only evidence even when both configured Actions checks passed", () => {
+    expect(() => fixture({ api: { [LINUX_RUNS]: [page("workflow_runs", [])] } }).check()).toThrow(
+      "no exact staged test-linux.yml push run",
+    );
+    for (const [endpoint, context] of [
+      [LINUX_RUNS, LINUX],
+      [WINDOWS_RUNS, WINDOWS],
+    ] as const) {
+      expect(() =>
+        fixture({
+          api: { [endpoint]: [page("workflow_runs", [nativeRun(context, { event: "workflow_dispatch" })])] },
+        }).check(),
+      ).toThrow("unexpected staged workflow run");
+    }
+  });
+
+  it.each([
+    { head_sha: OTHER },
+    { head_branch: "main" },
+    { path: ".github/workflows/other.yml" },
+    { repository: { full_name: "other/domotion" } },
+    { head_repository: { full_name: "other/domotion" } },
+    { status: "in_progress", conclusion: null },
+    { conclusion: "failure" },
+    { check_suite_id: 999 },
+  ])("requires the successful native workflow from the exact staged repository and suite %j", (fields) => {
+    expect(() =>
+      fixture({ api: { [WINDOWS_RUNS]: [page("workflow_runs", [nativeRun(WINDOWS, fields)])] } }).check(),
+    ).toThrow();
+  });
+
+  it.each([
+    { id: 999 },
+    { name: "Windows diagnostics" },
+    { run_id: 999 },
+    { run_attempt: 1 },
+    { head_sha: OTHER },
+    { head_branch: "main" },
+    { conclusion: "skipped" },
+    { status: "queued" },
+    { check_run_url: "https://api.github.com/repos/other/domotion/check-runs/52" },
+  ])("requires the exact Actions job-to-check binding %j", (fields) => {
+    expect(() =>
+      fixture({ api: { [WINDOWS_JOBS]: [page("jobs", [nativeJob(52, WINDOWS, fields)])] } }).check(),
+    ).toThrow();
+  });
+
+  it.each([
+    { id: 99 },
+    { head_sha: OTHER },
+    { app: { id: 9 } },
+    { name: LINUX },
+    { check_suite: { id: 251 } },
+    { conclusion: "failure" },
+  ])("rejects conflicting native check details despite green commit-level metadata %j", (fields) => {
+    expect(() => fixture({ api: { "check-runs/52": checkRun(52, WINDOWS, fields) } }).check()).toThrow("is not bound");
   });
 
   it("rejects a short SHA before reading anything", () => {

@@ -5,12 +5,9 @@ name: Windows fidelity
 # in a Linux container — Wine's dwrite reimplementation does not match real
 # Windows fallback, and the Windows system fonts aren't redistributable.
 #
-# MANUAL DISPATCH ONLY — Windows functionality and font-capture precision are
-# first-class commitments, as specified in AGENTS.md. Manual dispatch controls
-# validation frequency because DirectWrite conformance is slower; it does not
-# lower the correctness contract. Windows-specific regressions are real defects.
-# Dispatch native validation before a release, after Windows-affecting routing,
-# helper, metric or packaging changes, and when investigating a Windows report.
+# The regression job runs on integration pushes so GitHub can evaluate the exact
+# staged commit for branch protection. Manual dispatch retains the full native
+# profile and focused diagnostics for Windows-specific work and release validation.
 #
 # The win32 fallback chain is calibrated and the feature suite passes within the
 # documented Windows text-hinting floor (DM-836 / DM-262), so `regression` is
@@ -28,14 +25,8 @@ name: Windows fidelity
 # Windows font stack — the release-independent way to validate the win32 helper.
 
 on:
-  # MANUAL DISPATCH ONLY. See AGENTS.md's platform-support policy: macOS is the
-  # primary development host, while Windows remains a first-class native target.
-  # Choose focused native profiles for the affected scope and run the complete
-  # validation warranted by release risk. The baseline-relative regression gate
-  # remains meaningful; reduced frequency does not excuse Windows breakage.
-  #
-  # Required-check configuration belongs to the repository's GitHub branch
-  # protection settings; this workflow does not change those settings.
+  push:
+    branches: [integration]
   workflow_dispatch:
     inputs:
       worker_bootstrap_only:
@@ -47,13 +38,17 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   # Match the Release workflow's pin (Node 22.22.x ships a broken bundled npm).
   NODE_VERSION: "22.21.0"
 
 jobs:
   font-width-probe:
-    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -377,7 +372,7 @@ jobs:
           if-no-files-found: error
 
   decoration-geometry:
-    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     name: Windows decoration geometry
     runs-on: windows-latest
     steps:
@@ -433,7 +428,7 @@ jobs:
   # the job. Numbers from this runner say nothing about desktop Windows 11 —
   # each environment is judged only against itself.
   family-match:
-    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     name: Windows family-match conformance
     runs-on: windows-latest
     steps:
@@ -518,7 +513,7 @@ jobs:
   # one just proves it compiles and matches fontkit) — run it after editing the
   # C++ to catch build / y-flip / .ttc-resolution issues without cutting a tag.
   glyph-extractor-build:
-    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -555,7 +550,7 @@ jobs:
   # committed table on real desktop Windows 11 (run `tools/probe-983-sweep.mjs`
   # there, then `node tools/probe-983-genroutes-win32.mjs` locally).
   font-routing-sweep:
-    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -583,7 +578,7 @@ jobs:
   # the delta pattern says whether xOffsets are absent (renderer sums fontkit
   # advances), unfaithful (capture), or matching (render-side / vertical).
   text-drift-probe:
-    if: ${{ !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.arm64_family_match && !inputs.worker_bootstrap_only }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

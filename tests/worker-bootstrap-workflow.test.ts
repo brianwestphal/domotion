@@ -11,7 +11,7 @@ const enabled = (value: unknown, inputs: Record<string, boolean>, event = "workf
       const term = raw.trim();
       if (term === "true") return true;
       if (term === "github.event_name == 'workflow_dispatch'") return event === "workflow_dispatch";
-      if (term === "github.event_name != 'pull_request'") return event !== "pull_request";
+      if (term === "github.event_name != 'push'") return event !== "push";
       const match = term.match(/^(!?)inputs\.([a-z0-9_]+)$/);
       if (match == null) throw new Error(`Unexpected profile condition: ${term}`);
       return match[1] === "!" ? !inputs[match[2]!] : inputs[match[2]!] === true;
@@ -26,6 +26,10 @@ describe.each([
     worker = record(jobs["worker-bootstrap"]),
     conflict = record(jobs["reject-conflicting-worker-profile"]);
   const inputs = record(record(record(workflow["on"])["workflow_dispatch"])["inputs"]);
+  it("selects the full regression job on a staged push with no dispatch inputs", () => {
+    const automatic = Object.entries(jobs).filter(([, job]) => enabled(record(job)["if"], {}, "push"));
+    expect(automatic.map(([name]) => name)).toEqual(["regression"]);
+  });
   it("keeps full/default gate selection and gives the focused job a distinct name", () => {
     expect(record(inputs["worker_bootstrap_only"])["default"]).toBe(false);
     expect(enabled(record(jobs["regression"])["if"], { worker_bootstrap_only: false, [other]: false })).toBe(true);

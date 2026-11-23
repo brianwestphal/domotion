@@ -7,7 +7,11 @@ import { githubOriginRepository, runCommand } from "./verified-worktree-cleanup.
 const SHA = /^[a-f0-9]{40}$/;
 const MAIN = "refs/heads/main";
 const INTEGRATION = "refs/heads/integration";
-const CI_PATH = ".github/workflows/ci.yml";
+const ACTIONS_APP_ID = 15368;
+const NATIVE_WORKFLOWS = new Map([
+  ["Linux fidelity regression", "test-linux.yml"],
+  ["Windows fidelity regression", "windows-fidelity.yml"],
+]);
 const USAGE = "Usage: node scripts/check-staged-promotion.mjs <full-integration-commit-sha>";
 
 function requireThat(condition, message) {
@@ -148,40 +152,45 @@ export function checkStagedPromotion(sha, cwd = process.cwd(), run = runCommand)
     }
   };
 
-  const runs = collectPages(
-    api(
-      `actions/workflows/ci.yml/runs?branch=integration&event=push&head_sha=${sha}&per_page=100`,
-      "read exact staged push CI runs",
-      true,
-    ),
-    "workflow_runs",
-  );
-  requireThat(runs.length > 0, "no exact staged ci.yml push run exists");
-  requireThat(
-    runs.every(
-      (run) =>
-        run.head_sha === sha &&
-        run.head_branch === "integration" &&
-        run.event === "push" &&
-        run.path === CI_PATH &&
-        typeof run.repository?.full_name === "string" &&
-        run.repository.full_name.toLowerCase() === repository.name &&
-        typeof run.head_repository?.full_name === "string" &&
-        run.head_repository.full_name.toLowerCase() === repository.name &&
-        isProviderId(run.run_number) &&
-        isProviderId(run.run_attempt),
-    ),
-    "GitHub returned an unexpected staged workflow run",
-  );
-  requireThat(
-    new Set(runs.map((run) => run.run_number)).size === runs.length,
-    "GitHub reported conflicting attempts for the same staged workflow run",
-  );
-  const latest = runs.sort((left, right) => right.run_number - left.run_number)[0];
-  requireThat(
-    latest.status === "completed" && latest.conclusion === "success",
-    `latest exact staged ci.yml push run ${latest.id} is ${JSON.stringify(latest.status)}/${JSON.stringify(latest.conclusion)}`,
-  );
+  const latestStagedPush = (file) => {
+    const runs = collectPages(
+      api(
+        `actions/workflows/${file}/runs?branch=integration&event=push&head_sha=${sha}&per_page=100`,
+        `read exact staged push runs for ${file}`,
+        true,
+      ),
+      "workflow_runs",
+    );
+    requireThat(runs.length > 0, `no exact staged ${file} push run exists`);
+    requireThat(
+      runs.every(
+        (run) =>
+          run.head_sha === sha &&
+          run.head_branch === "integration" &&
+          run.event === "push" &&
+          run.path === `.github/workflows/${file}` &&
+          typeof run.repository?.full_name === "string" &&
+          run.repository.full_name.toLowerCase() === repository.name &&
+          typeof run.head_repository?.full_name === "string" &&
+          run.head_repository.full_name.toLowerCase() === repository.name &&
+          isProviderId(run.run_number) &&
+          isProviderId(run.run_attempt),
+      ),
+      "GitHub returned an unexpected staged workflow run",
+    );
+    requireThat(
+      new Set(runs.map((run) => run.run_number)).size === runs.length,
+      "GitHub reported conflicting attempts for the same staged workflow run",
+    );
+    const latest = runs.sort((left, right) => right.run_number - left.run_number)[0];
+    requireThat(
+      latest.status === "completed" && latest.conclusion === "success",
+      `latest exact staged ${file} push run ${latest.id} is ${JSON.stringify(latest.status)}/${JSON.stringify(latest.conclusion)}`,
+    );
+
+    return latest;
+  };
+  const latest = latestStagedPush("ci.yml");
 
   const protection = api(
     "branches/main/protection/required_status_checks",
@@ -205,6 +214,51 @@ export function checkStagedPromotion(sha, cwd = process.cwd(), run = runCommand)
   );
 
   const requiredChecks = requirements.map((requirement) => checkRequiredContext(requirement, checks, statuses));
+  const nativeRuns = [];
+  for (const [context, file] of NATIVE_WORKFLOWS) {
+    const workflow = latestStagedPush(file);
+    const jobs = collectPages(
+      api(
+        `actions/runs/${workflow.id}/attempts/${workflow.run_attempt}/jobs?per_page=100`,
+        `read ${file} push attempt jobs`,
+        true,
+      ),
+      "jobs",
+    );
+    const matching = jobs.filter((job) => job.name === context);
+    requireThat(matching.length === 1, `${file} push attempt must contain exactly one ${context} job`);
+    const [job] = matching;
+    const check = api(`check-runs/${job.id}`, `read the ${context} Actions job's check run`);
+    requireThat(
+      job.run_id === workflow.id &&
+        job.run_attempt === workflow.run_attempt &&
+        job.head_sha === sha &&
+        job.head_branch === "integration" &&
+        job.status === "completed" &&
+        job.conclusion === "success" &&
+        check?.id === job.id &&
+        check.head_sha === sha &&
+        check.app?.id === ACTIONS_APP_ID &&
+        check.name === context &&
+        check.status === "completed" &&
+        check.conclusion === "success" &&
+        isProviderId(workflow.check_suite_id) &&
+        check.check_suite?.id === workflow.check_suite_id &&
+        typeof check.url === "string" &&
+        check.url.toLowerCase() === `https://api.github.com/repos/${repository.name}/check-runs/${job.id}` &&
+        job.check_run_url === check.url,
+      `${context} job ${job.id} is not bound to a successful exact-SHA Actions check from the staged ${file} push`,
+    );
+    nativeRuns.push({
+      context,
+      id: workflow.id,
+      attempt: workflow.run_attempt,
+      event: workflow.event,
+      branch: workflow.head_branch,
+      workflow: workflow.path,
+      checkRunId: job.id,
+    });
+  }
   const current = readTips();
   requireThat(
     tips.main === current.main && tips.integration === current.integration,
@@ -221,6 +275,7 @@ export function checkStagedPromotion(sha, cwd = process.cwd(), run = runCommand)
       url: `https://${repository.argument}/actions/runs/${latest.id}`,
     },
     requiredChecks,
+    nativeRuns,
   };
 }
 

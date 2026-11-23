@@ -30,6 +30,8 @@ name: Linux fidelity
 #                          so you can eyeball where Linux output diverges.
 
 on:
+  push:
+    branches: [integration]
   workflow_dispatch:
     inputs:
       worker_bootstrap_only:
@@ -48,6 +50,10 @@ on:
   # cost is small and it can never silently go un-run.
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 # Keep this image tag in sync with the installed @playwright/test version
 # (scripts/test-linux-docker.sh derives the same tag dynamically). The image
 # bundles Node + the Chromium build the suite captures with — matching CI's
@@ -61,7 +67,7 @@ jobs:
     # always reports on PRs. Keep this diagnostic probe (and glyph-extractor-build
     # below) OFF the every-PR path — run them on demand (workflow_dispatch) — so
     # only the gate runs on a normal PR.
-    if: github.event_name != 'pull_request' && !inputs.image_root_metrics_only && !inputs.worker_bootstrap_only
+    if: github.event_name == 'workflow_dispatch' && !inputs.image_root_metrics_only && !inputs.worker_bootstrap_only
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
@@ -488,7 +494,7 @@ jobs:
   # with the calibrated container fonts AND a built helper, so the
   # nomination-walk pins actually execute here rather than skipping.
   family-match:
-    if: ${{ !inputs.image_root_metrics_only && !inputs.worker_bootstrap_only }}
+    if: ${{ github.event_name != 'push' && !inputs.image_root_metrics_only && !inputs.worker_bootstrap_only }}
     name: Linux family-match conformance
     runs-on: ubuntu-latest
     container:
@@ -536,7 +542,7 @@ jobs:
   # proves it compiles and matches fontkit) — run after editing the C++ to catch
   # build / coordinate issues without cutting a tag.
   glyph-extractor-build:
-    if: github.event_name != 'pull_request' && !inputs.worker_bootstrap_only # DM-1405: on-demand, not on every PR (see font-width-probe)
+    if: github.event_name == 'workflow_dispatch' && !inputs.worker_bootstrap_only # DM-1405: on-demand, not on every PR (see font-width-probe)
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble

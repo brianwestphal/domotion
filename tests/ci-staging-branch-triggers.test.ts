@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 // promotion would ship it unverified. Only the Pages deploy stays main-only.
 const WORKFLOWS = ".github/workflows";
 const MAIN_ONLY = new Set(["pages.yml"]);
+const STAGING_ONLY = ["test-linux.yml", "windows-fidelity.yml"];
 
 const pushBranches = (source: string): string | undefined =>
   /\n {2}push:\s*\n(?: {4}[^\n]*\n)*? {4}branches: (\[[^\]]*\])/.exec(source)?.[1];
@@ -25,10 +26,14 @@ describe("ci-staged branch triggers (DM-WN6RXW)", () => {
 
   it("runs every main-push gate on the integration staging branch too", () => {
     const missing = branchFiltered
-      .filter((w) => !MAIN_ONLY.has(w.file))
+      .filter((w) => !MAIN_ONLY.has(w.file) && !STAGING_ONLY.includes(w.file))
       .filter((w) => !/\bmain\b/.test(w.branches) || !/\bintegration\b/.test(w.branches))
       .map((w) => `${w.file}: ${w.branches}`);
     expect(missing).toEqual([]);
+  });
+
+  it.each(STAGING_ONLY)("runs the required native workflow %s on the integration push", (file) => {
+    expect(branchFiltered.find((workflow) => workflow.file === file)?.branches).toBe("[integration]");
   });
 
   it("keeps the Pages deploy on main only", () => {
