@@ -1166,6 +1166,8 @@
       "owners": ["rendering"],
       "platforms": ["macos", "linux", "windows"],
       "code": [
+        "scripts/check-staged-promotion.mjs",
+        "tests/staged-promotion-preflight.test.ts",
         "tests/e2e-setup.ts",
         "tests/e2e-browser-evidence.ts",
         "tests/e2e-browser-evidence.test.ts",

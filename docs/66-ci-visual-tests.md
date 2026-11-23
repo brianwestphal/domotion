@@ -37,9 +37,12 @@ tickets:
     "DM-0MT3TS",
     "DM-817Y5J",
     "DM-DB865E",
+    "DM-Q8ASR2",
   ]
 code:
   [
+    "scripts/check-staged-promotion.mjs",
+    "tests/staged-promotion-preflight.test.ts",
     "tests/e2e-setup.ts",
     "tests/e2e-browser-evidence.ts",
     "tests/e2e-browser-evidence.test.ts",
@@ -150,18 +153,18 @@ still fails the gate when a listed fixture is missing.
 Verified ticket commits are not pushed straight to `main`. The project's
 development strategy is Hot Sheet's `risk-guided` preset, whose integration
 strategy is `ci-staged`: commits go to the `integration` branch first, and
-`main` is fast-forwarded only to a SHA whose CI run on `integration` was green.
-A red run leaves `main` untouched; the responsible commit is fixed or dropped
-and the branch is rebuilt from `main`.
+`main` is fast-forwarded only to the exact staged tip with successful push CI
+and every GitHub-required context for that SHA. A red run leaves `main`
+untouched. Fix or drop the responsible commit and rebuild from `main`.
 
 So every branch-filtered push workflow listens to both branches
 (`branches: [main, integration]`). A gate that listened to `main` alone would
 never test a staged batch, and the promotion would ship it unverified.
 `tests/ci-staging-branch-triggers.test.ts` pins this. The Pages deploy is the
-one exception and stays main-only. Tickets complete once `main` holds a green staged SHA that contains them. The
-fast-forward also re-runs CI on `main` at the same SHA, which is what the
-green-`main` gates (the verified worktree cleanup among them) read; it is not
-a second completion gate.
+one exception and stays main-only. Tickets complete once `main` holds a
+qualifying staged SHA that contains them. The fast-forward also re-runs CI on
+`main` at the same SHA for readers that need a main-branch run, including
+verified worktree cleanup.
 
 Every one of those staged push workflows also declares a top-level
 `concurrency` group of `${{ github.workflow }}-${{ github.ref }}` with
@@ -175,6 +178,48 @@ other refs get their own groups. A manual dispatch on `main` or `integration`
 shares the branch's group, so it can replace a pending push run there (and a
 later push can replace a pending dispatch); either way the newest request for
 that branch runs. `tests/ci-staging-concurrency.test.ts` pins the policy.
+
+### Promotion preflight
+
+Record the full remote `integration` tip as `staged_sha`. The currently
+required Linux and Windows fidelity jobs belong to GitHub Actions. Dispatch
+both full profiles against `integration` while it points to that SHA. The
+default inputs select the fidelity gates.
+
+```bash
+staged_sha=$(git ls-remote --refs --exit-code origin refs/heads/integration | cut -f 1)
+gh workflow run test-linux.yml --ref integration
+gh workflow run windows-fidelity.yml --ref integration
+```
+
+Wait for the two fidelity jobs and the staged push CI. When inspecting
+workflow runs, filter by the full SHA to distinguish a dispatch against a
+superseding tip. If `integration` moved during dispatch, check the new target
+and obtain its own platform evidence.
+
+```bash
+gh run list --workflow test-linux.yml --branch integration --event workflow_dispatch --commit "$staged_sha"
+gh run list --workflow windows-fidelity.yml --branch integration --event workflow_dispatch --commit "$staged_sha"
+node scripts/check-staged-promotion.mjs "$staged_sha"
+```
+
+The read-only preflight requires a full candidate SHA at the live remote
+`integration` tip and proves fast-forward ancestry from live remote `main`.
+It checks the latest exact staged push of `.github/workflows/ci.yml` and reads
+main's classic branch protection and active rulesets. Each configured context
+must have successful exact-SHA evidence from its expected GitHub App when an
+App is specified. The command exits nonzero for missing evidence, pending or
+unsuccessful results, unverifiable App identity, API errors, or movement of
+either remote tip during the check. Use repository credentials that can read
+the branch's protection settings. [GitHub required status checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)
+
+Run the preflight immediately before the separately authorized fast-forward.
+A successful result prints the checked refs, CI run and required-check
+evidence. GitHub applies its current branch policy when the maintainer pushes.
+
+```bash
+git push origin "$staged_sha:refs/heads/main"
+```
 
 ## Fast integration suites on all platforms
 

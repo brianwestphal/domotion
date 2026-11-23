@@ -1849,9 +1849,12 @@
           "DM-NTN9EK",
           "DM-0MT3TS",
           "DM-817Y5J",
-          "DM-DB865E"
+          "DM-DB865E",
+          "DM-Q8ASR2"
         ],
         "code": [
+          "scripts/check-staged-promotion.mjs",
+          "tests/staged-promotion-preflight.test.ts",
           "tests/e2e-setup.ts",
           "tests/e2e-browser-evidence.ts",
           "tests/e2e-browser-evidence.test.ts",
