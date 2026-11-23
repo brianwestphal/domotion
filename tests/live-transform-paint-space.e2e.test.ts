@@ -31,6 +31,25 @@ async function boxEvidence(page: Page) {
   });
 }
 
+async function watchTransformChanges(page: Page) {
+  await page.evaluate(() => {
+    const owner = document.getElementById("owner")!;
+    const data = document.documentElement.dataset;
+    data.testTransformOverrides = "0";
+    data.testTransformChanges = "0";
+    window.KeyframeEffect = new Proxy(window.KeyframeEffect, {
+      construct(target, args, newTarget) {
+        const effect = Reflect.construct(target, args, newTarget) as KeyframeEffect;
+        if (effect.target === owner) data.testTransformOverrides = String(Number(data.testTransformOverrides) + 1);
+        return effect;
+      },
+    });
+    new MutationObserver((records) => {
+      data.testTransformChanges = String(Number(data.testTransformChanges) + records.length);
+    }).observe(owner, { attributes: true, attributeFilter: ["style"] });
+  });
+}
+
 it.each([
   { mode: "declared transition", transform: "scale(1.5)", css: "transition:transform 2s" },
   { mode: "sampled transition", transform: "scale(1.25)", css: "transition:transform 2s linear", seekTransition: true },
@@ -65,22 +84,7 @@ it.each([
           await transition.ready;
         });
       }
-      await page.evaluate(() => {
-        const owner = document.getElementById("owner")!;
-        const data = document.documentElement.dataset;
-        data.testTransformOverrides = "0";
-        data.testTransformChanges = "0";
-        window.KeyframeEffect = new Proxy(window.KeyframeEffect, {
-          construct(target, args, newTarget) {
-            const effect = Reflect.construct(target, args, newTarget) as KeyframeEffect;
-            if (effect.target === owner) data.testTransformOverrides = String(Number(data.testTransformOverrides) + 1);
-            return effect;
-          },
-        });
-        new MutationObserver((records) => {
-          data.testTransformChanges = String(Number(data.testTransformChanges) + records.length);
-        }).observe(owner, { attributes: true, attributeFilter: ["style"] });
-      });
+      await watchTransformChanges(page);
       // Scope the strict comparison to the transformed boxes. The sibling text
       // activates the geometry prepass without introducing font antialiasing.
       const region = { left: 10, top: 10, width: 70, height: 65 };
@@ -105,18 +109,77 @@ it.each([
 );
 
 it.each([
-  { transform: "scale(1.5, 1)", child: "" },
-  { transform: "scale(1.5)", child: '<img width="3" height="3" alt="Unsupported producer">' },
+  { transform: "scaleX(1.5)", unchangedAxis: "y", shift: [-0.25, 0] },
+  { transform: "scaleY(1.5)", unchangedAxis: "x", shift: [0, -0.25] },
+] as const)("keeps fractional paint accumulation on $unchangedAxis for a declared transition", async (fixture) => {
+  const page = await browser.newPage({ viewport }),
+    output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(`<style>
+      body{margin:0}
+      #owner{position:absolute;left:20.25px;top:20.25px;width:32px;height:28px;transform-origin:0 0;transform:${fixture.transform};transition:transform 1s}
+      #child{position:absolute;left:3.375px;top:3.375px;width:12px;height:10px;background:red}
+    </style><div id="owner"><div id="child"></div></div>`);
+    await watchTransformChanges(page);
+    const pixels = (bytes: Buffer) => sharp(bytes).ensureAlpha().raw().toBuffer();
+    const native = await pixels(await screenshotAfterPresentedFrame(page, { omitBackground: true }));
+    const before = await boxEvidence(page);
+    expect(before.animations).toEqual([]);
+    const firstPaint = (axis: "x" | "y") => {
+      for (let offset = 0; offset < viewport.width; offset++) {
+        const [x, y] = axis === "x" ? [offset, 30] : [30, offset];
+        if (native[(y * viewport.width + x) * 4 + 3] > 0) return offset;
+      }
+    };
+    // Resetting the unit axis would snap the child at 20 + round(3.375) = 23.
+    expect(firstPaint(fixture.unchangedAxis)).toBe(24);
+    const tree = await captureElementTree(page, "body", viewport);
+    expect(await boxEvidence(page)).toEqual(before);
+    const [owner] = tree;
+    expect([owner.x, owner.y, owner.width, owner.height]).toEqual([20.25, 20.25, 32, 28]);
+    expect(owner.styles.transformPaintShift).toEqual(fixture.shift);
+    await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(tree, 100, 100));
+    expect(await pixels(await output.screenshot({ omitBackground: true }))).toEqual(native);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
+
+it.each([
+  { mode: "running one-axis animation", transform: "scaleX(1.5)", css: "animation:sample 2s linear infinite" },
+  { mode: "paused one-axis animation", transform: "scaleY(1.5)", css: "animation:sample 2s linear -1s paused both" },
+  { mode: "paused identity crossing", transform: "scaleX(1)", css: "animation:crossing 2s linear -1s paused both" },
+  { mode: "one-axis will-change", transform: "scaleX(1.5)", css: "will-change:transform" },
+  { mode: "one-axis outer isolation", transform: "scaleX(1.5)", ancestorCss: "contain:paint" },
+  {
+    mode: "replaced producer",
+    transform: "scale(1.5)",
+    child: '<img width="3" height="3" alt="Unsupported producer">',
+  },
 ])(
-  "preserves live geometry when the subtree cannot prove a shared inverse: $transform $child",
-  async ({ transform, child }) => {
+  "preserves live geometry when the subtree cannot prove a shared inverse: $mode",
+  async ({ transform, css = "", child = "", ancestorCss }) => {
     const page = await browser.newPage({ viewport });
     try {
-      await page.setContent(
-        `<div id="owner" style="position:absolute;left:20.5px;top:20.5px;width:24px;height:20px;transform:${transform};transition:transform 1s;background:red">${child}</div>`,
-      );
+      const ownerHtml = `<div id="owner" style="position:absolute;left:20.5px;top:20.5px;width:24px;height:20px;transform:${transform};transition:transform 1s;background:red;${css}">${child}</div>`;
+      await page.setContent(`<style>
+          @keyframes sample {from,to{transform:${transform}}}
+          @keyframes crossing {from{transform:scaleX(.75)} to{transform:scaleX(1.25)}}
+        </style>${ancestorCss ? `<div style="${ancestorCss};height:90px">${ownerHtml}</div>` : ownerHtml}`);
+      await watchTransformChanges(page);
       const before = await boxEvidence(page);
-      const [owner] = await captureElementTree(page, "body", viewport);
+      if (css.includes("animation:")) expect(before.animations).toHaveLength(1);
+      if (css.includes("crossing")) expect(before.transform).toBe("matrix(1, 0, 0, 1, 0, 0)");
+      const [root] = await captureElementTree(page, "body", viewport);
+      const owner = ancestorCss ? root.children[0] : root;
+      const after = await boxEvidence(page);
+      expect([after.transform, after.style, after.overrides, after.changes]).toEqual([
+        before.transform,
+        before.style,
+        "0",
+        "0",
+      ]);
       expect([owner.x, owner.y, owner.width, owner.height]).toEqual([
         before.rect.x,
         before.rect.y,

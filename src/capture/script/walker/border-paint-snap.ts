@@ -66,9 +66,14 @@ import type { CapturedBorderPaintSnap, CapturedImagePaintBasis } from "../../typ
  * Frozen transforms whose subtree is being captured: `{x, y}` holds the box's
  * untransformed viewport origin on each axis that drops the subpixel
  * accumulation (null where it propagates); "unauthenticated" when that
- * transform's own paint offset could not be established.
+ * transform's own paint offset could not be established. An inverse-mapped
+ * live transform still appears in computed style, but its matrix is already
+ * removed from the input rect.
  */
-const frozenPaintBases = new WeakMap<Element, { x: number | null; y: number | null } | "unauthenticated">();
+const frozenPaintBases = new WeakMap<
+  Element,
+  { x: number | null; y: number | null; inverseMapped: boolean } | "unauthenticated"
+>();
 const frozenPaintShifts = new WeakMap<Element, { x: number; y: number }>();
 
 const composedParent = (node: Element): Element | null => {
@@ -261,9 +266,10 @@ export const localPaintOffset = (
     }
     if (cs.position === "sticky") return undefined;
     if (cs.offsetPath != null && cs.offsetPath !== "" && cs.offsetPath !== "none") return undefined;
-    // A frozen transform reads as identity here (the rect below it is already
-    // untransformed); a live one must be a pure translation.
-    const translation = node === el && inverseMappedOwner && !includeSelf ? { x: 0, y: 0 } : pureTranslation(cs);
+    // Inverse-mapped rects already exclude the live owner's matrix, including
+    // on an axis that keeps accumulating through the owner.
+    const inverseMapped = base?.inverseMapped || (node === el && inverseMappedOwner && !includeSelf);
+    const translation = inverseMapped ? { x: 0, y: 0 } : pureTranslation(cs);
     if (translation == null) return undefined;
     tx += translation.x * zoom;
     ty += translation.y * zoom;
@@ -309,7 +315,7 @@ export const registerFrozenPaintBase = (
     ? { x: false, y: false }
     : subpixelPropagation(transform, cs.willChange ?? "auto");
   if (propagation.x && propagation.y) {
-    frozenPaintBases.set(el, { x: null, y: null });
+    frozenPaintBases.set(el, { x: null, y: null, inverseMapped: inverseMappedBox != null });
     return { x: 0, y: 0 };
   }
   const rect = inverseMappedBox ?? el.getBoundingClientRect();
@@ -321,6 +327,7 @@ export const registerFrozenPaintBase = (
   frozenPaintBases.set(el, {
     x: propagation.x ? null : Math.round(rect.left * 64) / 64,
     y: propagation.y ? null : Math.round(rect.top * 64) / 64,
+    inverseMapped: inverseMappedBox != null,
   });
   // On an axis that drops the accumulation the descendants stop at this base,
   // so the wrapper also carries any isolation displacement above the box. On

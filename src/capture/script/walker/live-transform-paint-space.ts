@@ -32,17 +32,20 @@ const hasGeneratedBox = (view: Window, element: Element): boolean =>
     return content !== "none" && content !== "normal" && content !== "";
   });
 
+const hasNoCurrentAnimations = (element: Element): boolean =>
+  typeof element.getAnimations === "function" && element.getAnimations().length === 0;
+
 /**
  * Positive diagonal scales on both axes collapse the accumulation through
  * both the active animation and sampled-transform branches of Chromium's
- * CanPropagateSubpixelAccumulation. An axis left at one needs separate
- * animation/compositing evidence.
+ * CanPropagateSubpixelAccumulation. A declared transition with no animation
+ * uses the sampled-transform branch, which preserves the unit axis.
  */
 export const reconstructLiveTransformPaintSpace = (
   owner: Element,
   style: CSSStyleDeclaration,
   transform: string,
-  allowDirectText = false,
+  { allowDirectText, declaredTransition }: { allowDirectText: boolean; declaredTransition: boolean },
 ): LiveTransformPaintSpace | undefined => {
   const doc = owner.ownerDocument;
   const view = doc.defaultView;
@@ -52,7 +55,15 @@ export const reconstructLiveTransformPaintSpace = (
   if (!transform.startsWith("matrix(")) return undefined;
   const matrix = new DOMMatrix(transform);
   if (!matrix.is2D || matrix.b !== 0 || matrix.c !== 0) return undefined;
-  if (!(matrix.a > 0) || !(matrix.d > 0) || matrix.a === 1 || matrix.d === 1) return undefined;
+  if (!(matrix.a > 0) || !(matrix.d > 0)) return undefined;
+  if (matrix.a === 1 && matrix.d === 1) return undefined;
+  const oneAxis = matrix.a === 1 || matrix.d === 1;
+  if (
+    oneAxis &&
+    (allowDirectText || !declaredTransition || style.willChange !== "auto" || !hasNoCurrentAnimations(owner))
+  ) {
+    return undefined;
+  }
 
   const origin = style.transformOrigin.trim().split(/\s+/);
   if (origin.length !== 2 || origin.some((part) => !/^-?(?:\d+\.?\d*|\.\d+)px$/.test(part))) return undefined;
@@ -60,6 +71,9 @@ export const reconstructLiveTransformPaintSpace = (
   for (let parent = owner.parentElement; parent != null; parent = parent.parentElement) {
     const parentStyle = view.getComputedStyle(parent);
     if (!hasCommonGeometry(parentStyle) || hasOwnTransform(parentStyle) || parent.shadowRoot != null) return undefined;
+    // A unit axis walks past the owner. The current paint basis does not
+    // combine that partially resolved offset with an outer isolation reset.
+    if (oneAxis && (parentStyle.contain !== "none" || !hasNoCurrentAnimations(parent))) return undefined;
   }
 
   // A descendant's own layout can be changed by resolving relative
@@ -83,6 +97,7 @@ export const reconstructLiveTransformPaintSpace = (
       !hasCommonGeometry(cs) ||
       cs.position === "fixed" ||
       (element !== owner && hasOwnTransform(cs)) ||
+      (element !== owner && oneAxis && (cs.willChange !== "auto" || !hasNoCurrentAnimations(element))) ||
       cs.transformStyle !== "flat" ||
       cs.perspective !== "none" ||
       cs.contain !== "none" ||

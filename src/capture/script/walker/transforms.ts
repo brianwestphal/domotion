@@ -535,12 +535,10 @@ export const createTransformsHandler = (readOnlyDirectText?: { owner: Element; i
     // This route does not install an override animation or change source style.
     // The reconstruction proves that the whole supported subtree shares the
     // inverse before any child is recorded in the wrapper's coordinates.
-    const reconstructed = reconstructLiveTransformPaintSpace(
-      el,
-      cs,
-      originalTransform,
-      readOnlyDirectText?.owner === el,
-    );
+    const reconstructed = reconstructLiveTransformPaintSpace(el, cs, originalTransform, {
+      allowDirectText: readOnlyDirectText?.owner === el,
+      declaredTransition: transitionCoversTransform(cs),
+    });
     const shift =
       reconstructed == null ? undefined : registerFrozenPaintBase(el, originalTransform, cs, reconstructed.ownerBox);
     if (reconstructed != null && shift != null) {

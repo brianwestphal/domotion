@@ -16,6 +16,7 @@ tickets:
     "DM-6AX9BY",
     "DM-CVAZ2S",
     "DM-2CF8YE",
+    "DM-88FV94",
     "SK-1091",
     "SK-1127",
   ]
@@ -160,20 +161,29 @@ express either, so the capture walk freezes every static planar transform:
   and the scale branch (`CanPropagateSubpixelAccumulation`, Chromium
   `7d859f27`). Verification covers a declared transition, a sampled
   transition and a paused CSS animation, including fractional child paint.
-  DM-2CF8YE also admits direct horizontal ASCII text on one paused owner in
-  the top document, including wrapped text and consecutive direct text
-  nodes. The capture uses the same inverse on every row's Range rectangles
-  and CDP content quads, checks frame coherence before and after the tree
-  walk, and reuses the existing affine text geometry and SVG wrapper. The
-  read-only probe does not pause the page or replace the owner's animation.
-  If its source changes between reads, capture uses the existing text path.
+  DM-88FV94 also covers an ordinary box with a positive one-axis scale and
+  a declared transform transition when the owner has no current animation
+  and no `will-change` hint. The qualified scope excludes outer containment
+  and current animations on descendants and ancestors. Blink's sampled-transform
+  branch then drops accumulation on the scaled axis and keeps it on the unit
+  axis. The descendant paint offset walks past the owner's inverse-mapped basis
+  on that unit axis.
+  DM-2CF8YE also admits direct horizontal ASCII text on one paused two-axis
+  scale owner in the top document, including wrapped text and consecutive
+  direct text nodes. The capture uses the same inverse on every row's
+  Range rectangles and CDP content quads, checks frame coherence before
+  and after the tree walk, and reuses the existing affine text geometry
+  and SVG wrapper. The read-only probe does not pause the page or replace
+  the owner's animation. If its source changes between reads, capture
+  uses the existing text path.
 - **Live rect** (`styles.transform: none`): other animated/transitioned
   planar transforms and projective planes owned by `transformSubtreeRaster`.
   Unsupported reconstruction inputs include descendant or mixed text, native raster
   producers, nested transforms, multi-fragment boxes, CSS zoom, and
-  samples where either axis has scale 1. An active composited scale can drop
-  accumulation on both axes even when the sampled matrix leaves one axis
-  unchanged, so sampled matrix shape alone cannot qualify that case.
+  active or paused one-axis and identity samples. An active composited
+  scale can drop accumulation on both axes even when the sampled matrix
+  leaves one axis unchanged. Those samples require evidence of the
+  animation's compositor and keyframe state.
 - The `translate` longhand keeps percentages in its computed value; they resolve
   against the border box (`transformReferenceBox`, `resolveTranslateComponent`),
   including `calc()` of a length and a percentage, for elements and for
