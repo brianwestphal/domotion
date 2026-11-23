@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Browser } from "@playwright/test";
 import { captureElementTree, elementTreeToSvg, launchChromium } from "../src/index.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 
 // DM-HGGQMW: Blink paints an outline edge whenever its color is not fully
 // transparent (BorderEdge::HasVisibleColorAndStyle, core/style/border_edge.cc
@@ -27,7 +28,7 @@ async function paintedPixels(browser: Browser, html: string): Promise<number> {
   const page = await browser.newPage({ viewport: { width: VIEW.width, height: VIEW.height }, deviceScaleFactor: 1 });
   try {
     await page.setContent(html, { waitUntil: "load" });
-    const png = (await page.screenshot({ omitBackground: true })).toString("base64");
+    const png = (await screenshotAfterPresentedFrame(page, { omitBackground: true })).toString("base64");
     return await page.evaluate(async (data) => {
       const image = new Image();
       image.src = `data:image/png;base64,${data}`;
@@ -57,7 +58,7 @@ async function rgbaMap(browser: Browser, html: string): Promise<number[]> {
   const page = await browser.newPage({ viewport: { width: VIEW.width, height: VIEW.height }, deviceScaleFactor: 1 });
   try {
     await page.setContent(html, { waitUntil: "load" });
-    const png = (await page.screenshot({ omitBackground: true })).toString("base64");
+    const png = (await screenshotAfterPresentedFrame(page, { omitBackground: true })).toString("base64");
     return await page.evaluate(async (data) => {
       const image = new Image();
       image.src = `data:image/png;base64,${data}`;
@@ -75,15 +76,76 @@ async function rgbaMap(browser: Browser, html: string): Promise<number[]> {
   }
 }
 
-async function renderedSvg(browser: Browser, source: string): Promise<string> {
+async function renderedSvg(browser: Browser, source: string, selector = "body"): Promise<string> {
   const page = await browser.newPage({ viewport: { width: VIEW.width, height: VIEW.height } });
   try {
     await page.setContent(source, { waitUntil: "load" });
-    return elementTreeToSvg(await captureElementTree(page, "body", VIEW), VIEW.width, VIEW.height);
+    return elementTreeToSvg(await captureElementTree(page, selector, VIEW), VIEW.width, VIEW.height);
   } finally {
     await page.close();
   }
 }
+
+describeBrowser("outline-only selected roots (DM-H49Z50)", () => {
+  it.each([
+    { name: "viewport corner", box: "left:0;top:0", outline: "2px solid red", offset: "0px", visible: true },
+    {
+      name: "fractional bounds and negative offset",
+      box: "left:20.25px;top:20.75px",
+      outline: "2px solid rgba(190,20,70,.7)",
+      offset: "-1px",
+      visible: true,
+    },
+    { name: "positive outset", box: "left:20px;top:20px", outline: "3px solid blue", offset: "4px", visible: true },
+    {
+      name: "rounded solid outline",
+      box: "left:20px;top:20px;border-radius:5px",
+      outline: "2px solid red",
+      offset: "0px",
+      visible: true,
+    },
+    {
+      name: "rectangular dashed outline",
+      box: "left:20px;top:20px",
+      outline: "2px dashed red",
+      offset: "1px",
+      visible: true,
+    },
+    {
+      name: "transparent ink",
+      box: "left:20px;top:20px",
+      outline: "2px solid transparent",
+      offset: "0px",
+      visible: false,
+    },
+    { name: "no outline", box: "left:20px;top:20px", outline: "none", offset: "0px", visible: false },
+  ])("matches direct and container capture for $name", async ({ box, outline, offset, visible }) => {
+    const browser = env!.browser;
+    const source = `<!doctype html><style>body{margin:0}#only{position:absolute;${box};width:20px;height:20px;outline:${outline};outline-offset:${offset}}</style><div id="container"><div id="only"></div></div>`;
+    const native = await rgbaMap(browser, source);
+    expect(native.some((channel) => channel !== 0)).toBe(visible);
+    for (const selector of ["#container", "#only"]) {
+      const svg = await renderedSvg(browser, source, selector);
+      const rendered = await rgbaMap(browser, `<style>body{margin:0}svg{display:block}</style>${svg}`);
+      expect(Buffer.from(rendered).equals(Buffer.from(native)), selector).toBe(true);
+    }
+  });
+
+  it("keeps a closed author host on the existing container path", async () => {
+    const browser = env!.browser;
+    const source =
+      "<!doctype html><style>body{margin:0}#only{width:20px;height:20px;outline:2px solid red}</style>" +
+      '<div id="container"><div id="only"></div></div><script>document.querySelector("#only").attachShadow({mode:"closed"})</script>';
+    const native = Buffer.from(await rgbaMap(browser, source));
+    expect(native.some((channel) => channel !== 0)).toBe(true);
+    const container = await renderedSvg(browser, source, "#container");
+    expect(
+      Buffer.from(await rgbaMap(browser, `<style>body{margin:0}svg{display:block}</style>${container}`)).equals(native),
+    ).toBe(true);
+    const direct = await renderedSvg(browser, source, "#only");
+    expect(await paintedPixels(browser, `<style>body{margin:0}svg{display:block}</style>${direct}`)).toBe(0);
+  });
+});
 
 describeBrowser("low-alpha outline paint (DM-HGGQMW)", () => {
   for (const sample of [

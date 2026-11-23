@@ -10,6 +10,7 @@ tickets:
     "DM-2184",
     "DM-GQJ8C4",
     "DM-HGGQMW",
+    "DM-H49Z50",
     "DM-RGE1V9",
     "DM-9X9M8A",
     "DM-XDTVBW",
@@ -185,6 +186,22 @@ is a focus ring, so a `0 × 20` box with `outline: 2px solid` paints 96 pixels.
 The capture gate that drops empty childless boxes therefore keeps one whose
 non-`auto` outline has width and a nonzero alpha (DM-RGE1V9, same test file,
 with focus-ring and no-outline controls).
+
+### Selected outline-only roots (DM-H49Z50)
+
+Blink calls the outline painter for a visible box independently of its other
+paint (`BoxFragmentPainter::PaintObject`, `box_fragment_painter.cc`). Direct
+capture retains a single-fragment ordinary HTML root with a visible authored
+outline when its local border paint edges and main-document ancestry are
+authenticated. Rectangular outlines and solid rounded outlines use the same
+producer as container capture. Chromium controls compare the full RGBA output
+for both selections at fractional bounds, negative and positive offsets, and
+the viewport corner.
+
+The selected-root capability excludes author shadow ancestry. Independently
+painted roots keep their existing routes. Automatic focus rings, fragmented
+outlines, non-solid curved contours, and paint spaces without local edge
+authority keep the prior selection behavior.
 
 An `outline-style: auto` outline is a focus ring, which ignores
 `outline-width` (`PaintFocusRing`, `outline_painter.cc:853-893`, chromium

@@ -27,6 +27,7 @@ import { browserCallbackExpression, evaluateInFrame } from "./evaluate-in-frame.
 declare const browserImageNaturalSize: typeof import("./evaluate-in-frame.js").browserImageNaturalSize;
 import { disposeAll, runPrepasses, withCdpSession } from "./cdp-lifecycle.js";
 import { prepareInsetRootShadowContext, type InsetRootShadowContextProbe } from "./inset-root-shadow-context.js";
+import { createAuthorShadowScope, type AuthorShadowScope } from "./author-shadow-context.js";
 import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
@@ -2470,6 +2471,7 @@ async function captureElementTreeWithWarningsInternal(
     let pseudoFragmentProbe: Awaited<ReturnType<typeof preparePseudoFragmentGeometry>> | undefined;
     let textPaintProbe: Awaited<ReturnType<typeof prepareTextPaintGeometry>> | undefined;
     let insetRootShadowContext: InsetRootShadowContextProbe | undefined;
+    let authorShadowScope: AuthorShadowScope | undefined;
     let result: unknown;
     try {
       await reverifyAnimationFrame();
@@ -2539,12 +2541,30 @@ async function captureElementTreeWithWarningsInternal(
         return assertCapturedTreeShape(neutralResult, "neutral text-paint capture") as { tree: CapturedElement[] };
       });
       await reverifyAnimationFrame();
-      result = await page.evaluate(
-        `(${CAPTURE_SCRIPT})(${JSON.stringify({
-          ...captureArgs,
-          textPaintGeometryKey: textPaintProbe.key,
-        })})`,
+      const outlineCandidate = await evaluateInFrame(
+        page,
+        (rootSelector) => {
+          const root = document.querySelector(rootSelector);
+          if (!(root instanceof HTMLElement)) return false;
+          const style = getComputedStyle(root);
+          return (
+            style.outlineStyle !== "none" &&
+            style.outlineStyle !== "hidden" &&
+            style.outlineStyle !== "auto" &&
+            parseFloat(style.outlineWidth) > 0
+          );
+        },
+        selector,
       );
+      const finalArgs = { ...captureArgs, textPaintGeometryKey: textPaintProbe.key };
+      if (outlineCandidate) {
+        authorShadowScope = createAuthorShadowScope(page);
+        await authorShadowScope.prepare(selector, { mode: "selected-root", purpose: "outline root admission" });
+        await reverifyAnimationFrame();
+        result = await authorShadowScope.evaluateCapture(CAPTURE_SCRIPT, finalArgs);
+      } else {
+        result = await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(finalArgs)})`);
+      }
     } finally {
       await disposeAll(
         result == null ? frameScrollCapture : undefined,
@@ -2559,6 +2579,7 @@ async function captureElementTreeWithWarningsInternal(
         externalSvgUsePrime,
         decodedImagePrime,
         insetRootShadowContext,
+        authorShadowScope,
         result == null ? pseudoStyles : undefined,
         result == null ? projectiveProbe : undefined,
       );
@@ -2579,6 +2600,7 @@ async function captureElementTreeWithWarningsInternal(
       const warnings = typed.warnings ?? [];
       warnings.push(...(fontFamilyDeclarations?.warnings ?? []));
       warnings.push(...(insetRootShadowContext?.warnings ?? []));
+      warnings.push(...(authorShadowScope?.warnings ?? []));
       for (let index = 0; index < (projectiveProbe?.facts.length ?? 0); index++) {
         const fact = projectiveProbe?.facts[index];
         if (fact == null || fact.usedPreserve3d !== null) continue;

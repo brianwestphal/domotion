@@ -19,6 +19,7 @@ tickets:
     "DM-9B7A6G",
     "DM-0TRG51",
     "DM-HZPAYY",
+    "DM-H49Z50",
     "DM-1C56DE",
   ]
 code:
@@ -28,6 +29,7 @@ code:
     "src/render/box-shadow-paint.ts",
     "src/capture/script/walker/document-prepass.ts",
     "tests/capture-selected-shadow-root.e2e.test.ts",
+    "tests/outline-paint-visibility.e2e.test.ts",
     "tests/box-shadow-border-knockout.e2e.test.ts",
     "tests/box-shadow-native-contour-authority.e2e.test.ts",
     "tests/capture-inset-shadow-root-paint-space.e2e.test.ts",
@@ -153,10 +155,8 @@ and any list, inset-only included (DM-0TRG51), through a non-round curved
 `corner-shape` or a `border-shape`, neither of which the producer draws. Fractional or transformed roots stay refused. Fragmented
 clone/slice shadows paint per fragment with Blink's sides ([doc 277](../277-shadow-contour-authority.md#fragmented-box-shadows-dm-4rgp8y), DM-4RGP8Y).
 
-DM-H49Z50 and DM-HZPAYY own
-separate proved outline-only and pseudo-only root admission defects. These
-boundaries are explicit follow-ups, not evidence that all own-paint roots are
-already supported.
+Selected outlines and generated pseudo elements have their own admission checks
+below.
 
 ### Contour authority investigation (DM-H5DDDE)
 
@@ -222,6 +222,12 @@ when its source-owned native pseudo record (`blink-pseudo-fragment-v1`) reports
 a fragment that is not `unpainted` with `visible` visibility; computed `content`
 is never consulted, so hidden and `content: none` pseudos admit nothing
 (`tests/capture-selected-pseudo-root.e2e.test.ts`).
+
+### Selected outline-only roots (DM-H49Z50)
+
+Direct capture retains a visible authored outline on an ordinary single-box
+HTML root with authenticated paint edges and main-document ancestry. See the
+[native controls and boundaries](../127-border-outline-phase-oracle.md#selected-outline-only-roots-dm-h49z50).
 
 ## Structural form-control failure boundaries
 

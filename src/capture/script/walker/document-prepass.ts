@@ -21,6 +21,8 @@ import type { ProjectivePaintNodeFact } from "../../projective-owner.js";
 import type { CollapsedBorderFragmentRecord } from "../../collapsed-border-fragment-record.js";
 import type { InsetRootShadowContextRecord } from "../../inset-root-shadow-context.js";
 import { curvedCornerShapes, shadowOnlyRootIsAdmissible, sharpBorderRadii } from "../../shadow-root-admission.js";
+import { adoptAuthorShadowContext, type AuthorShadowContextCapability } from "../../author-shadow-context-record.js";
+import { captureBorderPaintSnap } from "./border-paint-snap.js";
 
 type TextPaintRegistry = {
   indexByElement?: WeakMap<Element, number>;
@@ -590,6 +592,7 @@ export const captureRootElements = (
   nonAffineProjectiveRoots: Set<Element>,
   insetRootShadowContextKey?: string,
   pseudoFragmentFactsFor?: (el: Element) => CapturedElement["pseudoFragments"] | undefined,
+  outlineContext?: AuthorShadowContextCapability,
 ) => {
   const result: CapturedElement[] = [];
   const rootCs = window.getComputedStyle(root);
@@ -728,6 +731,22 @@ export const captureRootElements = (
   const rootHasGeneratedPaint =
     rootPseudoFragments != null &&
     rootPseudoFragments.some((fragment) => fragment.status !== "unpainted" && fragment.paint.visibility === "visible");
+  const rootHasOutline = () =>
+    outlineContext != null &&
+    root.namespaceURI === "http://www.w3.org/1999/xhtml" &&
+    rootCs.display !== "contents" &&
+    rootCs.visibility === "visible" &&
+    /^(solid|double|dashed|dotted|groove|ridge|inset|outset)$/.test(rootCs.outlineStyle) &&
+    parseFloat(rootCs.outlineWidth) > 0 &&
+    isPaintedColor(rootCs.outlineColor) &&
+    rootCs.getPropertyValue("border-shape") === "none" &&
+    (rootCs.outlineStyle === "solid" || sharpBorderRadii((name) => rootCs.getPropertyValue(name))) &&
+    root.getClientRects().length === 1 &&
+    captureBorderPaintSnap(root, root.getBoundingClientRect()) != null &&
+    adoptAuthorShadowContext(root, outlineContext, {
+      mode: "selected-root",
+      purpose: "outline root admission",
+    }) === "none";
   if (
     rootHasContentPaint ||
     rootHasGeneratedPaint ||
@@ -735,7 +754,8 @@ export const captureRootElements = (
     rootHasBg ||
     rootHasShadow ||
     rootHasDirectText ||
-    nonAffineProjectiveRoots.has(root)
+    nonAffineProjectiveRoots.has(root) ||
+    rootHasOutline()
   ) {
     const c = capture(root);
     if (c) result.push(c);

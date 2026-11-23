@@ -3440,6 +3440,7 @@
           "DM-2184",
           "DM-GQJ8C4",
           "DM-HGGQMW",
+          "DM-H49Z50",
           "DM-RGE1V9",
           "DM-9X9M8A",
           "DM-XDTVBW",
@@ -6598,6 +6599,7 @@
           "DM-9B7A6G",
           "DM-0TRG51",
           "DM-HZPAYY",
+          "DM-H49Z50",
           "DM-1C56DE"
         ],
         "code": [
@@ -6606,6 +6608,7 @@
           "src/render/box-shadow-paint.ts",
           "src/capture/script/walker/document-prepass.ts",
           "tests/capture-selected-shadow-root.e2e.test.ts",
+          "tests/outline-paint-visibility.e2e.test.ts",
           "tests/box-shadow-border-knockout.e2e.test.ts",
           "tests/box-shadow-native-contour-authority.e2e.test.ts",
           "tests/capture-inset-shadow-root-paint-space.e2e.test.ts",

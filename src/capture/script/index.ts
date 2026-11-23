@@ -395,6 +395,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     nonAffineProjectiveRoots,
     args.insetRootShadowContextKey,
     pseudoFragmentFactsFor,
+    args.authorShadowContexts?.selectedRoot,
   );
   attachRootPayloads(result, args, {
     maskDefs: _maskDefs,

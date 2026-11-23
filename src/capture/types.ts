@@ -3197,6 +3197,8 @@ export interface CaptureScriptArgs {
   fontFamilyDeclarationPropertyKey?: string;
   /** Private selected-Element/context-bound author-shadow provenance; never a transferable boolean. */
   insetRootShadowContextKey?: string;
+  /** Source-realm capabilities injected only by the owned capture carrier. */
+  authorShadowContexts?: import("./author-shadow-context-record.js").AuthorShadowContextCapabilities;
   /** Element property carrying the live-scrollbar records. */
   scrollbarPropertyKey: string;
   /** Window property carrying the authenticated frame-scroll registry. */
