@@ -41,9 +41,24 @@
  * single-browser path is what every committed baseline was measured under.
  */
 
-import type { Browser } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
 import { openOwnedBrowser } from "../tools/lib/browser.js";
 import { fontAssetsDocument, inventoryDocument } from "../tools/font-inventory.mjs";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
+
+type ScreenshotPage = Pick<Page, "evaluate" | "screenshot">;
+const capturedHarnessPages = new WeakSet<ScreenshotPage>();
+
+/** The first capture may be either side when the HTML suite hits its expected-PNG cache. */
+export async function screenshotHarnessPage(
+  page: ScreenshotPage,
+  options: Parameters<Page["screenshot"]>[0],
+): Promise<Buffer> {
+  if (capturedHarnessPages.has(page)) return page.screenshot(options);
+  const png = await screenshotAfterPresentedFrame(page, options);
+  capturedHarnessPages.add(page);
+  return png;
+}
 
 /** Parse a whitespace-separated flag list; `undefined`/blank ⇒ no flags. */
 function parseFlags(raw: string | undefined): string[] {

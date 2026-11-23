@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 import { launchChromium, captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { fontSelectionLanguage } from "../src/capture/font-locale.js";
@@ -87,7 +88,7 @@ describe("renderer default font locale (DM-JRG1BD)", () => {
       await page.setContent(html);
       const authority = await rendererDefaultLocaleForPage(page);
       expect(authority).toEqual({ locale: expected });
-      const source = await page.screenshot();
+      const source = await screenshotAfterPresentedFrame(page);
       const nativeFaces = Object.fromEntries(await Promise.all(ids.map(async (id) => [id, await painted(page, id)])));
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: W, height: H });
       const elements = flat(capture.tree);

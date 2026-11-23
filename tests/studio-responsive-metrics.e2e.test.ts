@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect as browserExpect, type Browser } from "@playwright/test";
 import { expect, it } from "vitest";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 import { launchChromium } from "../src/capture/index.js";
 import { startStudioServer } from "../src/studio/server.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
@@ -53,7 +54,9 @@ it("keeps Studio counters and labels within their panel across responsive round 
         };
       });
       measurements.push({ state, width, ...geometry });
-      await page.screenshot({ path: resolve(output, `${state}.png`) });
+      const screenshot = { path: resolve(output, `${state}.png`) };
+      if (state === "wide") await screenshotAfterPresentedFrame(page, screenshot);
+      else await page.screenshot(screenshot);
       await panel.screenshot({ path: resolve(output, `${state}-panel.png`) });
     }
     writeFileSync(resolve(output, "geometry.json"), JSON.stringify(measurements, null, 2));

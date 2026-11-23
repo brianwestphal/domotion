@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 import { launchChromium, captureElementTreeWithWarnings } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { fontSelectionLanguage } from "../src/capture/font-locale.js";
@@ -85,7 +86,7 @@ describe("renderer default font locale consumers (DM-XWGRJC)", () => {
       const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
       await page.setContent(html);
       const authority = await rendererDefaultLocaleForPage(page);
-      const source = await page.screenshot();
+      const source = await screenshotAfterPresentedFrame(page);
       const native = { reset: await painted(page, "#reset"), nolang: await painted(page, "#nolang") };
       const current = await captureWithAuthority(page, true);
       const without = await captureWithAuthority(page, false);

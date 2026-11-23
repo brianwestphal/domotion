@@ -17,7 +17,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type BrowserContext, type Page } from "@playwright/test";
 import { raw } from "kerfjs";
-import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
+import { launchHarnessBrowsers, harnessBrowserNote, screenshotHarnessPage } from "./harness-browsers.js";
 import { captureLocalRunEnv, readPreviousRunEnv, runEnvChangeWarning } from "./local-run-env.js";
 import { captureElementTree, embedRemoteImages } from "../src/render/element-tree-to-svg.js";
 import { discoverAndRegisterWebfonts } from "../src/capture/index.js";
@@ -200,7 +200,7 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   const fontSession = resetFeatureFixtureState(w.fontUrls);
   await w.page.goto(`file://${htmlPath}`);
   await w.page.evaluate(() => document.fonts.ready);
-  await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width, height } });
+  await screenshotHarnessPage(w.page, { path: expectedPath, clip: { x: 0, y: 0, width, height } });
 
   // DM-559: discover and register any @font-face declarations the fixture
   // uses (same-origin via the page-side walker, plus any cross-origin /
@@ -243,7 +243,7 @@ async function runOneTest(test: FeatureTest, w: RunnerWorker): Promise<SuiteResu
   if (w.rasterPage !== w.page) await w.rasterPage.setViewportSize({ width, height });
   await w.rasterPage.setContent(svgRenderHtml, { waitUntil: "load" });
   await w.rasterPage.evaluate(() => document.fonts.ready);
-  await w.rasterPage.screenshot({ path: actualPath, clip: { x: 0, y: 0, width, height } });
+  await screenshotHarnessPage(w.rasterPage, { path: actualPath, clip: { x: 0, y: 0, width, height } });
 
   // Step 4: Compare. Pass criterion (DM-383): every differing pixel must be
   // classified as glyph anti-aliasing by the Yee detector. avg / sig / tile

@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
+import ts from "typescript";
 import { describe, expect, it, vi } from "vitest";
+import { screenshotHarnessPage } from "./harness-browsers.js";
 import { E2E_HOST_TRANSIENT_RETRY } from "./e2e-lanes.js";
 import { SCREENSHOT_CAPTURE_FAILURE } from "./e2e-browser-evidence.js";
 import {
@@ -38,6 +41,54 @@ function fakePage(outcomes: Outcome[], frames: boolean[] = []) {
   };
   return { page: page as unknown as Page, calls, frameDeadlines, screenshotOptions };
 }
+
+describe("visual harness first captures", () => {
+  it("waits once per page, including a separately launched raster page", async () => {
+    const png = Buffer.from("png");
+    const source = fakePage([png, png]);
+    const raster = fakePage([png]);
+    const options = { omitBackground: true };
+    await expect(screenshotHarnessPage(source.page, options)).resolves.toBe(png);
+    await expect(screenshotHarnessPage(source.page, options)).resolves.toBe(png);
+    await expect(screenshotHarnessPage(raster.page, options)).resolves.toBe(png);
+    expect(source.calls).toEqual(["frame", "shot", "shot"]);
+    expect(raster.calls).toEqual(["frame", "shot"]);
+    expect(source.screenshotOptions).toEqual([options, options]);
+  });
+
+  it("still waits for a first capture after a failed attempt", async () => {
+    const error = new Error("page closed");
+    const png = Buffer.from("png");
+    const { page, calls } = fakePage([error, png]);
+    await expect(screenshotHarnessPage(page, {})).rejects.toBe(error);
+    await expect(screenshotHarnessPage(page, {})).resolves.toBe(png);
+    expect(calls).toEqual(["frame", "shot", "frame", "shot"]);
+  });
+
+  it.each(["tests/runner.tsx", "tests/html-test-suite.tsx"])(
+    "%s routes both comparison captures through the helper",
+    (file) => {
+      const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest);
+      const direct: string[] = [];
+      const guarded: string[] = [];
+      function visit(node: ts.Node): void {
+        if (ts.isCallExpression(node)) {
+          const target = node.expression;
+          if (ts.isPropertyAccessExpression(target) && target.name.text === "screenshot") {
+            direct.push(target.getText(source));
+          }
+          if (ts.isIdentifier(target) && target.text === "screenshotHarnessPage") {
+            guarded.push(node.arguments[0]?.getText(source) ?? "");
+          }
+        }
+        ts.forEachChild(node, visit);
+      }
+      visit(source);
+      expect(direct).toEqual([]);
+      expect(guarded).toEqual(["w.page", "w.rasterPage"]);
+    },
+  );
+});
 
 describe("screenshotAfterPresentedFrame", () => {
   it("waits for a presented frame before the first capture and passes options through", async () => {

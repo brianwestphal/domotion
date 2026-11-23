@@ -39,7 +39,7 @@ import {
 } from "./html-test/cache.js";
 import { createCompareLock } from "./html-test/compare-lock.js";
 import { parseTextEvidenceSelection, renderWithTextEvidence } from "./html-test/evidence.js";
-import { launchHarnessBrowsers, harnessBrowserNote } from "./harness-browsers.js";
+import { launchHarnessBrowsers, harnessBrowserNote, screenshotHarnessPage } from "./harness-browsers.js";
 import { captureLocalRunEnv, readPreviousRunEnv, runEnvChangeWarning } from "./local-run-env.js";
 import {
   captureElementTreeWithWarnings,
@@ -531,7 +531,10 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
       });
       timer.mark("read-bodyBg");
 
-      await w.page.screenshot({ path: expectedPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
+      await screenshotHarnessPage(w.page, {
+        path: expectedPath,
+        clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight },
+      });
       timer.mark("screenshot-expected");
 
       // Ask Chrome which faces it just painted with. Per text-bearing LEAF
@@ -721,7 +724,10 @@ async function runOneHtmlTest(file: string, w: HtmlTestWorker): Promise<TestResu
     // waitForSettled awaits each image's load/error event directly.
     await waitForSettled(w.rasterPage);
     timer.mark("settle-svg");
-    await w.rasterPage.screenshot({ path: actualPath, clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight } });
+    await screenshotHarnessPage(w.rasterPage, {
+      path: actualPath,
+      clip: { x: 0, y: 0, width: WIDTH, height: fixtureHeight },
+    });
     timer.mark("screenshot-actual");
 
     // DM-1937: byte hashes of both sides. The perceptual digests below are

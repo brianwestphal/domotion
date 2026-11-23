@@ -3,6 +3,7 @@ import { chromium } from "@playwright/test";
 import sharp from "sharp";
 import { expect, it } from "vitest";
 import { resolveFont } from "@domotion/text-engine/testing";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 import { imageRootFontMetricUnits } from "../src/render/svg-image-root-font.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
 
@@ -112,7 +113,9 @@ it.skipIf(process.platform !== "win32")(
         `<body style="margin:0;background:white"><img width="100" height="100" src="data:image/svg+xml,${encodeURIComponent(svg)}" style="position:absolute;left:0;top:0"><svg width="100" height="100" style="position:absolute;left:110px;top:0">${inlined}</svg><span style="position:absolute;left:0;top:70px;font:10px Arial">Chromium image</span><span style="position:absolute;left:110px;top:70px;font:10px Arial">Domotion inline</span></body>`,
       );
       mkdirSync("tests/output", { recursive: true });
-      const image = await sharp(await page.screenshot({ path: "tests/output/windows-image-root-line-height.png" }))
+      const image = await sharp(
+        await screenshotAfterPresentedFrame(page, { path: "tests/output/windows-image-root-line-height.png" }),
+      )
         .raw()
         .toBuffer({ resolveWithObject: true });
       const rgb = (x: number, y: number): number[] => {

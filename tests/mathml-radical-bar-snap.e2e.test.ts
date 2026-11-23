@@ -1,6 +1,7 @@
 import { chromium } from "@playwright/test";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 import { captureElementTree } from "../src/capture/index.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvgInner } from "../src/render/element-tree-to-svg.js";
@@ -50,7 +51,7 @@ describe.skipIf(process.platform !== "darwin" && process.platform !== "win32")(
           `<!doctype html><style>html,body{margin:0;width:560px;height:760px;background:white;color:black}body{padding:16px;box-sizing:border-box}</style>${rows.join("")}`,
         );
         await page.evaluate(() => document.fonts.ready);
-        const sourcePng = await page.screenshot();
+        const sourcePng = await screenshotAfterPresentedFrame(page);
         const tree = await captureElementTree(page, "body", { x: 0, y: 0, ...viewport });
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="560" height="760" viewBox="0 0 560 760">${elementTreeToSvgInner(tree, 560, 760)}</svg>`;
         const renderPage = await browser.newPage({ viewport, deviceScaleFactor: 1 });
