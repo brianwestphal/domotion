@@ -1,8 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, realpathSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
-import { githubOriginRepository, runCommand } from "./verified-worktree-cleanup.mjs";
+import { githubOriginRepository, isDirectEntrypoint, runCommand } from "./verified-worktree-cleanup.mjs";
 
 const SHA = /^[a-f0-9]{40}$/;
 const MAIN = "refs/heads/main";
@@ -279,8 +276,7 @@ export function checkStagedPromotion(sha, cwd = process.cwd(), run = runCommand)
   };
 }
 
-const entry = process.argv[1];
-if (entry && existsSync(entry) && realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))) {
+if (isDirectEntrypoint(import.meta.url)) {
   try {
     if (process.argv.length !== 3) throw new Error(USAGE);
     console.log(JSON.stringify(checkStagedPromotion(process.argv[2]), null, 2));

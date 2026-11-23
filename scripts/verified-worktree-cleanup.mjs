@@ -55,6 +55,17 @@ function requireThat(condition, reason) {
   if (!condition) throw new Error(reason);
 }
 
+export function isDirectEntrypoint(moduleUrl) {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    // A process importing these tools can have a missing or unresolvable entrypoint.
+    return false;
+  }
+}
+
 /** Bind CI authority to Git's fetch origin, never gh's ambient repository/host. */
 export function githubOriginRepository(origin) {
   let path;
@@ -713,7 +724,7 @@ export function parseOptions(args) {
   return options;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isDirectEntrypoint(import.meta.url)) {
   try {
     if (process.argv.length === 3 && process.argv[2] === "--help") {
       console.log(

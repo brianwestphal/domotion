@@ -926,7 +926,7 @@ test("CLI never accepts bypass/force/ambiguous options", () => {
 // DM-PA6GV1: the installed Hot Sheet skill's cleanup line omits --review-note
 // and expects automatic removal. That exact form must refuse before any I/O
 // rather than inspect or delete a retained checkout.
-test("CLI refuses the review-less managed-skill invocation", () => {
+test("CLI refuses the review-less managed-skill invocation through a directory alias", (t) => {
   const legacy = [
     "--project",
     "/project",
@@ -941,6 +941,26 @@ test("CLI refuses the review-less managed-skill invocation", () => {
   ];
   assert.throws(() => parseOptions(legacy));
   assert.throws(() => parseOptions([...legacy, "--execute"]));
+
+  const root = mkdtempSync(join(tmpdir(), "dm-cleanup-entry-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const alias = join(root, "scripts");
+  symlinkSync(import.meta.dirname, alias, "junction");
+  const result = runCommand(process.execPath, [join(alias, "verified-worktree-cleanup.mjs"), ...legacy], root);
+  assert.equal(result.status, 1, result.stderr);
+  assert.deepEqual(JSON.parse(result.stderr), { status: "refused", reason: "required_options_missing" });
+});
+
+test("importing the cleanup and promotion CLIs tolerates a missing caller entrypoint", () => {
+  const promotion = new URL("./check-staged-promotion.mjs", import.meta.url).href;
+  const result = runCommand(
+    process.execPath,
+    ["--input-type=module", "-e", "await import(process.argv[2])", "missing-caller.mjs", promotion],
+    import.meta.dirname,
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, "");
 });
 
 test("native runner scrubs inherited Git routing variables", () => {
