@@ -4829,7 +4829,7 @@
         "status": "current",
         "owners": ["platform-release"],
         "platforms": ["macos", "linux"],
-        "tickets": ["DM-2353", "DM-2501", "DM-2507", "DM-N6XJRS"],
+        "tickets": ["DM-2353", "DM-2501", "DM-2507", "DM-N6XJRS", "DM-H0KH7M"],
         "code": [
           ".github/workflows/emoji-presentation-ownership-audit.yml",
           ".github/workflows/linux-arm64-release-parity.yml"

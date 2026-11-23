@@ -1,0 +1,28 @@
+{
+  "icu-v78.2-domotion.1": {
+    "digest": {
+      "protocolVersion": "1",
+      "icuVersion": "78.2",
+      "codepoints": 1114112,
+      "assigned": 299382,
+      "fnv1a64": "6c5c14d607f8d945"
+    },
+    "linuxArm64": {
+      "executableSha256": "dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf",
+      "dataSha256": "9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe"
+    }
+  },
+  "icu-v78.2-domotion.2": {
+    "digest": {
+      "protocolVersion": "1",
+      "icuVersion": "78.2",
+      "codepoints": 1114112,
+      "assigned": 299382,
+      "fnv1a64": "6c7b853707dd878a"
+    },
+    "linuxArm64": {
+      "executableSha256": "ec2b02add6765e36d2bcf786a66268f73dd624553d7b4f0da76a540e5a81062f",
+      "dataSha256": "9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe"
+    }
+  }
+}

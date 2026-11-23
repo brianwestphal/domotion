@@ -18,8 +18,9 @@ import { withBrowser } from "./lib/browser.js";
 import { readDecorationReport, readFontConformanceReport } from "./conformance-report-schemas.js";
 import { readExactShapingReport } from "./exact-shaping-report-schema.js";
 import { isMain, parseCommand, requiredFlag, runMain, stringFlag, type FlagValues } from "./lib/cli.js";
-import { stableJson } from "./lib/stable-json.js";
+import { matchesIcuReleaseDigest, pinnedIcuRelease } from "./lib/icu-companion-release.js";
 import { outcomeSchema, readReportData } from "./lib/report.js";
+import { stableJson } from "./lib/stable-json.js";
 import { acquireGlyphHelper } from "../src/render/helper-acquire.js";
 import { acquireIcuCompanion } from "../src/render/icu-helper-acquire.js";
 // @ts-ignore -- untyped .mjs shared with the visual-sweep tooling
@@ -33,25 +34,21 @@ const REPO = "brianwestphal/domotion";
 // These are release facts, not tolerances.  A clobbered asset must make the
 // gate red even when the replacement sidecar and GitHub API agree with each
 // other.  A later Domotion release deliberately has to ratify new bytes here.
-const PINNED_ARM64_RELEASES: Record<
+const PINNED_ARM64_GLYPH_RELEASES: Record<
   string,
   {
     glyph: string;
     glyphProtocol: string;
-    icuExecutable: string;
-    icuData: string;
   }
 > = {
   "0.24.0": {
     glyph: "68546de5c29a60efbe1bdb86e61d14d9ba10f00020c5b50583f5bc336718c250",
     glyphProtocol: "domotion-glyph-paths (linux/freetype) 0.3.0",
-    icuExecutable: "dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf",
-    icuData: "9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe",
   },
 };
 
 export function pinnedGlyphProtocolForRelease(version: string): string | null {
-  return PINNED_ARM64_RELEASES[version]?.glyphProtocol ?? null;
+  return PINNED_ARM64_GLYPH_RELEASES[version]?.glyphProtocol ?? null;
 }
 
 export const REQUIRED_OUTCOMES = [
@@ -372,14 +369,7 @@ function helperSmoke(helperPath: string, expectedVersion: string): Record<string
 function icuSmoke(helperPath: string): Record<string, unknown> {
   const version = runText(helperPath, ["--version"]);
   const digest = runJson(helperPath, ["--digest"]) as Record<string, unknown>;
-  const expected = {
-    protocolVersion: "1",
-    icuVersion: "78.2",
-    codepoints: 0x110000,
-    assigned: 299382,
-    fnv1a64: "6c5c14d607f8d945",
-  };
-  if (version !== "domotion-icu 1 ICU 78.2" || stableJson(digest) !== stableJson(expected)) {
+  if (version !== "domotion-icu 1 ICU 78.2" || !matchesIcuReleaseDigest(ICU_COMPANION_VERSION, digest)) {
     throw new Error(`ICU companion protocol drift: version=${version}, digest=${JSON.stringify(digest)}`);
   }
   return { version, digest };
@@ -481,11 +471,12 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
   if (process.platform !== "linux" || process.arch !== "arm64") {
     throw new Error(`DM-2353 requires a native linux/arm64 process, got ${process.platform}/${process.arch}`);
   }
-  const pinned = PINNED_ARM64_RELEASES[version];
+  const pinned = PINNED_ARM64_GLYPH_RELEASES[version];
   if (pinned == null) throw new Error(`no ratified arm64 release fingerprints for Domotion ${version}`);
   ensureCleanCacheRoot(cacheRoot);
   const glyphCache = path.join(cacheRoot, "glyph");
   const icuCache = path.join(cacheRoot, "icu");
+  const icuPins = pinnedIcuRelease(ICU_COMPANION_VERSION).linuxArm64;
   const glyphName = assetNameFor("linux", "arm64");
   const icuTarget = resolveIcuCompanionTarget({ platform: "linux", arch: "arm64", cacheDir: icuCache });
   if (glyphName == null || icuTarget == null) throw new Error("production acquisition rejected linux/arm64");
@@ -517,7 +508,7 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
       `icu-v${ICU_COMPANION_VERSION}`,
       icuTarget.executableAsset,
       icuTarget.executablePath,
-      pinned.icuExecutable,
+      icuPins.executableSha256,
       icuRelease,
       true,
     ),
@@ -525,7 +516,7 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
       `icu-v${ICU_COMPANION_VERSION}`,
       icuTarget.dataAsset,
       icuTarget.dataPath,
-      pinned.icuData,
+      icuPins.dataSha256,
       icuRelease,
       false,
     ),

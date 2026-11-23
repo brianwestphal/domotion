@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 const workflow = readFileSync(".github/workflows/emoji-presentation-ownership-audit.yml", "utf8");
 const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> };
@@ -19,6 +20,17 @@ describe("DM-2507 native arm64 source-priority workflow", () => {
     expect(packageJson.scripts?.["fonts:emoji-presentation-ownership-audit"]).toBe(
       "node --import tsx tools/emoji-presentation-ownership-audit.ts",
     );
+  });
+
+  it("reruns acquisition when an authenticated ICU input changes", () => {
+    const { on } = parse(workflow) as { on: { push: { paths: string[] }; pull_request: { paths: string[] } } };
+    const inputs = [
+      "tools/linux-arm64-release-evidence.ts",
+      "tools/lib/icu-companion-release.ts",
+      "tools/icu-companion-releases.json",
+    ];
+    expect(on.push.paths).toEqual(expect.arrayContaining(inputs));
+    expect(on.pull_request.paths).toEqual(expect.arrayContaining(inputs));
   });
 
   it("does not encode or relax any raster tolerance", () => {

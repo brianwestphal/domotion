@@ -20,7 +20,7 @@ describe("DM-2507 emoji presentation ownership closure", () => {
     });
     expect(EMOJI_OWNERSHIP_HELPER_DIGESTS).toEqual({
       glyph: "68546de5c29a60efbe1bdb86e61d14d9ba10f00020c5b50583f5bc336718c250",
-      icuExecutable: "dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf",
+      icuExecutable: "ec2b02add6765e36d2bcf786a66268f73dd624553d7b4f0da76a540e5a81062f",
       icuData: "9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe",
     });
   });

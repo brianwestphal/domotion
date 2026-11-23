@@ -89,7 +89,9 @@ evidence, and selected glyph representation. The workflow
 published arm64 glyph and ICU helpers in the pinned Playwright Noble image
 before running it.
 
-The exact helper digests used by the retained run and the reproduction are:
+The retained run and its reproduction used `icu-v78.2-domotion.1`. The current
+gate authenticates the executable and data pinned for the active ICU companion
+release. [Current and historical release pins](../tools/icu-companion-releases.json)
 
 | input              | SHA-256                                                            |
 | ------------------ | ------------------------------------------------------------------ |

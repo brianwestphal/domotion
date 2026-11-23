@@ -26,6 +26,7 @@ import {
   type SourcePriorityItem,
   isGlyphHelperAvailable,
   ICU_BINARY,
+  ICU_COMPANION_VERSION,
   icuCodepointProperties,
   isIcuHelperAvailable,
   segmentForShaping,
@@ -34,6 +35,7 @@ import { resolveFontKey, type FontVariantEmojiOverride } from "../src/render/fon
 import { bidiLevelsFor } from "../src/render/script-segmentation.js";
 import { selectedGlyphRasterSpans } from "../src/render/text-to-path.js";
 import { flag, isMain, parseFlags, runMain } from "./lib/cli.js";
+import { pinnedIcuRelease } from "./lib/icu-companion-release.js";
 import { writeReport } from "./lib/report.js";
 
 export { sourcePriorityItems } from "@domotion/text-engine/testing";
@@ -45,10 +47,11 @@ export const EMOJI_OWNERSHIP_SOURCE_PINS = {
   icu: "d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738",
 } as const;
 
+const icuPins = pinnedIcuRelease(ICU_COMPANION_VERSION).linuxArm64;
 export const EMOJI_OWNERSHIP_HELPER_DIGESTS = {
   glyph: "68546de5c29a60efbe1bdb86e61d14d9ba10f00020c5b50583f5bc336718c250",
-  icuExecutable: "dcb7be05a66b98530d0eee0759bc79d8670fe383c338a73e873f0a346b13e6bf",
-  icuData: "9f48c7f9c7c94d516a14870707e910ab94d75ae640ff6842c4af53276cd26ebe",
+  icuExecutable: icuPins.executableSha256,
+  icuData: icuPins.dataSha256,
 } as const;
 
 export const EMOJI_OWNERSHIP_FIXTURE = "Status: done ✓ and flagged ✗ with emphasis ❗ nearby.";
