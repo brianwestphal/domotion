@@ -418,10 +418,11 @@ export const createElementCapture = () => {
     cs: CSSStyleDeclaration,
     frozenTransform?: string | null,
     frozenTransformOrigin?: string | null,
+    inverseMappedRect?: DOMRect,
   ): CapturedElement | null => {
     const d = deps!;
     const vp = d.vp;
-    const rect = el.getBoundingClientRect();
+    const rect = inverseMappedRect ?? el.getBoundingClientRect();
     const textPaintFact = d.textPaintFactFor(el);
     const pseudoFragmentFacts = d.pseudoFragmentFactsFor(el);
     const capturedFontFamilyStack = d.fontFamilyStackFor(el, cs.fontFamily);
@@ -450,7 +451,11 @@ export const createElementCapture = () => {
       fixedAncestors: d.fixedAncestors,
       transformInfluenced: d.transformInfluenced,
       animInfluenced: d.animInfluenced,
-      isOutsideCaptureViewport: (rect) => isOutsideCaptureViewport(rect, vp),
+      isOutsideCaptureViewport: (candidate) =>
+        isOutsideCaptureViewport(
+          candidate === rect && inverseMappedRect != null ? el.getBoundingClientRect() : candidate,
+          vp,
+        ),
     });
     if (geometryStyle == null) return null;
     const { bordersOnlyCell, contentVisibilityHidden, tag } = geometryStyle;

@@ -61,6 +61,7 @@
 // src/capture/raster-viewport-space.ts and
 // src/capture/frozen-transform-neutralizer.ts.
 //
+import { reconstructLiveTransformPaintSpace, type LiveTransformPaintSpace } from "./live-transform-paint-space.js";
 import {
   registerFrozenPaintBase,
   registerPaintTransformTranslation,
@@ -469,9 +470,9 @@ export const zoomTransformOrigin = (origin: string, zoom: number): string => {
 };
 
 export const createTransformsHandler = () => {
-  // Computed styles of elements whose planar transform stayed live (animated),
-  // so threadFrozenTransform records `none` for them.
+  // Computed styles taking the live-rect fallback suppress the wrapper.
   const liveTransformStyles = new WeakSet<CSSStyleDeclaration>();
+  let livePaintSpace: LiveTransformPaintSpace | undefined;
   const wrapWithFrozenTransform = <T>(
     el: HTMLElement,
     cs: CSSStyleDeclaration,
@@ -480,6 +481,7 @@ export const createTransformsHandler = () => {
       cs: CSSStyleDeclaration,
       frozenTransform: string | null,
       frozenTransformOrigin: string | null,
+      rect?: DOMRect,
     ) => T,
   ): T => {
     // transformFreezes decides between the freeze-then-restore model (the
@@ -497,7 +499,7 @@ export const createTransformsHandler = () => {
     const originalTransform = composeEffectiveTransform(cs, transformReferenceBox(cs));
     const hasTransform = originalTransform && originalTransform !== "none";
     if (!hasTransform) {
-      return captureInner(el, cs, null, null);
+      return captureInner(el, cs, null, null, livePaintSpace?.localRect(el));
     }
     const needsFreeze = transformFreezes(el, cs);
     if (needsFreeze) {
@@ -508,7 +510,7 @@ export const createTransformsHandler = () => {
       const restore = neutralizeTransformForFreeze(el);
       // Blink pivots and offsets the subtree from the box's rounded paint
       // offset; fold that shift into the matrix the renderer re-applies.
-      const shift = registerFrozenPaintBase(el, originalTransform, cs);
+      const shift = registerFrozenPaintBase(el, originalTransform, cs) ?? { x: 0, y: 0 };
       const zoom = effectiveZoomOf(el);
       const zoomedTransform = zoomTransformTranslation(originalTransform, zoom);
       const paintTransform =
@@ -526,8 +528,28 @@ export const createTransformsHandler = () => {
         restore();
       }
     }
-    // An animated planar transform, or a projective one owned by the
-    // transform-subtree raster: keep the live-rect model (no clear, no wrap).
+    // This route does not install an override animation or change source style.
+    // The reconstruction proves that the whole supported subtree shares the
+    // inverse before any child is recorded in the wrapper's coordinates.
+    const reconstructed = reconstructLiveTransformPaintSpace(el, cs, originalTransform);
+    const shift =
+      reconstructed == null ? undefined : registerFrozenPaintBase(el, originalTransform, cs, reconstructed.ownerBox);
+    if (reconstructed != null && shift != null) {
+      const paintTransform = new DOMMatrix()
+        .translate(shift.x, shift.y)
+        .multiply(new DOMMatrix(originalTransform))
+        .toString();
+      livePaintSpace = reconstructed;
+      registerPaintTransformTranslation(el, paintTransform);
+      try {
+        return captureInner(el, cs, paintTransform, cs.transformOrigin, reconstructed.ownerBox);
+      } finally {
+        releaseFrozenPaintBase(el);
+        releasePaintTransformTranslation(el);
+        livePaintSpace = undefined;
+      }
+    }
+    // Keep the live rect for unsupported animated transforms and projective surfaces.
     liveTransformStyles.add(cs);
     // Its emitted user space is not a fixed translation of the device.
     registerPaintTransformTranslation(el, null);

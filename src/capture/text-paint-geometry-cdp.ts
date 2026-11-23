@@ -116,7 +116,7 @@ async function setupFrameRegistry(
         const elements = [root, ...Array.from(root.querySelectorAll("*"))];
         const indexByElement = new WeakMap<Element, number>();
         for (let index = 0; index < elements.length; index++) indexByElement.set(elements[index], index);
-        const owners: Element[] = [];
+        const owners = new Set<Element>();
         const ownerSeen = new Set<Element>();
         let ancestor: Element | null = root;
         while (ancestor != null) {
@@ -133,7 +133,7 @@ async function setupFrameRegistry(
             style.scale !== "none" ||
             style.perspective !== "none" ||
             style.transformStyle === "preserve-3d";
-          if (ownsTransform) owners.push(element);
+          if (ownsTransform) owners.add(element);
         }
         const result: Array<{
           sourceKey: string;
@@ -146,6 +146,7 @@ async function setupFrameRegistry(
           effectiveZoom: number;
         }> = [];
         const textRows: Array<{ element: Element; textNode: Text }> = [];
+        const textTransformOwners = new Set<Element>();
         const indexByTextNode = new WeakMap<Text, number>();
         // Blink's generated text-overflow marker is not a DOM text interval.
         // An isolated Range therefore cannot reproduce its full FragmentItem,
@@ -195,13 +196,19 @@ async function setupFrameRegistry(
             (child): child is Text => child.nodeType === Node.TEXT_NODE && (child.textContent?.trim() ?? "") !== "",
           );
           const untransformedTextOverflow =
-            owners.length === 0 &&
+            owners.size === 0 &&
             directTextNodes.length === 1 &&
             style.textOverflow === "ellipsis" &&
             textOverflowContainers.has(style.display) &&
             (style.whiteSpace === "nowrap" || style.whiteSpace === "pre") &&
             style.overflowX === "hidden";
           if (untransformedTextOverflow) continue;
+          if (directTextNodes.length > 0) {
+            // Neutralize only transforms that affect a measured text node.
+            // An unrelated live box can be reconstructed without changing its animation.
+            for (let node: Element | null = element; node != null; node = node.parentElement)
+              if (owners.has(node)) textTransformOwners.add(node);
+          }
           for (let childIndex = 0; childIndex < element.childNodes.length; childIndex++) {
             const child = element.childNodes[childIndex];
             if (child.nodeType !== Node.TEXT_NODE || child.textContent == null || child.textContent.trim() === "")
@@ -228,13 +235,13 @@ async function setupFrameRegistry(
           root,
           elements,
           indexByElement,
-          owners,
+          owners: [...owners].filter((owner) => textTransformOwners.has(owner)),
           textRows,
           indexByTextNode,
           snapshots: null,
           factsByElement: Object.create(null),
         };
-        return { rows: result, hasTransformOwners: owners.length > 0 };
+        return { rows: result, hasTransformOwners: textTransformOwners.size > 0 };
       },
       { selector, key, token, isTop: frame === frame.page().mainFrame() },
     );
@@ -634,6 +641,7 @@ export async function prepareTextPaintGeometry(
   try {
     await withCdpSession(page, async (session) => {
       try {
+        if (prepared.every(({ rows }) => rows.length === 0)) return;
         const contexts = await defaultRuntimeContexts(session, key);
         try {
           await session.send("Animation.enable");

@@ -196,6 +196,7 @@ export const localPaintOffset = (
   el: Element,
   rect: { left: number; top: number },
   includeSelf: boolean,
+  inverseMappedOwner = false,
 ): LocalPaintOffset | undefined => {
   const view = el.ownerDocument?.defaultView;
   if (view == null) return undefined;
@@ -261,7 +262,7 @@ export const localPaintOffset = (
     if (cs.offsetPath != null && cs.offsetPath !== "" && cs.offsetPath !== "none") return undefined;
     // A frozen transform reads as identity here (the rect below it is already
     // untransformed); a live one must be a pure translation.
-    const translation = pureTranslation(cs);
+    const translation = node === el && inverseMappedOwner && !includeSelf ? { x: 0, y: 0 } : pureTranslation(cs);
     if (translation == null) return undefined;
     tx += translation.x * zoom;
     ty += translation.y * zoom;
@@ -300,7 +301,8 @@ export const registerFrozenPaintBase = (
   el: Element,
   transform: string,
   cs: CSSStyleDeclaration,
-): { x: number; y: number } => {
+  inverseMappedBox?: DOMRect,
+): { x: number; y: number } | undefined => {
   // Paint isolation resets the paint offset outright (:744-749).
   const propagation = isolatesPaintOffset(cs)
     ? { x: false, y: false }
@@ -309,11 +311,11 @@ export const registerFrozenPaintBase = (
     frozenPaintBases.set(el, { x: null, y: null });
     return { x: 0, y: 0 };
   }
-  const rect = el.getBoundingClientRect();
-  const offset = localPaintOffset(el, rect, false);
+  const rect = inverseMappedBox ?? el.getBoundingClientRect();
+  const offset = localPaintOffset(el, rect, false, inverseMappedBox != null);
   if (offset == null) {
-    frozenPaintBases.set(el, "unauthenticated");
-    return { x: 0, y: 0 };
+    if (inverseMappedBox == null) frozenPaintBases.set(el, "unauthenticated");
+    return inverseMappedBox == null ? { x: 0, y: 0 } : undefined;
   }
   frozenPaintBases.set(el, {
     x: propagation.x ? null : Math.round(rect.left * 64) / 64,

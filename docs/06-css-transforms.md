@@ -5,11 +5,25 @@ kind: "contract"
 status: "current"
 owners: ["layout"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2473", "DM-2475", "DM-WTSX24", "DM-S2EA2P", "DM-PYF5QN", "DM-9VS6RT", "DM-6AX9BY", "SK-1091", "SK-1127"]
+tickets:
+  [
+    "DM-2473",
+    "DM-2475",
+    "DM-WTSX24",
+    "DM-S2EA2P",
+    "DM-PYF5QN",
+    "DM-9VS6RT",
+    "DM-6AX9BY",
+    "DM-CVAZ2S",
+    "SK-1091",
+    "SK-1127",
+  ]
 code:
   [
     "src/capture/script/index.ts",
     "src/capture/script/walker/transforms.ts",
+    "src/capture/script/walker/live-transform-paint-space.ts",
+    "tests/live-transform-paint-space.e2e.test.ts",
     "src/capture/script/walker/border-paint-snap.ts",
     "src/capture/raster-viewport-space.ts",
     "src/capture/frozen-transform-neutralizer.ts",
@@ -131,9 +145,25 @@ express either, so the capture walk freezes every static planar transform:
   no transition or animation events. The Node-side neutralizer and the text
   paint-geometry and collapsed-border CDP passes use the same helper (the last
   two also flatten `perspective` and `transform-style`).
-- **Live** (`styles.transform: none`): animated/transitioned planar transforms,
-  whose live rect is exact for the sampled frame, and projective planes owned by
-  `transformSubtreeRaster`.
+- **Reconstructed live affine** (DM-CVAZ2S): an ordinary single-fragment HTML
+  box subtree with a positive scale on both axes can recover its layout rect
+  without changing the source transform or its animation. With layout origin
+  `L`, CSS transform origin `o`, sampled scale `s`, and sampled translation
+  `t`, the visible border-box origin is `L + (1 − s)o + t` on each axis.
+  The inverse yields local DOM rects for the owner and descendants. The
+  capture authenticates those rects on Blink's 1/64 LayoutUnit grid and
+  reuses the local paint offset and SVG wrapper described below. Both axes
+  drop subpixel accumulation in Blink's active transform animation branch
+  and the scale branch (`CanPropagateSubpixelAccumulation`, Chromium
+  `7d859f27`). Verification covers a declared transition, a sampled
+  transition and a paused CSS animation, including fractional child paint.
+- **Live rect** (`styles.transform: none`): other animated/transitioned
+  planar transforms and projective planes owned by `transformSubtreeRaster`.
+  Unsupported reconstruction inputs include mixed text or native raster
+  producers, nested transforms, multi-fragment geometry, CSS zoom, and
+  samples where either axis has scale 1. An active composited scale can drop
+  accumulation on both axes even when the sampled matrix leaves one axis
+  unchanged, so sampled matrix shape alone cannot qualify that case.
 - The `translate` longhand keeps percentages in its computed value; they resolve
   against the border box (`transformReferenceBox`, `resolveTranslateComponent`),
   including `calc()` of a length and a percentage, for elements and for

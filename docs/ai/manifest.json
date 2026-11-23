@@ -108,6 +108,8 @@
       "code": [
         "src/capture/script/index.ts",
         "src/capture/script/walker/transforms.ts",
+        "src/capture/script/walker/live-transform-paint-space.ts",
+        "tests/live-transform-paint-space.e2e.test.ts",
         "src/capture/script/walker/border-paint-snap.ts",
         "src/capture/raster-viewport-space.ts",
         "src/capture/frozen-transform-neutralizer.ts",
