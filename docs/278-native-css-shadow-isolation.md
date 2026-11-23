@@ -69,8 +69,9 @@ shadow event semantics; installed browser147 revision6b5a1b80 supplies the nativ
 controls. These are separately stated authorities, not an assertion that the
 two Chromium revisions are identical. The regression files retain ordinary
 CSP clip/mask positives and19 static/late-topology/identity/cleanup controls.
-The complete native frozen-resource CI profile requires110 passing assertions
-(96 before the per-scope author-shadow controls).
+The native frozen-resource CI profile reached 110 assertions after the
+per-scope author-shadow controls. The current floor is 115 after the
+DM-0A8SGG full-page verification controls.
 
 ## Per-scope author-shadow isolation
 

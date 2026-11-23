@@ -1158,6 +1158,7 @@
           "src/capture/blink-url-fragment.ts",
           "src/capture/external-svg-transport.ts",
           "src/capture/external-css-svg-raster.ts",
+          "src/capture/external-css-svg-screenshot.ts",
           "src/capture/external-css-svg-shadow-guard.ts",
           "tests/external-css-svg-shadow.e2e.test.ts",
           "tests/external-css-svg.e2e.test.ts",

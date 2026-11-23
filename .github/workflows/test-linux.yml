@@ -325,7 +325,7 @@ jobs:
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output-linux/external-svg-frozen/results.json --minimum-passed 110
+          --browser-results tests/output-linux/external-svg-frozen/results.json --minimum-passed 115
       - name: Verify native snapshot transition ownership
         if: always()
         env:

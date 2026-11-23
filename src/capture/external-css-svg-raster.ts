@@ -4,6 +4,13 @@ import sharp from "sharp";
 import { openCssSvgShadowGuard } from "./external-css-svg-shadow-guard.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 import type { ExternalCssSvgJournal } from "./external-css-svg.js";
+import {
+  cssSvgScreenshotTimeLeft,
+  EXTERNAL_CSS_SVG_PIXEL_BUDGET,
+  EXTERNAL_CSS_SVG_SCREENSHOT_MS,
+  readExternalCssSvgScreenshotSpace,
+  type ExternalCssSvgScreenshotRect,
+} from "./external-css-svg-screenshot.js";
 import { privateCaptureKey } from "./private-key.js";
 import type { CapturedElement } from "./types.js";
 import { isTransparentBackground } from "../utils/transparent-background.js";
@@ -151,10 +158,60 @@ export async function restoreExternalCssSvgIsolation(page: Page, identity: Ident
   if (failures > 0) throw new Error(`${failures} external CSS native isolation cleanup operations unconfirmed`);
 }
 
+async function readNativeOwnerScreenshot(page: Page, viewport: ExternalCssSvgScreenshotRect) {
+  const deadline = Date.now() + EXTERNAL_CSS_SVG_SCREENSHOT_MS;
+  const live = await readExternalCssSvgScreenshotSpace(page, false);
+  const fullPage =
+    viewport.x < 0 ||
+    viewport.y < 0 ||
+    viewport.x + viewport.width > live.width ||
+    viewport.y + viewport.height > live.height;
+  let clip = viewport;
+  let offsetX = 0;
+  let offsetY = 0;
+  const space = fullPage ? await readExternalCssSvgScreenshotSpace(page, true) : null;
+  if (space != null) {
+    const x = viewport.x + space.x;
+    const y = viewport.y + space.y;
+    const left = Math.max(0, x);
+    const top = Math.max(0, y);
+    clip = {
+      x: left,
+      y: top,
+      width: Math.min(space.width, x + viewport.width) - left,
+      height: Math.min(space.height, y + viewport.height) - top,
+    };
+    if (clip.width <= 0 || clip.height <= 0) return null;
+    offsetX = left - x;
+    offsetY = top - y;
+    if (clip.width * clip.height * space.scale ** 2 > EXTERNAL_CSS_SVG_PIXEL_BUDGET)
+      throw new Error("external CSS native full-page paint budget exceeded");
+  }
+  const shot = await page.screenshot({
+    clip,
+    fullPage,
+    omitBackground: true,
+    type: "png",
+    timeout: cssSvgScreenshotTimeLeft(deadline),
+  });
+  if (space != null) {
+    const current = await readExternalCssSvgScreenshotSpace(page, true);
+    if (
+      current.x !== space.x ||
+      current.y !== space.y ||
+      current.width !== space.width ||
+      current.height !== space.height ||
+      current.scale !== space.scale
+    )
+      throw new Error("external CSS native full-page paint screenshot coordinates changed");
+  }
+  return { shot, clip, offsetX, offsetY, scale: space?.scale };
+}
+
 export async function rasterizeExternalCssSvgSurfaces(
   page: Page,
   tree: CapturedElement[],
-  viewport: { x: number; y: number; width: number; height: number },
+  viewport: ExternalCssSvgScreenshotRect,
   identity: Identity,
 ): Promise<void> {
   const targets: NonNullable<CapturedElement["externalCssSvgRaster"]>[] = [];
@@ -174,7 +231,7 @@ export async function rasterizeExternalCssSvgSurfaces(
   };
   visit(tree);
   if (targets.length === 0) return;
-  if (targets.length > 32 || viewport.width * viewport.height > 16_777_216)
+  if (targets.length > 32 || viewport.width * viewport.height > EXTERNAL_CSS_SVG_PIXEL_BUDGET)
     throw new Error("external CSS native paint budget exceeded");
   for (const target of targets) {
     let shadowGuard: Awaited<ReturnType<typeof openCssSvgShadowGuard>> | undefined;
@@ -693,14 +750,19 @@ export async function rasterizeExternalCssSvgSurfaces(
                 if (getComputedStyle(element, pseudo || null).visibility !== "hidden")
                   throw new Error("external CSS native isolation could not suppress foreign paint");
             }
-            return { paint, transformed: transformedAncestor };
+            return { paint, transformed: transformedAncestor, fullPageMismatch: facts.fullPageMismatch };
           },
           { ...identity, ownerToken: target.token, attribute },
         ),
       );
       requireTransparentAncestors(beforePaint.paint, "external CSS native isolation could not suppress ancestor paint");
       await shadowGuard.arm();
-      const shot = await bounded(page.screenshot({ clip: viewport, omitBackground: true, type: "png", timeout: 5000 }));
+      const readback = await bounded(readNativeOwnerScreenshot(page, viewport));
+      if (readback == null) {
+        target.empty = true;
+        continue;
+      }
+      const { shot, clip, offsetX, offsetY, scale } = readback;
       const afterPaint = await bounded(
         evaluateInFrame(
           page,
@@ -830,7 +892,15 @@ export async function rasterizeExternalCssSvgSurfaces(
       );
       requireTransparentAncestors(afterPaint, "external CSS ancestor paint changed during screenshot");
       await shadowGuard.verify();
-      const { data, info } = await sharp(shot).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const { data, info } = await sharp(shot, scale == null ? {} : { limitInputPixels: EXTERNAL_CSS_SVG_PIXEL_BUDGET })
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      if (
+        scale != null &&
+        (Math.abs(info.width - clip.width * scale) > 1 || Math.abs(info.height - clip.height * scale) > 1)
+      )
+        throw new Error("external CSS native full-page paint screenshot dimensions changed");
       let left = info.width,
         top = info.height,
         right = -1,
@@ -843,15 +913,21 @@ export async function rasterizeExternalCssSvgSurfaces(
           right = Math.max(right, x);
           bottom = Math.max(bottom, y);
         }
-      if (right < left || bottom < top) target.empty = true;
-      else {
+      if (right < left || bottom < top) {
+        // A full-page mismatch identifies differing paint, but an empty
+        // isolated screenshot cannot tell whether the source was empty or
+        // the isolation suppressed it (observed with an external SVG mask).
+        if (scale != null && beforePaint.fullPageMismatch)
+          throw new Error("external CSS native full-page paint could not verify an empty owner stamp");
+        target.empty = true;
+      } else {
         const width = right - left + 1,
           height = bottom - top + 1;
         const cropped = await sharp(shot).extract({ left, top, width, height }).png().toBuffer();
-        target.x = (left * viewport.width) / info.width;
-        target.y = (top * viewport.height) / info.height;
-        target.width = (width * viewport.width) / info.width;
-        target.height = (height * viewport.height) / info.height;
+        target.x = offsetX + (left * clip.width) / info.width;
+        target.y = offsetY + (top * clip.height) / info.height;
+        target.width = (width * clip.width) / info.width;
+        target.height = (height * clip.height) / info.height;
         target.dataUri = `data:image/png;base64,${cropped.toString("base64")}`;
       }
       // The crop is in viewport space; under a frozen ancestor transform its

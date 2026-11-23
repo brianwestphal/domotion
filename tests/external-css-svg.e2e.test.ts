@@ -53,9 +53,13 @@ beforeAll(async () => {
       }
       const property = kind === "clip" ? "clip-path" : "mask-image";
       const cache = url.searchParams.get("varying") ?? "no-store";
+      const top = url.searchParams.get("offscreen");
+      const bodySize = top == null ? "" : ";width:192px;height:260px";
+      const boxPosition = top == null ? "" : `position:absolute;left:24px;top:${Number(top)}px;`;
+      const otherPosition = top == null ? "margin-top:60px;" : "position:absolute;left:56px;top:48px;";
       response.setHeader("content-type", "text/html");
       response.end(
-        `<!doctype html><body style="margin:0;background:white"><div id="box" style="width:32px;height:32px;background:red;${property}:url('/varying.svg?kind=${kind}&cache=${encodeURIComponent(cache)}#d')"></div><div id="other" style="margin-top:60px;width:32px;height:16px;background:blue;clip-path:url('/sprite.svg#clip')"></div>`,
+        `<!doctype html><body style="margin:0;background:white${bodySize}"><div id="box" style="${boxPosition}width:32px;height:32px;background:red;${property}:url('/varying.svg?kind=${kind}&cache=${encodeURIComponent(cache)}#d')"></div><div id="other" style="${otherPosition}width:32px;height:16px;background:blue;clip-path:url('/sprite.svg#clip')"></div>`,
       );
       return;
     }
@@ -1445,6 +1449,113 @@ describe("readable external CSS SVG paint authority", () => {
         await output.close();
       }
       expect(await page.locator("#box").getAttribute("style")).toBe(style);
+      expect(await page.locator('svg [id^="__domotionCssSvgDefinition_"]').count()).toBe(0);
+    } finally {
+      await page.close();
+    }
+  });
+  it.each([
+    { kind: "clip", cache: "no-store", route: "native", top: 92, x: 0, y: 0, scale: 1, width: 128, height: 160 },
+    { kind: "clip", cache: "no-store", route: "native", top: 102, x: 12, y: 48, scale: 2, width: 200, height: 240 },
+    { kind: "mask", cache: "max-age=600", route: "vector", top: 138, x: 12, y: 32, scale: 2, width: 128, height: 160 },
+    { kind: "mask", cache: "no-store", route: "refusal", top: 102, x: 12, y: 48, scale: 2, width: 128, height: 160 },
+  ] as const)(
+    "$kind with $cache verifies off-viewport paint at scroll ($x, $y), scale $scale, and route $route",
+    async ({ kind, cache, route, top, x, y, scale, width, height }) => {
+      const viewport = { width: 128, height: 64 };
+      const capture = { x: 0, y: 0, width, height };
+      const page = await browser.newPage({ viewport, deviceScaleFactor: scale });
+      try {
+        await page.goto(`${origin}/?kind=${kind}&varying=${encodeURIComponent(cache)}&offscreen=${top}`);
+        await page.evaluate(({ x, y }) => scrollTo(x, y), { x, y });
+        const source = () => screenshotAfterPresentedFrame(page, { fullPage: true, clip: { ...capture, x, y } });
+        const { data: before, info } = await sharp(await source())
+          .removeAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        const at = (clientX: number, clientY: number) => {
+          const offset = (clientY * scale * info.width + clientX * scale) * 3;
+          return [...before.subarray(offset, offset + 3)];
+        };
+        expect(at(32 - x, top - y + 16)).toEqual([255, 0, 0]);
+        expect(at(48 - x, top - y + 16)).toEqual([255, 255, 255]);
+        const style = await page.locator("#box").getAttribute("style");
+        await freezeRealWorldDom(page);
+        const screenshot = vi.spyOn(page, "screenshot");
+        let result: Awaited<ReturnType<typeof captureElementTreeWithWarnings>> | undefined;
+        try {
+          if (route === "refusal") {
+            await expect(captureElementTreeWithWarnings(page, "body", capture, {})).rejects.toThrow(
+              "external CSS native full-page paint could not verify an empty owner stamp",
+            );
+          } else {
+            result = await captureElementTreeWithWarnings(page, "body", capture, {});
+          }
+          expect(screenshot.mock.calls.filter(([options]) => options?.fullPage)).toHaveLength(
+            route === "vector" ? 3 : 4,
+          );
+        } finally {
+          screenshot.mockRestore();
+        }
+        expect(await page.evaluate(() => [scrollX, scrollY, innerWidth, innerHeight])).toEqual([x, y, 128, 64]);
+        expect(await page.locator("#box").getAttribute("style")).toBe(style);
+        expect(await page.evaluate(() => document.adoptedStyleSheets.length)).toBe(0);
+        expect(await page.locator('svg [id^="__domotionCssSvgDefinition_"]').count()).toBe(0);
+        const restored = await sharp(await source())
+          .removeAlpha()
+          .raw()
+          .toBuffer();
+        expect(restored.equals(before)).toBe(true);
+        if (result == null) return;
+        expect(
+          result.warnings
+            .filter((warning) => warning.feature === "external-css-svg-raster")
+            .map((warning) => warning.selector),
+        ).toEqual(route === "native" ? ["div#box"] : []);
+        if (route === "native") {
+          const owner = result.tree
+            .flatMap((node) => node.children ?? [])
+            .find((node) => node.externalCssSvgRaster != null);
+          expect(owner?.externalCssSvgRaster).toMatchObject({ x: 24 - x, y: top - y, width: 16, height: 32 });
+        }
+        const output = await browser.newPage({ viewport: capture, deviceScaleFactor: scale });
+        try {
+          await output.setContent(`<body style="margin:0">${elementTreeToSvg(result.tree, width, height, {})}`);
+          // The requested capture may extend past the right and bottom document edges.
+          const captured = await sharp(await screenshotAfterPresentedFrame(output))
+            .extract({ left: 0, top: 0, width: info.width, height: info.height })
+            .removeAlpha()
+            .raw()
+            .toBuffer();
+          expect(captured.equals(before)).toBe(true);
+        } finally {
+          await output.close();
+        }
+      } finally {
+        await page.close();
+      }
+    },
+  );
+  it("bounds the full-page comparison before requesting a screenshot", async () => {
+    const page = await browser.newPage({ viewport: { width: 128, height: 64 } });
+    try {
+      await page.goto(`${origin}/?kind=clip&varying=no-store&offscreen=92`);
+      await page.evaluate(() => {
+        document.body.style.height = "145000px";
+      });
+      const screenshot = vi.spyOn(page, "screenshot");
+      try {
+        await expect(primeExternalCssSvgReferences(page)).rejects.toThrow(
+          "external CSS SVG full-page paint verification budget exceeded",
+        );
+        expect(screenshot).not.toHaveBeenCalled();
+      } finally {
+        screenshot.mockRestore();
+      }
+      expect(await page.locator("#box").evaluate((element) => getComputedStyle(element).clipPath)).toContain(
+        "/varying.svg",
+      );
+      expect(await page.evaluate(() => document.adoptedStyleSheets.length)).toBe(0);
       expect(await page.locator('svg [id^="__domotionCssSvgDefinition_"]').count()).toBe(0);
     } finally {
       await page.close();

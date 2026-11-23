@@ -36,6 +36,7 @@ code:
     "src/capture/blink-url-fragment.ts",
     "src/capture/external-svg-transport.ts",
     "src/capture/external-css-svg-raster.ts",
+    "src/capture/external-css-svg-screenshot.ts",
     "src/capture/external-css-svg-shadow-guard.ts",
     "tests/external-css-svg-shadow.e2e.test.ts",
     "tests/external-css-svg.e2e.test.ts",
@@ -336,18 +337,39 @@ mask's `<use>`), an HTML target, or one containing the owner still refuses.
 A readable auxiliary response is not proof of the resource Chromium selected
 for native paint: a no-store resource that varies by request destination was
 captured with the auxiliary bytes (DM-HSABGR). Byte identity is not observable
-through public CDP, so the prepass verifies paint instead (DM-CN257K): two
-viewport frames before the swap mark unstable pixels, one frame after it is
-compared on the stable ones, and a changed pixel inside a swapped target's
-subtree rect (grown by 16 CSS px for shadows/outlines) sends that owner back to
-its native paint as a `rasterOwners` entry, restoring its owned properties and
-any swapped descendants. A change no target covers implicates every verifiable
-target. Targets whose subtree is animated, paints nothing, or lies outside the
-viewport (only its visible part is compared) cannot be fully verified this way
-and keep the vector path (follow-up DM-0A8SGG).
-Native controls cover clip and mask with a destination-varying no-store
-resource (now native, byte-identical) and the cacheable control plus an
-unrelated deterministic owner (still vector).
+through public CDP, so the prepass verifies paint instead (DM-CN257K). Two
+frames before the swap mark unstable pixels and one frame after it compares
+the stable ones. A changed pixel inside a swapped target's subtree rect
+(grown by 16 CSS px for shadows and outlines) sends that owner back to its
+native paint as a `rasterOwners` entry, restoring its owned properties and any
+swapped descendants. A change no target covers implicates every verifiable
+target. The prepass uses viewport shots when eligible owners fit the viewport.
+
+DM-0A8SGG uses Playwright's full-page comparison when a static readable
+owner's subtree extends beyond the live viewport. The comparison translates
+client rectangles by document scroll before converting them to device pixels.
+Full-page comparison is bounded to 16,777,216 device pixels per frame and a
+five-second geometry-and-screenshot deadline. DM-A35W0E tracks oversized
+documents that need a narrower comparison. Chromium can dispatch a
+source-page `resize` event for each full-page shot. The prepass takes up to
+three comparison shots without deliberately scrolling the source. When native
+fallback needs a capture rectangle beyond the live viewport, it takes a
+separate full-page shot clipped to the part of the requested rectangle inside
+the document and places the stamp relative to the original capture rectangle.
+That clipped shot uses the same device-pixel and screenshot limits.
+
+An empty isolated stamp after a full-page mismatch and readback cannot
+authenticate the source paint. Capture refuses that case and restores the
+source. The native-mask isolation follow-up DM-EQ1A6N tracks a fixture whose
+paint disappears while the isolation sheet is active. Animated subtrees and
+paintless candidates keep the vector path. DM-6N01HR tracks verification at a
+frozen animation frame.
+
+Native controls cover ordinary viewport clip and mask with a
+destination-varying no-store resource, a wholly off-viewport clip, a partially
+off-viewport clip with both scroll axes moved and a capture clipped by both
+document edges, a cacheable off-viewport mask, and the empty-stamp refusal.
+They compare source and rendered pixels and check restoration after capture.
 the refusal is not support parity. SVG-use redirect admission remains the
 separate DM-N8EYNT caller policy. Native controls cover frozen clip/mask pixels,
 generated layers, overlap, scrolled viewports, real missing resources, exact rollback,
