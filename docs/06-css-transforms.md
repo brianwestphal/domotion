@@ -25,8 +25,10 @@ code:
     "src/capture/script/index.ts",
     "src/capture/script/walker/transforms.ts",
     "src/capture/script/walker/live-transform-paint-space.ts",
+    "src/capture/script/walker/live-source-image.ts",
     "tests/live-transform-paint-space.e2e.test.ts",
     "tests/live-direct-text-probe.e2e.test.ts",
+    "tests/live-source-image.e2e.test.ts",
     "src/capture/live-text-inverse.ts",
     "src/capture/script/walker/border-paint-snap.ts",
     "src/capture/raster-viewport-space.ts",
@@ -185,10 +187,21 @@ express either, so the capture walk freezes every static planar transform:
   outline edges must project to whole device pixels at DPR 1. A fractional
   edge can pick up different coverage from Chromium's composited layer
   even when the SVG's local paint geometry is exact (DM-YG7K2M).
+  DM-2CF8YE also admits one direct static source image child of an ordinary
+  box with one paused two-axis scale animation. Capture checks the completed
+  source against its natural dimensions. The admitted data PNG is opaque
+  RGB, single-frame, and has no responsive or generated replacement source.
+  It supplies its original bytes to the SVG. The native image paint basis
+  must give a 1:1 snapped destination whose four corners land on whole device
+  pixels under the emitted wrapper at DPR 1. This scope uses the default
+  object position, fill, and visible overflow on an unclipped paint plane.
+  Reflected paint keeps the existing live-rect path. A painted owner outline
+  must be square and solid with zero offset, with its snapped inner and outer
+  edges projecting to whole device pixels as well.
 - **Live rect** (`styles.transform: none`): other animated/transitioned
   planar transforms and projective planes owned by `transformSubtreeRaster`.
   Unsupported reconstruction inputs include other descendant or mixed text,
-  fractional decorated child edges, native raster producers, nested transforms,
+  fractional decorated child and image edges, viewport screenshot producers, nested transforms,
   multi-fragment boxes, CSS zoom, and
   active or paused one-axis and identity samples. An active composited
   scale can drop accumulation on both axes even when the sampled matrix
