@@ -50,7 +50,7 @@ jobs:
             label: Linux
           - os: windows-latest
             label: Windows
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'ubuntu-24.04' || matrix.os }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4

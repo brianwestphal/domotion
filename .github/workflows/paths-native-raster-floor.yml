@@ -10,7 +10,7 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
         evidence: [proposal, validation]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'ubuntu-24.04' || matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Check out pinned source-owned font corpus

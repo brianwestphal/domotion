@@ -20,7 +20,7 @@ jobs:
           - runner: windows-latest
             label: Windows
         evidence: [proposal, validation]
-    runs-on: ${{ matrix.os.runner }}
+    runs-on: ${{ matrix.os.runner == 'ubuntu-latest' && 'ubuntu-24.04' || matrix.os.runner }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4

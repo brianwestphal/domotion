@@ -21,7 +21,7 @@ jobs:
             key: linux
           - os: windows-latest
             key: win32
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && 'ubuntu-24.04' || matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

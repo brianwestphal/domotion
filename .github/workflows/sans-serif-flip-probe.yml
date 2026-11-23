@@ -69,7 +69,7 @@ jobs:
       fail-fast: false
       matrix:
         instance: ${{ fromJSON(needs.plan.outputs.matrix) }}
-    runs-on: ${{ inputs.os == 'macos' && 'macos-latest' || (inputs.os == 'windows' && 'windows-latest' || 'ubuntu-latest') }}
+    runs-on: ${{ inputs.os == 'macos' && 'macos-latest' || (inputs.os == 'windows' && 'windows-latest' || 'ubuntu-24.04') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
