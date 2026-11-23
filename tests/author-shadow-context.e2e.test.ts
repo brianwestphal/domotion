@@ -44,7 +44,9 @@ afterAll(async () => {
         sha256: digest((await readFile(path, "utf8")).replace(/\r\n/g, "\n")),
       })),
     );
-    const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const sourceSha =
+      process.env["GITHUB_SHA"] ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    if (!/^[0-9a-f]{40}$/.test(sourceSha)) throw new Error("Author-shadow evidence requires a full source commit");
     await writeFile(
       join(evidenceRoot, "metadata.json"),
       JSON.stringify(

@@ -78,8 +78,9 @@ aliasing, navigation, source CSP/errors and both transports. Focused unit tests
 cover never-reply detach, late original cleanup, failed attempted groups and
 codec validation. Native JSON/PNG evidence lives under
 `author-shadow-context/` in the platform output root, with exact source SHA,
-runtime, LF-normalized source hashes and original synthetic source PNGs. A
-focused native pass cannot replace full shipping CI or platform-native evidence.
+runtime, LF-normalized source hashes and original synthetic source PNGs. The
+Actions profiles stamp the checkout’s `GITHUB_SHA`. Local runs read Git `HEAD`.
+The full shipping gate also requires platform-native CI evidence.
 
 Source authority: Chromium147 inspector
 [`getDocument`/`DiscardFrontendBindings` and `describeNode`](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/inspector/inspector_dom_agent.cc),
