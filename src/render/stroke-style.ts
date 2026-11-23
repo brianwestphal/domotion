@@ -1,7 +1,7 @@
 import { selectBestDashGap } from "./borders.js";
 import { formatNumberLoose } from "./format.js";
 /** Dash intervals repeat along the whole line, so the renderer's usual 0.1px
- * rounding would accumulate (and would erase Blink's 0.01 dotted epsilon). */
+ * rounding would accumulate. */
 // DM-RQAZJS: six decimals. Three let a repeating gap such as 10/3 lose
 // 0.001px per cycle, so a later dash started early enough to leave a 1/255
 // coverage sliver in the pixel before it.
@@ -41,14 +41,15 @@ function dashArray(style: string, width: number, pathLength: number, closed: boo
     return gap > 0 ? `${interval(dashLength)} ${interval(gap)}` : "";
   }
   if (style === "dotted") {
-    if (pathLength < width * 2) return `${DOT_EPSILON} ${interval(width * 2 - DOT_EPSILON)}`;
-    const gap = selectBestDashGap(pathLength, width, width, closed);
-    // Blink's interval is {0, gap + width - kEpsilon}: a period 0.01 shorter
-    // than gap + width, so the last dot lands just inside the line end. SVG
-    // needs a non-zero dash to draw the round cap, so the gap gives back that
-    // 0.01 to keep Blink's period; a period of exactly gap + width puts the
-    // last dot on the path end, where it is dropped.
-    return gap > 0 ? `${DOT_EPSILON} ${interval(gap + width - 2 * DOT_EPSILON)}` : "";
+    const f32 = Math.fround;
+    const thickness = f32(width);
+    if (pathLength < thickness * 2) return `0 ${thickness * 2}`;
+    const gap = f32(selectBestDashGap(pathLength, thickness, thickness, closed));
+    if (!(gap > 0)) return "";
+    // Blink emits a zero-length dash with a round cap. Keep the SkScalar
+    // result of gap + thickness - kEpsilon, including the rounded addition:
+    // either an artificial dash length or a different float can move ink.
+    return `0 ${f32(f32(gap + thickness) - f32(DOT_EPSILON))}`;
   }
   return "";
 }

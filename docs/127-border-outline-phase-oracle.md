@@ -415,9 +415,11 @@ implements Blink's `DashLengthRatio`, `DashGapRatio`, and
 `DashEffectFromStrokeStyle` from pinned
 `third_party/blink/renderer/platform/graphics/styled_stroke_data.cc` for open
 side paths and closed contours. Thin dotted strokes use square dash intervals;
-thick dots use round caps and a 0.01-pixel endpoint epsilon. A short path with
-no room for two dashes emits no dash attribute. Box borders, outlines, inline
-fragments, pseudo boxes, and column rules share the same calculations.
+thick dots use zero-length dashes, round caps, and a 0.01-pixel endpoint
+epsilon calculated in Blink's single-precision arithmetic. A thick dotted
+path with room for only one dot uses a full period of twice the thickness.
+Box borders, outlines, inline fragments, pseudo boxes, and column rules share
+the same calculations.
 
 `src/render/border-paint.ts` shares one bevel shade and trapezoid plan across
 uniform and mixed groove/ridge/inset/outset borders. The shade is the base
@@ -576,12 +578,15 @@ size their dot intervals from the full snapped edge, then move both endpoints
 in by half the width and stroke from that inset start with dash phase 0
 (`box_border_painter.cc:515-538`). Uniform straight dotted sides take the same
 `DrawLineWithStyle` path, so they also start at the inset endpoint with phase 0
-and get no SVG `stroke-dashoffset`. Dash intervals are emitted to 0.001px, not
-the renderer's usual 0.1px, because they repeat along the whole side. Rounding
-them would accumulate drift and erase the thick-dotted interval
-`{0, gap + width - kEpsilon}` (`styled_stroke_data.cc:118-128`). That epsilon
-keeps the last dot just inside the line end. Thin dotted collapsed edges (3px or less) use the
-`EnforceDotsAtEndpoints` plan (`box_border_painter.cc:521-527`) over the full
+and get no SVG `stroke-dashoffset`. Dashed intervals retain six decimal places
+because rounding each repeat can accumulate coverage errors. For thick dotted
+strokes, the SVG retains Blink's exact scalar interval
+`{0, gap + width - kEpsilon}` (`styled_stroke_data.cc:118-128`). The epsilon
+keeps the last dot just inside the line end. DM-M0T8AM verified byte-exact
+native coverage for the five-pixel dotted outline at DSF 4 and zoom 0.8,
+phase 0.75, and at all four DSF 1 and zoom 1 phases. The straight bordered
+box at phase 0.75 also matches at both DSF and zoom pairs.
+Thin dotted collapsed edges (3px or less) use the `EnforceDotsAtEndpoints` plan (`box_border_painter.cc:521-527`) over the full
 snapped edge, which is the same helper the uniform-border painter uses.
 Unit tests grade each decision stage, the browser test checks the
 captured table contract, and `border-collapse-edge-graph` is the visual

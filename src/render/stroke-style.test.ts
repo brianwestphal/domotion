@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   closedDashArray,
   DOUBLE_MIN_WIDTH,
-  DOT_EPSILON,
   isThinDotted,
   openDashArray,
   THIN_DOTTED_MAX_WIDTH,
@@ -23,14 +22,18 @@ describe("shared Blink stroke geometry", () => {
     expect(isThinDotted(3.6)).toBe(false);
     expect(openDashArray("dotted", 2, 40)).toBe("2 2");
     expect(closedDashArray("dotted", 2, 40)).toBe("2 2");
-    expect(openDashArray("dotted", 5, 8)).toBe("0.01 9.99");
-    expect(openDashArray("dotted", 5, 30)).toContain(`${DOT_EPSILON} `);
+    expect(openDashArray("dotted", 5, 8)).toBe("0 10");
+    expect(openDashArray("dotted", 5, 30)).toMatch(/^0 /);
     // Blink's thick-dotted interval is {0, gap + width - kEpsilon}: the 4px
     // side of length 100 fits 13 dots with gap 4, so the period is 7.99 and the
     // 13th dot lands 0.12px inside the line end instead of exactly on it.
     const [dash, gap] = openDashArray("dotted", 4, 100).split(" ").map(Number);
-    expect(dash).toBe(DOT_EPSILON);
-    expect(dash + gap).toBeCloseTo(7.99, 9);
+    expect(dash).toBe(0);
+    expect(gap).toBeCloseTo(7.99, 6);
+    // 117 CSS px at width 4 fits 15 dots. Rounding the scalar once
+    // after both float operations gives the adjacent, wrong SkScalar.
+    expect(openDashArray("dotted", 4, 117)).toBe("0 8.06142807006836");
+    expect(closedDashArray("dotted", 5, 8)).toBe("0 10");
     expect(DOUBLE_MIN_WIDTH).toBe(3);
   });
 
