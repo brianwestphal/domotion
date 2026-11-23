@@ -1,10 +1,11 @@
 import type { CapturedElement } from "../capture/types.js";
 import { colorStr, parseColor } from "./colors.js";
-import { r } from "./format.js";
+import { formatNumberLoose, r } from "./format.js";
 import { renderWarn } from "./render-warn.js";
 import { closedDashArray, openDashArray, isThinDotted, DOUBLE_MIN_WIDTH } from "./stroke-style.js";
 import {
   SK_ROOT2_OVER_2,
+  authenticBorderPaintSnap,
   blinkCurvedDashPathLength,
   conicMeasuredLength,
   contouredOutsetRectPath,
@@ -350,8 +351,14 @@ export function paintOutline(el: CapturedElement, borderRadius: number, indent: 
         const perimeter = 2 * (owd + oh - 4 * oRadius) + 2 * Math.PI * oRadius;
         const dash = closedDashArray(ostyle, ow, perimeter);
         const linecap = ostyle === "dotted" && !isThinDotted(ow) ? ` stroke-linecap="round"` : "";
+        // Local snapped edges can be fractional in SVG coordinates. The
+        // enclosing transform can map them to whole native paint pixels.
+        const coordinate =
+          ostyle === "solid" && borderRadius === 0 && authenticBorderPaintSnap(el) != null
+            ? (value: number) => formatNumberLoose(value, 6)
+            : r;
         out.push(
-          `${indent}<rect x="${r(ox)}" y="${r(oy)}" width="${r(owd)}" height="${r(oh)}" rx="${r(oRadius)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
+          `${indent}<rect x="${coordinate(ox)}" y="${coordinate(oy)}" width="${coordinate(owd)}" height="${coordinate(oh)}" rx="${r(oRadius)}" fill="none" stroke="${colorStr(ocolor)}" stroke-width="${r(ow)}"${dash !== "" ? ` stroke-dasharray="${dash}"` : ""}${linecap} />`,
         );
       }
     }

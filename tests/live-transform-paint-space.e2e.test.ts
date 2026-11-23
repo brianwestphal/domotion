@@ -108,6 +108,41 @@ it.each([
   },
 );
 
+it("preserves fractional local outline coordinates that map to whole native pixels", async () => {
+  const page = await browser.newPage({ viewport }),
+    output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(`<style>
+      body{margin:0}
+      @keyframes sample {
+        from{transform:matrix(1.25,0,0,1.125,3,-2)}
+        to{transform:matrix(1.75,0,0,1.375,5,-6)}
+      }
+      #owner{position:absolute;left:20.5px;top:20.25px;width:46px;height:48px;padding:.25px .375px;
+        transform-origin:6px 8px;animation:sample 2s -1s linear both paused}
+      #member{display:inline-block;vertical-align:top;width:32px;height:40px;outline:4px solid rgb(20,116,204)}
+    </style><div id="owner"><span id="member"></span></div>`);
+    await watchTransformChanges(page);
+    const pixels = (bytes: Buffer) => sharp(bytes).ensureAlpha().raw().toBuffer();
+    const native = await pixels(await screenshotAfterPresentedFrame(page, { omitBackground: true }));
+    const before = await boxEvidence(page);
+    const [owner] = await captureElementTree(page, "body", viewport);
+    expect(await boxEvidence(page)).toEqual(before);
+    expect(owner.styles.transformPaintShift).toEqual([0.5, -0.25]);
+    expect(owner.children[0].borderPaintSnap?.top).toBe(-0.25);
+    // The outline crosses whole device pixels even though its local y is 18.25.
+    const alpha = (x: number, y: number) => native[(y * viewport.width + x) * 4 + 3];
+    expect([alpha(35, 8), alpha(35, 9), alpha(35, 13), alpha(35, 14)]).toEqual([0, 255, 255, 0]);
+    expect([alpha(35, 63), alpha(35, 64), alpha(35, 68), alpha(35, 69)]).toEqual([0, 255, 255, 0]);
+    await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg([owner], 100, 100));
+    expect(await output.locator("svg g[transform] rect[stroke]").getAttribute("y")).toBe("18.25");
+    expect((await pixels(await output.screenshot({ omitBackground: true }))).equals(native)).toBe(true);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
+
 it.each([
   { transform: "scaleX(1.5)", unchangedAxis: "y", shift: [-0.25, 0] },
   { transform: "scaleY(1.5)", unchangedAxis: "x", shift: [0, -0.25] },
