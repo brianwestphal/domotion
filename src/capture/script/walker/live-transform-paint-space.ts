@@ -66,7 +66,8 @@ export const reconstructLiveTransformPaintSpace = (
   // coordinates in a producer that still reads live quads or screenshots.
   // Authenticate the entire retained subtree before emitting any wrapper.
   const hasQualifiedText =
-    allowDirectText && owner.childNodes.length === 1 && owner.firstChild?.nodeType === Node.TEXT_NODE;
+    allowDirectText &&
+    Array.from(owner.childNodes).every(({ nodeType }) => nodeType === Node.TEXT_NODE || nodeType === Node.COMMENT_NODE);
   if (!hasQualifiedText && (owner.textContent ?? "").trim() !== "") return undefined;
   const boxes = new Map<Element, DOMRect>();
   const elements = [owner, ...owner.getElementsByTagName("*")];

@@ -95,7 +95,7 @@ export const createCaptureFactRegistries = (args: CaptureScriptArgs) => {
   }
   function readOnlyDirectTextScope(root: Element) {
     const registry = textPaintRegistryFor(root);
-    const owner = registry?.textRows?.length === 1 ? registry.textRows[0].element : undefined;
+    const owner = registry?.textRows?.[0]?.element;
     return owner == null || registry?.liveTextInverse == null
       ? undefined
       : { owner, inverse: registry.liveTextInverse };
