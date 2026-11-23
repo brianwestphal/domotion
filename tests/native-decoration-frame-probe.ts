@@ -5,6 +5,7 @@ import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import type { CapturedElement } from "../src/capture/types.js";
 import { withTimeout } from "../src/utils/with-timeout.js";
+import { observeNativeDecorationAdmission } from "./native-decoration-admission-probe.js";
 import {
   cropNativeControlRgba,
   nativeControlAlphaStats,
@@ -29,10 +30,13 @@ export function observeNativeDecorationFrame(page: Page) {
   const originalEvaluate = page.evaluate;
   const evaluate = page.evaluate.bind(page);
   const screenshot = page.screenshot;
+  const admission = observeNativeDecorationAdmission();
   let pending: { keys: IsolationArgs; facts: unknown } | undefined;
   const frames: { png: Buffer; facts: unknown; state: unknown; options: unknown; time: number }[] = [];
   page.evaluate = (async (fn: Parameters<Page["evaluate"]>[0], arg?: unknown) => {
-    const result = await evaluate(fn, arg);
+    const observedExpression = typeof fn === "string" ? admission.expression(fn) : undefined;
+    const result = await evaluate(observedExpression ?? fn, arg);
+    if (observedExpression != null) admission.retain(result);
     if (isolationArgs(arg)) pending = { keys: arg, facts: result };
     return result;
   }) as Page["evaluate"];
@@ -111,6 +115,7 @@ export function observeNativeDecorationFrame(page: Page) {
     return png;
   };
   return {
+    admission: admission.snapshot,
     dispose() {
       page.evaluate = originalEvaluate;
       page.screenshot = screenshot;
@@ -162,6 +167,7 @@ export function observeNativeDecorationFrame(page: Page) {
             sourceCommit: candidate != null && /^[a-f0-9]{40}$/i.test(candidate) ? candidate : null,
             sourceHashes: Object.fromEntries(
               [
+                "native-decoration-admission-probe.ts",
                 "native-decoration-frame-probe.ts",
                 "native-decoration-rule-probe.ts",
                 "native-control-decoration.e2e.test.ts",
@@ -175,10 +181,11 @@ export function observeNativeDecorationFrame(page: Page) {
             platform: process.platform,
             arch: process.arch,
             node: process.version,
+            numberAdmission: admission.snapshot(),
             raster: number.nativeControlDecorationRaster,
             records,
             observerBoundary:
-              "No added screenshot. State read occurs after existing screenshot and can affect later restore timing; not proof of historical pre-capture paint.",
+              "Admission comes from the existing final walker evaluation. The post-screenshot state read observes a later moment and can affect restore timing.",
           },
           null,
           2,

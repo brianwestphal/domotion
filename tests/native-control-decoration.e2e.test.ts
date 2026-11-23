@@ -320,6 +320,46 @@ describeBrowser("source-owned partial native-control decorations", () => {
     }
   }, 120_000);
 
+  it.each([
+    {
+      name: "hidden and transparent part",
+      partStyle: "visibility:hidden!important;opacity:0!important",
+      predicate: "visibility",
+    },
+    {
+      name: "visible but transparent part",
+      partStyle: "visibility:visible!important;opacity:0!important",
+      predicate: "opacity",
+    },
+    { name: "painted part", partStyle: "visibility:visible!important;opacity:1!important", predicate: null },
+  ])("observes the first owner admission rejection for a $name", async ({ partStyle, predicate }) => {
+    const page = await env!.browser.newPage({ viewport: { width: 430, height: 260 } });
+    try {
+      await page.setContent(`<style>
+        #number{width:280px;height:44px;background:rgb(231,238,247);border:2px solid rgb(45,65,85)}
+        #number::-webkit-inner-spin-button{${partStyle}}
+      </style><input id="number" data-domotion-anim="number" type="number" value="7">`);
+      await page.hover("#number");
+      const probe = observeNativeDecorationFrame(page);
+      try {
+        const result = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 430, height: 260 });
+        const raster = byId(result.tree, "number").nativeControlDecorationRaster;
+        if (predicate == null) {
+          expect(raster?.dataUri).toMatch(/^data:image\/png;base64,/);
+          expect(probe.admission()).toEqual({ state: "admitted" });
+        } else {
+          expect(raster?.empty).toBe(true);
+          expect(probe.admission()).toEqual({ state: "rejected", rejections: [{ partIndex: 0, predicate }] });
+        }
+        expect(raster).not.toHaveProperty("_testNativeDecorationRejections");
+      } finally {
+        probe.dispose();
+      }
+    } finally {
+      await page.close();
+    }
+  });
+
   it("warns and suppresses sampled decoration when the atomic readback fails", async () => {
     const viewport = { width: 340, height: 180 };
     const page = await env!.browser.newPage({ viewport, deviceScaleFactor: 1 });

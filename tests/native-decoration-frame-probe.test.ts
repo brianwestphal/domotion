@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import { expect, it, vi } from "vitest";
+import { CAPTURE_SCRIPT } from "../src/capture/script.generated.js";
 import { capturedElement } from "../src/test-support/captured-fixtures.js";
 import { observeNativeDecorationFrame } from "./native-decoration-frame-probe.js";
 
@@ -13,6 +14,28 @@ const keys = {
   restoreKey: "fixture-restore",
   rows: [],
 };
+
+it("retains admission rejection from one final reply even when there is no atlas screenshot", async () => {
+  const raster = {
+    empty: true,
+    kinds: ["inner-spin-button"],
+    _testNativeDecorationRejections: [{ partIndex: 0, predicate: "opacity" }],
+  };
+  const result = { tree: [{ animId: "number", nativeControlDecorationRaster: raster }] };
+  const evaluate = vi.fn().mockResolvedValue(result);
+  const screenshot = vi.fn();
+  const page = { evaluate, screenshot } as unknown as Page;
+  const probe = observeNativeDecorationFrame(page);
+  try {
+    expect(await page.evaluate(`(${CAPTURE_SCRIPT})({"selector":"body"})`)).toBe(result);
+    expect(evaluate).toHaveBeenCalledOnce();
+    expect(screenshot).not.toHaveBeenCalled();
+    expect(probe.admission()).toEqual({ state: "rejected", rejections: [{ partIndex: 0, predicate: "opacity" }] });
+    expect(raster).toEqual({ empty: true, kinds: ["inner-spin-button"] });
+  } finally {
+    probe.dispose();
+  }
+});
 
 it("retains the identical existing frame/options and distinguishes an empty crop without another screenshot", async () => {
   const png = await sharp({
