@@ -198,6 +198,19 @@ jobs:
         run: >-
           npx vitest run src/verified-worktree-cleanup.test.ts
           --reporter=json --outputFile=tests/output-linux/cleanup-contracts/results.json
+      - name: Verify native author-shadow capability ownership (DM-QKGJQ5)
+        if: always()
+        env:
+          DOMOTION_OUTPUT_DIR: tests/output-linux
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/author-shadow-context.e2e.test.ts
+          --reporter=json --outputFile=tests/output-linux/author-shadow-context/results.json
+      - name: Require every native author-shadow capability assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output-linux/author-shadow-context/results.json --minimum-passed 32
       - name: Verify owned UI process controls (DM-3CJSK2)
         if: always()
         env:
@@ -445,6 +458,7 @@ jobs:
             tests/output-linux/computed-font-locale/
             tests/output-linux/font-family-css-wide/
             tests/output-linux/owned-ui-server/
+            tests/output-linux/author-shadow-context/
             tests/output-linux/cleanup-contracts/
             tests/output-linux/srcset-resource/
             tests/output-linux/external-svg-frozen/
