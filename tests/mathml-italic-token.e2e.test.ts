@@ -263,20 +263,21 @@ describeBrowser("DM-2511: MathML italic-token logical oracle", () => {
       };
       const faces = await cdpPaintedFaces(page, ids);
       const tree = await captureElementTree(page, "body", { x: 0, y: 0, width: 720, height: 320 });
-      // DM-RCK27B: hosted macOS once saw the capture's Range left differ from
-      // the source read by 0.297 px. Re-read Blink's geometry and painted face
-      // after capture so a recurrence says whether the page itself moved.
-      const lefts = (await page.evaluate(
+      // DM-RCK27B: hosted macOS once saw the capture's Range top differ from
+      // the source read by 19 LayoutUnits. Re-read both coordinates and the
+      // painted face after capture to identify what changed on recurrence.
+      const positionsAfter = (await page.evaluate(
         (rowIds) =>
           Object.fromEntries(
             rowIds.map((id) => {
               const range = document.createRange();
               range.selectNodeContents(document.getElementById(id)!);
-              return [id, range.getBoundingClientRect().left];
+              const { left, top } = range.getBoundingClientRect();
+              return [id, { left, top }];
             }),
           ),
         ids,
-      )) as Record<string, number>;
+      )) as Record<string, { left: number; top: number }>;
       const facesAfter = await cdpPaintedFaces(page, ids);
       const expected: Record<string, string> = {
         ascii: "𝑎",
@@ -295,11 +296,13 @@ describeBrowser("DM-2511: MathML italic-token logical oracle", () => {
         expect(cp(source.source), id).toBeGreaterThan(0);
         expect(node!.styles.textTransform, id).toBe(source.textTransform);
         expect(node!.text.trim(), id).toBe(transformed);
-        expect(
-          node!.textLeft,
-          `${id}: source left ${source.left}, left after capture ${lefts[id]}, face ${faces[id]!.postscriptName} -> ${facesAfter[id]!.postscriptName}`,
-        ).toBeCloseTo(source.left, 5);
-        expect(node!.textTop, id).toBeCloseTo(source.top, 5);
+        const capturedPosition = { left: node!.textLeft, top: node!.textTop };
+        for (const axis of ["left", "top"] as const) {
+          expect(
+            capturedPosition[axis],
+            `${id} ${axis} source ${source[axis]}, captured ${capturedPosition[axis]}, after capture ${positionsAfter[id][axis]}, face ${faces[id]!.postscriptName} -> ${facesAfter[id]!.postscriptName}`,
+          ).toBeCloseTo(source[axis], 5);
+        }
         expect(faces[id]!.postscriptName, id).not.toBe("");
 
         const terminal = renderEvidence(node!, 720, 320);
