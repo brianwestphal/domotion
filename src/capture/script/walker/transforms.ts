@@ -62,7 +62,6 @@
 // src/capture/frozen-transform-neutralizer.ts.
 //
 import { reconstructLiveTransformPaintSpace, type LiveTransformPaintSpace } from "./live-transform-paint-space.js";
-import { liveSourceImageHasAlignedPaint } from "./live-source-image.js";
 import type { LiveTextInverse } from "../../live-text-inverse.js";
 import {
   registerFrozenPaintBase,
@@ -471,10 +470,11 @@ export const zoomTransformOrigin = (origin: string, zoom: number): string => {
   return parts.map((part) => `${parseFloat(part) * zoom}px`).join(" ");
 };
 
-export const createTransformsHandler = (
-  viewport: { x: number; y: number; width: number; height: number },
-  readOnlyLiveText?: { owner: Element; text: Element; inverse: LiveTextInverse },
-) => {
+export const createTransformsHandler = (readOnlyLiveText?: {
+  owner: Element;
+  text: Element;
+  inverse: LiveTextInverse;
+}) => {
   // Computed styles taking the live-rect fallback suppress the wrapper.
   const liveTransformStyles = new WeakSet<CSSStyleDeclaration>();
   let livePaintSpace: LiveTransformPaintSpace | undefined;
@@ -546,19 +546,14 @@ export const createTransformsHandler = (
     const shift =
       reconstructed == null ? undefined : registerFrozenPaintBase(el, originalTransform, cs, reconstructed.ownerBox);
     if (reconstructed != null && shift != null) {
-      const paintMatrix = new DOMMatrix().translate(shift.x, shift.y).multiply(new DOMMatrix(originalTransform));
+      const paintTransform = new DOMMatrix()
+        .translate(shift.x, shift.y)
+        .multiply(new DOMMatrix(originalTransform))
+        .toString();
+      livePaintSpace = reconstructed;
+      registerPaintTransformTranslation(el, paintTransform);
       try {
-        const { image, ownerBox } = reconstructed;
-        const imageBox = image == null ? undefined : reconstructed.localRect(image.element);
-        if (
-          image == null ||
-          (imageBox != null && liveSourceImageHasAlignedPaint(image, imageBox, ownerBox, cs, paintMatrix, viewport))
-        ) {
-          const paintTransform = paintMatrix.toString();
-          livePaintSpace = reconstructed;
-          registerPaintTransformTranslation(el, paintTransform);
-          return captureInner(el, cs, paintTransform, cs.transformOrigin, ownerBox);
-        }
+        return captureInner(el, cs, paintTransform, cs.transformOrigin, reconstructed.ownerBox);
       } finally {
         releaseFrozenPaintBase(el);
         releasePaintTransformTranslation(el);

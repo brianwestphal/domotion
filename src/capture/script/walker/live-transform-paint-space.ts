@@ -1,5 +1,3 @@
-import { qualifyLiveSourceImage, type LiveSourceImage } from "./live-source-image.js";
-
 /**
  * A live affine wrapper can reuse local box painting only when the source
  * geometry and every retained descendant share one proven inverse.
@@ -7,7 +5,6 @@ import { qualifyLiveSourceImage, type LiveSourceImage } from "./live-source-imag
 export interface LiveTransformPaintSpace {
   ownerBox: DOMRect;
   localRect: (element: Element) => DOMRect | undefined;
-  image?: LiveSourceImage;
 }
 
 const ordinaryBox = /^(DIV|SPAN|SECTION|ARTICLE|MAIN|HEADER|FOOTER|ASIDE|NAV|FIGURE|FIGCAPTION|P|H[1-6])$/;
@@ -37,37 +34,6 @@ const hasGeneratedBox = (view: Window, element: Element): boolean =>
 
 const hasNoCurrentAnimations = (element: Element): boolean =>
   typeof element.getAnimations === "function" && element.getAnimations().length === 0;
-
-const hasUnclippedImagePlane = (style: CSSStyleDeclaration): boolean =>
-  style.visibility === "visible" &&
-  style.opacity === "1" &&
-  style.mixBlendMode === "normal" &&
-  style.backfaceVisibility === "visible" &&
-  style.contain === "none" &&
-  style.clip === "auto" &&
-  style.overflowX === "visible" &&
-  style.overflowY === "visible" &&
-  style.filter === "none" &&
-  style.backdropFilter === "none" &&
-  style.clipPath === "none" &&
-  style.maskImage === "none" &&
-  style.getPropertyValue("-webkit-box-reflect") === "none";
-
-const hasPausedTransform = (owner: Element, style: CSSStyleDeclaration): boolean => {
-  if (style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.willChange !== "auto")
-    return false;
-  const animations = owner.getAnimations();
-  const animation = animations[0];
-  return (
-    animations.length === 1 &&
-    animation instanceof CSSAnimation &&
-    animation.playState === "paused" &&
-    !animation.pending &&
-    animation.effect instanceof KeyframeEffect &&
-    animation.effect.target === owner &&
-    animation.effect.getKeyframes().some((frame) => "transform" in frame)
-  );
-};
 
 /**
  * Positive diagonal scales on both axes collapse the accumulation through
@@ -102,22 +68,12 @@ export const reconstructLiveTransformPaintSpace = (
   const origin = style.transformOrigin.trim().split(/\s+/);
   if (origin.length !== 2 || origin.some((part) => !/^-?(?:\d+\.?\d*|\.\d+)px$/.test(part))) return undefined;
   const [ox, oy] = origin.map(Number.parseFloat);
-  const child = owner.firstElementChild;
-  const imageElement = owner.childElementCount === 1 && child instanceof HTMLImageElement ? child : undefined;
-  let image: LiveSourceImage | undefined;
-  if (imageElement != null) {
-    if (oneAxis || textElement != null || imageElement.childElementCount !== 0 || !hasPausedTransform(owner, style))
-      return undefined;
-    image = qualifyLiveSourceImage(imageElement, view.getComputedStyle(imageElement));
-    if (image == null || !hasNoCurrentAnimations(imageElement)) return undefined;
-  }
   for (let parent = owner.parentElement; parent != null; parent = parent.parentElement) {
     const parentStyle = view.getComputedStyle(parent);
     if (!hasCommonGeometry(parentStyle) || hasOwnTransform(parentStyle) || parent.shadowRoot != null) return undefined;
     // A unit axis walks past the owner. The current paint basis does not
     // combine that partially resolved offset with an outer isolation reset.
     if (oneAxis && (parentStyle.contain !== "none" || !hasNoCurrentAnimations(parent))) return undefined;
-    if (image != null && (!hasUnclippedImagePlane(parentStyle) || !hasNoCurrentAnimations(parent))) return undefined;
   }
 
   // A descendant's own layout can be changed by resolving relative
@@ -138,7 +94,7 @@ export const reconstructLiveTransformPaintSpace = (
     if (element === textElement && element.childElementCount !== 0) return undefined;
     const cs = element === owner ? style : view.getComputedStyle(element);
     if (
-      (!ordinaryBox.test(element.tagName) && element !== imageElement) ||
+      !ordinaryBox.test(element.tagName) ||
       element.shadowRoot != null ||
       !singleBoxDisplay.test(cs.display) ||
       !hasCommonGeometry(cs) ||
@@ -158,7 +114,6 @@ export const reconstructLiveTransformPaintSpace = (
       cs.backgroundImage !== "none" ||
       cs.borderImageSource !== "none" ||
       hasGeneratedBox(view, element) ||
-      (image != null && !hasUnclippedImagePlane(cs)) ||
       element.getClientRects().length !== 1
     ) {
       return undefined;
@@ -177,5 +132,5 @@ export const reconstructLiveTransformPaintSpace = (
     boxes.set(element, new DOMRect(local[0], local[1], local[2], local[3]));
   }
   const ownerBox = boxes.get(owner);
-  return ownerBox == null ? undefined : { ownerBox, localRect: (element) => boxes.get(element), image };
+  return ownerBox == null ? undefined : { ownerBox, localRect: (element) => boxes.get(element) };
 };

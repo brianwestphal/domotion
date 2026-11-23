@@ -183,7 +183,6 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     physicalComputedGradientImage,
   });
   const { wrapWithFrozenTransform, threadFrozenTransform, liveTextInverseFor } = createTransformsHandler(
-    vp,
     readOnlyLiveTextScope(document.documentElement),
   );
   const _collapsedBorderFragmentByTable = buildCollapsedBorderFragmentLookup(args);
