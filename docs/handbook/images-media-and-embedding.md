@@ -5,7 +5,7 @@ kind: "contract"
 status: "current"
 owners: ["images-media"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB", "DM-FRF6A8", "DM-9VS6RT"]
+tickets: ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB", "DM-FRF6A8", "DM-9VS6RT", "DM-7PGR0X"]
 code:
   [
     "src/capture/replaced-media-frame.ts",
@@ -17,6 +17,7 @@ code:
     "src/render/image-pattern.ts",
     "src/post-processing/",
     "tests/feature-coverage.ts",
+    "tests/source-image-paint-route.e2e.test.ts",
   ]
 aliases: ["docs/handbook/images-media-and-embedding.md"]
 ---
@@ -166,6 +167,29 @@ is a separate rule. Native full-RGBA controls in
   container.
 
 Each case also has a negative control that strips the records.
+
+## Native image paint-route controls (DM-7PGR0X)
+
+`tests/source-image-paint-route.e2e.test.ts` holds source geometry constant and
+changes the native paint route. In Chromium 147 (`6b5a1b80`), an HTML inline SVG
+root at layout y29.484375 reports that fractional screen CTM. Its pixels match a
+nested SVG at y29 because `SVGRootPainter::TransformToPixelSnappedBorderBox`
+starts from the snapped border-box origin. Nested SVG at y29.484375 or y29.5
+produces different pixels. The same comparison reproduced the 42 differing
+pixels in the retained Stripe icon, with mean absolute RGB channel error 3.07
+and a maximum of 93. The real card also has a paint-isolating ancestor. Both
+policies converge at that icon's origin, so the crop alone cannot apportion the
+difference between the two policies. DM-0S9TKE tracks preserving inline-root
+mapping when embedding the captured markup.
+
+The raster controls compare a pixel-snapped HTML image with a fractional SVG
+image using identical resource bytes. A separate control holds the DOM image
+rectangle constant while adding style containment to an eligible
+layout-containing parent. In the retained replay, the isolated native
+background control reduced the difference from 118,645 to 237 pixels, with
+maximum RGB channel error falling from 18 to 2. This was a source-route
+discriminator before the DM-9VS6RT change described above. The 237 pixels are
+an unresolved difference in that control, with no established cause.
 
 ## Retained Stripe evidence (DM-MJAMW0)
 

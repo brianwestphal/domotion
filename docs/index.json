@@ -6489,7 +6489,7 @@
         "status": "current",
         "owners": ["images-media"],
         "platforms": ["macos", "linux", "windows"],
-        "tickets": ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB", "DM-FRF6A8", "DM-9VS6RT"],
+        "tickets": ["DM-2596", "DM-2617", "DM-2618", "DM-JPDMRD", "DM-FPTFZB", "DM-FRF6A8", "DM-9VS6RT", "DM-7PGR0X"],
         "code": [
           "src/capture/replaced-media-frame.ts",
           "src/capture/background-image-sizing.ts",
@@ -6499,7 +6499,8 @@
           "src/render/image-paint-snap.ts",
           "src/render/image-pattern.ts",
           "src/post-processing/",
-          "tests/feature-coverage.ts"
+          "tests/feature-coverage.ts",
+          "tests/source-image-paint-route.e2e.test.ts"
         ],
         "aliases": ["docs/handbook/images-media-and-embedding.md"]
       }

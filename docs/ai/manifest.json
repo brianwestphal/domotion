@@ -4708,7 +4708,8 @@
         "src/render/image-paint-snap.ts",
         "src/render/image-pattern.ts",
         "src/post-processing/",
-        "tests/feature-coverage.ts"
+        "tests/feature-coverage.ts",
+        "tests/source-image-paint-route.e2e.test.ts"
       ],
       "file": "handbook/images-media-and-embedding.md"
     },
