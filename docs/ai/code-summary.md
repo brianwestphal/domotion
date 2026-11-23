@@ -42,6 +42,8 @@ reusing the reference identifier/string decoders and shared URL argument reader.
   `external-css-svg-shadow-guard.ts` registers the main document's open/closed author roots for per-scope isolation and retains
   owner/document identities through native readback.
   `author-shadow-context.ts` retains and verifies candidate-specific author-shadow ancestry for selected-root and inline-SVG consumers. [Capability lifetime and adoption](../tool-author-shadow-context.md)
+  `script/walker/svg-root-paint.ts` records the paint offset of eligible integral
+  inline SVG roots for both nested and flattened output. [Source geometry and coverage](../handbook/images-media-and-embedding.md#native-image-paint-route-controls-dm-7pgr0x)
   `capture/debug-bundle.ts` owns the filesystem-neutral in-memory reproduction
   artifacts used by programmatic capture callers; CLI directory conventions
   remain under `src/cli/`. `capture/index.ts` is the internal barrel;

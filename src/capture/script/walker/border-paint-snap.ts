@@ -197,10 +197,11 @@ export const localPaintOffset = (
   rect: { left: number; top: number },
   includeSelf: boolean,
   inverseMappedOwner = false,
+  deviceScaleFactor = 1,
 ): LocalPaintOffset | undefined => {
   const view = el.ownerDocument?.defaultView;
   if (view == null) return undefined;
-  if (view.devicePixelRatio !== 1) return undefined;
+  if (view.devicePixelRatio !== deviceScaleFactor) return undefined;
   if (view.visualViewport != null && view.visualViewport.scale !== 1) return undefined;
   // Each chain member's effective zoom (the product of `zoom` from it to the
   // root): its computed translation serializes in unzoomed CSS px, while
@@ -246,7 +247,7 @@ export const localPaintOffset = (
         // isolation displaced the box itself by.
         if (localX != null || localY != null) return undefined;
         const isolationRect = node.getBoundingClientRect();
-        const outer = localPaintOffset(node, isolationRect, false);
+        const outer = localPaintOffset(node, isolationRect, false, false, deviceScaleFactor);
         if (outer == null) return undefined;
         const quantize = (value: number) => Math.round(value * 64) / 64;
         localX = rect.left - tx - quantize(isolationRect.left);
@@ -347,6 +348,9 @@ export const releaseFrozenPaintBase = (el: Element): void => {
  * the captured viewport coordinates.
  */
 const paintTransformTranslations = new WeakMap<Element, { x: number; y: number } | null>();
+
+/** A transform recorded by the walker can read as identity in the live, temporarily frozen CSSOM. */
+export const hasCapturedPaintTransform = (node: Element): boolean => paintTransformTranslations.has(node);
 
 /** Record what the renderer will wrap `el`'s paint in (see above). */
 export const registerPaintTransformTranslation = (el: Element, wrapper: string | null): void => {

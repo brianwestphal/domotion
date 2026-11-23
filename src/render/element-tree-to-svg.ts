@@ -1319,6 +1319,18 @@ function paintListMarker(el: CapturedElement, textColor: ReturnType<typeof parse
   return out;
 }
 
+function inlineSvgRootPaint(el: CapturedElement): CapturedElement["svgRootPaint"] {
+  const paint = el.svgRootPaint;
+  return el.svgContent != null &&
+    paint?.source === "blink-inline-svg-root-paint-v1" &&
+    paint.width === el.width &&
+    paint.height === el.height &&
+    Number.isFinite(paint.dx) &&
+    Number.isFinite(paint.dy)
+    ? paint
+    : undefined;
+}
+
 // Inline-SVG content paint, extracted from renderElement (DM-1306, DM-1312).
 // Injects width/height from the captured content box (inline SVGs in the wild
 // often omit them, falling back to the 300x150 default) and translates to the
@@ -1385,6 +1397,16 @@ function paintInlineSvg(
   // up the host's text color. Set the wrapping group's `color` to the captured
   // text color so currentColor resolves to what Chrome painted (DM-279).
   const iconColor = el.styles.color != null && el.styles.color !== "" ? el.styles.color : "currentColor";
+  const paint = inlineSvgRootPaint(el);
+  const place = {
+    x: el.x + blW + plW + (paint?.dx ?? 0),
+    y: el.y + btW + ptW + (paint?.dy ?? 0),
+    w: contentW,
+    h: contentH,
+  };
+  // A crop or tree translation can put the source-snapped viewport at a
+  // fractional output coordinate. Keep the source's placement in both modes.
+  const position = paint == null ? r : (value: number) => formatNumberLoose(value, 6);
   // DM-7AN9AH: opt-in flatten this captured DOM inline `<svg>` into a
   // `<g transform="matrix(...)">` (for tools that mishandle nested `<svg>`). The
   // `sized` body already carries this path's id/class handling — critically the
@@ -1394,18 +1416,14 @@ function paintInlineSvg(
   // safely flattenable (which includes `<use>`/`<symbol>` sprites — those stay
   // nested and keep the DM-499 contract).
   if (getFlattenNestedSvg()) {
-    const flat = flattenCapturedInlineSvg(
-      sized,
-      { x: el.x + blW + plW, y: el.y + btW + ptW, w: contentW, h: contentH },
-      allocClassPrefix,
-    );
+    const flat = flattenCapturedInlineSvg(sized, place, allocClassPrefix, position);
     if (flat != null) {
       svg.push(`${indent}<g color="${iconColor}">${flat}</g>`);
       return { svg, handled: true };
     }
   }
   svg.push(
-    `${indent}<g transform="translate(${r(el.x + blW + plW)}, ${r(el.y + btW + ptW)})" color="${iconColor}">${sized}</g>`,
+    `${indent}<g transform="translate(${position(place.x)}, ${position(place.y)})" color="${iconColor}">${sized}</g>`,
   );
   return { svg, handled: true };
 }
@@ -1421,6 +1439,7 @@ function flattenCapturedInlineSvg(
   sized: string,
   place: { x: number; y: number; w: number; h: number },
   allocClip?: () => string,
+  position = r,
 ): string | null {
   const tag = readSvgOpeningTag(sized);
   if (tag == null) return null;
@@ -1458,7 +1477,7 @@ function flattenCapturedInlineSvg(
   const clipId = allocClip?.();
   if (clipId == null) return null;
   return (
-    `<clipPath id="${clipId}"><rect x="${r(place.x)}" y="${r(place.y)}" width="${r(place.w)}" height="${r(place.h)}"/></clipPath>` +
+    `<clipPath id="${clipId}"><rect x="${position(place.x)}" y="${position(place.y)}" width="${r(place.w)}" height="${r(place.h)}"/></clipPath>` +
     `<g clip-path="url(#${clipId})">${group}</g>`
   );
 }
@@ -2736,6 +2755,10 @@ function resolveOverflowClipId(state: RenderState, el: CapturedElement, corners:
   const { paintCtx, defsParts } = state;
   let clipPathUrlId: string | null = null;
   if (isNonReplacedInline(el)) return null;
+  // The authenticated undecorated SVG root already owns its viewport clip,
+  // as a nested svg or the flattened group's matching clipPath. Combining
+  // that viewport with a second clip at the DOM box changes Chromium's paint.
+  if (inlineSvgRootPaint(el) != null) return null;
   const oxV = el.styles.overflowX;
   const oyV = el.styles.overflowY;
   const oxClips = oxV != null && oxV !== "visible";

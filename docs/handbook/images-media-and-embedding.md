@@ -179,8 +179,22 @@ produces different pixels. The same comparison reproduced the 42 differing
 pixels in the retained Stripe icon, with mean absolute RGB channel error 3.07
 and a maximum of 93. The real card also has a paint-isolating ancestor. Both
 policies converge at that icon's origin, so the crop alone cannot apportion the
-difference between the two policies. DM-0S9TKE tracks preserving inline-root
-mapping when embedding the captured markup.
+difference between the two policies.
+
+For a single undecorated HTML inline SVG with positive integral dimensions,
+the capture can record the displacement from its DOM rectangle to its painted
+viewport. The ordinary and flattened SVG outputs both use this displacement
+for the contents and their viewport clip. The captured DOM rectangle and SVG
+markup retain their source values. Blink's inline shrink adjustment cannot
+activate at these sizes. [Chromium 147 SVG root painter](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/paint/svg_root_painter.cc)
+
+The capture verifies the candidate's main-document ancestry through the
+author-shadow capability and composes the native local paint offset through
+eligible containment and integer scrolling. Browser tests compare both
+rendering modes with Chromium at device scale factors 1 and 2, including
+nonunit translated viewBoxes and visible and hidden overflow. Fractional
+root sizes, transformed or zoomed ancestors, shadow ancestry and ambiguous
+geometry retain their existing rendering. [Native capture and rendering tests](../../tests/inline-svg-root-paint.e2e.test.ts)
 
 The raster controls compare a pixel-snapped HTML image with a fractional SVG
 image using identical resource bytes. A separate control holds the DOM image

@@ -2541,25 +2541,30 @@ async function captureElementTreeWithWarningsInternal(
         return assertCapturedTreeShape(neutralResult, "neutral text-paint capture") as { tree: CapturedElement[] };
       });
       await reverifyAnimationFrame();
-      const outlineCandidate = await evaluateInFrame(
+      const candidates = await evaluateInFrame(
         page,
         (rootSelector) => {
           const root = document.querySelector(rootSelector);
-          if (!(root instanceof HTMLElement)) return false;
-          const style = getComputedStyle(root);
-          return (
-            style.outlineStyle !== "none" &&
-            style.outlineStyle !== "hidden" &&
-            style.outlineStyle !== "auto" &&
-            parseFloat(style.outlineWidth) > 0
-          );
+          const style = root instanceof HTMLElement ? getComputedStyle(root) : null;
+          return {
+            outline:
+              style != null &&
+              style.outlineStyle !== "none" &&
+              style.outlineStyle !== "hidden" &&
+              style.outlineStyle !== "auto" &&
+              parseFloat(style.outlineWidth) > 0,
+            inlineSvg: root instanceof SVGSVGElement || root?.querySelector("svg") != null,
+          };
         },
         selector,
       );
       const finalArgs = { ...captureArgs, textPaintGeometryKey: textPaintProbe.key };
-      if (outlineCandidate) {
+      if (candidates.outline || candidates.inlineSvg) {
         authorShadowScope = createAuthorShadowScope(page);
-        await authorShadowScope.prepare(selector, { mode: "selected-root", purpose: "outline root admission" });
+        if (candidates.outline)
+          await authorShadowScope.prepare(selector, { mode: "selected-root", purpose: "outline root admission" });
+        if (candidates.inlineSvg)
+          await authorShadowScope.prepare(selector, { mode: "inline-svg-roots", purpose: "inline SVG root paint" });
         await reverifyAnimationFrame();
         result = await authorShadowScope.evaluateCapture(CAPTURE_SCRIPT, finalArgs);
       } else {

@@ -2558,6 +2558,15 @@ export interface CapturedElement {
     transformOrigin?: string;
   }>;
   svgContent?: string;
+  /** Blink SVGRootPainter's translation relative to this integral source border box.
+   * The original DOM coordinates, dimensions and source viewport stay in their own fields. */
+  svgRootPaint?: {
+    source: "blink-inline-svg-root-paint-v1";
+    dx: number;
+    dy: number;
+    width: number;
+    height: number;
+  };
   /** Individual text node segments (for mixed content with interleaved child elements) */
   textSegments?: TextSegment[];
   /** DM-2469 authoritative pre-transform fragment planes and paint matrices. */

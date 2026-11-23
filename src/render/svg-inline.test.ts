@@ -422,6 +422,20 @@ describe("paintInlineSvg — DOM inline <svg> class namespacing (DM-1595)", () =
     expect(out).toMatch(/\.[\w-]*svgic1[\w-]*cls-1\{fill:#0000e0\}/);
   });
 
+  it("carries a source SVG paint offset through a crop and discards it on resize", () => {
+    const el = svgEl('<svg viewBox="0 0 40 40"><path d="M0 0h40v40z"/></svg>', 6.734375);
+    el.styles.overflowX = el.styles.overflowY = "hidden";
+    el.svgRootPaint = { source: "blink-inline-svg-root-paint-v1", dx: -0.484375, dy: 0, width: 40, height: 40 };
+    expect(elementTreeToSvg([el], 80, 80)).toContain('transform="translate(6.25, 0)"');
+    const flat = elementTreeToSvg([el], 80, 80, { flattenNestedSvg: true });
+    expect(flat).toContain('transform="matrix(1 0 0 1 6.25 0)"');
+    expect(flat).toContain('<rect x="6.25" y="0" width="40" height="40"/>');
+    el.width = 41;
+    const resized = elementTreeToSvg([el], 80, 80);
+    delete el.svgRootPaint;
+    expect(resized).toBe(elementTreeToSvg([el], 80, 80));
+  });
+
   it("leaves a <style>-free inline SVG byte-identical (no prefix, no counter shift)", () => {
     // A presentation-attribute icon — the common case — must be untouched.
     const plain = `<svg viewBox="0 0 40 40"><rect class="icon" width="40" height="40" fill="#123456"/></svg>`;

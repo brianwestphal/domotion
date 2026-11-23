@@ -14,6 +14,7 @@ import { captureLegacyClipRect } from "./legacy-clip.js";
 import { captureBorderPaintSnap, captureImagePaintBasis, frozenPaintShift } from "./border-paint-snap.js";
 import { detectInlineFragments } from "./fragmentation.js";
 import { captureInlineSvg } from "./inline-svg.js";
+import { captureSvgRootPaint } from "./svg-root-paint.js";
 import { captureImageElement } from "./image-elements.js";
 import { bodyBackgroundTransfersToView } from "./canvas-background.js";
 import { computeElementRaster } from "./text-segments.js";
@@ -550,6 +551,10 @@ export const createElementCapture = () => {
       ...buildCapturedContent(d, facts),
       ...buildCapturedRasters(d, facts, nextBackdropToken),
     } as CapturedElement;
+    if (captured.svgContent != null && transformSubtreeRaster == null) {
+      const paint = captureSvgRootPaint(el, rect, d.args.authorShadowContexts?.inlineSvgRoots);
+      if (paint != null) captured.svgRootPaint = paint;
+    }
     const legacyClipRect = captureLegacyClipRect({
       el,
       cs,
