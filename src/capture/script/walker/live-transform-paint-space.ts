@@ -7,6 +7,7 @@ import { qualifyLiveSourceImage, type LiveSourceImage } from "./live-source-imag
 export interface LiveTransformPaintSpace {
   ownerBox: DOMRect;
   localRect: (element: Element) => DOMRect | undefined;
+  elements: Element[];
   image?: LiveSourceImage;
 }
 
@@ -177,5 +178,5 @@ export const reconstructLiveTransformPaintSpace = (
     boxes.set(element, new DOMRect(local[0], local[1], local[2], local[3]));
   }
   const ownerBox = boxes.get(owner);
-  return ownerBox == null ? undefined : { ownerBox, localRect: (element) => boxes.get(element), image };
+  return ownerBox == null ? undefined : { ownerBox, localRect: (element) => boxes.get(element), elements, image };
 };

@@ -5,8 +5,8 @@ consumers. It changes no capture admission, SVG mapping, outline policy, public
 options, or existing inset/CSP helpers by itself.
 
 `createAuthorShadowScope(page)` owns one public CDP session. Call `prepare` for
-at most one `selected-root` purpose and one `inline-svg-roots` purpose before
-calling `evaluateCapture`. Each preparation retains actual candidate Elements,
+at most one purpose per mode (`selected-root`, `inline-svg-roots`, or
+`live-affine-boxes`) before calling `evaluateCapture`. Each preparation retains actual candidate Elements,
 DOM parent chains, selected roots, Document, Window and default execution-context
 identity. The inset helper’s pierced-DOM classifier identifies author-shadow
 ancestry, including light descendants of closed slotted hosts. CSS clip and
@@ -14,7 +14,8 @@ mask isolation uses its own document-wide ownership guard. [Native CSS shadow
 isolation](278-native-css-shadow-isolation.md)
 
 The scope passes only frozen adoption capabilities into the private
-`args.authorShadowContexts.selectedRoot` / `inlineSvgRoots` slots. It overwrites
+`args.authorShadowContexts.selectedRoot`, `inlineSvgRoots`, and `liveAffineBoxes`
+slots. It overwrites
 caller-provided slots. Original admins, records and sticky usage ledgers remain
 in closures behind remote objects on the same session. No registry, token,
 expando or callable bridge is placed in page globals. A copied capability
@@ -28,16 +29,24 @@ verifies every adopted original before returning. Relevant remove/reinsert,
 slot changes, new author shadow roots and context loss remain observable even
 if the final DOM is restored. Each adopted element must still belong to an
 original selector match that covers it. Removing an unused match leaves the
-other records valid, as do unrelated temporary color probes. Both consumers’
-final ledgers are read together in one source-realm call, followed by a check
+other records valid, as do unrelated temporary color probes. All adopted
+ledgers are read together in one source-realm call, followed by a check
 of all adopted records’ topology events. Registration seals
 before the first tracked snapshot. `DOM.getDocument` is used once: Chromium
 clears its frontend NodeId bindings on another call. Later verification uses
 `DOM.describeNode` on the original Document backend identity, preserving that
 event-tracking epoch.
 
+DM-B90GX4 inventories the actual light-DOM owner and descendants of candidate
+live affine box and PNG subtrees. The synchronous capture adopts the group only
+when every participant has absent author-shadow context. The scope also checks
+each participant's original children and watches transient insertions and
+removals under those exact nodes. Missing authority or a closed slot with an
+unobservable paint offset reset leaves the existing live-rect path available.
+The read-only text route retains its separate capture and frame sampling.
+
 Authority work has a three-second Node deadline, inventory limits (128 selected
-roots/candidates/ancestors per probe, two probes), a 20,000-node/512-level pierced
+roots/candidates/ancestors per probe, one probe per mode), a 20,000-node/512-level pierced
 snapshot limit and an 8,192-event pre-index buffer. Exhaustion produces absent
 authority. These bounds do not impose a new deadline or size cap on the actual
 CAPTURE_SCRIPT. Scope/probe disposal closes only original owned objects, removes

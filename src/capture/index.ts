@@ -28,6 +28,7 @@ declare const browserImageNaturalSize: typeof import("./evaluate-in-frame.js").b
 import { disposeAll, runPrepasses, withCdpSession } from "./cdp-lifecycle.js";
 import { prepareInsetRootShadowContext, type InsetRootShadowContextProbe } from "./inset-root-shadow-context.js";
 import { createAuthorShadowScope, type AuthorShadowScope } from "./author-shadow-context.js";
+import { LIVE_AFFINE_BOX_SHADOW_CONTEXT } from "./author-shadow-context-record.js";
 import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
@@ -2567,12 +2568,15 @@ async function captureElementTreeWithWarningsInternal(
       );
       const captureWithText = async (textPaintGeometryKey: string) => {
         const finalArgs = { ...captureArgs, textPaintGeometryKey };
-        if (candidates.outline || candidates.inlineSvg) {
+        const liveAffineBoxes =
+          textPaintProbe?.verifyLiveTextFrame == null && textPaintProbe?.hasLiveAffineBoxCandidates === true;
+        if (candidates.outline || candidates.inlineSvg || liveAffineBoxes) {
           authorShadowScope = createAuthorShadowScope(page);
           if (candidates.outline)
             await authorShadowScope.prepare(selector, { mode: "selected-root", purpose: "outline root admission" });
           if (candidates.inlineSvg)
             await authorShadowScope.prepare(selector, { mode: "inline-svg-roots", purpose: "inline SVG root paint" });
+          if (liveAffineBoxes) await authorShadowScope.prepare(selector, LIVE_AFFINE_BOX_SHADOW_CONTEXT);
           await reverifyAnimationFrame();
           return authorShadowScope.evaluateCapture(CAPTURE_SCRIPT, finalArgs);
         }

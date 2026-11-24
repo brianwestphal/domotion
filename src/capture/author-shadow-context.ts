@@ -7,7 +7,7 @@ import { probeFailureWarning } from "./probe-failure.js";
 import { createBrowserAuthorShadowAdmin, type BrowserAuthorShadowRead } from "./author-shadow-context-browser.js";
 import { encodePlainCaptureValue, decodePlainCaptureValue } from "./plain-capture-value.js";
 import type { CaptureWarning } from "./types.js";
-import type { AuthorShadowContextMode } from "./author-shadow-context-record.js";
+import type { AuthorShadowContextCapabilities, AuthorShadowContextMode } from "./author-shadow-context-record.js";
 
 export interface AuthorShadowContextOptions {
   mode: AuthorShadowContextMode;
@@ -60,6 +60,14 @@ interface Track {
   index: number;
 }
 
+type TargetEvent = { kind: "node" | "backend" | "affine-parent"; id: number };
+
+const capabilitySlots: Record<AuthorShadowContextMode, keyof AuthorShadowContextCapabilities> = {
+  "selected-root": "selectedRoot",
+  "inline-svg-roots": "inlineSvgRoots",
+  "live-affine-boxes": "liveAffineBoxes",
+};
+
 /** Match public Playwright1.59.1's Chromium exception description/value
  * interpretation without importing or patching private Playwright internals. */
 function evaluationError(details: RuntimeException): Error {
@@ -73,7 +81,7 @@ function evaluationError(details: RuntimeException): Error {
   return new Error(`page.evaluate: ${message}`);
 }
 
-/** One capture-owned carrier, two closed consumer modes with separate records,
+/** One capture-owned carrier, with separate records for each closed consumer mode,
  * object groups and lifetimes. Original admins/capabilities never enter page
  * globals. Only opaque objects registered by this scope can be injected. */
 export function createAuthorShadowScope(page: Page, options: { timeoutMs?: number } = {}): AuthorShadowScope {
@@ -85,7 +93,9 @@ export function createAuthorShadowScope(page: Page, options: { timeoutMs?: numbe
   const reserved = new Set<AuthorShadowContextMode>();
   const nodeOwners = new Map<number, Set<Track>>();
   const backendOwners = new Map<number, Set<Track>>();
-  const earlyEvents: Array<{ kind: "node" | "backend"; id: number }> = [];
+  const affineParents = new Map<number, Set<Track>>();
+  const eventOwners = { node: nodeOwners, backend: backendOwners, "affine-parent": affineParents };
+  const earlyEvents: TargetEvent[] = [];
   const pending = new Set<Promise<unknown>>();
   let session: CDPSession | undefined;
   let starting: Promise<void> | undefined;
@@ -119,15 +129,14 @@ export function createAuthorShadowScope(page: Page, options: { timeoutMs?: numbe
     if (value === undefined || disposed || closing) throw new Error("author-shadow Node deadline expired");
     return value;
   };
-  const target = (event: { kind: "node" | "backend"; id: number }) => {
+  const target = (event: TargetEvent) => {
     if (!armed) return;
     if (!indexed) {
       if (earlyEvents.length >= 8192) contextLost = true;
       else earlyEvents.push(event);
       return;
     }
-    for (const track of (event.kind === "node" ? nodeOwners : backendOwners).get(event.id) ?? [])
-      track.owner.invalid.add(track.index);
+    for (const track of eventOwners[event.kind].get(event.id) ?? []) track.owner.invalid.add(track.index);
   };
   const cleanupWarned = new Set<string>();
   const closeRemote = async (active: CDPSession, key: string, admin?: string) => {
@@ -198,8 +207,14 @@ export function createAuthorShadowScope(page: Page, options: { timeoutMs?: numbe
       active.on("DOM.documentUpdated", () => {
         if (armed) contextLost = true;
       });
-      active.on("DOM.childNodeRemoved", (event) => target({ kind: "node", id: event.nodeId }));
-      active.on("DOM.childNodeInserted", (event) => target({ kind: "node", id: event.node.nodeId }));
+      active.on("DOM.childNodeRemoved", (event) => {
+        target({ kind: "node", id: event.nodeId });
+        if (slots.has("live-affine-boxes")) target({ kind: "affine-parent", id: event.parentNodeId });
+      });
+      active.on("DOM.childNodeInserted", (event) => {
+        target({ kind: "node", id: event.node.nodeId });
+        if (slots.has("live-affine-boxes")) target({ kind: "affine-parent", id: event.parentNodeId });
+      });
       active.on("DOM.shadowRootPushed", (event) => {
         if (event.root.shadowRootType !== "user-agent") target({ kind: "node", id: event.hostId });
       });
@@ -281,18 +296,24 @@ export function createAuthorShadowScope(page: Page, options: { timeoutMs?: numbe
         byBackend.set(backend, list);
       }
     for (const { node, path } of nodes)
-      for (const track of byBackend.get(node.backendNodeId) ?? [])
+      for (const track of byBackend.get(node.backendNodeId) ?? []) {
+        if (track.owner.options.mode === "live-affine-boxes") add(affineParents, node.nodeId, track);
         for (const ancestor of path) {
           add(nodeOwners, ancestor.nodeId, track);
           add(backendOwners, ancestor.backendNodeId, track);
         }
+      }
     for (const { node } of nodes)
       for (const distributed of node.distributedNodes ?? [])
         for (const track of backendOwners.get(distributed.backendNodeId) ?? []) add(nodeOwners, node.nodeId, track);
     indexed = true;
     for (const event of earlyEvents) target(event);
     for (const owner of slots.values()) {
-      const dispositions = owner.backends.map((backend) => rootHasAuthorShadowContext(tree.root, backend, deadline));
+      const dispositions = owner.backends.map((backend, index) =>
+        owner.options.mode === "live-affine-boxes" && owner.invalid.has(index)
+          ? null
+          : rootHasAuthorShadowContext(tree.root, backend, deadline),
+      );
       const installed = await query(() =>
         active.send("Runtime.callFunctionOn", {
           objectId: owner.admin,
@@ -382,7 +403,7 @@ export function createAuthorShadowScope(page: Page, options: { timeoutMs?: numbe
       disposed ||
       closing ||
       sealed ||
-      !["selected-root", "inline-svg-roots"].includes(consumer.mode) ||
+      !Object.hasOwn(capabilitySlots, consumer.mode) ||
       typeof consumer.purpose !== "string" ||
       !consumer.purpose ||
       consumer.purpose.length > 128 ||
@@ -508,10 +529,7 @@ export function createAuthorShadowScope(page: Page, options: { timeoutMs?: numbe
     if (contextLost || !session || !carrier) throw new Error("author-shadow capture source context lost");
     const parameters = owners.map((_, index) => `admin${index}`);
     const capability = owners
-      .map(
-        (owner, index) =>
-          `${JSON.stringify(owner.options.mode === "selected-root" ? "selectedRoot" : "inlineSvgRoots")}:admin${index}.capability`,
-      )
+      .map((owner, index) => `${JSON.stringify(capabilitySlots[owner.options.mode])}:admin${index}.capability`)
       .join(",");
     const declaration = `function(wire,${parameters.join(",")}){"use strict";var __name=(fn)=>fn;const decode=(${decodePlainCaptureValue.toString()}),encode=(${encodePlainCaptureValue.toString()});const args=decode(wire);Object.defineProperty(args,'authorShadowContexts',{value:Object.freeze({${capability}}),writable:true,enumerable:true,configurable:true});const result=(${script})(args);if(result&&typeof result.then==='function')return Promise.resolve(result).then(encode);return encode(result);}`;
     // Do not impose the authority-query deadline on the actual source capture.

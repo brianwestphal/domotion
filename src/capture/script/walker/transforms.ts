@@ -65,6 +65,11 @@ import { reconstructLiveTransformPaintSpace, type LiveTransformPaintSpace } from
 import { liveSourceImageHasAlignedPaint } from "./live-source-image.js";
 import type { LiveTextInverse } from "../../live-text-inverse.js";
 import {
+  adoptAuthorShadowContext,
+  LIVE_AFFINE_BOX_SHADOW_CONTEXT,
+  type AuthorShadowContextCapability,
+} from "../../author-shadow-context-record.js";
+import {
   registerFrozenPaintBase,
   registerPaintTransformTranslation,
   releaseFrozenPaintBase,
@@ -474,10 +479,21 @@ export const zoomTransformOrigin = (origin: string, zoom: number): string => {
 export const createTransformsHandler = (
   viewport: { x: number; y: number; width: number; height: number },
   readOnlyLiveText?: { owner: Element; text: Element; inverse: LiveTextInverse },
+  liveAffineBoxes?: AuthorShadowContextCapability,
 ) => {
   // Computed styles taking the live-rect fallback suppress the wrapper.
   const liveTransformStyles = new WeakSet<CSSStyleDeclaration>();
   let livePaintSpace: LiveTransformPaintSpace | undefined;
+  const authenticateBoxTopology = (elements: Element[]): boolean => {
+    const probe = { ...LIVE_AFFINE_BOX_SHADOW_CONTEXT, markUsed: false };
+    if (!elements.every((element) => adoptAuthorShadowContext(element, liveAffineBoxes, probe) === "none"))
+      return false;
+    // Adopt only after the whole subtree has qualified. The carrier verifies
+    // the used participants again before the capture can return.
+    return elements.every(
+      (element) => adoptAuthorShadowContext(element, liveAffineBoxes, LIVE_AFFINE_BOX_SHADOW_CONTEXT) === "none",
+    );
+  };
   const wrapWithFrozenTransform = <T>(
     el: HTMLElement,
     cs: CSSStyleDeclaration,
@@ -551,8 +567,10 @@ export const createTransformsHandler = (
         const { image, ownerBox } = reconstructed;
         const imageBox = image == null ? undefined : reconstructed.localRect(image.element);
         if (
-          image == null ||
-          (imageBox != null && liveSourceImageHasAlignedPaint(image, imageBox, ownerBox, cs, paintMatrix, viewport))
+          (image == null ||
+            (imageBox != null &&
+              liveSourceImageHasAlignedPaint(image, imageBox, ownerBox, cs, paintMatrix, viewport))) &&
+          (readOnlyLiveText != null || authenticateBoxTopology(reconstructed.elements))
         ) {
           const paintTransform = paintMatrix.toString();
           livePaintSpace = reconstructed;

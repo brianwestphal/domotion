@@ -6,7 +6,10 @@ import type { Browser, CDPSession, Page } from "@playwright/test";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { launchChromium } from "../src/capture/index.js";
 import { createAuthorShadowScope, type AuthorShadowScope } from "../src/capture/author-shadow-context.js";
-import { adoptAuthorShadowContext } from "../src/capture/author-shadow-context-record.js";
+import {
+  adoptAuthorShadowContext,
+  LIVE_AFFINE_BOX_SHADOW_CONTEXT,
+} from "../src/capture/author-shadow-context-record.js";
 import { CAPTURE_SCRIPT } from "../src/capture/script.generated.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { withTimeout } from "../src/utils/with-timeout.js";
@@ -459,6 +462,29 @@ it("keeps changed unused candidates independent of an adopted first candidate", 
         {},
       ),
     ).toBe("none");
+    await scope.verify();
+  }));
+it("adopts distinct affine participants alongside the selected-root and SVG capabilities", async () =>
+  owned(async (page, scope) => {
+    await page.setContent(`<style>
+      #owner{transform:scale(2);transition:transform 3s}
+      </style><div id="target"><div id="owner"><div id="member"></div></div><svg id="svg"></svg></div>`);
+    const svg = { mode: "inline-svg-roots", purpose: "SVG authority control" } as const;
+    await scope.prepare("#target", expected);
+    await scope.prepare("#target", svg);
+    await scope.prepare("#target", LIVE_AFFINE_BOX_SHADOW_CONTEXT);
+    expect(
+      await scope.evaluateCapture(
+        `args=>{
+        const {selectedRoot, inlineSvgRoots, liveAffineBoxes}=args.authorShadowContexts;
+        const adopt=(id,capability,expected)=>capability.adopt(document.getElementById(id),expected);
+        return [adopt('target',selectedRoot,args.selected),adopt('svg',inlineSvgRoots,args.svg),
+          adopt('owner',liveAffineBoxes,args.box),adopt('member',liveAffineBoxes,args.box),
+          adopt('svg',liveAffineBoxes,args.box)];
+      }`,
+        { selected: expected, svg, box: LIVE_AFFINE_BOX_SHADOW_CONTEXT },
+      ),
+    ).toEqual(["none", "none", "none", "none", "unavailable"]);
     await scope.verify();
   }));
 it.each([false, true])(

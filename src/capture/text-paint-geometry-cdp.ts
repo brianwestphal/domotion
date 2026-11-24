@@ -43,6 +43,7 @@ interface PreparedFrame {
   rows: FrameRow[];
   hasTransformOwners: boolean;
   hasReadOnlyLiveTextCandidate?: boolean;
+  hasLiveAffineBoxCandidates?: boolean;
 }
 
 interface MeasuredRow extends FrameRow {
@@ -71,6 +72,7 @@ export interface TextPaintGeometryProbe {
   key: string;
   warnings: CaptureWarning[];
   verifyLiveTextFrame?: () => Promise<boolean>;
+  hasLiveAffineBoxCandidates?: boolean;
   /** Run a post-capture materializer in the same pre-transform paint plane. */
   withNeutralTransforms<T>(work: () => Promise<T>): Promise<T>;
   dispose(): Promise<void>;
@@ -131,6 +133,7 @@ async function setupFrameRegistry(
         const indexByElement = new WeakMap<Element, number>();
         for (let index = 0; index < elements.length; index++) indexByElement.set(elements[index], index);
         const owners = new Set<Element>();
+        const affineBoxCandidates = new Set<Element>();
         const ownerSeen = new Set<Element>();
         let ancestor: Element | null = root;
         while (ancestor != null) {
@@ -148,6 +151,14 @@ async function setupFrameRegistry(
             style.perspective !== "none" ||
             style.transformStyle === "preserve-3d";
           if (ownsTransform) owners.add(element);
+          if (
+            isTop &&
+            element instanceof HTMLElement &&
+            indexByElement.has(element) &&
+            (style.transform !== "none" || style.scale !== "none") &&
+            (style.transitionDuration !== "0s" || style.transitionDelay !== "0s" || element.getAnimations().length > 0)
+          )
+            affineBoxCandidates.add(element);
         }
         const result: Array<{
           sourceKey: string;
@@ -262,7 +273,12 @@ async function setupFrameRegistry(
           (owners.has(textRows[0].element) ||
             (textRows[0].element.parentElement != null && owners.has(textRows[0].element.parentElement))) &&
           textRows.every(({ element }) => element === textRows[0].element);
-        return { rows: result, hasTransformOwners: textTransformOwners.size > 0, hasReadOnlyLiveTextCandidate };
+        return {
+          rows: result,
+          hasTransformOwners: textTransformOwners.size > 0,
+          hasReadOnlyLiveTextCandidate,
+          hasLiveAffineBoxCandidates: [...affineBoxCandidates].some((element) => !textTransformOwners.has(element)),
+        };
       },
       { selector, key, token, isTop: frame === frame.page().mainFrame() },
     );
@@ -272,6 +288,7 @@ async function setupFrameRegistry(
       rows: prepared.rows,
       hasTransformOwners: prepared.hasTransformOwners,
       hasReadOnlyLiveTextCandidate: prepared.hasReadOnlyLiveTextCandidate,
+      hasLiveAffineBoxCandidates: prepared.hasLiveAffineBoxCandidates,
     };
   } catch {
     return null;
@@ -1054,6 +1071,7 @@ export async function prepareTextPaintGeometry(
   const warnings: CaptureWarning[] = [];
   let playbackRate: number | undefined;
   let neutral = false;
+  const hasLiveAffineBoxCandidates = prepared.some((frame) => frame.hasLiveAffineBoxCandidates);
   if (
     captureReadOnlyTree != null &&
     page.frames().length === 1 &&
@@ -1067,6 +1085,7 @@ export async function prepareTextPaintGeometry(
       return {
         key,
         warnings,
+        hasLiveAffineBoxCandidates,
         verifyLiveTextFrame: readOnly.verify,
         withNeutralTransforms: (work) => work(),
         dispose: () => registry.dispose(),
@@ -1179,6 +1198,7 @@ export async function prepareTextPaintGeometry(
   return {
     key,
     warnings,
+    hasLiveAffineBoxCandidates,
     withNeutralTransforms: async <T>(work: () => Promise<T>): Promise<T> => {
       await mutateFrames(prepared, key, true);
       await settleFrames(prepared);

@@ -163,6 +163,10 @@ express either, so the capture walk freezes every static planar transform:
   and the scale branch (`CanPropagateSubpixelAccumulation`, Chromium
   `7d859f27`). Verification covers a declared transition, a sampled
   transition and a paused CSS animation, including fractional child paint.
+  Solid boxes and source PNGs also require pierced-DOM proof for the owner
+  and every captured participant (DM-B90GX4). A closed author slot can hide
+  a paint-offset reset from light-DOM geometry. Missing proof leaves the
+  existing live-rect path available.
   DM-88FV94 also covers an ordinary box with a positive one-axis scale and
   a declared transform transition when the owner has no current animation
   and no `will-change` hint. The qualified scope excludes outer containment

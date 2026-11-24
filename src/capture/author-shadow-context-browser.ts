@@ -35,7 +35,7 @@ export function createBrowserAuthorShadowAdmin(options: {
   const inventory = new Set<Element>();
   for (const root of roots) {
     if (options.mode === "selected-root") inventory.add(root);
-    else {
+    else if (options.mode === "inline-svg-roots") {
       const descendants = root.querySelectorAll("svg");
       if (descendants.length > 128) throw new Error("author-shadow SVG inventory budget exceeded");
       for (const element of [root, ...descendants])
@@ -45,6 +45,23 @@ export function createBrowserAuthorShadowAdmin(options: {
           (element as SVGSVGElement).ownerSVGElement === null
         )
           inventory.add(element);
+    } else {
+      const tags = "div,span,section,article,main,header,footer,aside,nav,figure,figcaption,p,h1,h2,h3,h4,h5,h6";
+      for (const owner of [root, ...root.querySelectorAll(tags)]) {
+        if (!(owner instanceof HTMLElement) || !owner.matches(tags)) continue;
+        const style = getComputedStyle(owner);
+        if (
+          (style.transform === "none" && style.scale === "none") ||
+          (style.transitionDuration === "0s" && style.transitionDelay === "0s" && owner.getAnimations().length === 0)
+        )
+          continue;
+        // Inventory the exact Elements the synchronous walk may adopt. A
+        // subtree outside the budget gets no partial set of authority.
+        const descendants = owner.querySelectorAll("*");
+        if (descendants.length >= 128) continue;
+        const newElements = [owner, ...descendants].filter((element) => !inventory.has(element));
+        if (inventory.size + newElements.length <= 128) for (const element of newElements) inventory.add(element);
+      }
     }
     if (inventory.size > 128) throw new Error("author-shadow candidate budget exceeded");
   }
@@ -54,7 +71,8 @@ export function createBrowserAuthorShadowAdmin(options: {
       if (ancestors.length >= 128) throw new Error("author-shadow ancestor budget exceeded");
       ancestors.push(parent);
     }
-    return { element, ancestors, disposition: "unavailable" as AuthorShadowDisposition };
+    const children = options.mode === "live-affine-boxes" ? [...element.children] : undefined;
+    return { element, ancestors, children, disposition: "unavailable" as AuthorShadowDisposition };
   });
   let sourceDocument: Document | null = document;
   let sourceWindow: Window | null = window;
@@ -82,7 +100,12 @@ export function createBrowserAuthorShadowAdmin(options: {
       if (parent !== ancestor || !parent.isConnected || parent.ownerDocument !== sourceDocument) return false;
       parent = parent.parentElement;
     }
-    return parent === null;
+    return (
+      parent === null &&
+      (record.children == null ||
+        (record.element.children.length === record.children.length &&
+          record.children.every((child, offset) => record.element.children[offset] === child)))
+    );
   };
   const close = () => {
     if (closed) return;

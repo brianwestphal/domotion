@@ -185,6 +185,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
   const { wrapWithFrozenTransform, threadFrozenTransform, liveTextInverseFor } = createTransformsHandler(
     vp,
     readOnlyLiveTextScope(document.documentElement),
+    args.authorShadowContexts?.liveAffineBoxes,
   );
   const _collapsedBorderFragmentByTable = buildCollapsedBorderFragmentLookup(args);
   const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({

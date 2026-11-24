@@ -1,6 +1,6 @@
 /** A private, live source-realm capability. It is passed as an actual owned
  * remote object, never serialized or recovered through mutable page globals. */
-export type AuthorShadowContextMode = "selected-root" | "inline-svg-roots";
+export type AuthorShadowContextMode = "selected-root" | "inline-svg-roots" | "live-affine-boxes";
 export type AuthorShadowDisposition = "none" | "present" | "unavailable";
 export interface AuthorShadowExpectation {
   mode: AuthorShadowContextMode;
@@ -14,7 +14,10 @@ export interface AuthorShadowContextCapability {
 export interface AuthorShadowContextCapabilities {
   selectedRoot?: AuthorShadowContextCapability;
   inlineSvgRoots?: AuthorShadowContextCapability;
+  liveAffineBoxes?: AuthorShadowContextCapability;
 }
+
+export const LIVE_AFFINE_BOX_SHADOW_CONTEXT = { mode: "live-affine-boxes", purpose: "live affine box paint" } as const;
 
 /** Consumers call only after their own admission checks pass. The carrier
  * injects the original frozen capability. Its method rejects copied receivers
