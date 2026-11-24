@@ -8,6 +8,7 @@ import {
   BROKEN_IMAGE_GATE_SOURCE_REVISIONS,
   BROKEN_IMAGE_GATE_THRESHOLDS,
   REQUIRED_BROKEN_IMAGE_MUTATIONS,
+  projectAuthorAffinePoint,
   validateBrokenImageGateCorpus,
 } from "../tools/broken-image-fallback-oracle.js";
 
@@ -54,6 +55,17 @@ describe("DM-2465 broken-image fallback hard-gate contract", () => {
     expect(BROKEN_IMAGE_GATE_THRESHOLDS.iconBoundDevicePx).toBe(1);
     expect(BROKEN_IMAGE_GATE_THRESHOLDS.iconRgbaMeanError).toBeLessThanOrEqual(0.01);
     expect(BROKEN_IMAGE_GATE_THRESHOLDS.iconPixelMismatchFraction).toBeLessThanOrEqual(0.04);
+  });
+
+  it("projects the full native fallback baseline from the neutral host pivot", () => {
+    const matrix = { a: 1.1, d: 1.1, e: 7, f: 5 };
+    const pivot = { x: 42, y: 36 };
+    expect(projectAuthorAffinePoint(pivot, pivot, matrix)).toEqual({ x: 49, y: 41 });
+    const start = projectAuthorAffinePoint({ x: 58, y: 55 }, pivot, matrix);
+    expect(start.x).toBeCloseTo(66.6, 12);
+    expect(start.y).toBeCloseTo(61.9, 12);
+    const liveTop = projectAuthorAffinePoint({ x: 58, y: 39 }, pivot, matrix).y;
+    expect(start.y - (liveTop + 16)).toBeCloseTo(1.6, 12);
   });
 
   it("pins Chromium authority and every required fault-injection discriminator", () => {

@@ -410,3 +410,9 @@ The work is split so capture facts cannot be fixture-fit inside the renderer:
    the 1× crop at 2×. `tests/broken-image-fallback-parity-gate.test.ts` pins the
    corpus/tolerances, while the workflow contract test prevents an OS leg,
    matrix axis, artifact upload, or hard-gate trigger from being weakened.
+
+   DM-QRC4E9 compares the affine row's captured fallback geometry with an
+   independent transform-neutral twin. The authored matrix must project the
+   twin's geometry back to the live UA boxes within the strict geometry
+   tolerance. The emitted SVG text start must also match the projected
+   baseline. The icon marker still compares directly against live Chromium.

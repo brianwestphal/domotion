@@ -57,7 +57,8 @@ type Platform = (typeof BROKEN_IMAGE_GATE_PLATFORMS)[number];
 type Scheme = (typeof BROKEN_IMAGE_GATE_SCHEMES)[number];
 type Disposition = CapturedBrokenImageFallback["disposition"];
 type LoadState = CapturedBrokenImageFallback["loadState"];
-type Rect = { x: number; y: number; width: number; height: number };
+type Point = { x: number; y: number };
+type Rect = Point & { width: number; height: number };
 type Quad = [number, number, number, number, number, number, number, number];
 
 export type BrokenImageCaseFamily =
@@ -566,6 +567,19 @@ export interface BrokenImageGateRow {
     maxGeometryDeltaCssPx: number;
     baselineDeltaCssPx: number;
     markerRectDeltaCssPx: number | null;
+    authorTransform?: {
+      capturePlane: {
+        hostBox: CapturedBrokenImagePhysicalBox | null;
+        containerBox: CapturedBrokenImagePhysicalBox | null;
+        iconBox: CapturedBrokenImagePhysicalBox | null;
+        textBox: Rect | null;
+        textBaseline: number | null;
+      };
+      nativeProjectionDeltaCssPx: number;
+      emittedBaselineDeltaCssPx: number;
+      nativePaintBaseline: Point | null;
+      emittedPaintBaseline: Point | null;
+    };
   };
   output: {
     iconMarkerCount: number;
@@ -861,6 +875,7 @@ interface OutputFacts {
   rawAlternativeTextCount: number;
   markerRect: Rect | null;
   markerHref: string | null;
+  paintBaseline: Point | null;
 }
 
 async function readOutputFacts(page: Page, svg: string, resolvedText: string): Promise<OutputFacts> {
@@ -868,6 +883,7 @@ async function readOutputFacts(page: Page, svg: string, resolvedText: string): P
     `<style>html,body{margin:0;width:${VIEWPORT.width}px;height:${VIEWPORT.height}px;overflow:hidden;background:transparent}svg{display:block}</style>${svg}`,
     { waitUntil: "load" },
   );
+  await page.evaluate(() => document.fonts.ready);
   await page.evaluate(
     () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
   );
@@ -882,6 +898,14 @@ async function readOutputFacts(page: Page, svg: string, resolvedText: string): P
       }
     }
     const rect = marker?.getBoundingClientRect();
+    const text = document.querySelector<SVGTextElement>('[data-broken-image-text="vector"] text');
+    const ctm = text?.getScreenCTM();
+    let paintBaseline: Point | null = null;
+    if (text != null && ctm != null && text.getNumberOfChars() > 0) {
+      const start = text.getStartPositionOfChar(0);
+      const point = new DOMPoint(start.x, start.y).matrixTransform(ctm);
+      paintBaseline = { x: point.x, y: point.y };
+    }
     return {
       iconMarkerCount: markers.length,
       vectorTextMarkerCount: document.querySelectorAll('[data-broken-image-text="vector"]').length,
@@ -891,6 +915,7 @@ async function readOutputFacts(page: Page, svg: string, resolvedText: string): P
       ).length,
       markerRect: rect == null ? null : { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
       markerHref,
+      paintBaseline,
     };
   }, resolvedText);
 }
@@ -1227,6 +1252,88 @@ async function prepareCase(page: Page, test: BrokenImageGateCase): Promise<Route
   return pending;
 }
 
+type PositiveAxisTransform = { a: number; d: number; e: number; f: number };
+
+export function projectAuthorAffinePoint(point: Point, pivot: Point, { a, d, e, f }: PositiveAxisTransform): Point {
+  return { x: pivot.x + a * (point.x - pivot.x) + e, y: pivot.y + d * (point.y - pivot.y) + f };
+}
+
+/** The normal capture materializes the UA fallback before the static host's
+ * authored transform. Read the same fixture's independently authored neutral
+ * twin for capture comparisons, and verify that it maps to native live paint.
+ * Never change styles or replace the UA shadow on the actual source page. */
+async function independentAuthorTransform(page: Page, test: BrokenImageGateCase, live: IndependentFacts) {
+  const transform = await page.locator("#target").evaluate((host) => {
+    const style = getComputedStyle(host);
+    const matrix = new DOMMatrix(style.transform);
+    const [x, y] = style.transformOrigin.split(" ").map(Number.parseFloat);
+    if (
+      !matrix.is2D ||
+      matrix.b !== 0 ||
+      matrix.c !== 0 ||
+      matrix.a <= 0 ||
+      matrix.d <= 0 ||
+      ![matrix.a, matrix.d, matrix.e, matrix.f, x, y].every(Number.isFinite)
+    )
+      throw new Error("broken-image oracle requires a positive axis-aligned authored matrix");
+    const { a, d, e, f } = matrix;
+    return { matrix: { a, d, e, f }, origin: { x, y } };
+  });
+  const twin = await page.context().newPage();
+  let neutral: IndependentFacts;
+  try {
+    const session = await twin.context().newCDPSession(twin);
+    try {
+      await Promise.all([session.send("DOM.enable"), session.send("CSS.enable"), session.send("Accessibility.enable")]);
+      await prepareCase(twin, { ...test, css: `${test.css ?? ""};transform:none!important` });
+      await twin.evaluate(() => document.fonts.ready);
+      neutral = await independentFacts(twin, session);
+    } finally {
+      await session.detach().catch(() => undefined);
+    }
+  } finally {
+    await twin.close();
+  }
+  if (neutral.hostBox == null || neutral.text?.rect == null || neutral.text.baseline == null)
+    throw new Error("neutral broken-image control did not retain its host and alternative text");
+  const pivot = { x: neutral.hostBox.rect.x + transform.origin.x, y: neutral.hostBox.rect.y + transform.origin.y };
+  const point = (x: number, y: number) => projectAuthorAffinePoint({ x, y }, pivot, transform.matrix);
+  const quad = ([x1, y1, x2, y2, x3, y3, x4, y4]: Quad): Quad => {
+    const [p1, p2, p3, p4] = [point(x1, y1), point(x2, y2), point(x3, y3), point(x4, y4)];
+    return [p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y];
+  };
+  const box = (source: CapturedBrokenImagePhysicalBox | null): CapturedBrokenImagePhysicalBox | null => {
+    if (source == null) return null;
+    const border = quad(source.border);
+    return {
+      rect: rectFromQuad(border),
+      border,
+      content: quad(source.content),
+      padding: quad(source.padding),
+      margin: quad(source.margin),
+    };
+  };
+  const rect = (source: Rect | null): Rect | null =>
+    source == null
+      ? null
+      : {
+          ...point(source.x, source.y),
+          width: source.width * transform.matrix.a,
+          height: source.height * transform.matrix.d,
+        };
+  const nativeProjectionDeltaCssPx = Math.max(
+    boxDelta(box(neutral.hostBox), live.hostBox),
+    boxDelta(box(neutral.containerBox), live.containerBox),
+    boxDelta(box(neutral.iconBox), live.iconBox),
+    rectDelta(rect(neutral.text.rect), live.text?.rect ?? null),
+  );
+  return {
+    neutral,
+    nativeProjectionDeltaCssPx,
+    nativePaintBaseline: point(neutral.text.rect.x, neutral.text.baseline),
+  };
+}
+
 async function runCase(input: {
   page: Page;
   generatedPage: Page;
@@ -1251,18 +1358,41 @@ async function runCase(input: {
     const live = await independentFacts(page, session);
     const svg = elementTreeToSvg(result.tree, VIEWPORT.width, VIEWPORT.height, { hiDPIFactor: dpr });
     const output = await readOutputFacts(generatedPage, svg, expectedResolvedText(test));
+    const affine = test.id === "author-affine-transform" ? await independentAuthorTransform(page, test, live) : null;
+    const captureSpace = affine?.neutral ?? live;
     const maxGeometryDeltaCssPx = Math.max(
-      boxDelta(record.hostBox, live.hostBox),
-      boxDelta(record.container?.box ?? null, live.containerBox),
-      boxDelta(record.icon?.box ?? null, live.iconBox),
-      rectDelta(recordTextBox(record), live.text?.rect ?? null),
+      boxDelta(record.hostBox, captureSpace.hostBox),
+      boxDelta(record.container?.box ?? null, captureSpace.containerBox),
+      boxDelta(record.icon?.box ?? null, captureSpace.iconBox),
+      rectDelta(recordTextBox(record), captureSpace.text?.rect ?? null),
     );
+    const independentBaseline = captureSpace.text?.baseline ?? null;
+    const captureBaseline = record.text?.segments[0]?.baseline ?? null;
     const baselineDeltaCssPx =
-      record.text?.segments[0]?.baseline == null || live.text?.baseline == null
-        ? record.text?.segments[0]?.baseline == null && live.text?.baseline == null
+      captureBaseline == null || independentBaseline == null
+        ? captureBaseline === independentBaseline
           ? 0
           : Number.POSITIVE_INFINITY
-        : Math.abs(record.text.segments[0].baseline - live.text.baseline);
+        : Math.abs(captureBaseline - independentBaseline);
+    const authorTransform =
+      affine == null
+        ? undefined
+        : {
+            capturePlane: {
+              hostBox: affine.neutral.hostBox,
+              containerBox: affine.neutral.containerBox,
+              iconBox: affine.neutral.iconBox,
+              textBox: affine.neutral.text?.rect ?? null,
+              textBaseline: affine.neutral.text?.baseline ?? null,
+            },
+            nativeProjectionDeltaCssPx: affine.nativeProjectionDeltaCssPx,
+            nativePaintBaseline: affine.nativePaintBaseline,
+            emittedPaintBaseline: output.paintBaseline,
+            emittedBaselineDeltaCssPx:
+              output.paintBaseline == null
+                ? Number.POSITIVE_INFINITY
+                : maxNumberDelta(Object.values(output.paintBaseline), Object.values(affine.nativePaintBaseline)),
+          };
     const markerRectDeltaCssPx =
       output.markerRect == null || live.iconBox == null
         ? output.markerRect == null && !test.expectedIcon
@@ -1297,6 +1427,9 @@ async function runCase(input: {
       accessibilityMatches(record, live) &&
       maxGeometryDeltaCssPx <= BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx &&
       baselineDeltaCssPx <= BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx &&
+      (authorTransform == null ||
+        (authorTransform.nativeProjectionDeltaCssPx <= BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx &&
+          authorTransform.emittedBaselineDeltaCssPx <= BROKEN_IMAGE_GATE_THRESHOLDS.geometryCssPx)) &&
       (markerRectDeltaCssPx ?? Number.POSITIVE_INFINITY) <= BROKEN_IMAGE_GATE_THRESHOLDS.cropEnvelopeCssPx;
     const row: BrokenImageGateRow = {
       id: test.id,
@@ -1349,7 +1482,7 @@ async function runCase(input: {
         containerBox: live.containerBox,
         iconBox: live.iconBox,
         textBox: live.text?.rect ?? null,
-        textBaseline: live.text?.baseline ?? null,
+        textBaseline: affine?.nativePaintBaseline.y ?? live.text?.baseline ?? null,
         fontAscent: live.text?.fontAscent ?? null,
         fontDescent: live.text?.fontDescent ?? null,
         fontFamily: live.text?.fontFamily ?? null,
@@ -1369,6 +1502,7 @@ async function runCase(input: {
         maxGeometryDeltaCssPx,
         baselineDeltaCssPx,
         markerRectDeltaCssPx,
+        ...(authorTransform == null ? {} : { authorTransform }),
       },
       output: {
         iconMarkerCount: output.iconMarkerCount,
@@ -1631,6 +1765,7 @@ export function validateBrokenImageGateCorpus(): string[] {
     "mixed-astral-bidi",
     "zoom-1",
     "zoom-1-5",
+    "author-affine-transform",
     "ordinary-author-raster",
     "icon-content",
   ]) {
