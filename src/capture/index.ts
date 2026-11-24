@@ -71,7 +71,7 @@ import { primeDecodedImageRatios } from "./decoded-image-ratio.js";
 import { primeBackgroundImageSizing } from "./background-image-sizing.js";
 import { captureBrokenImageFallbackFacts } from "./broken-image-fallback.js";
 import { captureSummaryMarkerGeometry } from "./summary-marker-cdp.js";
-import { prepareTextPaintGeometry } from "./text-paint-geometry-cdp.js";
+import { adoptReadOnlyLiveTextTopology, prepareTextPaintGeometry } from "./text-paint-geometry-cdp.js";
 import { preparePseudoFragmentGeometry } from "./pseudo-fragment-cdp.js";
 import { prepareCollapsedBorderFragmentRecords } from "./collapsed-border-fragment-cdp.js";
 import { clipRectForScreenshot } from "./clip-rect.js";
@@ -2541,52 +2541,90 @@ async function captureElementTreeWithWarningsInternal(
         );
         return assertCapturedTreeShape(neutralResult, "neutral text-paint capture") as { tree: CapturedElement[] };
       };
+      const readShadowCandidates = () =>
+        evaluateInFrame(
+          page,
+          (rootSelector) => {
+            const root = document.querySelector(rootSelector);
+            const style = root instanceof HTMLElement ? getComputedStyle(root) : null;
+            return {
+              outline:
+                style != null &&
+                style.outlineStyle !== "none" &&
+                style.outlineStyle !== "hidden" &&
+                style.outlineStyle !== "auto" &&
+                parseFloat(style.outlineWidth) > 0,
+              inlineSvg: root instanceof SVGSVGElement || root?.querySelector("svg") != null,
+            };
+          },
+          selector,
+        );
+      const prepareShadowScope = async (liveAffineBoxes: boolean) => {
+        const candidates = await readShadowCandidates();
+        if (!candidates.outline && !candidates.inlineSvg && !liveAffineBoxes) return undefined;
+        const scope = createAuthorShadowScope(page);
+        authorShadowScope = scope;
+        if (candidates.outline)
+          await scope.prepare(selector, { mode: "selected-root", purpose: "outline root admission" });
+        if (candidates.inlineSvg)
+          await scope.prepare(selector, { mode: "inline-svg-roots", purpose: "inline SVG root paint" });
+        if (liveAffineBoxes) await scope.prepare(selector, LIVE_AFFINE_BOX_SHADOW_CONTEXT);
+        await reverifyAnimationFrame();
+        return scope;
+      };
+      const adoptReadOnlyTopology = async (textPaintGeometryKey: string) => {
+        const scope = await prepareShadowScope(true);
+        return (
+          scope?.evaluateCapture<boolean>(adoptReadOnlyLiveTextTopology.toString(), {
+            textPaintGeometryKey,
+            expectation: LIVE_AFFINE_BOX_SHADOW_CONTEXT,
+          }) ?? false
+        );
+      };
+      const captureReadOnlyTextTree = async (textPaintGeometryKey: string) => {
+        if (authorShadowScope == null) throw new Error("read-only text topology scope unavailable");
+        // The geometry probe needs only its own retained Elements. The
+        // selected-root and inline-SVG consumers first run in the final walk.
+        const readOnlyCapture = `(args)=>(${CAPTURE_SCRIPT})({...args,authorShadowContexts:{liveAffineBoxes:args.authorShadowContexts?.liveAffineBoxes}})`;
+        const neutralResult = await authorShadowScope.evaluateCapture(readOnlyCapture, {
+          ...captureArgs,
+          textPaintGeometryKey,
+          textPaintProbe: true,
+        });
+        return assertCapturedTreeShape(neutralResult, "read-only text-paint capture") as { tree: CapturedElement[] };
+      };
       textPaintProbe = await prepareTextPaintGeometry(
         page,
         selector,
         viewport,
         captureNeutralTextTree,
-        captureNeutralTextTree,
+        captureReadOnlyTextTree,
+        adoptReadOnlyTopology,
       );
+      if (textPaintProbe.verifyLiveTextFrame == null && authorShadowScope != null) {
+        await disposeAll(authorShadowScope);
+        authorShadowScope = undefined;
+      }
       await reverifyAnimationFrame();
-      const candidates = await evaluateInFrame(
-        page,
-        (rootSelector) => {
-          const root = document.querySelector(rootSelector);
-          const style = root instanceof HTMLElement ? getComputedStyle(root) : null;
-          return {
-            outline:
-              style != null &&
-              style.outlineStyle !== "none" &&
-              style.outlineStyle !== "hidden" &&
-              style.outlineStyle !== "auto" &&
-              parseFloat(style.outlineWidth) > 0,
-            inlineSvg: root instanceof SVGSVGElement || root?.querySelector("svg") != null,
-          };
-        },
-        selector,
-      );
       const captureWithText = async (textPaintGeometryKey: string) => {
         const finalArgs = { ...captureArgs, textPaintGeometryKey };
-        const liveAffineBoxes =
-          textPaintProbe?.verifyLiveTextFrame == null && textPaintProbe?.hasLiveAffineBoxCandidates === true;
-        if (candidates.outline || candidates.inlineSvg || liveAffineBoxes) {
-          authorShadowScope = createAuthorShadowScope(page);
-          if (candidates.outline)
-            await authorShadowScope.prepare(selector, { mode: "selected-root", purpose: "outline root admission" });
-          if (candidates.inlineSvg)
-            await authorShadowScope.prepare(selector, { mode: "inline-svg-roots", purpose: "inline SVG root paint" });
-          if (liveAffineBoxes) await authorShadowScope.prepare(selector, LIVE_AFFINE_BOX_SHADOW_CONTEXT);
-          await reverifyAnimationFrame();
-          return authorShadowScope.evaluateCapture(CAPTURE_SCRIPT, finalArgs);
-        }
+        const scope =
+          authorShadowScope ?? (await prepareShadowScope(textPaintProbe?.hasLiveAffineBoxCandidates === true));
+        if (scope != null) return scope.evaluateCapture(CAPTURE_SCRIPT, finalArgs);
         return page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(finalArgs)})`);
       };
       const verifyLiveTextFrame = textPaintProbe.verifyLiveTextFrame;
       if (verifyLiveTextFrame == null) {
         result = await captureWithText(textPaintProbe.key);
       } else {
-        let frameMatches = await verifyLiveTextFrame();
+        // Prior to starting the final walk, a topology failure can still
+        // select the established preparation fallback. Keep the independent
+        // geometry sample adjacent to the actual final capture.
+        const topologyReady = await authorShadowScope?.verify().then(
+          () => true,
+          () => false,
+        );
+        let frameMatches = topologyReady === true && (await verifyLiveTextFrame());
         if (frameMatches) {
           // A capture execution or author-shadow authority failure is terminal.
           // Only a separate successful sample can establish source-frame drift.

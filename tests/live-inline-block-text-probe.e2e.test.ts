@@ -1,10 +1,11 @@
 import { chromium, type Page } from "@playwright/test";
 import sharp from "sharp";
-import { afterAll, beforeAll, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
 import { captureElementTree } from "../src/capture/index.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
+import { observeLiveTextCaptures } from "./live-text-capture-attempts.js";
 
 const viewport = { x: 0, y: 0, width: 320, height: 240 };
 const text = "quick world with several short words";
@@ -150,28 +151,49 @@ it("discards an authenticated inline-block frame when paint changes during the f
   const page = await browser.newPage({ viewport });
   try {
     await fixture(page);
-    const evaluate = page.evaluate.bind(page);
-    let finalExecutions = 0;
-    const spy = vi.spyOn(page, "evaluate").mockImplementation(async (source, input) => {
-      const finalWalk =
-        typeof source === "string" &&
-        source.includes('"textPaintGeometryKey":') &&
-        !source.includes('"textPaintProbe":true');
-      const result = await evaluate(source, input);
-      if (finalWalk && ++finalExecutions === 1) {
-        await evaluate(() => {
-          document.getElementById("member")!.style.outlineWidth = "2px";
-        });
-      }
-      return result;
+    const spy = observeLiveTextCaptures(page, {
+      async afterCapture({ transport, preparation }) {
+        if (transport === "shadow carrier" && !preparation)
+          await page.evaluate(() => {
+            document.getElementById("member")!.style.outlineWidth = "2px";
+          });
+      },
     });
     try {
       const [captured] = await captureElementTree(page, "body", viewport);
-      expect(finalExecutions).toBe(2);
+      expect(spy.attempts.filter(({ preparation }) => !preparation)).toEqual([
+        { transport: "shadow carrier", preparation: false },
+        { transport: "Playwright", preparation: false },
+      ]);
       expect(captured.styles.transformPaintShift).toBeUndefined();
       expect(captured.children[0].styles.outlineWidth).toBe("2px");
     } finally {
-      spy.mockRestore();
+      spy.restore();
+    }
+  } finally {
+    await page.close();
+  }
+});
+
+it("requires topology authority for the actual inline-block text member as well as its owner", async () => {
+  const page = await browser.newPage({ viewport });
+  try {
+    await fixture(page);
+    const assigned = await page.evaluate(() => {
+      const member = document.getElementById("member")!;
+      const root = member.attachShadow({ mode: "closed" });
+      root.innerHTML = '<div style="contain:layout style"><slot></slot></div>';
+      return root.querySelector("slot")!.assignedNodes()[0] === member.firstChild && member.shadowRoot == null;
+    });
+    expect(assigned).toBe(true);
+    const spy = observeLiveTextCaptures(page);
+    try {
+      const [captured] = await captureElementTree(page, "body", viewport);
+      expect(spy.attempts.some(({ transport }) => transport === "shadow carrier")).toBe(false);
+      expect(captured.styles.transformPaintShift).toBeUndefined();
+      expect(captured.children[0].text).toContain("quick world");
+    } finally {
+      spy.restore();
     }
   } finally {
     await page.close();

@@ -478,13 +478,16 @@ it("adopts distinct affine participants alongside the selected-root and SVG capa
         `args=>{
         const {selectedRoot, inlineSvgRoots, liveAffineBoxes}=args.authorShadowContexts;
         const adopt=(id,capability,expected)=>capability.adopt(document.getElementById(id),expected);
+        const prior={...args.box,requirePriorAdoption:true,markUsed:false};
         return [adopt('target',selectedRoot,args.selected),adopt('svg',inlineSvgRoots,args.svg),
-          adopt('owner',liveAffineBoxes,args.box),adopt('member',liveAffineBoxes,args.box),
+          adopt('owner',liveAffineBoxes,args.box),adopt('owner',liveAffineBoxes,prior),
+          adopt('member',liveAffineBoxes,{...args.box,markUsed:false}),adopt('member',liveAffineBoxes,prior),
+          adopt('member',liveAffineBoxes,args.box),adopt('member',liveAffineBoxes,prior),
           adopt('svg',liveAffineBoxes,args.box)];
       }`,
         { selected: expected, svg, box: LIVE_AFFINE_BOX_SHADOW_CONTEXT },
       ),
-    ).toEqual(["none", "none", "none", "none", "unavailable"]);
+    ).toEqual(["none", "none", "none", "none", "none", "unavailable", "none", "none", "unavailable"]);
     await scope.verify();
   }));
 it.each([false, true])(

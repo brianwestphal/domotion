@@ -182,6 +182,11 @@ express either, so the capture walk freezes every static planar transform:
   and SVG wrapper. The read-only probe does not pause the page or replace
   the owner's animation. If its source changes between reads, capture
   uses the existing text path.
+  DM-B9E789 authenticates the original owner and text member through the
+  same pierced-DOM carrier before the geometry probe and final walk. Closed
+  slot ancestry or missing proof can decline the read-only attempt before
+  the final walk starts. A topology failure after execution has started
+  is terminal.
   The same proof covers one static inline-block child with a single box
   and direct wrapped horizontal ASCII text. The child has no transform or
   own animation. Read-only capture joins the child's exact Range and CDP

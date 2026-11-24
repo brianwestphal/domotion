@@ -6,6 +6,8 @@ export interface AuthorShadowExpectation {
   mode: AuthorShadowContextMode;
   purpose: string;
   markUsed?: boolean;
+  /** Resolve only Elements that an earlier phase actually adopted. */
+  requirePriorAdoption?: boolean;
 }
 export interface AuthorShadowContextCapability {
   readonly source: "domotion-author-shadow-capability-v1";

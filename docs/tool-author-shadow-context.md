@@ -43,7 +43,14 @@ when every participant has absent author-shadow context. The scope also checks
 each participant's original children and watches transient insertions and
 removals under those exact nodes. Missing authority or a closed slot with an
 unobservable paint offset reset leaves the existing live-rect path available.
-The read-only text route retains its separate capture and frame sampling.
+DM-B9E789 reuses the same mode for read-only text. The source registry's held
+owner and actual text member are adopted before the geometry-only walk. The
+initial and final walks require those same Elements to be previously adopted
+by the same carrier. The selected-root and inline-SVG capabilities are reserved
+for the final walk. Missing or stale topology before that walk uses the existing
+text preparation path. A failed final execution or post-capture topology check
+is terminal. The independent Range and frame comparison still detects geometry
+drift and permits the existing retry after a successful final walk.
 
 Authority work has a three-second Node deadline, inventory limits (128 selected
 roots/candidates/ancestors per probe, one probe per mode), a 20,000-node/512-level pierced
@@ -82,7 +89,7 @@ objects stay outside the contract. Native parity includes the actual CAPTURE_SCR
 Page.evaluate stalls at a 100-level graph; no helper failure or new limit is
 inferred from that experiment.
 
-The strict 32-case native file is `tests/author-shadow-context.e2e.test.ts`.
+The native coverage is in `tests/author-shadow-context.e2e.test.ts`.
 It exercises actual open/closed slots, clone/foreign Elements, sticky adoption,
 transient events, source immutability, independent probe cleanup, options
 aliasing, navigation, source CSP/errors and both transports. Focused unit tests

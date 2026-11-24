@@ -484,10 +484,15 @@ export const createTransformsHandler = (
   // Computed styles taking the live-rect fallback suppress the wrapper.
   const liveTransformStyles = new WeakSet<CSSStyleDeclaration>();
   let livePaintSpace: LiveTransformPaintSpace | undefined;
-  const authenticateBoxTopology = (elements: Element[]): boolean => {
-    const probe = { ...LIVE_AFFINE_BOX_SHADOW_CONTEXT, markUsed: false };
+  const authenticatePaintParticipants = (elements: Element[]): boolean => {
+    const probe = {
+      ...LIVE_AFFINE_BOX_SHADOW_CONTEXT,
+      markUsed: false,
+      requirePriorAdoption: readOnlyLiveText != null,
+    };
     if (!elements.every((element) => adoptAuthorShadowContext(element, liveAffineBoxes, probe) === "none"))
       return false;
+    if (readOnlyLiveText != null) return true;
     // Adopt only after the whole subtree has qualified. The carrier verifies
     // the used participants again before the capture can return.
     return elements.every(
@@ -570,7 +575,7 @@ export const createTransformsHandler = (
           (image == null ||
             (imageBox != null &&
               liveSourceImageHasAlignedPaint(image, imageBox, ownerBox, cs, paintMatrix, viewport))) &&
-          (readOnlyLiveText != null || authenticateBoxTopology(reconstructed.elements))
+          authenticatePaintParticipants(reconstructed.elements)
         ) {
           const paintTransform = paintMatrix.toString();
           livePaintSpace = reconstructed;

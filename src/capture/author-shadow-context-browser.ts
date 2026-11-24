@@ -130,7 +130,7 @@ export function createBrowserAuthorShadowAdmin(options: {
       )
         return "unavailable";
       const index = records.findIndex((record) => record.element === element);
-      if (index < 0) return "unavailable";
+      if (index < 0 || (expected.requirePriorAdoption === true && !used.has(index))) return "unavailable";
       const selected = currentRoots();
       if (selected === null || !recordValid(index, selected)) return "unavailable";
       const disposition = records[index].disposition;

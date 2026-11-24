@@ -1,6 +1,7 @@
 /** Chromium protocol prepass for exact affine text-fragment geometry (DM-2469). */
 
 import type { CDPSession, Frame, Page } from "@playwright/test";
+import type { AuthorShadowContextCapabilities, AuthorShadowExpectation } from "./author-shadow-context-record.js";
 import { waitForCaptureAnimationFrames } from "./frame-scheduler.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
 import type { neutralizeTransformForFreeze as NeutralizeTransformForFreeze } from "./script/walker/transforms.js";
@@ -67,6 +68,26 @@ interface PageTextPaintRegistry {
 }
 /** `globalThis` as the page callbacks see it: registries keyed by the probe key. */
 type PageRegistryScope = typeof globalThis & Record<string, PageTextPaintRegistry | undefined>;
+
+/** Serialized into the existing shadow carrier, before the first measured
+ * frame. The actual registry Elements become the retained CDP participants. */
+export function adoptReadOnlyLiveTextTopology(args: {
+  textPaintGeometryKey: string;
+  expectation: AuthorShadowExpectation;
+  authorShadowContexts?: AuthorShadowContextCapabilities;
+}): boolean {
+  const registry = (globalThis as PageRegistryScope)[args.textPaintGeometryKey];
+  const capability = args.authorShadowContexts?.liveAffineBoxes;
+  const owner = registry?.owners[0];
+  const member = registry?.textRows[0]?.element;
+  if (owner == null || member == null || capability == null) return false;
+  const elements = owner === member ? [owner] : [owner, member];
+  const peek = { ...args.expectation, markUsed: false };
+  return (
+    elements.every((element) => capability.adopt(element, peek) === "none") &&
+    elements.every((element) => capability.adopt(element, args.expectation) === "none")
+  );
+}
 
 export interface TextPaintGeometryProbe {
   key: string;
@@ -942,6 +963,7 @@ async function prepareReadOnlyLiveText(
   key: string,
   viewport: { x: number; y: number },
   captureReadOnlyTree: (key: string) => Promise<TextProbeTree>,
+  adoptTopology?: (key: string) => Promise<boolean>,
 ): Promise<{ verify: () => Promise<boolean> } | undefined> {
   const preparedFrame = prepared[0];
   if (prepared.length !== 1 || !preparedFrame.hasReadOnlyLiveTextCandidate) return;
@@ -952,6 +974,7 @@ async function prepareReadOnlyLiveText(
   if (start == null || start.ranges.length !== rows.length) return;
   const inverse = liveTextInverse(start.ownerBox, start.transform, start.origin);
   if (inverse == null) return;
+  if (adoptTopology != null && !(await adoptTopology(key))) return;
   const verify = async () => JSON.stringify(await sampleReadOnlyLiveTextFrame(frame, key)) === JSON.stringify(start);
   let adopted = false;
   try {
@@ -1055,6 +1078,7 @@ export async function prepareTextPaintGeometry(
   viewport: { x: number; y: number; width: number; height: number },
   captureNeutralTree: (key: string) => Promise<TextProbeTree>,
   captureReadOnlyTree?: (key: string) => Promise<TextProbeTree>,
+  adoptReadOnlyTopology?: (key: string) => Promise<boolean>,
 ): Promise<TextPaintGeometryProbe> {
   const registry = createPageRegistry<unknown>(page, "TextPaintGeometry");
   const key = registry.key;
@@ -1079,7 +1103,7 @@ export async function prepareTextPaintGeometry(
     prepared[0].hasReadOnlyLiveTextCandidate
   ) {
     const readOnly = await withCdpSession(page, (session) =>
-      prepareReadOnlyLiveText(session, prepared, key, viewport, captureReadOnlyTree),
+      prepareReadOnlyLiveText(session, prepared, key, viewport, captureReadOnlyTree, adoptReadOnlyTopology),
     ).catch(() => undefined);
     if (readOnly != null) {
       return {

@@ -6,6 +6,7 @@ import { invertLiveTextRect, type LiveTextInverse } from "../src/capture/live-te
 import { prepareTextPaintGeometry } from "../src/capture/text-paint-geometry-cdp.js";
 import { capturedElement, capturedSegment } from "../src/test-support/captured-fixtures.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { observeLiveTextCaptures } from "./live-text-capture-attempts.js";
 
 async function waitForAuthoredPause(page: Page) {
   await page.evaluate(async () => {
@@ -15,6 +16,103 @@ async function waitForAuthoredPause(page: Page) {
     await Promise.all(owner.getAnimations().map((animation) => animation.ready));
   });
 }
+
+const topologyViewport = { x: 0, y: 0, width: 320, height: 160 };
+
+async function directTextTopologyFixture(page: Page) {
+  await page.setContent(`<!doctype html><style>
+    html,body{margin:0}
+    #owner{position:absolute;left:20.5px;top:20.25px;width:196px;height:32px;font:17px Arial;
+      transform-origin:6.5px 8.25px;animation:sample 2s -1s linear both paused}
+    @keyframes sample{from{transform:matrix(1.25,0,0,1.125,2.125,-2.25)}to{transform:matrix(1.75,0,0,1.375,4.125,-6.25)}}
+    </style><div id="owner">A quick world</div>`);
+  await waitForAuthoredPause(page);
+}
+
+it.each(["closed slot", "missing protocol proof"] as const)("uses the pre-capture fallback for %s", async (mode) => {
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: topologyViewport });
+    await directTextTopologyFixture(page);
+    if (mode === "closed slot") {
+      const nativeRange = await page.evaluate(() => {
+        const owner = document.getElementById("owner")!;
+        const root = owner.attachShadow({ mode: "closed" });
+        root.innerHTML =
+          '<div style="position:absolute;left:1.375px;top:1.625px;width:180px;height:28px;contain:layout style"><slot></slot></div>';
+        const text = owner.firstChild!;
+        const range = document.createRange();
+        range.selectNode(text);
+        const { x, y, width, height } = range.getBoundingClientRect();
+        return {
+          assigned: root.querySelector("slot")!.assignedNodes()[0] === text,
+          shadow: owner.shadowRoot != null,
+          rect: [x, y, width, height],
+        };
+      });
+      expect(nativeRange).toMatchObject({ assigned: true, shadow: false });
+      expect(nativeRange.rect.every(Number.isFinite)).toBe(true);
+      expect(nativeRange.rect[2]).toBeGreaterThan(0);
+    }
+    const spy = observeLiveTextCaptures(page, { denyAuthority: mode === "missing protocol proof" });
+    try {
+      const [owner] = await captureElementTree(page, "body", topologyViewport);
+      expect(spy.attempts).toEqual([
+        { transport: "Playwright", preparation: true },
+        { transport: "Playwright", preparation: false },
+      ]);
+      expect(owner.styles.transform).toBe("none");
+      expect(owner.text).toBe("A quick world");
+    } finally {
+      spy.restore();
+    }
+  } finally {
+    await closeBrowserSafely(browser);
+  }
+});
+
+it.each([true, false])(
+  "handles transient topology loss after the preparation=%s walk at the correct boundary",
+  async (preparation) => {
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({ viewport: topologyViewport });
+      await directTextTopologyFixture(page);
+      const spy = observeLiveTextCaptures(page, {
+        async afterCapture(attempt) {
+          if (attempt.transport !== "shadow carrier" || attempt.preparation !== preparation) return;
+          await page.evaluate(() => {
+            const owner = document.getElementById("owner")!;
+            const temporary = document.createElement("i");
+            owner.append(temporary);
+            temporary.remove();
+          });
+        },
+      });
+      try {
+        if (preparation) {
+          const [owner] = await captureElementTree(page, "body", topologyViewport);
+          expect(owner.styles.transform).toBe("none");
+          expect(spy.attempts.filter(({ preparation }) => !preparation)).toEqual([
+            { transport: "Playwright", preparation: false },
+          ]);
+        } else {
+          await expect(captureElementTree(page, "body", topologyViewport)).rejects.toThrow(
+            "author-shadow adopted context changed",
+          );
+          expect(spy.attempts.filter(({ preparation }) => !preparation)).toEqual([
+            { transport: "shadow carrier", preparation: false },
+          ]);
+        }
+        expect(spy.attempts[0]).toEqual({ transport: "shadow carrier", preparation: true });
+      } finally {
+        spy.restore();
+      }
+    } finally {
+      await closeBrowserSafely(browser);
+    }
+  },
+);
 
 it("joins direct horizontal Range and protocol geometry without neutralizing an authored scale", async () => {
   const browser = await chromium.launch();
@@ -192,26 +290,17 @@ it("captures a direct authored text fragment through the live box wrapper", asyn
     expect(svg).toContain("matrix(1.5");
     expect(svg).toContain("A quick world");
 
-    const finalFailure = new Error("final capture execution failed");
-    const evaluate = page.evaluate.bind(page);
-    let finalExecutions = 0;
-    const failFinal = vi.spyOn(page, "evaluate").mockImplementation(async (source, input) => {
-      if (
-        typeof source === "string" &&
-        source.includes('"textPaintGeometryKey":') &&
-        !source.includes('"textPaintProbe":true')
-      ) {
-        finalExecutions++;
-        if (finalExecutions === 1) throw finalFailure;
-      }
-      return evaluate(source, input);
-    });
+    const finalError = "final capture execution failed";
+    const failFinal = observeLiveTextCaptures(page, { finalError });
     try {
-      await expect(captureElementTree(page, "body", viewport)).rejects.toThrow(finalFailure.message);
-      expect(finalExecutions).toBe(1);
+      await expect(captureElementTree(page, "body", viewport)).rejects.toThrow(finalError);
+      expect(failFinal.attempts).toEqual([
+        { transport: "shadow carrier", preparation: true },
+        { transport: "shadow carrier", preparation: false },
+      ]);
       expect(await evidence()).toEqual(before);
     } finally {
-      failFinal.mockRestore();
+      failFinal.restore();
     }
   } finally {
     await closeBrowserSafely(browser);
@@ -322,25 +411,21 @@ it.each([
     expect(svg).toContain("world");
 
     if (checkLaterRowDrift) {
-      const evaluate = page.evaluate.bind(page);
-      let finalExecutions = 0;
-      const deferSecondRowChange = vi.spyOn(page, "evaluate").mockImplementation(async (source, input) => {
-        const result = await evaluate(source, input);
-        if (
-          typeof source === "string" &&
-          source.includes('"textPaintGeometryKey":') &&
-          !source.includes('"textPaintProbe":true') &&
-          ++finalExecutions === 1
-        ) {
-          await evaluate(() => {
-            document.getElementById("owner")!.lastChild!.nodeValue = " with new words";
-          });
-        }
-        return result;
+      const deferSecondRowChange = observeLiveTextCaptures(page, {
+        async afterCapture({ transport, preparation }) {
+          if (transport === "shadow carrier" && !preparation) {
+            await page.evaluate(() => {
+              document.getElementById("owner")!.lastChild!.nodeValue = " with new words";
+            });
+          }
+        },
       });
       try {
         const [drifted] = await captureElementTree(page, "body", viewport);
-        expect(finalExecutions).toBe(2);
+        expect(deferSecondRowChange.attempts.filter(({ preparation }) => !preparation)).toEqual([
+          { transport: "shadow carrier", preparation: false },
+          { transport: "Playwright", preparation: false },
+        ]);
         expect(drifted.styles.transform).toBe("none");
         expect(drifted.text).toContain("with new words");
         expect(await sourceState()).toMatchObject({
@@ -349,7 +434,7 @@ it.each([
           animations: before.animations,
         });
       } finally {
-        deferSecondRowChange.mockRestore();
+        deferSecondRowChange.restore();
       }
     }
   } finally {
