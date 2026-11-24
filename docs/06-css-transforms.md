@@ -207,10 +207,21 @@ express either, so the capture walk freezes every static planar transform:
   Reflected paint keeps the existing live-rect path. A painted owner outline
   must be square and solid with zero offset, with its snapped inner and outer
   edges projecting to whole device pixels as well.
+  DM-VW6ABG also composes two paused affine owners with opaque solid backgrounds
+  in an ordinary single-fragment block subtree. The sampled matrices and authored keyframes
+  have positive integral nonunit scales on both axes and integral translations.
+  Capture removes the outer layout matrix before recovering the inner origin,
+  then registers the paint bases outer to inner so each wrapper carries its
+  own pixel rounding. Every participant must have pierced-DOM ancestry proof.
+  Opaque solid fills and square solid zero-offset outlines must have whole
+  snapped edges in each enclosing paint plane and the output at DPR 1.
+  Neither authored transform is overridden. Fractional nested compositor
+  paint can differ even with whole projected edges and stays on the live-rect
+  route, as do containment and fragmentation in a nested subtree.
 - **Live rect** (`styles.transform: none`): other animated/transitioned
   planar transforms and projective planes owned by `transformSubtreeRaster`.
   Unsupported reconstruction inputs include other descendant or mixed text,
-  fractional decorated child and image edges, viewport screenshot producers, nested transforms,
+  fractional decorated child and image edges, viewport screenshot producers, other nested transforms,
   multi-fragment boxes, CSS zoom, and
   active or paused one-axis and identity samples. An active composited
   scale can drop accumulation on both axes even when the sampled matrix

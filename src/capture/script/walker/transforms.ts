@@ -61,7 +61,12 @@
 // src/capture/raster-viewport-space.ts and
 // src/capture/frozen-transform-neutralizer.ts.
 //
-import { reconstructLiveTransformPaintSpace, type LiveTransformPaintSpace } from "./live-transform-paint-space.js";
+import {
+  reconstructLiveTransformPaintSpace,
+  reconstructNestedLiveTransformPaintSpace,
+  type LiveTransformPaintSpace,
+  type NestedLiveTransformPaintSpace,
+} from "./live-transform-paint-space.js";
 import { liveSourceImageHasAlignedPaint } from "./live-source-image.js";
 import type { LiveTextInverse } from "../../live-text-inverse.js";
 import {
@@ -484,6 +489,7 @@ export const createTransformsHandler = (
   // Computed styles taking the live-rect fallback suppress the wrapper.
   const liveTransformStyles = new WeakSet<CSSStyleDeclaration>();
   let livePaintSpace: LiveTransformPaintSpace | undefined;
+  let nestedPaintSpace: NestedLiveTransformPaintSpace | undefined;
   const authenticatePaintParticipants = (elements: Element[]): boolean => {
     const probe = {
       ...LIVE_AFFINE_BOX_SHADOW_CONTEXT,
@@ -510,6 +516,9 @@ export const createTransformsHandler = (
       rect?: DOMRect,
     ) => T,
   ): T => {
+    const plannedOwner = nestedPaintSpace?.owners.get(el);
+    if (plannedOwner != null)
+      return captureInner(el, cs, plannedOwner.transform, plannedOwner.origin, plannedOwner.box);
     // transformFreezes decides between the freeze-then-restore model (the
     // captured rect is the untransformed layout box and the renderer
     // re-applies the transform via an SVG `<g transform=...>` wrapper) and
@@ -525,7 +534,7 @@ export const createTransformsHandler = (
     const originalTransform = composeEffectiveTransform(cs, transformReferenceBox(cs));
     const hasTransform = originalTransform && originalTransform !== "none";
     if (!hasTransform) {
-      return captureInner(el, cs, null, null, livePaintSpace?.localRect(el));
+      return captureInner(el, cs, null, null, nestedPaintSpace?.localRect(el) ?? livePaintSpace?.localRect(el));
     }
     const needsFreeze = transformFreezes(el, cs);
     if (readOnlyLiveText != null && (readOnlyLiveText.owner !== el || needsFreeze)) {
@@ -590,6 +599,19 @@ export const createTransformsHandler = (
     }
     if (readOnlyLiveText?.owner === el) {
       throw new Error("read-only text paint frame does not have a supported local box");
+    }
+    if (reconstructed == null && readOnlyLiveText == null && liveAffineBoxes != null) {
+      const nested = reconstructNestedLiveTransformPaintSpace(el, cs, viewport, authenticatePaintParticipants);
+      if (nested != null) {
+        nestedPaintSpace = nested;
+        const { transform, origin, box } = nested.outer;
+        try {
+          return captureInner(el, cs, transform, origin, box);
+        } finally {
+          nestedPaintSpace = undefined;
+          nested.release();
+        }
+      }
     }
     // Keep the live rect for unsupported animated transforms and projective surfaces.
     liveTransformStyles.add(cs);
