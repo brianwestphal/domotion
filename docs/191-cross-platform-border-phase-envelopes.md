@@ -75,11 +75,23 @@ unrelated ink, and matching style/phase ordering. The visible residual at DSF 1
 is confined to the expected thin dotted-outline coverage profile; it is not a
 box displacement.
 
-| Runner  | Fingerprint reviewed                                             | Repeat evidence                                                                                       |
-| ------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| macOS   | `macos26-arm64` / `20261026.0455.2`; Darwin `25.6.0`; arm64      | Runs `41401746566` and `41401758928` (2026-11-02) produced artifact set `ab2f8e50…` byte-identically. |
-| Linux   | `ubuntu24-x64` / `20261026.354.1`; Linux `7.0.0-1017-azure`; x64 | Runs `41401746566` and `41401758928` produced the same artifact set byte-identically.                 |
-| Windows | `win25-vs2026-x64` / `20261021.278.1`; Windows `10.0.26100`; x64 | Runs `41401746566` and `41402137611` produced the same artifact set byte-identically.                 |
+| Runner  | Reviewed image     | Image version     | OS release         | Architecture |
+| ------- | ------------------ | ----------------- | ------------------ | ------------ |
+| macOS   | `macos26-arm64`    | `20261117.0516.1` | `25.6.0`           | arm64        |
+| Linux   | `ubuntu24-x64`     | `20261116.376.1`  | `7.0.0-1017-azure` | x64          |
+| Windows | `win25-vs2026-x64` | `20261116.315.1`  | `10.0.26100`       | x64          |
+
+The integration push and manual repeat on `17b6e747fb7e375a7fc2fe49152f1c1cb5906027`
+produced artifact set `17e4cf4e99cd5305b897b30400975a833cccc79560a2922c1f17c8c51aff875d`
+on all three platforms. The Linux repeat used image `20261116.133.1` and kernel
+`7.0.0-1014-aws`. Replaying its files against this baseline returns
+`artifact-set-match`.
+[Push run 45293423675](https://github.com/brianwestphal/domotion/actions/runs/45293423675) ·
+[Repeat run 45294337310](https://github.com/brianwestphal/domotion/actions/runs/45294337310)
+
+All nine native source PNGs per platform match the previous reviewed matrix.
+On each platform, 30 rows improved and 1,122 matched the previous values across
+the outer-edge, inner-edge, center and profile RMSE measurements. [Reviewed run 41554605925](https://github.com/brianwestphal/domotion/actions/runs/41554605925)
 
 All runners used Node `v22.21.0` and Chromium `147.0.7727.15`. The report also
 records platform, architecture, OS release, source pins, corpus SHA-256, and

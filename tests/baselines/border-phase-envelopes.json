@@ -21,7 +21,7 @@
     "darwin": {
       "fingerprint": {
         "image": "macos26-arm64",
-        "imageVersion": "20261026.0455.2",
+        "imageVersion": "20261117.0516.1",
         "osRelease": "25.6.0",
         "chromium": "147.0.7727.15",
         "platform": "darwin",
@@ -29,10 +29,10 @@
         "node": "v22.21.0"
       },
       "evidence": {
-        "workflowRuns": [41401746566, 41401758928],
+        "workflowRuns": [45293423675, 45294337310],
         "repeatedArtifactSetSha256": [
-          "ab2f8e5014ca7f29af5279a24c5018ec0d97a0176513e3139a85e60e1b58242e",
-          "ab2f8e5014ca7f29af5279a24c5018ec0d97a0176513e3139a85e60e1b58242e"
+          "17e4cf4e99cd5305b897b30400975a833cccc79560a2922c1f17c8c51aff875d",
+          "17e4cf4e99cd5305b897b30400975a833cccc79560a2922c1f17c8c51aff875d"
         ]
       },
       "scenarios": {
@@ -113,7 +113,7 @@
     "linux": {
       "fingerprint": {
         "image": "ubuntu24-x64",
-        "imageVersion": "20261026.354.1",
+        "imageVersion": "20261116.376.1",
         "osRelease": "7.0.0-1017-azure",
         "chromium": "147.0.7727.15",
         "platform": "linux",
@@ -121,10 +121,10 @@
         "node": "v22.21.0"
       },
       "evidence": {
-        "workflowRuns": [41401746566, 41401758928],
+        "workflowRuns": [45293423675, 45294337310],
         "repeatedArtifactSetSha256": [
-          "ab2f8e5014ca7f29af5279a24c5018ec0d97a0176513e3139a85e60e1b58242e",
-          "ab2f8e5014ca7f29af5279a24c5018ec0d97a0176513e3139a85e60e1b58242e"
+          "17e4cf4e99cd5305b897b30400975a833cccc79560a2922c1f17c8c51aff875d",
+          "17e4cf4e99cd5305b897b30400975a833cccc79560a2922c1f17c8c51aff875d"
         ]
       },
       "scenarios": {
@@ -205,7 +205,7 @@
     "win32": {
       "fingerprint": {
         "image": "win25-vs2026-x64",
-        "imageVersion": "20261021.278.1",
+        "imageVersion": "20261116.315.1",
         "osRelease": "10.0.26100",
         "chromium": "147.0.7727.15",
         "platform": "win32",
@@ -213,10 +213,10 @@
         "node": "v22.21.0"
       },
       "evidence": {
-        "workflowRuns": [41401746566, 41402137611],
+        "workflowRuns": [45293423675, 45294337310],
         "repeatedArtifactSetSha256": [
-          "ab2f8e5014ca7f29af5279a24c5018ec0d97a0176513e3139a85e60e1b58242e",
-          "ab2f8e5014ca7f29af5279a24c5018ec0d97a0176513e3139a85e60e1b58242e"
+          "17e4cf4e99cd5305b897b30400975a833cccc79560a2922c1f17c8c51aff875d",
+          "17e4cf4e99cd5305b897b30400975a833cccc79560a2922c1f17c8c51aff875d"
         ]
       },
       "scenarios": {
