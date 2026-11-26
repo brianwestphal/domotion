@@ -146,16 +146,19 @@ cost the two callbacks.
 Elements other than custom elements keep the exact inline path. Snapshot
 transition owners keep their existing paint-owner path.
 
-Known residual boundaries:
+For an inactive transition on a custom element, the snapshot transition owner
+adds a temporary author stylesheet rule with a private selector. A customized
+built-in decoration host uses that same stylesheet for its non-visibility
+neutralization. Blink's author background and border flags select the menulist
+painter, and those flags still come from the author cascade. Chromium verifies
+the computed declarations before sampling and removes the exact owned
+stylesheet during restoration. Author declarations that outrank the rule, such
+as an incompatible inline `!important`, cause an unavailable raster warning
+while preserving the authenticated source style and callbacks (DM-PFREYT).
 
-- Non-visibility host neutralization in the decoration owner (background,
-  border, shadow, text fill) stays inline. Author-origin background and border
-  flags select Blink's menulist painter, so a customized built-in control host
-  still receives those callbacks.
-- The snapshot transition owner still writes an inline `transition` list on
-  any element that declares a visibility transition.
-- The tier-2 probe is one child-list insertion and removal, which a
-  `MutationObserver` on the document can see.
+The tier-2 visibility probe still produces a child-list insertion and removal
+observable by document `MutationObserver`s. Private selector attributes are also
+observable while a stylesheet rule is in use.
 
 ## Failure behavior
 

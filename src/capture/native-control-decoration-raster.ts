@@ -488,6 +488,12 @@ const isolateDecorationsInPage = ({
       // takes an effect-owned value instead, so isolation never runs its
       // style-attribute callbacks (DM-Q4J4JG).
       if (property === "visibility" && !visibility.paint(element, value) && visibility.override(element, value)) return;
+      if (property !== "visibility" && element.hasAttribute("is")) {
+        // These declarations must participate in the author cascade to retain
+        // Blink's menu-list appearance flags while leaving style untouched.
+        visibility.setAuthorStyle(element, property === "outline" ? "outline-style" : property, value);
+        return;
+      }
       if (
         element.style.getPropertyValue(property) === value &&
         element.style.getPropertyPriority(property) === "important"

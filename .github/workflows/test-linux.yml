@@ -353,7 +353,7 @@ jobs:
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output-linux/snapshot-visibility/results.json --minimum-passed 111
+          --browser-results tests/output-linux/snapshot-visibility/results.json --minimum-passed 117
       - name: Verify native literal font-family identity
         if: always()
         run: >-

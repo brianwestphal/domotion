@@ -3,6 +3,7 @@ import { browserCallbackExpression } from "./evaluate-in-frame.js";
 import { privateCaptureKey } from "./private-key.js";
 import { disposeAll } from "./cdp-lifecycle.js";
 import { openSnapshotShadowVisibilityGuard } from "./snapshot-shadow-visibility.js";
+import { TRANSPARENT_BLACK } from "../utils/transparent-background.js";
 import { withTimeout } from "../utils/with-timeout.js";
 
 async function boundedVisibilityOperation<T>(operation: Promise<T>): Promise<T> {
@@ -24,6 +25,7 @@ export interface SnapshotVisibilityState {
    */
   override(node: Element, visibility: string): boolean;
   paintTarget(): void;
+  setAuthorStyle(node: Element, property: string, value: string): void;
   restore(): void;
 }
 
@@ -49,8 +51,10 @@ export async function suppressDocumentVisibilityTransitions(
 ): Promise<{ key: string; paintTarget(): Promise<void>; dispose(): Promise<void> }> {
   const marker = `data-${privateCaptureKey("SnapshotTransition").toLowerCase()}`;
   const key = privateCaptureKey("SnapshotVisibilityOwner");
+  const source = { attribute: marker, transparent: TRANSPARENT_BLACK };
   const preparation = page.evaluateHandle<SnapshotVisibilityState>(
-    browserCallbackExpression((attribute: string) => {
+    browserCallbackExpression((input: typeof source) => {
+      const { attribute, transparent } = input;
       const NativeAnimation = Animation,
         NativeEffect = KeyframeEffect;
       const pause = Animation.prototype.pause,
@@ -170,6 +174,39 @@ export async function suppressDocumentVisibilityTransitions(
       const marked: Element[] = [];
       const sheet = document.createElement("style");
       const rules: string[] = [];
+      let authorSheet: CSSStyleSheet | undefined;
+      const authorRules = new Map<Element, CSSStyleRule>();
+      const selectorFor = (node: Element) => {
+        if (!node.hasAttribute(attribute)) {
+          node.setAttribute(attribute, String(marked.length));
+          marked.push(node);
+        }
+        const boost = ":not(#domotion-snapshot-transition-boost)".repeat(4);
+        return `[${attribute}="${node.getAttribute(attribute)}"]${boost}`;
+      };
+      const setAuthorStyle = (node: Element, property: string, value: string) => {
+        if (node.getRootNode() !== document)
+          throw new Error("snapshot custom-element author style scope is unsupported");
+        let rule = authorRules.get(node);
+        if (rule == null) {
+          if (authorSheet == null) {
+            authorSheet = new CSSStyleSheet();
+            document.adoptedStyleSheets = [...document.adoptedStyleSheets, authorSheet];
+          }
+          const index = authorSheet.insertRule(`${selectorFor(node)}{}`, authorSheet.cssRules.length);
+          rule = authorSheet.cssRules[index] as CSSStyleRule;
+          authorRules.set(node, rule);
+        }
+        rule.style.setProperty(property, value, "important");
+        const computed = getComputedStyle(node);
+        const longhands = property === "transition" ? properties : [property];
+        for (const name of longhands) {
+          const declared = rule.style.getPropertyValue(name);
+          const expected = declared === "transparent" ? transparent : declared;
+          if (expected === "" || computed.getPropertyValue(name) !== expected)
+            throw new Error(`snapshot custom-element author style did not take effect for ${name}`);
+        }
+      };
       let started = false;
       let closed = false;
       // Capture-owned custom-element visibility overrides, and the lazily
@@ -231,6 +268,15 @@ export async function suppressDocumentVisibilityTransitions(
           }
           for (const { node } of saved) void getComputedStyle(node).visibility;
           sheet.remove();
+          if (authorSheet != null) {
+            try {
+              document.adoptedStyleSheets = document.adoptedStyleSheets.filter((sheet) => sheet !== authorSheet);
+              if (document.adoptedStyleSheets.includes(authorSheet))
+                throw new Error("snapshot custom-element author sheet survived removal");
+            } catch (error) {
+              failures.push(error);
+            }
+          }
           for (const { node, properties, originalStyle, ownedStyle } of saved) {
             try {
               // Preserve declaration order if this transaction still owns the
@@ -341,7 +387,9 @@ export async function suppressDocumentVisibilityTransitions(
               // last matching list entry. Retain every original entry and change
               // only visibility, whose transition-origin value outranks !important.
               const value = `${computed.transition}, visibility 0s linear 0s`;
-              if (pseudo === "") {
+              if (pseudo === "" && (node.localName.includes("-") || node.hasAttribute("is"))) {
+                setAuthorStyle(node, "transition", value);
+              } else if (pseudo === "") {
                 const entry = {
                   node,
                   originalStyle: node.getAttribute("style"),
@@ -356,14 +404,7 @@ export async function suppressDocumentVisibilityTransitions(
                 node.style.setProperty("transition", value, "important");
                 entry.ownedStyle = node.getAttribute("style");
               } else {
-                if (!node.hasAttribute(attribute)) {
-                  node.setAttribute(attribute, String(marked.length));
-                  marked.push(node);
-                }
-                const boost = ":not(#domotion-snapshot-transition-boost)".repeat(4);
-                rules.push(
-                  `[${attribute}="${node.getAttribute(attribute)}"]${boost}${pseudo}{transition:${value}!important}`,
-                );
+                rules.push(`${selectorFor(node)}${pseudo}{transition:${value}!important}`);
               }
             }
           }
@@ -379,6 +420,10 @@ export async function suppressDocumentVisibilityTransitions(
       };
       return {
         start,
+        setAuthorStyle(node: Element, property: string, value: string) {
+          if (!started || closed) throw new Error("snapshot visibility owner is inactive");
+          setAuthorStyle(node, property, value);
+        },
         assertMutable(node: Element, property: string) {
           if (closed) throw new Error("snapshot visibility owner is closed");
           if (property === "visibility") return;
@@ -512,7 +557,7 @@ export async function suppressDocumentVisibilityTransitions(
         },
         restore,
       };
-    }, marker),
+    }, source),
   );
   let state: Awaited<typeof preparation>;
   try {

@@ -424,3 +424,144 @@ describe("capture-local probes leave no source residue (DM-AK8DWV)", () => {
     }
   });
 });
+
+describe("custom-element snapshot writes (DM-PFREYT)", () => {
+  it.each(profiles)(
+    "suppresses an inactive stylesheet transition without a style callback in $name capture",
+    async (profile) => {
+      const page = await browser.newPage({ viewport });
+      try {
+        await setup(page, styles[3].attribute, profile.controls);
+        await page.addStyleTag({
+          content: "x-containment-guard{background:red;transition:opacity 3s linear, visibility 1s linear}",
+        });
+        const before = await state(page);
+        const source = await page.screenshot({ caret: "initial" });
+        const captured = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+        expect(captured.warnings.filter((warning) => warning.feature === profile.feature)).toEqual([]);
+        expect(
+          walk(captured.tree).some((element) =>
+            profile.name === "full"
+              ? element.nativeControlRaster != null
+              : element.nativeControlDecorationRaster != null,
+          ),
+        ).toBe(true);
+        expect(await state(page)).toEqual(before);
+        expect(await page.screenshot({ caret: "initial" })).toEqual(source);
+      } finally {
+        await page.close();
+      }
+    },
+  );
+
+  it("suppresses a custom-element visibility transition under nonce-only style CSP", async () => {
+    const page = await browser.newPage({ viewport });
+    try {
+      await page.setContent(`<!doctype html>
+        <meta http-equiv="Content-Security-Policy" content="style-src 'nonce-snapshot'">
+        <style nonce="snapshot">
+          html,body{margin:0;background:white}
+          x-containment-guard,button{display:block;contain:layout;width:40px;height:20px}
+          x-containment-guard{background:red;visibility:visible!important;transition:visibility 1s linear}
+        </style><x-containment-guard></x-containment-guard><button></button>`);
+      await observeGuard(page);
+      const before = await state(page);
+      const source = await page.screenshot({ caret: "initial" });
+      const captured = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+      expect(captured.warnings.filter((warning) => warning.feature === "native-control-raster")).toEqual([]);
+      expect(walk(captured.tree).find((node) => node.tag === "button")?.nativeControlRaster?.dataUri).toMatch(
+        /^data:image\/png;base64,/,
+      );
+      expect(await state(page)).toEqual(before);
+      expect(await page.evaluate(() => document.adoptedStyleSheets.length)).toBe(0);
+      expect(await page.screenshot({ caret: "initial" })).toEqual(source);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("withholds a raster when an important inline custom-element transition cannot be suppressed", async () => {
+    const page = await browser.newPage({ viewport });
+    try {
+      await setup(
+        page,
+        ' style="visibility:visible!important;transition:visibility 1s!important"',
+        profiles[0].controls,
+      );
+      const before = await state(page);
+      const source = await page.screenshot({ caret: "initial" });
+      const captured = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+      expect(
+        captured.warnings.some(
+          (warning) =>
+            warning.feature === "native-control-raster" &&
+            warning.detail.includes("did not take effect for transition"),
+        ),
+      ).toBe(true);
+      expect(walk(captured.tree).flatMap((node) => node.nativeControlRaster?.dataUri ?? [])).toEqual([]);
+      expect(await state(page)).toEqual(before);
+      expect(await page.evaluate(() => document.adoptedStyleSheets.length)).toBe(0);
+      expect(await page.screenshot({ caret: "initial" })).toEqual(source);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it.each([
+    { name: "author-origin neutralization", background: "background:#eee", neutralized: true },
+    { name: "inline importance", background: "background:#eee!important", neutralized: false },
+  ])("preserves a customized select's source style and callbacks with $name", async ({ background, neutralized }) => {
+    const page = await browser.newPage({ viewport });
+    const reference = await browser.newPage({ viewport });
+    try {
+      const stylesHtml = "<style>body{margin:0;background:#fff}select{margin:8px}</style>";
+      await page.setContent(
+        `${stylesHtml}<select is="snapshot-select" style="${background}"><option>One</option></select>`,
+      );
+      const liveStyle = await page.evaluateHandle(() => {
+        const changes: Array<[string | null, string | null]> = [];
+        customElements.define(
+          "snapshot-select",
+          class extends HTMLSelectElement {
+            static get observedAttributes() {
+              return ["style"];
+            }
+            attributeChangedCallback(_name: string, oldValue: string | null, value: string | null) {
+              changes.push([oldValue, value]);
+            }
+          },
+          { extends: "select" },
+        );
+        changes.length = 0;
+        return changes;
+      });
+      const source = await page.screenshot({ caret: "initial" });
+      const captured = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+      const warnings = captured.warnings.filter((warning) => warning.feature === "native-control-decoration-raster");
+      const raster = walk(captured.tree).find((element) => element.tag === "select")?.nativeControlDecorationRaster;
+      if (neutralized) {
+        await reference.setContent(`${stylesHtml}<select style="${background}"><option>One</option></select>`);
+        const ordinary = await captureElementTreeWithWarnings(reference, "body", { x: 0, y: 0, ...viewport });
+        const ordinaryRaster = walk(ordinary.tree).find(
+          (element) => element.tag === "select",
+        )?.nativeControlDecorationRaster;
+        expect(warnings).toEqual([]);
+        expect(ordinaryRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
+        expect(raster).toEqual(ordinaryRaster);
+      } else {
+        expect(warnings.some((warning) => warning.detail.includes("did not take effect for background-color"))).toBe(
+          true,
+        );
+        expect(raster?.dataUri).toBeUndefined();
+      }
+      expect(await liveStyle.evaluate((changes) => changes.length)).toBe(0);
+      expect(await page.locator("select").getAttribute("style")).toBe(background);
+      expect(await page.evaluate(() => document.adoptedStyleSheets.length)).toBe(0);
+      expect(await page.screenshot({ caret: "initial" })).toEqual(source);
+      await liveStyle.dispose();
+    } finally {
+      await page.close();
+      await reference.close();
+    }
+  });
+});

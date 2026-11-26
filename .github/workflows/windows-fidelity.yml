@@ -259,7 +259,7 @@ jobs:
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output/snapshot-visibility/results.json --minimum-passed 111
+          --browser-results tests/output/snapshot-visibility/results.json --minimum-passed 117
       - name: Verify selected image resource and fallback ownership (DM-E0KRM2)
         if: always()
         run: >-
