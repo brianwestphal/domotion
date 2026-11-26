@@ -107,6 +107,14 @@ for sharp corners and148/max181 for radius5. Blink's inset entry points use
 DM-8N1VB2 owns the producer repair. Empty-inset controls do not authenticate
 positive-inset fractional coverage. DM-09GQAV changes no inset production code.
 
+When the spread-adjusted inset hole has zero width or height, Blink fills the
+padding contour before it installs the clip and shadow looper
+(`box_painter_base.cc:542–554`, Chromium 7d859f27). DM-PC233R uses one direct
+contour fill in that case, with the shadow color and the existing captured
+padding geometry. The native comparisons at zero tolerance cover a blurred
+sharp box, a half-pixel translated box and a circular corner. Their previous
+300, 41 and 34 differing RGBA pixels each drop to zero.
+
 DM-TFN8RD tracks a 20×20 box at (20,20), radius 5px and
 `box-shadow:0 0 0 -.125px red`: native alpha sum 933 versus SVG 1095,
 24 differing RGBA pixels/max alpha difference 25. Sharp corners are exact.

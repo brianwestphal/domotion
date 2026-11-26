@@ -654,6 +654,20 @@ export function paintInsetBoxShadow(
     if (ibW <= 0 || ibH <= 0) continue;
 
     const shadowColor = colorStr(parseColor(sh.color) ?? { r: 0, g: 0, b: 0, a: 0 });
+    // A fragment stretches the hole past its excluded sides
+    // (AdjustRectForSideClipping, box_painter_base.cc:542-543).
+    const bounds = { left: ibLeft, top: ibTop, right: ibLeft + ibW, bottom: ibTop + ibH };
+    const holeBase = sides == null ? bounds : adjustRectForSideClipping(bounds, sh, sides);
+    const innerW = holeBase.right - holeBase.left - 2 * sh.spread;
+    const innerH = holeBase.bottom - holeBase.top - 2 * sh.spread;
+    if (innerW <= 0 || innerH <= 0) {
+      // Blink fills the padding contour before creating the clip or the
+      // looper, so the contour's coverage is applied once without blur.
+      ctx.svgParts.push(
+        `${indent}${skRRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, `fill="${shadowColor}"`, devicePieceNumber)}`,
+      );
+      continue;
+    }
     let filterAttr = "";
     if (sh.blur > 0) {
       const fid = ctx.nextClipId("ish");
@@ -695,24 +709,8 @@ export function paintInsetBoxShadow(
     // Even-odd fill paints the frame between the two subpaths with the
     // shadow color; blur softens; the clip-path keeps the result inside
     // the padding box.
-    // A fragment stretches the hole past its excluded sides
-    // (AdjustRectForSideClipping, box_painter_base.cc:542-543).
-    const holeBase =
-      sides == null
-        ? { left: ibLeft, top: ibTop, right: ibLeft + ibW, bottom: ibTop + ibH }
-        : adjustRectForSideClipping({ left: ibLeft, top: ibTop, right: ibLeft + ibW, bottom: ibTop + ibH }, sh, sides);
     const innerL = holeBase.left + sh.x + sh.spread;
     const innerT = holeBase.top + sh.y + sh.spread;
-    const innerW = holeBase.right - holeBase.left - 2 * sh.spread;
-    const innerH = holeBase.bottom - holeBase.top - 2 * sh.spread;
-    if (innerW <= 0 || innerH <= 0) {
-      // Shadow shape collapsed: per spec the entire padding box fills
-      // with shadow color (with blur halo) — emit a solid rect.
-      ctx.svgParts.push(
-        `${indent}<g clip-path="url(#${cid})">${roundedRectSvg(ibLeft, ibTop, ibW, ibH, innerCorners, `fill="${shadowColor}"${filterAttr}`)}</g>`,
-      );
-      continue;
-    }
     const innerC = insetCornerRadii(innerCorners, sh.spread, sh.spread, sh.spread, sh.spread);
     const margin = Math.max(Math.abs(sh.x), Math.abs(sh.y), sh.spread, sh.blur, 1) * 4;
     let outerX = Math.min(ibLeft, innerL) - margin;
@@ -728,13 +726,7 @@ export function paintInsetBoxShadow(
       // CanHandleRect`) takes a different coverage route than a wider one.
       // A blurred shadow keeps the padded rect: its mask-filter route has no
       // native control here yet.
-      const casting = insetShadowCastingRect(
-        { left: ibLeft, top: ibTop, right: ibLeft + ibW, bottom: ibTop + ibH },
-        sh.x,
-        sh.y,
-        sh.blur,
-        sh.spread,
-      );
+      const casting = insetShadowCastingRect(bounds, sh.x, sh.y, sh.blur, sh.spread);
       outerX = casting.left;
       outerY = casting.top;
       outerR = casting.right;

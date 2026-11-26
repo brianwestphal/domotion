@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { captureElementTree, launchChromium } from "../src/capture/index.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 import { retainNativeShadowSource } from "./native-shadow-evidence.js";
 const viewport = { x: 0, y: 0, width: 100, height: 100 };
 let browser: Browser;
@@ -271,6 +272,36 @@ it("keeps a display:contents selector transparent and captures its real child", 
       await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(tree, 100, 100));
       expect(await rgba(await output.screenshot({ omitBackground: true })), selector).toEqual(source);
     }
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
+
+it.each([
+  ["sharp blurred", "box-shadow:inset 0 0 4px 12px red"],
+  ["fractionally translated", "margin:20.5px;transform:translate(.5px,.5px);box-shadow:inset 0 0 0 12px red"],
+  ["rounded", "border-radius:5px;box-shadow:inset 0 0 0 12px red"],
+  ["one-axis-empty", "height:32px;box-shadow:inset 0 0 4px 12px red"],
+])("fills a collapsed %s inset directly from the native padding bounds", async (_name, css) => {
+  const page = await browser.newPage({ viewport });
+  const output = await browser.newPage({ viewport });
+  try {
+    await page.setContent(
+      `<!doctype html><style>body{margin:0}#only{width:20px;height:20px;margin:20px;${css}}</style><div id="container"><div id="only"></div></div>`,
+    );
+    const source = await rgba(await screenshotAfterPresentedFrame(page, { omitBackground: true }));
+    const tree = await captureElementTree(page, "#container", viewport);
+    const svg = elementTreeToSvg(tree, 100, 100);
+    await output.setContent(`<style>body{margin:0}</style>${svg}`);
+    const actual = await rgba(await screenshotAfterPresentedFrame(output, { omitBackground: true }));
+    let differences = 0;
+    for (let index = 0; index < source.length; index += 4) {
+      if (!source.subarray(index, index + 4).equals(actual.subarray(index, index + 4))) differences++;
+    }
+    expect(differences).toBe(0);
+    expect(svg).not.toContain("ishc");
+    expect(svg).not.toContain("feGaussianBlur");
   } finally {
     await page.close();
     await output.close();
