@@ -2535,6 +2535,7 @@ async function captureElementTreeWithWarningsInternal(
       await reverifyAnimationFrame();
       pseudoFragmentProbe = await preparePseudoFragmentGeometry(page, selector, viewport, {
         defaultFontLocale: "locale" in rendererLocale ? rendererLocale.locale : undefined,
+        fontFamilyDeclarationPropertyKey: fontFamilyDeclarations.propertyKey,
       });
       await reverifyAnimationFrame();
       insetRootShadowContext = await prepareInsetRootShadowContext(page, selector);

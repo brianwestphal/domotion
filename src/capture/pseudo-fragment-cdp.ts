@@ -39,8 +39,9 @@ import type {
   CapturedPseudoTypography,
   CaptureWarning,
 } from "./types.js";
-import { fontSelectionLanguage } from "./font-locale.js";
-import { capturedFontFamilyCss } from "../font-family-stack.js";
+import { computedFontLocaleLanguage, fontSelectionLanguage } from "./font-locale.js";
+import { captureFontFamilyStack, capturedFontFamilyCss } from "../font-family-stack.js";
+import type { FontFamilyDeclarationFact } from "./font-family-declarations.js";
 import { probeFailureWarning } from "./probe-failure.js";
 import { pseudoFragmentRecordErrors } from "../render/pseudo-fragments.js";
 import { selectedGlyphRasterSpans } from "../render/text-to-path.js";
@@ -56,6 +57,7 @@ interface CandidateStyle {
   padding: PhysicalEdges;
   margin: PhysicalEdges;
   typography: CapturedPseudoTypography;
+  nativeStandardFamily?: boolean;
   paint: CapturedPseudoPaintStyle;
   content: string;
   contentUrls: string[];
@@ -72,6 +74,7 @@ interface Candidate {
   correlationId: string;
   selector: string;
   style: CandidateStyle;
+  localeTypographyUnavailable?: boolean;
   backendNodeId?: number;
 }
 
@@ -157,11 +160,12 @@ async function setupFrame(
   key: string,
   token: string,
   top: boolean,
+  fontFamilyDeclarationPropertyKey?: string,
 ): Promise<PreparedFrame | null> {
   try {
     const raw = await evaluateInFrame(
       frame,
-      async ({ selector, key, token, top }) => {
+      async ({ selector, key, token, top, fontFamilyDeclarationPropertyKey }) => {
         const root = top ? document.querySelector(selector) : document.documentElement;
         if (root == null) return [];
         const elements = [root, ...Array.from(root.querySelectorAll("*"))];
@@ -296,6 +300,30 @@ async function setupFrame(
               drawing.wordSpacing = `${number(style.wordSpacing) * zoom}px`;
             context.direction = style.direction === "rtl" ? "rtl" : "ltr";
             const metrics = context.measureText("Hg");
+            const fontLocale = style.getPropertyValue("-webkit-locale") || undefined;
+            const familyDeclaration =
+              fontFamilyDeclarationPropertyKey == null
+                ? undefined
+                : ((element as Element & Record<string, unknown>)[fontFamilyDeclarationPropertyKey] as
+                    FontFamilyDeclarationFact | undefined);
+            const familyFact = familyDeclaration?.pseudoFamilyTypes?.[pseudo];
+            let familyLanguage = document.documentElement.lang || "";
+            if (familyFact?.type === "standard") {
+              for (let owner: Element | null = element; owner != null; owner = owner.parentElement) {
+                const language = (owner as HTMLElement).lang;
+                if (language) {
+                  familyLanguage = language;
+                  break;
+                }
+              }
+            }
+            const standard =
+              familyFact?.type === "standard" &&
+              familyFact.usable === true &&
+              familyFact.family === style.fontFamily &&
+              fontLocale != null &&
+              familyFact.fontLocale === fontLocale &&
+              familyFact.language === familyLanguage;
             const lineHeight = style.lineHeight === "normal" ? ("normal" as const) : number(style.lineHeight) * zoom;
             const zIndex = Number.parseInt(style.zIndex, 10);
             rows.push({
@@ -327,6 +355,7 @@ async function setupFrame(
                   bottom: edge(style, "margin", "Bottom") * zoom,
                   left: edge(style, "margin", "Left") * zoom,
                 },
+                ...(standard ? { nativeStandardFamily: true } : {}),
                 typography: {
                   fontFamily: style.fontFamily,
                   fontSize: number(style.fontSize),
@@ -344,7 +373,7 @@ async function setupFrame(
                   wordSpacing: style.wordSpacing,
                   textOrientation: style.textOrientation,
                   whiteSpace: style.whiteSpace,
-                  fontLocale: style.getPropertyValue("-webkit-locale") || undefined,
+                  fontLocale,
                   language: element.closest("[lang]")?.getAttribute("lang") ?? document.documentElement.lang ?? "",
                   effectiveZoom: zoom,
                   primaryFontAscent: metrics.fontBoundingBoxAscent,
@@ -408,12 +437,16 @@ async function setupFrame(
         };
         return rows;
       },
-      { selector, key, token, top },
+      { selector, key, token, top, fontFamilyDeclarationPropertyKey },
     );
     return {
       frame,
       token,
-      candidates: raw.map((row) => ({ ...row, frame, token })),
+      candidates: raw.map((row) => {
+        if (row.style.nativeStandardFamily)
+          row.style.typography.fontFamilyStack = captureFontFamilyStack(row.style.typography.fontFamily, true);
+        return { ...row, frame, token };
+      }),
     };
   } catch (error) {
     console.warn("[domotion] pseudo fragment frame setup failed", error);
@@ -908,9 +941,32 @@ export async function addShapedAdvances(
       : row.textBoxes.map((box) => row.text!.slice(box.startUtf16, box.startUtf16 + box.lengthUtf16)),
   );
   if (strings.length === 0) return rows;
-  const advances = await evaluateInFrame(
+  const typography = candidate.style?.typography;
+  const language = computedFontLocaleLanguage(typography?.fontLocale);
+  // Blink converts the unquoted -webkit-body generic to kWebkitBodyFamily
+  // (style_builder_converter.cc), which shares settings.Standard(script)
+  // with kStandardFamily (font_selector.cc). An authored -webkit-standard
+  // name, in contrast, can be resolved through @font-face.
+  const standardFamily = candidate.style?.nativeStandardFamily === true;
+  const genericWithLocale =
+    typography != null &&
+    language != null &&
+    captureFontFamilyStack(typography.fontFamily).entries.some((entry) => entry.type === "generic-family");
+  const expected =
+    candidate.style?.writingMode === "horizontal-tb" && typography != null && (standardFamily || genericWithLocale)
+      ? {
+          family: standardFamily ? "-webkit-body" : typography.fontFamily,
+          locale: typography.fontLocale,
+          language,
+          serializedFamily: typography.fontFamily,
+          size: typography.paintFontSize,
+          fontStyle: typography.fontStyle,
+          weight: typography.fontWeight,
+        }
+      : undefined;
+  const measured = await evaluateInFrame(
     candidate.frame,
-    ({ key, elementIndex, pseudo, strings }) => {
+    ({ key, elementIndex, pseudo, strings, expected }) => {
       const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
         { elements?: Element[] } | undefined;
       const host = registry?.elements?.[elementIndex];
@@ -921,10 +977,25 @@ export async function addShapedAdvances(
         const own = Number.parseFloat(getComputedStyle(owner).zoom);
         if (Number.isFinite(own) && own > 0) zoom *= own;
       }
+      const size = Number.parseFloat(style.fontSize) * zoom;
+      if (
+        expected != null &&
+        (style.getPropertyValue("-webkit-locale") !== expected.locale ||
+          style.fontFamily !== expected.serializedFamily ||
+          style.fontStyle !== expected.fontStyle ||
+          style.fontWeight !== expected.weight ||
+          style.writingMode !== "horizontal-tb" ||
+          size !== expected.size)
+      )
+        return null;
       const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d");
+      const context = canvas.getContext("2d") as (CanvasRenderingContext2D & { lang?: string }) | null;
       if (context == null) return [];
-      context.font = `${style.fontStyle} ${style.fontWeight} ${Number.parseFloat(style.fontSize) * zoom}px ${style.fontFamily}`;
+      if (expected?.language != null) {
+        if (!("lang" in context)) return null;
+        context.lang = expected.language;
+      }
+      context.font = `${style.fontStyle} ${style.fontWeight} ${size}px ${expected?.family ?? style.fontFamily}`;
       context.direction = style.direction === "rtl" ? "rtl" : "ltr";
       const spacing = context as Omit<
         typeof context,
@@ -943,13 +1014,38 @@ export async function addShapedAdvances(
         spacing.letterSpacing = `${Number.parseFloat(style.letterSpacing) * zoom}px`;
       if ("wordSpacing" in spacing && style.wordSpacing !== "normal")
         spacing.wordSpacing = `${Number.parseFloat(style.wordSpacing) * zoom}px`;
-      return strings.map((text) => context.measureText(text).width);
+      const advances = strings.map((text) => context.measureText(text).width);
+      if (expected == null) return advances;
+      const metrics = context.measureText("Hg");
+      return { ascent: metrics.fontBoundingBoxAscent, descent: metrics.fontBoundingBoxDescent, advances };
     },
-    { key, elementIndex: candidate.elementIndex, pseudo: candidate.pseudo, strings },
+    { key, elementIndex: candidate.elementIndex, pseudo: candidate.pseudo, strings, expected },
   ).catch((error: unknown) => {
     onFailure(error);
-    return [] as number[];
+    return null;
   });
+  let advances: number[] = [];
+  if (expected != null && typography != null) {
+    // A source text box uses the primary font's full line-relative height.
+    // This rejects a remeasure that did not reproduce the captured font plane.
+    if (
+      measured == null ||
+      Array.isArray(measured) ||
+      measured.advances.length !== strings.length ||
+      !measured.advances.every(Number.isFinite) ||
+      !rows.every((row) =>
+        row.textBoxes.every((box) => Math.abs(box.bounds.height - (measured.ascent + measured.descent)) <= 1 / 64),
+      )
+    ) {
+      candidate.localeTypographyUnavailable = true;
+      return rows;
+    }
+    typography.primaryFontAscent = measured.ascent;
+    typography.primaryFontDescent = measured.descent;
+    advances = measured.advances;
+  } else if (Array.isArray(measured)) {
+    advances = measured;
+  }
   let cursor = 0;
   return rows.map((row) => ({
     ...row,
@@ -1408,14 +1504,23 @@ export async function preparePseudoFragmentGeometry(
   page: Page,
   selector: string,
   viewport: { x: number; y: number; width: number; height: number },
-  options: { defaultFontLocale?: string } = {},
+  options: { defaultFontLocale?: string; fontFamilyDeclarationPropertyKey?: string } = {},
 ): Promise<PseudoFragmentProbe> {
   const registry = createPageRegistry<unknown>(page, "PseudoFragments");
   const key = registry.key;
   const initialFrames = page.frames();
   const prepared = (
     await Promise.all(
-      initialFrames.map((frame, index) => setupFrame(frame, selector, key, `f${index}`, frame === page.mainFrame())),
+      initialFrames.map((frame, index) =>
+        setupFrame(
+          frame,
+          selector,
+          key,
+          `f${index}`,
+          frame === page.mainFrame(),
+          options.fontFamilyDeclarationPropertyKey,
+        ),
+      ),
     )
   ).filter((row): row is PreparedFrame => row != null);
   await Promise.all(
@@ -1565,8 +1670,13 @@ export async function preparePseudoFragmentGeometry(
               detail: `authoritative Chromium pseudo geometry unavailable (${reason}); retained one isolated Chromium-painted pseudo surface`,
             });
           }
-          if (record.status === "exact" && generatedImageNeedsIntrinsicSurface(candidate)) {
-            const reason = "generated URL image intrinsic paint exceeds its pseudo layout slot";
+          if (
+            record.status === "exact" &&
+            (candidate.localeTypographyUnavailable || generatedImageNeedsIntrinsicSurface(candidate))
+          ) {
+            const reason = candidate.localeTypographyUnavailable
+              ? "locale-selected pseudo typography did not reproduce the source font box"
+              : "generated URL image intrinsic paint exceeds its pseudo layout slot";
             const terminalRaster = await isolate(candidate);
             record = {
               ...record,

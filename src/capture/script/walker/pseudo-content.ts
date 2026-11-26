@@ -70,6 +70,7 @@ type PseudoServices = {
   vp: Viewport;
   normColor: (color: string) => string;
   measureFontMetrics: (style: CSSStyleDeclaration) => { ascent: number; descent: number };
+  markPseudoStandardForMetrics: (el: Element, style: CSSStyleDeclaration, pseudo: string) => boolean;
   textNeedsRaster: (text: string) => boolean;
   resolveCounterValue: (style: string, value: number) => string | null | undefined;
   composeEffectiveTransform: (style: CSSStyleDeclaration) => string;
@@ -540,6 +541,7 @@ const buildPseudoContentHandler = ({
   vp,
   normColor,
   measureFontMetrics,
+  markPseudoStandardForMetrics,
   textNeedsRaster,
   resolveCounterValue,
   composeEffectiveTransform,
@@ -575,12 +577,19 @@ const buildPseudoContentHandler = ({
   // Blink lay out the generated content. Copying every computed property (not
   // a hand-picked font/box subset) preserves the resolved cascade, variables,
   // calc(), writing mode, font features, intrinsic sizing, and logical props.
-  const probeGeneratedPseudoLayout = (el: Element, pseudo: string, text: string, pcs: CSSStyleDeclaration) => {
+  const probeGeneratedPseudoLayout = (
+    el: Element,
+    pseudo: string,
+    text: string,
+    pcs: CSSStyleDeclaration,
+    standardFamily: boolean,
+  ) => {
     const span = document.createElement("span");
     for (let i = 0; i < pcs.length; i++) {
       const name = pcs.item(i);
       span.style.setProperty(name, pcs.getPropertyValue(name));
     }
+    if (standardFamily) span.style.fontFamily = "initial";
     // Generated `content` has no effect on a real element; materialize it as a
     // text node. Visibility keeps the probe non-painting while retaining layout.
     span.style.setProperty("content", "normal");
@@ -862,7 +871,12 @@ const buildPseudoContentHandler = ({
       }
       if (text === "") continue;
 
-      const pseudoLayout = probeGeneratedPseudoLayout(el, pseudo, text, pcs);
+      const fontFamilyStack = fontFamilyStackFor(el, pcs.fontFamily, pseudo);
+      const standardFamily =
+        fontFamilyStack?.genericFamily === "standard" &&
+        effectiveZoomFor(el) === 1 &&
+        markPseudoStandardForMetrics(el, pcs, pseudo);
+      const pseudoLayout = probeGeneratedPseudoLayout(el, pseudo, text, pcs, standardFamily);
       // TextSegment dimensions are physical viewport dimensions. Range geometry
       // therefore handles vertical text without pretending its inline advance is
       // always an x-axis width. A zero range (e.g. whitespace-only content)
@@ -999,7 +1013,7 @@ const buildPseudoContentHandler = ({
         fontSize: elFontSize,
         fontWeight: pcs.fontWeight,
         fontFamily: pcs.fontFamily,
-        fontFamilyStack: fontFamilyStackFor(el, pcs.fontFamily, pseudo),
+        fontFamilyStack,
         fontStyle: pcs.fontStyle,
         fontAscent: pseudoMetrics.ascent,
       };

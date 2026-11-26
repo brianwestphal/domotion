@@ -141,6 +141,30 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
           _familyIsUADefault(el, hostFamily, provenType === "unusable");
     return captureFontFamilyStack(computedFontFamily, inheritedHostStandard);
   };
+  const _readablePseudoFamilySheets = new WeakMap<Document, boolean>();
+  const _markPseudoStandardForMetrics = (el: Element, style: CSSStyleDeclaration, pseudo: string) => {
+    const proven = _familyTypeFromDeclaration(el, style.fontFamily, pseudo);
+    if (proven !== "standard") {
+      const doc = el.ownerDocument;
+      if (proven != null || el.getRootNode() !== doc || doc.adoptedStyleSheets.length > 0) return false;
+      // With no native fact, the existing CSSOM family scanner can only
+      // exclude a same-name author family in rules it can actually inspect.
+      if (!_readablePseudoFamilySheets.has(doc)) {
+        let readable = false;
+        try {
+          readable = Array.from(doc.styleSheets).every((sheet) =>
+            Array.from(sheet.cssRules).every((rule) => rule.type !== CSSRule.IMPORT_RULE),
+          );
+        } catch {
+          // A cross-origin stylesheet's rules are unavailable to CSSOM.
+        }
+        _readablePseudoFamilySheets.set(doc, readable);
+      }
+      if (_readablePseudoFamilySheets.get(doc) !== true) return false;
+    }
+    _markStandardFamilyStyle(style);
+    return true;
+  };
   const { resolveFontPalette: _resolveFontPalette, resolveShadowFontPalettes: _resolveShadowFontPalettes } =
     createFontPaletteResolver();
   const _fontFeatureValuesFor = createFontFeatureValuesLookup();
@@ -216,6 +240,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     vp,
     normColor,
     measureFontMetrics: _measureFontMetrics,
+    markPseudoStandardForMetrics: _markPseudoStandardForMetrics,
     textNeedsRaster,
     resolveCounterValue,
     // Pseudo translate percentages resolve against the pseudo's own border box.
