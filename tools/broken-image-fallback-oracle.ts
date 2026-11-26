@@ -1793,29 +1793,40 @@ async function chromiumRevision(): Promise<{ playwrightVersion: string; chromium
   }
 }
 
+export function resolveBrokenImageGateMatrix(
+  dprs: readonly number[] = BROKEN_IMAGE_GATE_DPRS,
+  schemes: readonly string[] = BROKEN_IMAGE_GATE_SCHEMES,
+) {
+  if (dprs.length !== BROKEN_IMAGE_GATE_DPRS.length || !BROKEN_IMAGE_GATE_DPRS.every((dpr) => dprs.includes(dpr)))
+    throw new Error("--dpr must list exactly 1,2 for the full broken-image parity gate");
+  if (
+    schemes.length !== BROKEN_IMAGE_GATE_SCHEMES.length ||
+    !BROKEN_IMAGE_GATE_SCHEMES.every((scheme) => schemes.includes(scheme))
+  )
+    throw new Error("--scheme must list exactly light,dark for the full broken-image parity gate");
+  return { deviceScaleFactors: [...BROKEN_IMAGE_GATE_DPRS], colorSchemes: [...BROKEN_IMAGE_GATE_SCHEMES] };
+}
+
 export async function runBrokenImageFallbackOracle(
   options: {
-    deviceScaleFactors?: number[];
-    colorSchemes?: Scheme[];
+    deviceScaleFactors?: readonly number[];
+    colorSchemes?: readonly string[];
     artifactRoot?: string;
   } = {},
 ): Promise<BrokenImageGateReport> {
+  const { deviceScaleFactors, colorSchemes } = resolveBrokenImageGateMatrix(
+    options.deviceScaleFactors,
+    options.colorSchemes,
+  );
   const corpusErrors = validateBrokenImageGateCorpus();
   if (corpusErrors.length > 0) throw new Error(`invalid broken-image corpus:\n${corpusErrors.join("\n")}`);
   const currentPlatform = platform();
   if (!BROKEN_IMAGE_GATE_PLATFORMS.includes(currentPlatform as Platform))
     throw new Error(`unsupported gate platform: ${currentPlatform}`);
   process.env.DOMOTION_HELPER_NO_SERVE = "1";
-  const deviceScaleFactors = [...new Set(options.deviceScaleFactors ?? [...BROKEN_IMAGE_GATE_DPRS])].sort(
-    (a, b) => a - b,
-  );
-  const colorSchemes = [...new Set(options.colorSchemes ?? [...BROKEN_IMAGE_GATE_SCHEMES])];
   const artifactRoot = resolve(
     options.artifactRoot ?? `tests/output/broken-image-fallback-${currentPlatform}/artifacts`,
   );
-  if (deviceScaleFactors.length === 0 || deviceScaleFactors.some((dpr) => !Number.isFinite(dpr) || dpr <= 0))
-    throw new Error("--dpr requires positive finite values");
-  if (colorSchemes.length === 0) throw new Error("at least one color scheme is required");
   return await withBrowser(async (browser) => {
     const rows: BrokenImageGateRow[] = [];
     const direct = new Map<string, { sourcePng: Buffer; emittedPng: Buffer }>();
@@ -1945,8 +1956,8 @@ async function main(argv: string[]): Promise<number> {
   });
   const dpr = flag(args, "dpr");
   const scheme = flag(args, "scheme");
-  const dprs = typeof dpr === "string" ? dpr.split(",").map(Number) : [...BROKEN_IMAGE_GATE_DPRS];
-  const schemes = (typeof scheme === "string" ? scheme.split(",") : [...BROKEN_IMAGE_GATE_SCHEMES]) as Scheme[];
+  const dprs = dpr?.split(",").map(Number);
+  const schemes = scheme?.split(",").map((name) => name.trim());
   const reportPath = resolve(
     String(flag(args, "json", `tests/output/broken-image-fallback-${platform()}/report.json`)),
   );

@@ -25,6 +25,17 @@ describe("migrated A–C commands", () => {
     });
   });
 
+  it(
+    "broken-image parity rejects a partial matrix at the CLI boundary",
+    async () => {
+      const child = await run("broken-image-fallback-oracle.ts", "--dpr", "1", "--scheme", "light");
+      expect(child.error, describeChild(child)).toBeNull();
+      expect(child.status, describeChild(child)).not.toBe(0);
+      expect(child.stderr).toContain("--dpr must list exactly 1,2 for the full broken-image parity gate");
+    },
+    testTimeoutFor(TOOL_BUDGET_MS),
+  );
+
   for (const command of [
     "border-phase-oracle.ts",
     "broken-image-fallback-oracle.ts",

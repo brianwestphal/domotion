@@ -181,6 +181,10 @@ Gate: `npm run broken-image:parity-gate` records 27 cases × DPR 1/2 ×
 light/dark, requires direct live-to-emitted RGBA and fifteen mutation
 discriminators, and runs natively on macOS/Linux/Windows through
 `.github/workflows/broken-image-fallback-parity.yml`.
+The strict gate runs all four combinations. Omit the matrix flags to use the
+defaults, or supply `--dpr 1,2 --scheme light,dark`. Each list accepts either
+order. Partial matrices, duplicates, and unsupported values fail before
+Chromium starts.
 
 Doc: [156-broken-image-fallback-ownership-audit.md](../156-broken-image-fallback-ownership-audit.md).
 Tickets: DM-2464 (hybrid paint) and DM-2465 (independent all-platform gate).

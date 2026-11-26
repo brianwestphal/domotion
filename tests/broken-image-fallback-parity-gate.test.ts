@@ -9,6 +9,7 @@ import {
   BROKEN_IMAGE_GATE_THRESHOLDS,
   REQUIRED_BROKEN_IMAGE_MUTATIONS,
   projectAuthorAffinePoint,
+  resolveBrokenImageGateMatrix,
   validateBrokenImageGateCorpus,
 } from "../tools/broken-image-fallback-oracle.js";
 
@@ -66,6 +67,28 @@ describe("DM-2465 broken-image fallback hard-gate contract", () => {
     expect(start.y).toBeCloseTo(61.9, 12);
     const liveTop = projectAuthorAffinePoint({ x: 58, y: 39 }, pivot, matrix).y;
     expect(start.y - (liveTop + 16)).toBeCloseTo(1.6, 12);
+  });
+
+  it("uses the complete canonical matrix for omitted and reordered flags", () => {
+    const matrix = { deviceScaleFactors: [1, 2], colorSchemes: ["light", "dark"] };
+    expect(resolveBrokenImageGateMatrix()).toEqual(matrix);
+    expect(resolveBrokenImageGateMatrix([2, 1], ["dark", "light"])).toEqual(matrix);
+  });
+
+  it.each([{ dprs: [1] }, { dprs: [1, 2, 3] }, { dprs: [1, 1] }, { dprs: [1, Number.NaN] }])(
+    "rejects unsupported DPR selections $dprs",
+    ({ dprs }) => {
+      expect(() => resolveBrokenImageGateMatrix(dprs)).toThrow(/--dpr must list exactly 1,2/);
+    },
+  );
+
+  it.each([
+    { schemes: ["light"] },
+    { schemes: ["light", "dark", "sepia"] },
+    { schemes: ["light", "light"] },
+    { schemes: ["light", "sepia"] },
+  ])("rejects unsupported scheme selections $schemes", ({ schemes }) => {
+    expect(() => resolveBrokenImageGateMatrix(undefined, schemes)).toThrow(/--scheme must list exactly light,dark/);
   });
 
   it("pins Chromium authority and every required fault-injection discriminator", () => {
