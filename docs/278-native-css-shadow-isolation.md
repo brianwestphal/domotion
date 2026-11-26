@@ -156,7 +156,9 @@ A separate case changes and restores a character during readback. Two mask
 cases verify source preservation when the document declares a used or unused
 font face. The clip cases compare the default embedded-font SVG with Chromium.
 The system-face mask cases compare the full system-font SVG with Chromium and
-the default embedded-font SVG with the corresponding flat capture.
+the default embedded-font SVG with the corresponding flat capture. The 20px
+Courier New mask case also requires the complete default embedded-font SVG to
+match native pixels. The 18px Arial case retains fractional glyph advances.
 
 ## Remaining capability boundaries
 

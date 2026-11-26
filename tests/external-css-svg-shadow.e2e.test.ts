@@ -41,8 +41,15 @@ beforeAll(async () => {
       // document font has settled. Moving an already-painted mask after a
       // webfont load can erase the source mask in Chromium.
       const face = params.get("face");
+      const sheet = face === "fixture" || face === "unused" ? `<style>${FIXTURE_FONT_CSS}</style>` : "";
+      const font =
+        face === "fixture"
+          ? `18px/24px '${FIXTURE_MONO_FAMILY}',monospace`
+          : face === "courier"
+            ? "20px/24px 'Courier New',monospace"
+            : "18px/24px Arial,sans-serif";
       response.end(
-        `<!doctype html>${face === "system" ? "" : `<style>${FIXTURE_FONT_CSS}</style>`}<body style="margin:0;background:white"><div id="host" style="position:absolute;left:20px;top:20px;width:100px;height:72px;color:blue;font:18px/24px ${face === "fixture" ? `'${FIXTURE_MONO_FAMILY}',monospace` : "Arial,sans-serif"}"></div><template id="source-owner">${owner}</template>`,
+        `<!doctype html>${sheet}<body style="margin:0;background:white"><div id="host" style="position:absolute;left:20px;top:20px;width:100px;height:72px;color:blue;font:${font}"></div><template id="source-owner">${owner}</template>`,
       );
     } else {
       response.end(
@@ -502,7 +509,11 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
     mode: ShadowRootMode,
     placement: "direct" | "slot",
     shadow: boolean,
-    face: "fixture" | "unused" | "system" = kind === "clip" ? "fixture" : "system",
+    face: "fixture" | "unused" | "system" | "courier" = kind === "clip"
+      ? "fixture"
+      : mode === "open"
+        ? "courier"
+        : "system",
   ) {
     const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height } });
     await page.goto(`${origin}/?text&kind=${kind}&face=${face}`);
@@ -581,6 +592,7 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
                 const projected = await svgPixels(actual.tree, "embedded-font");
                 const reference = await svgPixels(flatCapture.tree, "embedded-font");
                 expect(projected.equals(reference)).toBe(true);
+                if (mode === "open") expect(projected.equals(before)).toBe(true);
                 embeddedDiffPixels = 0;
                 for (let i = 0; i < before.length; i += 3)
                   if (
