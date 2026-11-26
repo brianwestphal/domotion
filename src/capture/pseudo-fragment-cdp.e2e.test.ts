@@ -146,12 +146,28 @@ describe("DM-2467 source-owned pseudo fragment capture", () => {
       </style><main id="root"><div id="ambiguous"></div></main>`);
       const context = page.context();
       const newSession = context.newCDPSession.bind(context);
-      context.newCDPSession = async () => {
-        throw new Error("forced protocol unavailability");
+      let refusedSnapshots = 0;
+      context.newCDPSession = async (target) => {
+        const session = await newSession(target);
+        const send = session.send.bind(session);
+        session.send = (async (method: string, params?: object) => {
+          // Refuse geometry correlation only. The terminal screenshot still
+          // needs the independent shadow-visibility proof.
+          if (method === "DOMSnapshot.captureSnapshot") {
+            refusedSnapshots++;
+            throw new Error("forced pseudo geometry snapshot refusal");
+          }
+          return Reflect.apply(send, session, [method, params]);
+        }) as typeof session.send;
+        return session;
       };
-      const probe = await preparePseudoFragmentGeometry(page, "#root", { x: 0, y: 0, width: 360, height: 180 });
-      context.newCDPSession = newSession;
+      const probe = await preparePseudoFragmentGeometry(page, "#root", { x: 0, y: 0, width: 360, height: 180 }).finally(
+        () => {
+          context.newCDPSession = newSession;
+        },
+      );
       try {
+        expect(refusedSnapshots).toBe(1);
         const record = await page.evaluate((key) => {
           const registry = (globalThis as typeof globalThis & Record<string, unknown>)[key] as {
             factsByElement: Record<string, CapturedPseudoFragmentSet[]>;
@@ -162,6 +178,7 @@ describe("DM-2467 source-owned pseudo fragment capture", () => {
           source: "blink-pseudo-fragment-v1",
           pseudo: "::after",
           status: "terminal-raster",
+          reason: "forced pseudo geometry snapshot refusal",
         });
         expect(record.terminalRaster?.isolated).toBe(true);
         expect(record.terminalRaster?.dataUri).toMatch(/^data:image\/png;base64,/);
