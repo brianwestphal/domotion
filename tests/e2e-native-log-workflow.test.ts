@@ -85,10 +85,10 @@ it("DM-95ECD3: retains filtered lane logs and source failure artifacts in the or
 });
 
 it("DM-3CJSK2: runs strict process and UI controls and retains evidence on native platforms", () => {
-  for (const [name, output] of [
-    ["windows-fidelity.yml", "tests/output"],
-    ["test-linux.yml", "tests/output-linux"],
-  ]) {
+  for (const [name, output, minimumUIAssertions] of [
+    ["windows-fidelity.yml", "tests/output", 14],
+    ["test-linux.yml", "tests/output-linux", 11],
+  ] as const) {
     const workflow = readFileSync(`.github/workflows/${name}`, "utf8");
     for (const title of [
       "Verify owned UI process controls (DM-3CJSK2)",
@@ -100,7 +100,9 @@ it("DM-3CJSK2: runs strict process and UI controls and retains evidence on nativ
       expect(step).toContain("if: always()");
     }
     expect(workflow).toContain(`--browser-results ${output}/owned-ui-server/controls.json --minimum-passed 13`);
-    expect(workflow).toContain(`--browser-results ${output}/owned-ui-server/native-ui.json --minimum-passed 11`);
+    expect(workflow).toContain(
+      `--browser-results ${output}/owned-ui-server/native-ui.json --minimum-passed ${minimumUIAssertions}`,
+    );
     expect(workflow).toContain(`            ${output}/owned-ui-server/`);
   }
 });
