@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$sourceDirectory = Join-Path $PSScriptRoot '..\assets\fonts\fixture'
+$sourceDirectory = Join-Path $PSScriptRoot '..\packages\text-engine\assets\fonts\fixture'
 $fontDirectory = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
 $registryPath = 'HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts'
 $fonts = @(

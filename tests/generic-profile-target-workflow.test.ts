@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const workflow = readFileSync(".github/workflows/generic-profile-target-parity.yml", "utf8");
@@ -29,7 +30,12 @@ describe("generic profile/target workflow", () => {
     expect(installer).toContain("AddFontResourceExW(");
     expect(installer).toContain("$destination, 0, [IntPtr]::Zero");
     expect(installer).toContain("$fontChange = 0x001d");
-    expect(installer).toContain("DomotionProfileDevanagariOne-Regular.ttf");
-    expect(installer).toContain("DomotionProfileDevanagariTwo-Regular.ttf");
+    const source = installer.match(/\$sourceDirectory = Join-Path \$PSScriptRoot '([^']+)'/)?.[1];
+    expect(source).toBeDefined();
+    for (const family of ["One", "Two"]) {
+      const filename = `DomotionProfileDevanagari${family}-Regular.ttf`;
+      expect(installer).toContain(`File = '${filename}'`);
+      expect(existsSync(resolve("scripts", source!.replaceAll("\\", "/"), filename)), filename).toBe(true);
+    }
   });
 });
