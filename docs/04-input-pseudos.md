@@ -94,6 +94,16 @@ Each field comes from `getComputedStyle(el, '::-webkit-foo').<prop>`. Do this on
 > - A native (UA-default) range takes the Chromium raster route (`formControlRenderRoute` → `native-raster`), not a synthesized shape ([doc 182](182-native-control-fallback-retirement.md)).
 > - Thumb and track `box-shadow` (`rangeThumbBoxShadow`, `rangeTrackBoxShadow`) paint through the general box-shadow painters in `src/render/box-shadow-paint.ts`, the same ones element boxes use, on the pseudo's border box with its resolved corner radius and border width. Blink paints a pseudo's shadows with the same `BoxPainterBase::PaintNormalBoxShadow` / `PaintInsetBoxShadow` code as any box (`core/paint/box_painter_base.cc`, Chromium 7d859f27): outer shadows (offset, blur, spread; stacked spread-only "donut" rings stay concentric circles on a round thumb) paint below the background, inset shadows above it, clipped to the padding box. Fixture: `range-pseudo-box-shadow`.
 
+For a zoomed author-styled range, capture retains the actual track and thumb
+from the closed UA tree (DM-KXAKQM). Each pseudo's `currentCSSZoom` converts its
+computed pixel lengths to paint units. The nested thumb can have a different
+effective zoom from the track, and the host and pseudo rects already reflect
+their layout zoom. The renderer snaps the measured pseudo edges and shares
+those sizes with the conic-gradient raster pre-pass. Captures without the
+measured pair continue to use the existing host-based geometry. A transform
+on either pseudo or an inverse-mapped host rectangle excludes measured
+geometry.
+
 Original plan, kept for history: `renderRange()` emitted a fixed-style track + thumb and was to (1) use captured track/thumb fills when different from the UA default, (2) use `rangeTrackHeight` for the track, (3) use `rangeThumbWidth/Height` for the thumb, and (4) route `box-shadow` through `parseBoxShadow`.
 
 ## Edge cases

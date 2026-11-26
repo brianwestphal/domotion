@@ -1222,6 +1222,12 @@ export interface CapturedStyles {
   rangeThumbWidth?: string;
   rangeThumbHeight?: string;
   rangeThumbRadius?: string;
+  /** Blink's used track/thumb border boxes, relative to the captured input's
+   *  border-box origin in render-space CSS pixels. Recorded for zoomed parts. */
+  rangePartGeometry?: {
+    track: { x: number; y: number; width: number; height: number };
+    thumb: { x: number; y: number; width: number; height: number };
+  };
   /** Resolved gradient text for the slider thumb (SK-1224). */
   rangeThumbBgImage?: string;
   /** ::-webkit-slider-runnable-track border shorthand (DM-273). */

@@ -443,7 +443,7 @@ jobs:
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output-linux/shadow-knockout/results.json --minimum-passed 81
+          --browser-results tests/output-linux/shadow-knockout/results.json --minimum-passed 200
       - name: Upload expected/actual/diff PNGs
         if: always()
         uses: actions/upload-artifact@v4

@@ -35,6 +35,7 @@ type StyleRecordScope = {
   cs: WebkitStyle;
   tag: string;
   rect: DOMRect;
+  inverseMapped?: boolean;
   frozenTransform?: string | null;
   frozenTransformOrigin?: string | null;
   isPlaceholderCapture?: boolean;
@@ -49,7 +50,12 @@ type StyleRecordScope = {
 
 export const createStyleRecordBuilder = (ctx: {
   _backgroundAttachmentPaintScaleFor: (el: Element) => [number, number];
-  captureFormControls: (el: HTMLElement, cs: CSSStyleDeclaration, tag: string) => Partial<CapturedStyles>;
+  captureFormControls: (
+    el: HTMLElement,
+    cs: CSSStyleDeclaration,
+    tag: string,
+    rect?: DOMRect,
+  ) => Partial<CapturedStyles>;
   threadFrozenTransform: (
     cs: CSSStyleDeclaration,
     frozenTransform?: string | null,
@@ -268,7 +274,7 @@ export const createStyleRecordBuilder = (ctx: {
       // walker/form-controls.ts. Input value-capture-as-text and color-
       // input border tinting deliberately stay inline (entangled with
       // text-shaping and border-color emission respectively).
-      ...captureFormControls(el, cs, tag),
+      ...captureFormControls(el, cs, tag, scope.inverseMapped ? undefined : rect),
       selectDisplayTextGeometry: _selectDisplayTextGeometry,
       ..._fileSelectorCapture,
       ..._meterPartGeometry,

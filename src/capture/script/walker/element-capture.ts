@@ -114,6 +114,7 @@ type ElementFacts = {
   cs: CSSStyleDeclaration;
   tag: string;
   rect: DOMRect;
+  inverseMapped: boolean;
   sel: string;
   frozenTransform?: string | null;
   frozenTransformOrigin?: string | null;
@@ -239,6 +240,7 @@ const buildCapturedContent = (d: ElementCaptureDeps, f: ElementFacts) => {
       cs,
       tag,
       rect,
+      inverseMapped: f.inverseMapped,
       frozenTransform: f.frozenTransform,
       frozenTransformOrigin: f.frozenTransformOrigin,
       isPlaceholderCapture: text.isPlaceholderCapture,
@@ -523,6 +525,7 @@ export const createElementCapture = () => {
       cs,
       tag,
       rect,
+      inverseMapped: inverseMappedRect != null,
       sel,
       frozenTransform,
       frozenTransformOrigin,

@@ -33,6 +33,8 @@
 import { TRANSPARENT_BLACK } from "../../../utils/transparent-background.js";
 import type { CapturedStyles, TextSegment } from "../../types.js";
 import type { createPseudoRules } from "../pseudo-rules.js";
+import { physicalComputedCssPixelTerms } from "./borders-backgrounds.js";
+import type { NativeDecorationRef } from "./capture-phases.js";
 
 type PseudoStyle = ReturnType<ReturnType<typeof createPseudoRules>["resolvePseudo"]>;
 // The tag argument selects which of these native interfaces is live at runtime.
@@ -45,12 +47,14 @@ type FormControlElement = HTMLElement &
 export const createFormControlsHandler = ({
   normColor,
   resolvePseudo,
+  nativeDecorationPropertyKey,
   fontFamilyStackFor,
   effectiveZoomFor = () => 1,
   physicalComputedGradientImage = (value) => value,
 }: {
   normColor: (value: string, elementColor?: string) => string;
   resolvePseudo: (el: Element, kind: string) => PseudoStyle;
+  nativeDecorationPropertyKey?: string;
   fontFamilyStackFor: (el: Element, fontFamily: string, pseudo?: string) => TextSegment["fontFamilyStack"];
   effectiveZoomFor?: (el: Element) => number;
   physicalComputedGradientImage?: (value: string, zoom: number) => string;
@@ -59,6 +63,7 @@ export const createFormControlsHandler = ({
     el: FormControlElement,
     cs: CSSStyleDeclaration,
     tag: string,
+    rect?: DOMRect,
   ): Partial<CapturedStyles> => {
     const gradientImage = (value: string) => physicalComputedGradientImage(value, effectiveZoomFor(el));
     // DM-1115 / DM-1123: resolve the <summary> disclosure-marker state once.
@@ -347,29 +352,69 @@ export const createFormControlsHandler = ({
       const customAppearance = elAppearance === "none";
       const styledTrack = ts.matched || customAppearance;
       const styledThumb = ms.matched || customAppearance;
+      const refs =
+        nativeDecorationPropertyKey == null
+          ? undefined
+          : (el as typeof el & Record<string, NativeDecorationRef[] | undefined>)[nativeDecorationPropertyKey];
+      const cssWindow = el.ownerDocument.defaultView ?? window;
+      const part = (wanted: "track" | "thumb"): Element | undefined => {
+        const node = refs?.find(({ kind }) => kind === wanted)?.node;
+        return node instanceof cssWindow.Element && node.isConnected ? node : undefined;
+      };
+      const track = part("track");
+      const thumb = part("thumb");
+      // The thumb is nested in the UA track. Their effective zooms can differ,
+      // and CSSOM/CDP serialize each part's lengths in its own unzoomed units.
+      const trackZoom = track?.currentCSSZoom;
+      const thumbZoom = thumb?.currentCSSZoom;
+      const trackLength = (value: string) => physicalComputedCssPixelTerms(value, trackZoom ?? 1);
+      const thumbLength = (value: string) => physicalComputedCssPixelTerms(value, thumbZoom ?? 1);
+      if (track != null && thumb != null && (trackZoom !== 1 || thumbZoom !== 1) && rect != null) {
+        const untransformed = (node: Element) => {
+          const style = cssWindow.getComputedStyle(node);
+          return [style.transform, style.translate, style.rotate, style.scale].every((value) => value === "none");
+        };
+        const host = el.getBoundingClientRect();
+        if (rect.width === host.width && rect.height === host.height && untransformed(track) && untransformed(thumb)) {
+          const relativeRect = (node: Element) => {
+            const box = node.getBoundingClientRect();
+            return { x: box.left - host.left, y: box.top - host.top, width: box.width, height: box.height };
+          };
+          const thumbRect = relativeRect(thumb);
+          if (thumbRect.width > 0 && thumbRect.height > 0) {
+            out.rangePartGeometry = { track: relativeRect(track), thumb: thumbRect };
+          }
+        }
+      }
       out.rangeTrackBg =
         styledTrack && ts.backgroundColor !== ""
           ? normColor(ts.backgroundColor)
           : styledTrack
             ? TRANSPARENT_BLACK
             : undefined;
-      out.rangeTrackHeight = styledTrack ? ts.height : undefined;
-      out.rangeTrackRadius = styledTrack ? ts.borderRadius : undefined;
-      out.rangeTrackBgImage = styledTrack && ts.backgroundImage !== "" ? gradientImage(ts.backgroundImage) : undefined;
+      out.rangeTrackHeight = styledTrack ? trackLength(ts.height) : undefined;
+      out.rangeTrackRadius = styledTrack ? trackLength(ts.borderRadius) : undefined;
+      out.rangeTrackBgImage =
+        styledTrack && ts.backgroundImage !== ""
+          ? physicalComputedGradientImage(ts.backgroundImage, trackZoom ?? effectiveZoomFor(el))
+          : undefined;
       out.rangeThumbBg =
         styledThumb && ms.backgroundColor !== ""
           ? normColor(ms.backgroundColor)
           : styledThumb
             ? TRANSPARENT_BLACK
             : undefined;
-      out.rangeThumbWidth = styledThumb ? ms.width : undefined;
-      out.rangeThumbHeight = styledThumb ? ms.height : undefined;
-      out.rangeThumbRadius = styledThumb ? ms.borderRadius : undefined;
-      out.rangeThumbBgImage = styledThumb && ms.backgroundImage !== "" ? gradientImage(ms.backgroundImage) : undefined;
-      out.rangeTrackBorder = styledTrack && ts.border !== "" ? ts.border : undefined;
-      out.rangeThumbBorder = styledThumb && ms.border !== "" ? ms.border : undefined;
-      out.rangeThumbBoxShadow = styledThumb && ms.boxShadow !== "" ? ms.boxShadow : undefined;
-      out.rangeTrackBoxShadow = styledTrack && ts.boxShadow !== "" ? ts.boxShadow : undefined;
+      out.rangeThumbWidth = styledThumb ? thumbLength(ms.width) : undefined;
+      out.rangeThumbHeight = styledThumb ? thumbLength(ms.height) : undefined;
+      out.rangeThumbRadius = styledThumb ? thumbLength(ms.borderRadius) : undefined;
+      out.rangeThumbBgImage =
+        styledThumb && ms.backgroundImage !== ""
+          ? physicalComputedGradientImage(ms.backgroundImage, thumbZoom ?? effectiveZoomFor(el))
+          : undefined;
+      out.rangeTrackBorder = styledTrack && ts.border !== "" ? trackLength(ts.border) : undefined;
+      out.rangeThumbBorder = styledThumb && ms.border !== "" ? thumbLength(ms.border) : undefined;
+      out.rangeThumbBoxShadow = styledThumb && ms.boxShadow !== "" ? thumbLength(ms.boxShadow) : undefined;
+      out.rangeTrackBoxShadow = styledTrack && ts.boxShadow !== "" ? trackLength(ts.boxShadow) : undefined;
     }
 
     // ::file-selector-button — read directly via getComputedStyle (not the

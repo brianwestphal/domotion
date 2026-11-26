@@ -598,6 +598,29 @@ describe("collectFormControlConicTiles — conic on range thumb/track (DM-1252)"
     expect(tiles).toContainEqual({ layer: "conic-gradient(red, blue)", w: 40, h: 20 });
   });
 
+  it("rasterizes zoomed pseudo conics at the snapped measured part sizes", () => {
+    const tiles = collectFormControlConicTiles(
+      rangeEl({
+        inputType: "range",
+        rangeTrackBg: "transparent",
+        rangeTrackHeight: "12.5px",
+        rangeTrackBgImage: "conic-gradient(green, yellow)",
+        rangeThumbWidth: "17.5px",
+        rangeThumbHeight: "12.5px",
+        rangeThumbRadius: "0px",
+        rangeThumbBgImage: "conic-gradient(red, blue)",
+        rangePartGeometry: {
+          track: { x: 0.75, y: 8.75, width: 175, height: 12.5 },
+          thumb: { x: 78.75, y: 8.75, width: 17.5, height: 12.5 },
+        },
+      }),
+    );
+    expect(tiles).toEqual([
+      { layer: "conic-gradient(green, yellow)", w: 175, h: 12 },
+      { layer: "conic-gradient(red, blue)", w: 17, h: 12 },
+    ]);
+  });
+
   it("returns [] for a non-conic pseudo bg or a non-range control", () => {
     expect(
       collectFormControlConicTiles(

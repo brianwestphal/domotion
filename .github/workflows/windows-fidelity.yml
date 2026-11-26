@@ -338,7 +338,7 @@ jobs:
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output/shadow-knockout/results.json --minimum-passed 81
+          --browser-results tests/output/shadow-knockout/results.json --minimum-passed 200
       - name: Run feature visual-regression suite
         # Passes within the Windows text-hinting floor (DM-262 / DM-884): the
         # runner applies a per-platform coverage cap on win32 because DirectWrite

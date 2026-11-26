@@ -224,21 +224,24 @@ function pseudoBoxShadowMarkup(
  * rasterized at exactly the rect the structural renderer fills. Every metric
  * comes from the captured track/thumb pseudo styles.
  */
-function rangeMetricSizes(s: CapturedElement["styles"]): {
-  styledTrack: boolean;
-  styledThumb: boolean;
-  trackThickness: number;
-  thumbW: number;
-  thumbH: number;
-  thumbRadius: number;
-} {
+function rangeMetricSizes(el: CapturedElement) {
+  const s = el.styles;
   const styledTrack = s.rangeTrackBg != null;
   const styledThumb = s.rangeThumbWidth != null;
   const trackThickness = parseFloat(s.rangeTrackHeight ?? "");
-  const thumbW = parseFloat(s.rangeThumbWidth ?? "");
-  const thumbH = parseFloat(s.rangeThumbHeight ?? "");
+  const snap = (box: { x: number; y: number; width: number; height: number }): FcRect => {
+    const left = el.x + box.x;
+    const top = el.y + box.y;
+    const x = Math.round(left);
+    const y = Math.round(top);
+    return { x, y, w: Math.round(left + box.width) - x, h: Math.round(top + box.height) - y };
+  };
+  const track = s.rangePartGeometry == null ? undefined : snap(s.rangePartGeometry.track);
+  const thumb = s.rangePartGeometry == null ? undefined : snap(s.rangePartGeometry.thumb);
+  const thumbW = thumb?.w ?? parseFloat(s.rangeThumbWidth ?? "");
+  const thumbH = thumb?.h ?? parseFloat(s.rangeThumbHeight ?? "");
   const thumbRadius = parseFloat(s.rangeThumbRadius ?? "");
-  return { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius };
+  return { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius, track, thumb };
 }
 
 /**
@@ -377,7 +380,7 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
   const tag = el.tag;
   const inputType = s.inputType;
   if (tag === "input" && inputType === "range") {
-    const { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius } = rangeMetricSizes(s);
+    const { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius, track } = rangeMetricSizes(el);
     if (
       !styledTrack ||
       !styledThumb ||
@@ -394,8 +397,8 @@ export function collectFormControlConicTiles(el: CapturedElement): Array<{ layer
     for (const layer of conicLayers(s.rangeTrackBgImage)) {
       out.push({
         layer,
-        w: isVertical ? trackThickness : elW,
-        h: isVertical ? elH : trackThickness,
+        w: track?.w ?? (isVertical ? trackThickness : elW),
+        h: track?.h ?? (isVertical ? elH : trackThickness),
       });
     }
     // Mirror renderRange's thumb-shape branch: a non-circular / small-radius
@@ -552,7 +555,7 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // DM-1252: the thumb/track metric sizes are shared with the conic raster
   // pre-pass (`rangeMetricSizes`) so `collectFormControlConicTiles` rasterizes
   // each conic layer at exactly the rect the synth fills.
-  const { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius } = rangeMetricSizes(s);
+  const { styledTrack, styledThumb, trackThickness, thumbW, thumbH, thumbRadius, track, thumb } = rangeMetricSizes(el);
   if (
     !styledTrack ||
     !styledThumb ||
@@ -596,7 +599,11 @@ function renderRange(el: CapturedElement, indent: string, defCtx?: DefCtx): stri
   // The captured structural track spans the host axis. The thumb travels over
   // that source box minus its own captured size, matching Blink's
   // SliderThumbElement track-content calculation.
-  if (isVertical) {
+  if (track != null && thumb != null) {
+    trackRect = track;
+    thumbCx = thumb.x + thumb.w / 2;
+    thumbCy = thumb.y + thumb.h / 2;
+  } else if (isVertical) {
     const halfThumb = thumbH / 2;
     const trackX = elL + elW / 2 - trackThickness / 2;
     const thumbTravelTop = elT + halfThumb;

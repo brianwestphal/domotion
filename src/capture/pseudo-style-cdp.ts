@@ -835,6 +835,7 @@ export async function captureResolvedControlPseudoStyles(
           if (METER_PART_KINDS.has(kind) || hasAuthorPseudoOrigin(directMatchedOrigins(matched))) {
             computed ??= await session.send("CSS.getComputedStyleForNode", { nodeId: node.nodeId });
             await store(uaHost.nodeId, kind, computed.computedStyle);
+            if (kind === "track" || kind === "thumb") await retainDecorationNode(uaHost.nodeId, node.nodeId, kind);
           }
         }
       }

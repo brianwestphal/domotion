@@ -178,6 +178,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
   const { captureFormControls } = createFormControlsHandler({
     normColor,
     resolvePseudo: _resolvePseudo,
+    nativeDecorationPropertyKey: args.nativeDecorationPropertyKey,
     fontFamilyStackFor: _fontFamilyStackFor,
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     physicalComputedGradientImage,
