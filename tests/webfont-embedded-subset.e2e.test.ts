@@ -5,6 +5,11 @@
 // from Chromium at 3 pixels (one per glyph, inside the zero's dot) by 2 levels.
 // The subset is now hb-subset from the webfont's own bytes (doc 99).
 import { readFileSync } from "node:fs";
+import {
+  getTextRunProvenance,
+  resetTextRunProvenance,
+  setTextRunProvenanceEnabled,
+} from "@domotion/text-engine/testing";
 import type { Browser, Page } from "@playwright/test";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -95,6 +100,73 @@ describe("embedded webfont subset keeps the webfont's own outlines", () => {
       );
       expect(compare(native, await rgba(control))).toEqual({ pixels: 0, maxDelta: 0 });
     } finally {
+      await page.close();
+    }
+  });
+  it("keeps a shared glyph ID separate across two Unicode ranges of one family (DM-BM3YHZ)", async () => {
+    const serif = readFileSync(
+      new URL("../packages/text-engine/assets/fonts/fixture/DomotionFixtureSerif-Regular.ttf", import.meta.url),
+    );
+    const rows = [
+      { id: "mono", text: "BBB", face: "JetBrainsMono-Regular", range: "U+0042", bytes: mono },
+      { id: "serif", text: "ttt", face: "IBMPlexSerif-Regular", range: "U+0074", bytes: serif },
+    ];
+    const viewport = { width: 160, height: 96 };
+    const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+    try {
+      const faces = rows
+        .map(
+          ({ range, bytes }) =>
+            `@font-face{font-family:Collision;src:url(data:font/ttf;base64,${bytes.toString("base64")});font-weight:400;font-style:normal;unicode-range:${range}}`,
+        )
+        .join("");
+      const native = await shot(
+        page,
+        `<!doctype html><meta charset="utf-8"><style>${faces}
+          html,body{margin:0;background:white}
+          span{position:absolute;left:8px;font:400 20px/28px Collision;font-synthesis:none}
+          #mono{top:8px}#serif{top:56px}
+        </style>${rows.map(({ id, text }) => `<span id="${id}">${text}</span>`).join("")}`,
+      );
+      const cdp = await page.context().newCDPSession(page);
+      try {
+        await cdp.send("DOM.enable");
+        await cdp.send("CSS.enable");
+        const { root } = await cdp.send("DOM.getDocument");
+        for (const row of rows) {
+          const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: `#${row.id}` });
+          const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
+          expect(fonts.map((font) => [font.postScriptName, font.glyphCount, font.isCustomFont])).toEqual([
+            [row.face, 3, true],
+          ]);
+        }
+      } finally {
+        await cdp.detach();
+      }
+
+      await discoverAndRegisterWebfonts(page);
+      const tree = await captureElementTree(page, "body", { x: 0, y: 0, ...viewport });
+      resetTextRunProvenance();
+      setTextRunProvenanceEnabled(true);
+      const svg = elementTreeToSvg(tree, viewport.width, viewport.height, { renderTextMode: "embedded-font" });
+      const runs = getTextRunProvenance().runs;
+      for (const row of rows) {
+        const run = runs.find((candidate) => candidate.emittedText === row.text);
+        expect(run?.selected.postscriptName).toBe(row.face);
+        // The original glyph IDs collide even though the source outlines differ.
+        expect(run?.glyphs.map((glyph) => glyph.id)).toEqual([26, 26, 26]);
+      }
+
+      const output = await shot(page, `<!doctype html><body style="margin:0;background:white">${svg}`);
+      const families = await Promise.all(
+        rows.map(({ text }) => page.locator(`g[aria-label="${text}"] text`).getAttribute("font-family")),
+      );
+      expect(families.every((family) => /^dmf\d+$/.test(family ?? ""))).toBe(true);
+      expect(new Set(families).size).toBe(2);
+      expect(compare(await rgba(native), await rgba(output))).toEqual({ pixels: 0, maxDelta: 0 });
+    } finally {
+      setTextRunProvenanceEnabled(false);
+      resetTextRunProvenance();
       await page.close();
     }
   });
