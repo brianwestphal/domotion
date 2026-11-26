@@ -48,6 +48,55 @@ export function authenticImagePaintBasis(el: ImagePaintBasisCarrier): CapturedIm
 /** LayoutUnit precision: captured coordinates sit on the 1/64 grid. */
 const quantize = (value: number) => Math.round(value * 64) / 64;
 
+/** Blink's LayoutUnit scale-down comparison and percentage position for a
+ * raster with authenticated density reversal (Chromium 7d859f27,
+ * layout_replaced.cc:444-479, physical_size.cc and length_functions.cc). */
+export function rasterScaleDownRect(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  reverted: { w: number; h: number },
+  ratio: { w: number; h: number },
+  position: string | undefined,
+): PaintRect | null {
+  const [horizontal, vertical, extra] = (position ?? "50% 50%").trim().split(/\s+/);
+  if (!horizontal?.endsWith("%") || !vertical?.endsWith("%") || extra != null) return null;
+  const percentX = Number(horizontal.slice(0, -1));
+  const percentY = Number(vertical.slice(0, -1));
+  const w = Math.round(width * 64);
+  const h = Math.round(height * 64);
+  if (
+    ratio.w <= 0 ||
+    ratio.h <= 0 ||
+    reverted.w <= 0 ||
+    reverted.h <= 0 ||
+    !Number.isSafeInteger(w * ratio.h) ||
+    !Number.isSafeInteger(h * ratio.w) ||
+    !Number.isFinite(percentX) ||
+    !Number.isFinite(percentY)
+  ) {
+    return null;
+  }
+
+  const constrainedHeight = Math.trunc((w * ratio.h) / ratio.w);
+  const heightLimited = constrainedHeight > h;
+  const containWidth = heightLimited ? Math.trunc((h * ratio.w) / ratio.h) : w;
+  const containHeight = heightLimited ? h : constrainedHeight;
+  const useReverted = containWidth > reverted.w * 64;
+  const objectW = useReverted ? reverted.w : containWidth / 64;
+  const objectH = useReverted ? reverted.h : containHeight / 64;
+  const float = Math.fround;
+  const offset = (free: number, percent: number) =>
+    Math.trunc(float(float(float(free) * float(percent)) / 100) * 64) / 64;
+  return {
+    x: x + offset(w / 64 - objectW, percentX),
+    y: y + offset(h / 64 - objectH, percentY),
+    width: objectW,
+    height: objectH,
+  };
+}
+
 /**
  * `ToPixelSnappedRect` (core/layout/geometry/physical_rect.h:228) of a rect
  * given in captured coordinates, returned in captured coordinates: the origin

@@ -43,6 +43,7 @@ export const captureImageElement = ({
   let imageIntrinsic;
   let imageDecodedIntrinsic;
   let imageLayoutNatural;
+  let imageScaleDownIntrinsic;
   let imageEffectiveZoom;
   let imageBroken;
   let imageAlt;
@@ -106,6 +107,7 @@ export const captureImageElement = ({
                   height?: number;
                   layoutNaturalWidth?: number;
                   layoutNaturalHeight?: number;
+                  scaleDown?: { w: number; h: number; srcset: string; sizes: string };
                 }
               >;
             };
@@ -113,17 +115,30 @@ export const captureImageElement = ({
         | null;
       const state = host?.__domotionDecodedImageRatios;
       const decoded = state?.active ? state.facts.get(el) : undefined;
+      const imageStyle = decoded == null ? undefined : el.ownerDocument.defaultView?.getComputedStyle(el);
       if (
         decoded != null &&
         decoded.source === imageSrc &&
         decoded.naturalWidth === img.naturalWidth &&
         decoded.naturalHeight === img.naturalHeight &&
-        el.ownerDocument.defaultView?.getComputedStyle(el).imageOrientation === decoded.orientation
+        imageStyle?.imageOrientation === decoded.orientation
       ) {
         if (decoded.width != null && decoded.height != null)
           imageDecodedIntrinsic = { w: decoded.width, h: decoded.height };
         if (decoded.layoutNaturalWidth != null && decoded.layoutNaturalHeight != null)
           imageLayoutNatural = { w: decoded.layoutNaturalWidth, h: decoded.layoutNaturalHeight };
+        const scaleDown = decoded.scaleDown;
+        const viewBox = imageStyle.getPropertyValue("object-view-box");
+        if (
+          scaleDown != null &&
+          imageEffectiveZoom === 1 &&
+          (viewBox === "" || viewBox === "none") &&
+          img.parentElement?.localName !== "picture" &&
+          img.getAttribute("srcset") === scaleDown.srcset &&
+          img.getAttribute("sizes") === scaleDown.sizes
+        ) {
+          imageScaleDownIntrinsic = { w: scaleDown.w, h: scaleDown.h };
+        }
       }
     }
     // Blink applies `image-orientation: none` only to an access-allowed
@@ -242,6 +257,7 @@ export const captureImageElement = ({
     imageIntrinsic,
     imageDecodedIntrinsic,
     imageLayoutNatural,
+    imageScaleDownIntrinsic,
     imageEffectiveZoom,
     imageBroken,
     imageAlt,

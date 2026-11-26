@@ -42,7 +42,12 @@ import { renderFileSelectorOutsetShadow, renderFormControl } from "./form-contro
 import { r, esc, formatNumberLoose, stopFmt, rootSvgA11y } from "./format.js";
 import { clipPathShapeForElement, parseSameDocumentClipPathUrl } from "./clip-path.js";
 import { backgroundPositionOffsetPx, buildImagePatternDef, cyclicBackgroundLayer } from "./image-pattern.js";
-import { authenticImagePaintBasis, imagePaintIntoRect, paintRectContains } from "./image-paint-snap.js";
+import {
+  authenticImagePaintBasis,
+  imagePaintIntoRect,
+  paintRectContains,
+  rasterScaleDownRect,
+} from "./image-paint-snap.js";
 import { paintClipForLayer } from "./paint-clip-layers.js";
 import { buildLinearGradientDef, buildRadialGradientDef, parseBgPositionPx } from "./gradient-defs.js";
 import { buildGradientTilePatternDef } from "./gradient-tile.js";
@@ -566,16 +571,8 @@ function paintImage(
   const capturedImageZoom = el.imageEffectiveZoom;
   const effectiveZoom =
     capturedImageZoom != null && Number.isFinite(capturedImageZoom) && capturedImageZoom > 0 ? capturedImageZoom : 1;
-  // Density cancels for contain/cover, so the native decoded resource ratio
-  // replaces the independently truncated DOM natural dimensions. Scale-down
-  // also takes the decoded SIZE: Blink reverts a srcset image's density before
-  // comparing and painting ("they need to use the underlying image src's
-  // size", LayoutReplaced::ComputeObjectFitAndPositionRect,
-  // core/layout/layout_replaced.cc:444-450, Chromium 7d859f27). Blink reverts
-  // the LayoutUnit natural size by the float density, so this can differ from
-  // its size by under one LayoutUnit (1/64 px). `none` paints at the
-  // density-corrected natural size itself, which only the native probe's
-  // fractional measurement carries.
+  // The decoded pixels supply the contain/cover aspect ratio and the
+  // scale-down fallback. `none` uses the density-corrected natural size.
   const decodedIntrinsic =
     fit === "contain" || fit === "cover" || fit === "scale-down" ? el.imageDecodedIntrinsic : undefined;
   const objectIntrinsic = decodedIntrinsic ?? (fit === "none" ? el.imageLayoutNatural : undefined) ?? intrinsic;
@@ -589,8 +586,25 @@ function paintImage(
   // An SVG image's object-fit uses Blink's natural sizing info (which may be
   // a ratio alone, one dimension, or nothing), not the concrete size
   // `naturalWidth`/`naturalHeight` report against the 300x150 default.
-  const svgSourceText = intrinsic != null ? resolveSvgSource(el.imageSrc) : null;
-  const svgNatural = svgSourceText != null ? svgImageNaturalSizing(svgSourceText) : null;
+  const svgSourceText = resolveSvgSource(el.imageSrc);
+  const paintBasis = svgSourceText == null ? authenticImagePaintBasis(captured) : undefined;
+  const svgNatural = intrinsic != null && svgSourceText != null ? svgImageNaturalSizing(svgSourceText) : null;
+  const scaleDownRect =
+    fit === "scale-down" &&
+    paintBasis != null &&
+    capturedImageZoom === 1 &&
+    el.imageScaleDownIntrinsic != null &&
+    decodedIntrinsic != null
+      ? rasterScaleDownRect(
+          contentX,
+          contentY,
+          contentW,
+          contentH,
+          el.imageScaleDownIntrinsic,
+          decodedIntrinsic,
+          el.styles.objectPosition,
+        )
+      : null;
   const objectRect =
     svgNatural != null
       ? computeObjectFitRectFromNaturalSizing(
@@ -606,7 +620,8 @@ function paintImage(
           el.styles.objectPosition,
         )
       : paintIntrinsic != null && paintIntrinsic.w > 0 && paintIntrinsic.h > 0
-        ? computeObjectFitRect(
+        ? (scaleDownRect ??
+          computeObjectFitRect(
             contentX,
             contentY,
             contentW,
@@ -615,7 +630,7 @@ function paintImage(
             paintIntrinsic.h,
             fit,
             el.styles.objectPosition,
-          )
+          ))
         : null;
   // DM-670 / DM-672: if the `<img>` carries a border-radius, the painted
   // image must clip to the rounded content area — otherwise a 40×40
@@ -660,8 +675,6 @@ function paintImage(
     // A raster image paints through ImagePainter::PaintIntoRect, which snaps
     // its destination and content rects in the authenticated local paint
     // space (image-paint-snap.ts). The DOM geometry above stays unchanged.
-    const svgTextNone = resolveSvgSource(el.imageSrc);
-    const paintBasis = svgTextNone == null ? authenticImagePaintBasis(captured) : undefined;
     const painted =
       paintBasis == null
         ? null
@@ -702,7 +715,7 @@ function paintImage(
     // `InlineSvgPlacement.documentViewport`). Falls back to the raster
     // `<image>` when the source isn't SVG or has no usable coordinate system.
     let inlinedNone: string | null = null;
-    if (svgTextNone != null) {
+    if (svgSourceText != null) {
       // DM-K0S6ZS: opt-in flatten to `<g transform>` (falls back to the nested
       // `<svg>` for sources that aren't safely flattenable).
       const placement = {
@@ -723,7 +736,8 @@ function paintImage(
         fontRendering: el.imageDocumentFontRendering,
       };
       inlinedNone =
-        (getFlattenNestedSvg() ? flattenImgSvg(svgTextNone, placement) : null) ?? inlineImgSvg(svgTextNone, placement);
+        (getFlattenNestedSvg() ? flattenImgSvg(svgSourceText, placement) : null) ??
+        inlineImgSvg(svgSourceText, placement);
     }
     if (inlinedNone != null) {
       ctx.svgParts.push(`${indent}<g clip-path="url(#${clipId})">${inlinedNone}</g>`);

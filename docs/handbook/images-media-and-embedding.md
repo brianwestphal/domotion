@@ -107,25 +107,21 @@ the decoded size scaled by `1 / candidate.Density()` and kept fractional
 report 389 × 572. `scale-down` reverts that density before comparing and
 painting ("they need to use the underlying image src's size",
 `LayoutReplaced::ComputeObjectFitAndPositionRect`, `layout_replaced.cc:444-450`):
-a `396w`/`sizes=195px` image in a 700 px box paints at the physical 396 × 581,
-not at its 194 × 286 DOM natural size. The density itself is exposed by no page
-or protocol API, and is never inferred from the truncated getters. For a `none`
-image whose current source came from a `srcset` candidate (the img's own or a
-`<picture>` `<source>`'s), the prepass splits that `srcset` only to find the one
-candidate whose resolved URL is `currentSrc`, then lays out a hidden
-closed-shadow probe `<img>` carrying just that raw URL, its raw descriptor and
-the same raw `sizes`. With one candidate Blink selects nothing; it evaluates
-`sizes` and the density itself, and the probe's auto box is the natural size,
-recorded as `imageLayoutNatural`. The source element is never touched or
-reselected, and the probe reuses the document's already-decoded image (no
-request). The probe refuses, with a diagnostic and the legacy integers, when
-`sizes` contains `auto` (it depends on the source's own box), when the URL
-appears under different descriptors, when the probe host is zoomed, or when the
-probe does not reproduce the source's `currentSrc` and DOM natural size.
-`scale-down` takes `imageDecodedIntrinsic`; Blink reverts the LayoutUnit
-natural size by the float density, so its size can differ from the decoded one
-by under 1/64 px. A src-only image has density 1, so its DOM integers are
-already exact.
+a `396w`/`sizes=195px` image in a 700 px box has a reverted size of
+396 × 580.984375, which paints as 396 × 580 after positioning and snapping.
+The DOM getters report 194 × 286. For responsive `none`, capture finds the one
+candidate matching `currentSrc` and lays out a closed-shadow probe with its
+raw URL, descriptor and `sizes`. Blink's auto-sized box supplies
+`imageLayoutNatural`. The probe reuses the decoded resource without modifying
+the source. It falls back to DOM integers for `sizes=auto`, conflicting
+descriptors, ancestor zoom or a mismatch in source or natural dimensions.
+For a data or blob raster whose `<img>` selects one width descriptor and fixed
+integer-pixel `sizes`, capture checks the descriptor against the decoded bitmap
+and DOM natural dimensions and records Blink's LayoutUnit density reversal.
+At unit zoom with percentage positions and an authenticated local paint basis,
+the renderer uses this size in the scale-down comparison and resolves position
+in LayoutUnit before snapping (DM-4SA0HW). Other cases use the decoded intrinsic
+fallback. An HTTP response can supply its own density through `Content-DPR`.
 
 ## Raster image paint rectangles
 

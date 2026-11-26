@@ -97,6 +97,7 @@ export async function primeDecodedImageRatios(
                 /** Blink natural size (density applied, unit zoom, LayoutUnit). */
                 layoutNaturalWidth?: number;
                 layoutNaturalHeight?: number;
+                scaleDown?: { w: number; h: number; srcset: string; sizes: string };
               }
               const host = window as Window & {
                 __domotionDecodedImageRatios?: { token: string; active: boolean; facts: WeakMap<Element, Fact> };
@@ -183,6 +184,49 @@ export async function primeDecodedImageRatios(
                 if (src != null && src !== "" && resolve(src, image.baseURI) === source)
                   found.push({ url: src, descriptor: "1x", sizes: "", srcset: false });
                 return found;
+              };
+              const measureScaleDown = (
+                image: HTMLImageElement,
+                fact: Fact & { width: number; height: number },
+              ): Fact["scaleDown"] => {
+                // A response's Content-DPR can override LayoutImage's
+                // candidate density. Data and blob URLs have no such header.
+                if (!/^(?:data|blob):/i.test(fact.source) || image.parentElement?.localName === "picture") return;
+                const srcset = image.getAttribute("srcset");
+                const sizes = image.getAttribute("sizes");
+                if (srcset == null || sizes == null) return;
+                const candidates = candidatesFor(image, fact.source);
+                if (candidates.length !== 1 || !candidates[0].srcset) return;
+                const descriptor = /^([0-9]+)w$/.exec(candidates[0].descriptor);
+                const sourceSize = /^([0-9]+)px$/i.exec(sizes.trim());
+                if (descriptor == null || sourceSize == null) return;
+                const width = Number(descriptor[1]);
+                const pixels = Number(sourceSize[1]);
+                if (!(width > 0 && width <= 0x7fffffff && pixels > 0 && Number.isSafeInteger(pixels))) return;
+
+                // Chromium 7d859f27: PickBestImageCandidate computes the
+                // candidate's float density and HTMLImageElement stores the
+                // float reciprocal. LayoutImageResource applies it before
+                // PhysicalNaturalSizingInfo rounds to 1/64px. Scale-down
+                // multiplies that rounded size by the float reciprocal and
+                // truncates the result to LayoutUnit.
+                const float = Math.fround;
+                const correction = float(1 / float(float(width) / float(pixels)));
+                const correctedWidth = float(fact.width * correction);
+                const correctedHeight = float(fact.height * correction);
+                if (
+                  Math.trunc(correctedWidth) !== fact.naturalWidth ||
+                  Math.trunc(correctedHeight) !== fact.naturalHeight
+                )
+                  return;
+                const reverse = (size: number) => {
+                  const physical = Math.round(size * 64) / 64;
+                  return Math.trunc(float(float(physical) * float(1 / correction)) * 64) / 64;
+                };
+                const w = reverse(correctedWidth);
+                const h = reverse(correctedHeight);
+                if (!(w > 0 && h > 0)) return;
+                return { w, h, srcset, sizes };
               };
               const measureNatural = async (image: HTMLImageElement, source: string): Promise<void> => {
                 const candidates = candidatesFor(image, source);
@@ -291,6 +335,8 @@ export async function primeDecodedImageRatios(
                 const orientation = style.imageOrientation;
                 const naturalWidth = image.naturalWidth;
                 const naturalHeight = image.naturalHeight;
+                const srcset = fit === "scale-down" ? image.getAttribute("srcset") : null;
+                const sizes = fit === "scale-down" ? image.getAttribute("sizes") : null;
                 let bitmap: ImageBitmap | undefined;
                 try {
                   bitmap = await createImageBitmap(image);
@@ -303,13 +349,23 @@ export async function primeDecodedImageRatios(
                     image.naturalHeight === naturalHeight &&
                     getComputedStyle(image).imageOrientation === orientation
                   ) {
-                    state.facts.set(image, {
+                    const fact = {
                       source,
                       naturalWidth,
                       naturalHeight,
                       orientation,
                       width: bitmap.width,
                       height: bitmap.height,
+                    };
+                    state.facts.set(image, {
+                      ...fact,
+                      scaleDown:
+                        srcset != null &&
+                        sizes != null &&
+                        image.getAttribute("srcset") === srcset &&
+                        image.getAttribute("sizes") === sizes
+                          ? measureScaleDown(image, fact)
+                          : undefined,
                     });
                   } else if (state.active) {
                     errors.push({ kind: "decoded", cause: "selected image changed during decoded ratio probe" });

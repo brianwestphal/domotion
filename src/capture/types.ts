@@ -2380,6 +2380,12 @@ export interface CapturedElement {
    */
   imageLayoutNatural?: { w: number; h: number };
   /**
+   * Unit-zoom Blink LayoutUnit size after reversing a qualified raster
+   * srcset candidate's density for object-fit:scale-down. The decoded size
+   * independently supplies the contain aspect ratio.
+   */
+  imageScaleDownIntrinsic?: { w: number; h: number };
+  /**
    * The top document's first `<body>` whose background moved to the view
    * (`LayoutBoxModelObject::BackgroundTransfersToView`,
    * core/layout/layout_box_model_object.cc:1095-1126, Chromium 7d859f27):

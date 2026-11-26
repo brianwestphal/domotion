@@ -353,28 +353,94 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
       }
     }, 60_000);
 
-    it("paints scale-down at the decoded size Blink reverts srcset density to", async () => {
-      const page = await browser.newPage({ viewport: { width: 800, height: 800 } });
-      const generated = await browser.newPage({ viewport: { width: 800, height: 800 } });
+    it("matches Blink's snapped scale-down destination after responsive density reversal (DM-4SA0HW)", async () => {
+      const page = await browser.newPage({ viewport: { width: 800, height: 800 }, deviceScaleFactor: 1 });
+      const generated = await browser.newPage({ viewport: { width: 800, height: 800 }, deviceScaleFactor: 1 });
+      const rgba = (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer();
+      const render = async (tree: CapturedElement[]) => {
+        await generated.setContent(`<style>body{margin:0;background:white}</style>${elementTreeToSvg(tree, 800, 800)}`);
+        return generated.screenshot();
+      };
       try {
-        const { native, rendered, legacy, image } = await extents(
-          page,
-          generated,
-          `<img srcset="${uri} 396w" sizes="195px" style="display:block;width:700px;height:700px;object-fit:scale-down">`,
-        );
-        expect(image.imageIntrinsic).toEqual({ w: 194, h: 286 });
-        expect(image.imageDecodedIntrinsic).toEqual({ w: 396, h: 581 });
-        expect(image.imageLayoutNatural).toBeUndefined();
-        // Blink reverts the LayoutUnit natural size by the float density
-        // (580.98 high here) and pixel-snaps the paint rect, so the native
-        // extent may sit one snapped pixel off the decoded size.
-        expect(Math.abs(rendered.w - 396)).toBeLessThan(0.05);
-        expect(Math.abs(rendered.h - 581)).toBeLessThan(0.05);
-        expect(Math.abs(native.w - 396)).toBeLessThan(1);
-        expect(Math.abs(native.h - 581)).toBeLessThanOrEqual(1);
-        expect(legacy.w).toBeLessThan(200);
+        for (const { attrs, style, expected, reverted } of [
+          {
+            attrs: `srcset="${uri} 396w" sizes="195px"`,
+            style: "width:700px;height:700px",
+            expected: { w: 396, h: 580 },
+            reverted: { w: 396, h: 580.984375 },
+          },
+          {
+            attrs: `srcset="${uri} 396w" sizes="390px"`,
+            style: "width:700px;height:700px",
+            expected: { w: 396, h: 581 },
+            reverted: { w: 396, h: 581 },
+          },
+          {
+            attrs: `srcset="${uri} 396w" sizes="195px"`,
+            style: "margin:7.375px;width:234.25px;height:310.375px;object-position:35% 65%",
+            expected: undefined,
+            reverted: { w: 396, h: 580.984375 },
+          },
+          {
+            attrs: `src="${uri}"`,
+            style: "width:700px;height:700px",
+            expected: { w: 396, h: 581 },
+            reverted: undefined,
+          },
+        ]) {
+          await page.setContent(
+            `<body style="margin:0;background:white"><img ${attrs} style="display:block;${style};object-fit:scale-down"></body>`,
+          );
+          await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
+          const native = await page.screenshot();
+          const { tree, image } = await captureImage(page);
+          expect(image.imageDecodedIntrinsic).toEqual({ w: 396, h: 581 });
+          expect(image.imageLayoutNatural).toBeUndefined();
+          expect(image.imageScaleDownIntrinsic).toEqual(reverted);
+          expect(image.imagePaintBasis).toBeDefined();
+          if (expected != null) expect(await redExtent(native)).toEqual(expected);
+          const nativeRgba = await rgba(native);
+          expect((await rgba(await render(tree))).equals(nativeRgba)).toBe(true);
+
+          if (expected?.h === 580) {
+            // Keep the paint-basis snap and remove only the density reversal.
+            // The legacy rect adds one full row and changes no other pixel.
+            delete image.imageScaleDownIntrinsic;
+            const approximated = await render(tree);
+            expect(await redExtent(approximated)).toEqual({ w: 396, h: 581 });
+            const oldRgba = await rgba(approximated);
+            let changed = 0;
+            for (let i = 0; i < oldRgba.length; i += 4) {
+              if (oldRgba.readUInt32LE(i) !== nativeRgba.readUInt32LE(i)) changed++;
+            }
+            expect(changed).toBe(396);
+          }
+        }
       } finally {
         await generated.close();
+        await page.close();
+      }
+    }, 60_000);
+
+    it("declines descriptor replay when response headers own image density", async () => {
+      const page = await browser.newPage({ viewport: { width: 800, height: 800 } });
+      try {
+        await page.route("https://example.test/scale-down.png", (route) =>
+          route.fulfill({
+            contentType: "image/png",
+            headers: { "Content-DPR": "2" },
+            body: Buffer.from(uri.split(",")[1], "base64"),
+          }),
+        );
+        await page.setContent(
+          '<body style="margin:0"><img srcset="https://example.test/scale-down.png 396w" sizes="195px" style="display:block;width:700px;height:700px;object-fit:scale-down"></body>',
+        );
+        await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
+        const { image } = await captureImage(page);
+        expect(image.imageIntrinsic).toEqual({ w: 198, h: 290 });
+        expect(image.imageDecodedIntrinsic).toEqual({ w: 396, h: 581 });
+        expect(image.imageScaleDownIntrinsic).toBeUndefined();
+      } finally {
         await page.close();
       }
     }, 60_000);
