@@ -276,6 +276,7 @@ jobs:
             tests/output/worker-bootstrap/
             tests/output/visibility-isolation/
             tests/output/opaque-font-family/
+            tests/output/renderer-default-locale/
             tests/output/font-family-css-wide/
             tests/output/owned-ui-server/
           if-no-files-found: error
