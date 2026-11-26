@@ -521,33 +521,36 @@ export async function rasterizeNativeControlSurfaces(
     isolationFailure = error instanceof Error ? error.message : "isolation preparation failed";
     isolatedFrame = null;
   } finally {
-    const restored = await page
-      .evaluate((restoreKey) => {
-        type RestoreEntry = { element: HTMLElement; style: string | null };
-        const host = globalThis as typeof globalThis & Record<string, unknown>;
-        const restore = host[restoreKey] as RestoreEntry[] | undefined;
-        if (restore == null) return { ok: false, reason: "style restore registry unavailable" };
-        const failures: string[] = [];
-        for (let index = restore.length - 1; index >= 0; index--) {
-          const entry = restore[index];
-          try {
-            if (entry.element.getAttribute("style") !== entry.style) {
-              if (entry.style == null) entry.element.removeAttribute("style");
-              else entry.element.setAttribute("style", entry.style);
-            }
-            if (entry.element.getAttribute("style") !== entry.style)
-              failures.push("source style attribute did not restore exactly");
-          } catch {
-            failures.push("source style attribute restore failed");
-          }
-        }
-        return { ok: failures.length === 0, reason: failures.join("; ") };
-      }, restoreKey)
-      .catch((error: unknown) => ({
-        ok: false,
-        reason: error instanceof Error ? error.message : "source style restore failed",
-      }));
-    if (options.sourceNodeKey != null && !restored.ok) {
+    const restored =
+      visibilityTransitions == null
+        ? undefined
+        : await page
+            .evaluate((restoreKey) => {
+              type RestoreEntry = { element: HTMLElement; style: string | null };
+              const host = globalThis as typeof globalThis & Record<string, unknown>;
+              const restore = host[restoreKey] as RestoreEntry[] | undefined;
+              if (restore == null) return { ok: false, reason: "style restore registry unavailable" };
+              const failures: string[] = [];
+              for (let index = restore.length - 1; index >= 0; index--) {
+                const entry = restore[index];
+                try {
+                  if (entry.element.getAttribute("style") !== entry.style) {
+                    if (entry.style == null) entry.element.removeAttribute("style");
+                    else entry.element.setAttribute("style", entry.style);
+                  }
+                  if (entry.element.getAttribute("style") !== entry.style)
+                    failures.push("source style attribute did not restore exactly");
+                } catch {
+                  failures.push("source style attribute restore failed");
+                }
+              }
+              return { ok: failures.length === 0, reason: failures.join("; ") };
+            }, restoreKey)
+            .catch((error: unknown) => ({
+              ok: false,
+              reason: error instanceof Error ? error.message : "source style restore failed",
+            }));
+    if (restored != null && !restored.ok) {
       isolatedFrame = null;
       isolationFailure = restored.reason;
       isolationFacts = isolationFacts.map((fact) => ({ ...fact, connected: false }));

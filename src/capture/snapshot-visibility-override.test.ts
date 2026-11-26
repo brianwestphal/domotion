@@ -5,7 +5,7 @@
  * ran an observed-`style` attributeChangedCallback twice.
  *
  * The page callback is the real one: the test captures the expression that
- * `suppressSnapshotVisibilityTransitions` hands to `evaluateHandle` and runs
+ * `suppressDocumentVisibilityTransitions` hands to `evaluateHandle` and runs
  * it in a `vm` context whose Web Animations / cascade surface is a small model
  * of the Blink contract the override relies on (Chromium 7d859f27):
  *  - css/resolver/cascade_origin.h: kAnimation < author !important < kTransition.
@@ -22,7 +22,7 @@ import { createContext, runInContext } from "node:vm";
 import type { JSHandle, Page } from "@playwright/test";
 import { describe, expect, it } from "vitest";
 import {
-  suppressSnapshotVisibilityTransitions,
+  suppressDocumentVisibilityTransitions,
   type SnapshotVisibilityState,
 } from "./snapshot-visibility-transitions.js";
 
@@ -256,7 +256,7 @@ async function environment(options: { nativeApis?: boolean; transitionProbe?: bo
     },
     evaluate: async () => undefined,
   } as unknown as Page;
-  await suppressSnapshotVisibilityTransitions(page, true);
+  await suppressDocumentVisibilityTransitions(page, true);
   return {
     state: state!,
     element: (localName, init) => make(localName, init),

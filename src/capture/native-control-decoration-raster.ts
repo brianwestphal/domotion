@@ -328,18 +328,23 @@ async function captureIsolatedDecorations(
     const reason = error instanceof Error ? error.message : "isolation preparation failed";
     facts = active.map(() => ({ connected: false, fingerprintMatches: false, reason }));
   } finally {
-    const restored = await page
-      .evaluate(restoreDecorationIsolationInPage, {
-        key: restoreKey,
-        sourceNodeKey: keys.sourceNodeKey,
-        decorationNodeKey: keys.decorationNodeKey,
-        rows: isolationRows,
-      })
-      .catch((error) => ({
-        ok: false,
-        reason:
-          error instanceof Error ? `restore verification failed: ${error.message}` : "restore verification failed",
-      }));
+    const restored =
+      visibilityTransitions == null
+        ? undefined
+        : await page
+            .evaluate(restoreDecorationIsolationInPage, {
+              key: restoreKey,
+              sourceNodeKey: keys.sourceNodeKey,
+              decorationNodeKey: keys.decorationNodeKey,
+              rows: isolationRows,
+            })
+            .catch((error) => ({
+              ok: false,
+              reason:
+                error instanceof Error
+                  ? `restore verification failed: ${error.message}`
+                  : "restore verification failed",
+            }));
     await restoreRegistry.dispose();
     try {
       await visibilityTransitions?.dispose();
@@ -351,7 +356,7 @@ async function captureIsolatedDecorations(
         reason: `visibility ownership restore failed: ${error instanceof Error ? error.message : String(error)}`,
       }));
     }
-    if (!restored.ok) {
+    if (restored != null && !restored.ok) {
       facts = facts.map((fact) => ({
         ...fact,
         fingerprintMatches: false,

@@ -1,5 +1,7 @@
 /** Public-CDP ownership proof for native CSS paint isolation, not a rendering probe. */
 import type { CDPSession, Page } from "@playwright/test";
+import { type PiercedNode as TreeNode, visitPiercedNodes } from "./pierced-dom-tree.js";
+export type { PiercedNode as TreeNode } from "./pierced-dom-tree.js";
 import { browserCallbackExpression } from "./evaluate-in-frame.js";
 import type { ExternalCssSvgJournal } from "./external-css-svg.js";
 
@@ -18,15 +20,6 @@ async function bounded<T>(work: Promise<T>, timeout = 1000): Promise<T> {
   }
 }
 
-/** The structural subset of a pierced `DOM.Node` this guard reads. */
-export interface TreeNode {
-  backendNodeId: number;
-  shadowRootType?: string;
-  shadowRoots?: TreeNode[];
-  children?: TreeNode[];
-  contentDocument?: TreeNode;
-}
-
 /** At most this many author roots are registered for one isolation. */
 const AUTHOR_ROOT_BUDGET = 256;
 
@@ -36,20 +29,14 @@ const AUTHOR_ROOT_BUDGET = 256;
 export function authorTopology(root: TreeNode, ownerBackend: number | undefined): { owners: number; roots: number[] } {
   let owners = 0;
   const roots: number[] = [];
-  const visit = (node: TreeNode, embedded: boolean): void => {
+  visitPiercedNodes(root, ({ node, document, shadow }) => {
     if (node.backendNodeId === ownerBackend) owners++;
-    for (const shadow of node.shadowRoots ?? []) {
-      if (shadow.shadowRootType !== "user-agent") {
-        if (embedded)
-          throw new Error("external CSS native isolation has unsupported author-shadow paint in an embedded document");
-        roots.push(shadow.backendNodeId);
-      }
-      visit(shadow, embedded);
+    if (node === shadow && node.shadowRootType !== "user-agent") {
+      if (document !== root)
+        throw new Error("external CSS native isolation has unsupported author-shadow paint in an embedded document");
+      roots.push(node.backendNodeId);
     }
-    for (const child of node.children ?? []) visit(child, embedded);
-    if (node.contentDocument != null) visit(node.contentDocument, true);
-  };
-  visit(root, false);
+  });
   return { owners, roots };
 }
 

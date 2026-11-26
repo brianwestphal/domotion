@@ -42,12 +42,14 @@ Qualified and restored exactly:
 
 A running owner that finishes naturally during isolation fails closed with "ownership changed" and leaks no private animation.
 
-**The defect:** author-shadow owners are invisible. `Document.getAnimations()` lists only animations targeting the document's own tree scope (`DocumentAnimations::getAnimations(tree_scope)`, `core/animation/document_animations.cc:277-291`, Chromium `7d859f27`). The controller therefore neither qualifies nor refuses them. On the production native-control route, an author-shadow overlay with a paused visibility transition contaminates the raster guard (`[255,255,255,51]`) with no warning. The light-DOM overlay and a transition-free shadow overlay stay transparent. The test pins that exact defect value; **DM-J5V8WD** owns the repair.
+**DM-J5V8WD qualifies author-shadow visibility transitions.** Blink enumerates animations in the calling tree scope (`DocumentAnimations::getAnimations(tree_scope)`, `core/animation/document_animations.cc:277–291`, Chromium `7d859f27`). The original native-control guard measured `[255,255,255,51]` for an author-shadow overlay. Capture now reads the native animation list on each actual open or closed ShadowRoot in its document’s isolated CDP world. A live visibility transition in any such scope produces an explicit diagnostic and withholds the isolated raster. The native button and replaced canvas tests preserve transition identity, effects, frames, timing, paused time, events and style attributes. Light DOM and static shadow controls retain the exact transparent guard `[0,0,0,0]`.
+
+The pierced CDP tree identifies same-process child documents. Cross-origin out-of-process iframes use their own target sessions. On both native and replaced routes the qualification checks actual process placement, active closed-shadow refusal, static shadow acceptance and the ordinary child-document control. Topology or visibility ownership changes observed through readback invalidate the raster. Session creation and verification have Node-clock deadlines.
 
 Still unqualified:
 
 - pending effects (not deterministically reachable from a page script; the controller's `animation.pending` refusal is unexercised);
-- cross-document iframe owners on the native/replaced routes;
+- other cross-document ordinary owners, including transitions targeting the iframe element itself;
 - concurrent authored edits during isolation;
 - non-visibility transition channels.
 
@@ -57,11 +59,10 @@ Still unqualified:
 
 The gate writes representative native and replaced source/isolated/restored PNGs and exact source-restoration raw difference metrics into the explicitly selected local evidence directory. Inspect those exact bytes before attaching. The earlier gate 314 stopped at lint because a pixel decoder named `raw` triggered a kerf escaping rule; the helper was renamed without changing that rule or any pixel assertion. Final gate result and attachment IDs belong in the integration handoff.
 
-The Linux and Windows fidelity workflows select a strict 56-case snapshot profile:
-29 production-controller cases, 13 source-style restoration cases, five existing
-replaced-transition cases and nine browser ownership contracts. They retain
-`snapshot-visibility/` after failures, including the original production PNGs
-and source-commit, runtime and normalized fixture-hash metadata. The ordinary
-macOS browser lane retains its existing complete selection. Local integrated
-validation selects the 47 production/restoration cases; the broader profile
-runs on CI.
+The Linux and Windows fidelity workflows run the native production-controller,
+source-restoration, replaced-transition, effect-ownership, generated-pseudo,
+decoration and scope-qualification suites. Their strict results floor is 111
+passed cases, including 17 scope qualifications. They retain
+`snapshot-visibility/` after failures, including the production PNGs and
+source-commit, runtime and normalized fixture-hash metadata. The ordinary
+macOS browser lane runs the complete selection.

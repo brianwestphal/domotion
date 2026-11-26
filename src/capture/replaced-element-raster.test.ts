@@ -40,8 +40,13 @@ async function fakeRasterPage(
     screenshotCalls: 0,
   };
   const cdp = {
+    on() {
+      return this;
+    },
     async send(method: string, params?: { selector?: string; nodeId?: number }) {
-      if (method === "DOM.getDocument") return { root: { nodeId: 1 } };
+      if (method === "DOM.getDocument") return { root: { nodeId: 1, backendNodeId: 1 } };
+      if (method === "DOM.describeNode") return { node: { nodeId: 1, backendNodeId: 1 } };
+      if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "main" } } };
       if (method === "DOM.querySelector") {
         return { nodeId: params?.selector?.includes("dr1") ? 11 : 12 };
       }
@@ -55,7 +60,16 @@ async function fakeRasterPage(
       state.cdpDetachCalls++;
     },
   } as unknown as CDPSession;
+  const frame = {};
   const page = {
+    frames: () => [frame],
+    mainFrame: () => frame,
+    on() {
+      return this;
+    },
+    off() {
+      return this;
+    },
     context: () => ({ newCDPSession: async () => cdp }),
     async addStyleTag() {
       if (options.failStyleInstall) throw new Error("style install failed");
@@ -136,7 +150,7 @@ describe("replaced-element raster ownership", () => {
     expect(fake.restoreCalls).toBe(2);
     expect(fake.cleanupCalls).toBe(1);
     expect(fake.styleRemoveCalls).toBe(1);
-    expect(fake.cdpDetachCalls).toBe(1);
+    expect(fake.cdpDetachCalls).toBe(2);
   });
 
   it("reports isolation setup failure and still releases global resources", async () => {
@@ -167,6 +181,6 @@ describe("replaced-element raster ownership", () => {
     expect(fake.restoreCalls).toBe(0);
     expect(fake.cleanupCalls).toBe(1);
     expect(fake.styleRemoveCalls).toBe(0);
-    expect(fake.cdpDetachCalls).toBe(1);
+    expect(fake.cdpDetachCalls).toBe(2);
   });
 });

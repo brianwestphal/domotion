@@ -15,9 +15,10 @@ import { withCdpSession } from "./cdp-lifecycle.js";
 import { createPageRegistry } from "./page-registry.js";
 import { browserCallbackExpression, evaluateInFrame } from "./evaluate-in-frame.js";
 import {
-  suppressSnapshotVisibilityTransitions,
+  suppressDocumentVisibilityTransitions,
   type SnapshotVisibilityState,
 } from "./snapshot-visibility-transitions.js";
+import { openSnapshotShadowVisibilityGuard } from "./snapshot-shadow-visibility.js";
 import { withTimeout } from "../utils/with-timeout.js";
 declare const browserImageNaturalSize: typeof import("./evaluate-in-frame.js").browserImageNaturalSize;
 import { clipRectForScreenshot } from "./clip-rect.js";
@@ -1082,7 +1083,7 @@ async function isolatePseudoSurface(
 ): Promise<NonNullable<CapturedPseudoFragmentSet["terminalRaster"]>> {
   const marker = `dm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const states = new Map<Frame, JSHandle<PseudoIsolationFrame>>();
-  const transitions = new Map<Frame, Awaited<ReturnType<typeof suppressSnapshotVisibilityTransitions>>>();
+  const transitions = new Map<Frame, Awaited<ReturnType<typeof suppressDocumentVisibilityTransitions>>>();
   const parents = new Map(prepared.map(({ frame }) => [frame, frame.parentFrame()]));
   const assertFrames = () => {
     const live = page.frames();
@@ -1092,6 +1093,7 @@ async function isolatePseudoSurface(
     )
       throw new Error("pseudo isolation source frame set or ancestry changed or is unavailable");
   };
+  const shadow = await openSnapshotShadowVisibilityGuard(page);
   try {
     assertFrames();
     // Observe every context before the first mutation. Settled collection keeps
@@ -1250,7 +1252,7 @@ async function isolatePseudoSurface(
           throw error;
         }
         states.set(frame, state);
-        transitions.set(frame, await suppressSnapshotVisibilityTransitions(frame, true));
+        transitions.set(frame, await suppressDocumentVisibilityTransitions(frame, true));
       }),
     );
     const failed = preparation.find((result) => result.status === "rejected");
@@ -1311,7 +1313,7 @@ async function isolatePseudoSurface(
     const restored = await Promise.allSettled(
       [...states.values()].map((state) => boundedPseudoIsolation(state.evaluate((state) => state.restore()))),
     );
-    const released = await Promise.allSettled([...transitions.values()].map((owner) => owner.dispose()));
+    const released = await Promise.allSettled([...transitions.values(), shadow].map((owner) => owner.dispose()));
     const disposed = await Promise.allSettled(
       [...states.values()].map((state) => boundedPseudoIsolation(state.dispose())),
     );

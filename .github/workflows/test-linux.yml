@@ -342,6 +342,7 @@ jobs:
         run: >-
           npx vitest run --config vitest.e2e.config.ts
           tests/snapshot-visibility-controller.e2e.test.ts
+          tests/snapshot-visibility-qualification.e2e.test.ts
           tests/native-control-style-restoration.e2e.test.ts
           tests/replaced-snapshot-visibility-transition.e2e.test.ts
           tests/visibility-transition-effect-ownership.e2e.test.ts
@@ -352,7 +353,7 @@ jobs:
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output-linux/snapshot-visibility/results.json --minimum-passed 78
+          --browser-results tests/output-linux/snapshot-visibility/results.json --minimum-passed 111
       - name: Verify native literal font-family identity
         if: always()
         run: >-

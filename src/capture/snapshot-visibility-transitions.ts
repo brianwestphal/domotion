@@ -1,6 +1,8 @@
 import type { Frame, Page } from "@playwright/test";
 import { browserCallbackExpression } from "./evaluate-in-frame.js";
 import { privateCaptureKey } from "./private-key.js";
+import { disposeAll } from "./cdp-lifecycle.js";
+import { openSnapshotShadowVisibilityGuard } from "./snapshot-shadow-visibility.js";
 import { withTimeout } from "../utils/with-timeout.js";
 
 async function boundedVisibilityOperation<T>(operation: Promise<T>): Promise<T> {
@@ -25,8 +27,23 @@ export interface SnapshotVisibilityState {
   restore(): void;
 }
 
-/** Keep isolation's visibility changes immediate without stopping other CSS transitions. */
-export async function suppressSnapshotVisibilityTransitions(
+/** A single raster needs one shadow-scope proof across every renderer, even
+ * when its ordinary source is in the main document. */
+export async function suppressSnapshotVisibilityTransitions(target: Frame | Page, deferred = false) {
+  const page = "page" in target ? target.page() : target;
+  const shadow = await openSnapshotShadowVisibilityGuard(page);
+  try {
+    const owner = await suppressDocumentVisibilityTransitions(target, deferred);
+    return { ...owner, dispose: () => disposeAll(owner, shadow) };
+  } catch (error) {
+    await shadow.dispose().catch(() => undefined);
+    throw error;
+  }
+}
+
+/** Ordinary transition owner for one document. A multi-frame producer obtains
+ * one shared shadow-scope proof before preparing any of its documents. */
+export async function suppressDocumentVisibilityTransitions(
   page: Frame | Page,
   deferred = false,
 ): Promise<{ key: string; paintTarget(): Promise<void>; dispose(): Promise<void> }> {
