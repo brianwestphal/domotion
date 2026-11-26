@@ -54,9 +54,11 @@ it.each([1, 2])(
       const capture = await captureElementTreeWithWarnings(source, "body", viewport);
       const svg = elementTreeToSvg(capture.tree, viewport.width, viewport.height);
       await generated.setContent(`<style>body{margin:0}</style>${svg}`);
-      expect(await rawPixels(await generated.screenshot())).toEqual(data);
+      expect((await rawPixels(await generated.screenshot())).equals(data), "modal, backdrop, and sibling paint").toBe(
+        true,
+      );
       expect(await sourceState()).toEqual(before);
-      expect(await rawPixels(await source.screenshot())).toEqual(data);
+      expect((await rawPixels(await source.screenshot())).equals(data), "restored source paint").toBe(true);
     } finally {
       await context.close();
     }
