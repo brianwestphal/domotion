@@ -12,7 +12,7 @@ describe("Unicode shaping conformance workflow", () => {
     expect(workflow.match(/acquireIcuCompanion/g)).toHaveLength(4);
     expect(workflow.match(/mkdir -p tests\/output\/shaping-unicode/g)).toHaveLength(2);
     expect(workflow).toContain("pull_request:");
-    expect(workflow).toContain("[macos-14, ubuntu-24.04, windows-2025]");
+    expect(workflow.match(/\[macos-15, ubuntu-24\.04, windows-2025\]/g)).toHaveLength(3);
     expect(workflow).toContain("--mode representative --shard 0/1");
   });
   it("schedules the exhaustive eight-shard corpus and retains resumable evidence", () => {

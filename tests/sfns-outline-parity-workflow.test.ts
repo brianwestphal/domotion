@@ -7,7 +7,7 @@ const collector = readFileSync("tools/sfns-mask-baseline-oracle.ts", "utf8");
 describe("SFNS exact outline workflow (DM-2567)", () => {
   it("runs proposal and validation as separate macOS matrix jobs", () => {
     expect(workflow).toContain("arm: [proposal, validation]");
-    expect(workflow).toContain("runs-on: macos-14");
+    expect(workflow).toMatch(/^    runs-on: macos-15$/m);
     expect(workflow).toContain("--arm ${{ matrix.arm }}");
     expect(workflow).toContain("needs: collect");
   });

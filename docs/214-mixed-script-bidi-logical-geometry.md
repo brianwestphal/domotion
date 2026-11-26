@@ -118,7 +118,7 @@ against itself.
 ## Native gate
 
 `.github/workflows/mixed-bidi-logical-conformance.yml` runs the exact unit
-records and live logical oracle on `macos-14`, `ubuntu-24.04`, and
+records and live logical oracle on `macos-15`, `ubuntu-24.04`, and
 `windows-2025`, retaining one JSON report per native OS. Selected face and gid
 records are expected to be platform-specific; item levels, spans, scripts,
 directions, mutation activation, and ownership invariants are platform-neutral.

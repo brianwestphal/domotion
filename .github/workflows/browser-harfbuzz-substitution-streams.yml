@@ -46,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04, windows-2025]
+        os: [macos-15, ubuntu-24.04, windows-2025]
         evidence: [proposal, validation]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25

@@ -8,7 +8,7 @@ const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Recor
 
 describe("browser HarfBuzz substitution-stream workflow", () => {
   it("produces proposal and validation artifacts on every release OS", () => {
-    expect(workflow).toContain("[macos-14, ubuntu-24.04, windows-2025]");
+    expect(workflow).toContain("[macos-15, ubuntu-24.04, windows-2025]");
     expect(workflow).toContain("evidence: [proposal, validation]");
     expect(workflow).toContain("npx playwright install --with-deps chromium");
     expect(workflow).toContain("npm run fonts:browser-harfbuzz-substitutions");

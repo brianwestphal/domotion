@@ -6,9 +6,7 @@ const installer = readFileSync("scripts/install-windows-profile-fixture-fonts.ps
 
 describe("generic profile/target workflow", () => {
   it("runs the exact logical gate on all native platforms", () => {
-    expect(workflow).toContain("macos-14");
-    expect(workflow).toContain("ubuntu-24.04");
-    expect(workflow).toContain("windows-2025");
+    expect(workflow).toContain("[macos-15, ubuntu-24.04, windows-2025]");
     expect(workflow).toContain("install-windows-profile-fixture-fonts.ps1");
     expect(workflow).toContain("DomotionProfileDevanagari*.ttf");
     expect(workflow).not.toContain("Get-WindowsCapability -Online");

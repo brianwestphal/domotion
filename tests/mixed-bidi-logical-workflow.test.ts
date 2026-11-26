@@ -6,7 +6,7 @@ const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Recor
 
 describe("mixed-script bidi logical conformance workflow", () => {
   it("runs the exact logical oracle on every native release OS", () => {
-    expect(workflow).toContain("[macos-14, ubuntu-24.04, windows-2025]");
+    expect(workflow).toContain("[macos-15, ubuntu-24.04, windows-2025]");
     expect(workflow).toContain("npm run fonts:mixed-bidi-logical");
     expect(workflow).toContain("packages/text-engine/src/render/mixed-bidi-logical.test.ts");
     expect(workflow).toContain("actions/upload-artifact@v4");

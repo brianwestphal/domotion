@@ -8,11 +8,9 @@ const helperSource = readFileSync(
 );
 
 describe("macOS helper request-scoped font contract", () => {
-  it("stays inside the Swift 5.9 syntax accepted by the macOS 14 CI runner", () => {
-    // Newer Swift accepts a trailing comma in a call argument list; the Swift
-    // 5.9 compiler selected by macos-14 rejects it as an unexpected separator.
-    // Keep this source-level guard because a successful build on a current
-    // developer Mac cannot detect that compatibility break.
+  it("keeps helper call arguments compatible with Swift 5.9", () => {
+    // Swift 5.9 rejects a trailing comma in a call argument list. The helper's
+    // package manifest supports that compiler even when CI builds with newer Swift.
     expect(helperSource).not.toMatch(/,\s*\)/);
   });
 

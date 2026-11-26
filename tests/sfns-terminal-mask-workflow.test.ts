@@ -6,8 +6,9 @@ const adjudicator = readFileSync("tools/sfns-terminal-mask-adjudicator.ts", "utf
 const packageJson = readFileSync("package.json", "utf8");
 
 describe("optional SFNS terminal-mask CI adjudication", () => {
-  it("is manual-only while the retained exact artifacts disagree", () => {
+  it("adjudicates the retained exact artifacts on a manual dispatch", () => {
     expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toMatch(/^    runs-on: macos-15$/m);
     expect(workflow).not.toMatch(/^\s+(push|pull_request):/m);
     expect(workflow).toContain("fonts:sfns-terminal-mask:adjudicate");
     expect(workflow).toContain("dm2577-sfns-pinned-skia-proposal.json");

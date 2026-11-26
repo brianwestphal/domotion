@@ -173,7 +173,7 @@ without a changed exact field withholds aggregate ratification.
 ## Proposal/validation and raster ordering
 
 `.github/workflows/browser-harfbuzz-substitution-streams.yml` runs a Cartesian
-matrix of `macos-14`, `ubuntu-24.04`, and `windows-2025` with independent
+matrix of `macos-15`, `ubuntu-24.04`, and `windows-2025` with independent
 `proposal` and `validation` browser processes. Each arm installs the lockfile's
 pinned Playwright Chromium, proves the portable fixtures and mutations,
 collects one browser/production logical report, and uploads it separately. The

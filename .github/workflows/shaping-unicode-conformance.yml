@@ -23,7 +23,7 @@ jobs:
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'representative')
     strategy:
       fail-fast: false
-      matrix: { os: [macos-14, ubuntu-24.04, windows-2025] }
+      matrix: { os: [macos-15, ubuntu-24.04, windows-2025] }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +62,7 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'exhaustive')
     strategy:
       fail-fast: false
-      matrix: { os: [macos-14, ubuntu-24.04, windows-2025] }
+      matrix: { os: [macos-15, ubuntu-24.04, windows-2025] }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +97,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-24.04, windows-2025]
+        os: [macos-15, ubuntu-24.04, windows-2025]
         shard: [0, 1, 2, 3, 4, 5, 6, 7]
     runs-on: ${{ matrix.os }}
     steps:
