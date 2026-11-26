@@ -69,8 +69,8 @@ shadow event semantics; installed browser147 revision6b5a1b80 supplies the nativ
 controls. These are separately stated authorities, not an assertion that the
 two Chromium revisions are identical. The regression files retain ordinary
 CSP clip/mask positives and19 static/late-topology/identity/cleanup controls.
-The six-file frozen-resource profile requires all 166 selected native assertions
-on Linux and Windows, including 47 author-shadow controls.
+The six-file frozen-resource profile requires all 176 selected native assertions
+on Linux and Windows, including 57 author-shadow controls.
 
 ## Per-scope author-shadow isolation
 
@@ -108,8 +108,28 @@ descendants and fingerprints their styles and child order. Local SVG references
 resolve from the consumer's own tree scope. Each registered root observes
 slot reassignment during readback, including a change reverted before adoption.
 
+DM-96KECE captures direct shadow text and assigned slot text from the original
+`Text` nodes. The capture walk and the CDP fragment prepass use the same
+projected parent, so a slot supplies its text style and the original node
+supplies the native Range, UTF-16 intervals and quads. Before adopting the
+owner's PNG, capture checks that the text, physical parent, Range endpoints
+and fragment rectangles still match. A character-data observer also detects
+changes reverted during the screenshot.
+
+Direct text beside a clip and assigned text beside a clip can be isolated in
+open and closed roots. An assigned text sibling of a mask is supported when
+the document's font-face set is empty. Direct text beside a mask still refuses.
+In the native source fixture, making text transparent at the common host
+removed all 512 mask pixels along with the glyphs. For assigned text,
+suppressing the slot kept all 512 mask pixels. Each source page recovered its
+original pixels after the probe. A separate mask control with a document font
+face produced the correct owner PNG, then lost all 512 source mask pixels when
+isolation ended. Declaring an unused face also reproduced the loss. Capture
+refuses before installing isolation rules in that case. DM-1NGDVV tracks the
+related native mask restoration defect.
+
 The guard refuses author roots in embedded documents, owners outside the flat
-tree, projected direct text with a different physical source, and cascades that
+tree, direct ancestor text over a native mask, and cascades that
 leave foreign or ancestor paint visible. An inner-scope `!important` wins over
 the outer hide because important declarations reverse tree order
 (`cascade_priority.h:29-38`); it refuses through the computed-visibility check.
@@ -129,15 +149,20 @@ owners inside or hosting a root. They compare the placed RGBA surface to the
 equivalent flat owner, compare the full SVG to Chromium and check source
 restoration. The additional controls distinguish a shadow-local gradient from a
 document ID collision, retain the existing readable document route, and verify
-the idle-root, projected-text and transient-slot boundaries.
+the idle-root and transient-slot boundaries. Eight text cases vary the
+projection, tree mode and external property. They check source order, Range
+geometry, the independent PNG and original text after capture or refusal.
+A separate case changes and restores a character during readback. Two mask
+cases verify source preservation when the document declares a used or unused
+font face. The clip cases compare the default embedded-font SVG with Chromium.
+The system-face mask cases compare the full system-font SVG with Chromium and
+the default embedded-font SVG with the corresponding flat capture.
 
 ## Remaining capability boundaries
 
 - DM-N933MV owns unsupported ancestor/compositing, transition, scrollbar and
   direct-text boundaries. Refusal does not establish their rendering parity.
 - DM-F19PYG owns local SVG dependencies outside the selected owner's subtree.
-- DM-96KECE covers direct text whose source parent differs from its projected
-  host or slot beside a native owner.
 - DM-HSABGR investigates readable auxiliary-body identity; a differing response
   at the same URL is not, by itself, a measured full-output defect.
 

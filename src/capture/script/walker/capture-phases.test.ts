@@ -18,7 +18,11 @@ function element(tag = "div") {
   return node;
 }
 
-function geometry(node: HTMLElement, style: Record<string, unknown> = {}) {
+function geometry(
+  node: HTMLElement,
+  style: Record<string, unknown> = {},
+  overrides: Partial<Parameters<typeof captureGeometryStylePhase>[0]> = {},
+) {
   return captureGeometryStylePhase({
     el: node,
     cs: {
@@ -40,6 +44,7 @@ function geometry(node: HTMLElement, style: Record<string, unknown> = {}) {
     transformInfluenced: new Set(),
     animInfluenced: new Set(),
     isOutsideCaptureViewport: () => false,
+    ...overrides,
   });
 }
 
@@ -73,6 +78,22 @@ describe("in-page capture phase boundaries (DM-2639)", () => {
       tag: "td",
       bordersOnlyCell: true,
     });
+  });
+
+  it("admits a boxless slot when its assigned text paints inside a shifted viewport", () => {
+    const slot = element("slot");
+    const outside = new DOMRect(0, 0, 0, 0);
+    const inside = new DOMRect(34, 42, 12, 18);
+    const inputs = {
+      rect: outside,
+      vp: { x: 20, y: 30 },
+      isOutsideCaptureViewport: (rect: DOMRect) => rect.right < 20 || rect.bottom < 30,
+    };
+    expect(geometry(slot, { display: "contents" }, { ...inputs, projectedTextRects: [inside] })).toMatchObject({
+      tag: "slot",
+    });
+    expect(geometry(slot, { display: "contents" }, { ...inputs, projectedTextRects: [] })).toBeNull();
+    expect(geometry(slot, { display: "contents" }, { ...inputs, projectedTextRects: [outside] })).toBeNull();
   });
 
   it("normalizes pseudo and closed-shadow facts without sharing a session", () => {

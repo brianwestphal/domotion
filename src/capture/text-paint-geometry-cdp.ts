@@ -4,6 +4,7 @@ import type { CDPSession, Frame, Page } from "@playwright/test";
 import type { AuthorShadowContextCapabilities, AuthorShadowExpectation } from "./author-shadow-context-record.js";
 import { waitForCaptureAnimationFrames } from "./frame-scheduler.js";
 import { evaluateInFrame } from "./evaluate-in-frame.js";
+import type { ExternalCssSvgJournal } from "./external-css-svg.js";
 import type { neutralizeTransformForFreeze as NeutralizeTransformForFreeze } from "./script/walker/transforms.js";
 import { withCdpSession } from "./cdp-lifecycle.js";
 import { createPageRegistry } from "./page-registry.js";
@@ -143,14 +144,37 @@ async function setupFrameRegistry(
   selector: string,
   key: string,
   token: string,
+  externalCssSvgKey?: string,
 ): Promise<PreparedFrame | null> {
   try {
     const prepared = await evaluateInFrame(
       frame,
-      ({ selector, key, token, isTop }) => {
+      ({ selector, key, token, isTop, externalCssSvgKey }) => {
         const root = isTop ? document.querySelector(selector) : document.documentElement;
         if (root == null) return { rows: [], hasTransformOwners: false };
-        const elements = [root, ...Array.from(root.querySelectorAll("*"))];
+        const journal =
+          externalCssSvgKey &&
+          (globalThis as typeof globalThis & Record<string, ExternalCssSvgJournal | undefined>)[externalCssSvgKey];
+        const projected = journal && journal.projectedText.size > 0 ? journal.projectedChildren : undefined;
+        // A slotted Text remains a physical child of its host. Correlate its
+        // protocol quads with the same flat parent that emits its source runs.
+        const elements = projected == null ? [root, ...root.querySelectorAll("*")] : [];
+        const projectedParents = new Map<Element, Element>();
+        if (projected != null) {
+          const pending = [root];
+          while (pending.length) {
+            const element = pending.pop()!;
+            elements.push(element);
+            const children = projected.get(element) ?? element.children;
+            for (let index = children.length - 1; index >= 0; index--) {
+              const child = children[index];
+              if (!(child instanceof Element)) continue;
+              if (child.parentElement !== element) projectedParents.set(child, element);
+              pending.push(child);
+            }
+          }
+        }
+        const parentOf = (element: Element) => projectedParents.get(element) ?? element.parentElement;
         const indexByElement = new WeakMap<Element, number>();
         for (let index = 0; index < elements.length; index++) indexByElement.set(elements[index], index);
         const owners = new Set<Element>();
@@ -220,7 +244,7 @@ async function setupFrameRegistry(
           while (zoomOwner != null) {
             const ownZoom = Number.parseFloat(getComputedStyle(zoomOwner).zoom);
             if (Number.isFinite(ownZoom) && ownZoom > 0) zoom *= ownZoom;
-            zoomOwner = zoomOwner.parentElement;
+            zoomOwner = parentOf(zoomOwner);
           }
           let surfaceOwner = element;
           let cursor: Element | null = element;
@@ -236,9 +260,10 @@ async function setupFrameRegistry(
             )
               surfaceOwner = cursor;
             if (cursor === root) break;
-            cursor = cursor.parentElement;
+            cursor = parentOf(cursor);
           }
-          const directTextNodes = Array.from(element.childNodes).filter(
+          const children = projected?.get(element) ?? element.childNodes;
+          const directTextNodes = Array.from(children).filter(
             (child): child is Text => child.nodeType === Node.TEXT_NODE && (child.textContent?.trim() ?? "") !== "",
           );
           const untransformedTextOverflow =
@@ -252,18 +277,15 @@ async function setupFrameRegistry(
           if (directTextNodes.length > 0) {
             // Neutralize only transforms that affect a measured text node.
             // An unrelated live box can be reconstructed without changing its animation.
-            for (let node: Element | null = element; node != null; node = node.parentElement)
+            for (let node: Element | null = element; node != null; node = parentOf(node))
               if (owners.has(node)) textTransformOwners.add(node);
           }
-          for (let childIndex = 0; childIndex < element.childNodes.length; childIndex++) {
-            const child = element.childNodes[childIndex];
-            if (child.nodeType !== Node.TEXT_NODE || child.textContent == null || child.textContent.trim() === "")
-              continue;
+          for (const child of directTextNodes) {
             const sourceTextNodeIndex = textRows.length;
             const sourceKey = `${token}:${elementIndex}`;
             const surfaceIndex = indexByElement.get(surfaceOwner) ?? elementIndex;
-            textRows.push({ element, textNode: child as Text });
-            indexByTextNode.set(child as Text, sourceTextNodeIndex);
+            textRows.push({ element, textNode: child });
+            indexByTextNode.set(child, sourceTextNodeIndex);
             result.push({
               sourceKey,
               sourceTextNodeIndex,
@@ -301,7 +323,7 @@ async function setupFrameRegistry(
           hasLiveAffineBoxCandidates: [...affineBoxCandidates].some((element) => !textTransformOwners.has(element)),
         };
       },
-      { selector, key, token, isTop: frame === frame.page().mainFrame() },
+      { selector, key, token, isTop: frame === frame.page().mainFrame(), externalCssSvgKey },
     );
     return {
       frame,
@@ -1079,11 +1101,14 @@ export async function prepareTextPaintGeometry(
   captureNeutralTree: (key: string) => Promise<TextProbeTree>,
   captureReadOnlyTree?: (key: string) => Promise<TextProbeTree>,
   adoptReadOnlyTopology?: (key: string) => Promise<boolean>,
+  externalCssSvgKey?: string,
 ): Promise<TextPaintGeometryProbe> {
   const registry = createPageRegistry<unknown>(page, "TextPaintGeometry");
   const key = registry.key;
   const prepared = (
-    await Promise.all(page.frames().map((frame, index) => setupFrameRegistry(frame, selector, key, `f${index}`)))
+    await Promise.all(
+      page.frames().map((frame, index) => setupFrameRegistry(frame, selector, key, `f${index}`, externalCssSvgKey)),
+    )
   ).filter((frame): frame is PreparedFrame => frame != null);
   await Promise.all(
     prepared.map(({ frame }) =>

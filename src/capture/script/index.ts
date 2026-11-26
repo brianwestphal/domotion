@@ -19,6 +19,7 @@
 // root capture, and top-level payload attachment. This file only wires the
 // factories together in the order the live page must be observed.
 
+import { externalCssSvgJournal } from "./walker/external-css-svg-traversal.js";
 import { createColorNorm } from "./color-norm.js";
 import { createEmojiDetect } from "./emoji-detect.js";
 import { createDottedCircleDetect } from "./dotted-circle-detect.js";
@@ -268,6 +269,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     fontFamilyStackFor: _fontFamilyStackFor,
   });
+  const projectedCssChildren = externalCssSvgJournal(args.externalCssSvgKey)?.projectedChildren;
   const { captureTextSegments, hasMeasuredPaintAscent } = createTextSegmentsHandler({
     vp,
     measureFontMetrics: _measureFontMetrics,
@@ -281,6 +283,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     finalizeLineClampText,
     fontFamilyStackFor: _fontFamilyStackFor,
     sourceTextNodeIndexFor: textPaintSourceTextNodeIndexFor,
+    projectedNodesFor: projectedCssChildren?.size ? (element) => projectedCssChildren.get(element) : undefined,
     liveTextInverseFor,
   });
   const { injectPseudoSegments } = createPseudoInjectHandler();

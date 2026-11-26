@@ -439,9 +439,15 @@ export const createElementCapture = () => {
     // capture the element as a transparent container (no own paint, but walk
     // children) so the in-viewport descendants are reached. fixedAncestors
     // is precomputed by the document prepass.
-    const projectedChildren = externalCssSvgJournal(d.args.externalCssSvgKey)?.projectedChildren?.get(el);
+    const cssJournal = externalCssSvgJournal(d.args.externalCssSvgKey);
+    const projectedNodes = cssJournal?.projectedChildren.get(el);
+    const projectedChildren = projectedNodes?.filter((node): node is Element => node instanceof Element);
+    const projectedTextRects = projectedNodes?.flatMap((node) =>
+      node instanceof Text ? (cssJournal?.projectedText.get(node)?.rects ?? []) : [],
+    );
     const geometryStyle = captureGeometryStylePhase({
       projectedChildren,
+      projectedTextRects,
       el: el as HTMLElement,
       cs,
       rect,

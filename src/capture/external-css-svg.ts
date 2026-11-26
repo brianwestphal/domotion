@@ -60,7 +60,8 @@ export interface ExternalCssSvgJournal {
   prefix: string;
   targets: Target[];
   /** Composed branches needed to reach actual native CSS owners in author scopes. */
-  projectedChildren: Map<Element, Element[]>;
+  projectedChildren: Map<Element, Node[]>;
+  projectedText: Map<Text, { parent: Node | null; flatParent: Element; value: string; range: Range; rects: DOMRect[] }>;
   styles: SavedStyle[];
   /** Private attribute selecting overridden elements; minted per prepass. */
   overrideAttribute: string;
@@ -368,6 +369,7 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
           prefix,
           targets,
           projectedChildren: new Map(),
+          projectedText: new Map(),
           styles: [],
           overrideAttribute,
           overrideSheet: null,
@@ -430,17 +432,27 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
           while (scope instanceof ShadowRoot) {
             const host = scope.host;
             if (state.projectedChildren.has(host)) break;
-            state.projectedChildren.set(host, [...scope.children]);
+            state.projectedChildren.set(host, [...scope.childNodes]);
             for (const slot of scope.querySelectorAll("slot")) {
               const assigned = slot.assignedNodes();
-              state.projectedChildren.set(
-                slot,
-                assigned.length ? assigned.filter((n): n is Element => n instanceof Element) : [...slot.children],
-              );
+              state.projectedChildren.set(slot, assigned.length ? assigned : [...slot.childNodes]);
             }
             scope = host.getRootNode();
           }
         }
+        for (const [flatParent, children] of state.projectedChildren)
+          for (const node of children) {
+            if (!(node instanceof Text) || !node.data.trim()) continue;
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            state.projectedText.set(node, {
+              parent: node.parentNode,
+              flatParent,
+              value: node.data,
+              range,
+              rects: [...range.getClientRects()],
+            });
+          }
       },
       { key: registry.key, token, references },
     );
@@ -549,7 +561,7 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
         );
         const projectedParents = new Map<Element, Element>();
         for (const [parent, children] of state.projectedChildren)
-          for (const child of children) projectedParents.set(child, parent);
+          for (const child of children) if (child instanceof Element) projectedParents.set(child, parent);
         const parentOf = (element: Element) => projectedParents.get(element) ?? element.parentElement;
         for (const target of state.targets) {
           if (!target.element.isConnected) {

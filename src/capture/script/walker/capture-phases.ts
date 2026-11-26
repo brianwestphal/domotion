@@ -20,6 +20,7 @@ export type NativeDecorationRef = {
 type NativeDecorationPart = { kind: string; index: number; x: number; y: number; width: number; height: number };
 export function captureGeometryStylePhase({
   projectedChildren,
+  projectedTextRects,
   el,
   cs,
   rect,
@@ -30,6 +31,7 @@ export function captureGeometryStylePhase({
   isOutsideCaptureViewport,
 }: {
   projectedChildren?: Element[];
+  projectedTextRects?: DOMRect[];
   el: HTMLElement;
   cs: CSSStyleDeclaration;
   rect: DOMRect;
@@ -55,6 +57,7 @@ export function captureGeometryStylePhase({
     !isOutsideCaptureViewport(rubyOwner.getBoundingClientRect(), vp);
   if (
     outsideViewport &&
+    !projectedTextRects?.some((textRect) => !isOutsideCaptureViewport(textRect, vp)) &&
     !rubyFragmentOfVisibleParent &&
     !fixedAncestors.has(el) &&
     !transformInfluenced.has(el) &&
@@ -123,6 +126,7 @@ export function captureGeometryStylePhase({
   if (
     zeroSized &&
     (projectedChildren ?? el.children).length === 0 &&
+    !projectedTextRects?.length &&
     !hasAnimation &&
     !inkTextZeroWidth &&
     !keepImageFallbackState &&

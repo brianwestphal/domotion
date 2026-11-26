@@ -98,6 +98,7 @@ type TextServices = {
   finalizeLineClampText?: (el: Element, cs: CSSStyleDeclaration, result: TextCaptureResult) => TextCaptureResult;
   fontFamilyStackFor: (el: Element, family: string, pseudo?: string) => TextSegment["fontFamilyStack"];
   sourceTextNodeIndexFor?: (node: Node) => number | undefined;
+  projectedNodesFor?: (element: Element) => Node[] | undefined;
   liveTextInverseFor?: (element: Element) => LiveTextInverse | undefined;
 };
 //
@@ -378,7 +379,8 @@ export const captureVerticalTextSegments = (
     vp,
     measureFontMetrics,
     sourceTextNodeIndexFor,
-  }: Pick<TextServices, "vp" | "measureFontMetrics" | "sourceTextNodeIndexFor">,
+    projectedNodesFor,
+  }: Pick<TextServices, "vp" | "measureFontMetrics" | "sourceTextNodeIndexFor" | "projectedNodesFor">,
   el: Element,
   cs: CSSStyleDeclaration,
 ): TextCaptureResult => {
@@ -409,7 +411,7 @@ export const captureVerticalTextSegments = (
   _vertCtx.font = `${cs.fontStyle || "normal"} ${cs.fontWeight || "400"} ${cs.fontSize} ${cs.fontFamily}`;
   const measureNaturalWidth = (ch: string) => _vertCtx.measureText(ch).width;
   const allChars = []; // {ch, x, y, w, h, naturalW} viewport-page coords (NOT yet vp-adjusted)
-  for (const node of el.childNodes) {
+  for (const node of projectedNodesFor?.(el) ?? el.childNodes) {
     if (node.nodeType !== Node.TEXT_NODE) continue;
     const sourceRaw = node.textContent || "";
     const sourceTextNodeIndex = sourceTextNodeIndexFor == null ? undefined : sourceTextNodeIndexFor(node);
@@ -863,6 +865,7 @@ const buildTextSegmentsHandler = ({
   finalizeLineClampText,
   fontFamilyStackFor,
   sourceTextNodeIndexFor,
+  projectedNodesFor,
   liveTextInverseFor,
 }: TextServices) => {
   const measuredPaintAscents = new WeakSet<TextSegment>();
@@ -910,7 +913,7 @@ const buildTextSegmentsHandler = ({
   // captured position, wrapping rotated chars in a `<g transform=
   // "rotate(90, …)">`.
   const captureVertical = (el: Element, cs: CSSStyleDeclaration) =>
-    captureVerticalTextSegments({ vp, measureFontMetrics, sourceTextNodeIndexFor }, el, cs);
+    captureVerticalTextSegments({ vp, measureFontMetrics, sourceTextNodeIndexFor, projectedNodesFor }, el, cs);
 
   // DM-989: build the styled ::first-letter TextSegment from the chars selected
   // during the per-character loop (firstLetterChars) — pseudo font / color /
@@ -1036,7 +1039,7 @@ const buildTextSegmentsHandler = ({
       cs.textTransform === "math-auto" &&
       /^[a-zA-ZΑ-ΩΆΈΉΊΌΎΏα-ωϐϑϕϖϗϰϱϵ∂∇]$/u.test(_miText);
 
-    for (const node of el.childNodes) {
+    for (const node of projectedNodesFor?.(el) ?? el.childNodes) {
       if (node.nodeType !== Node.TEXT_NODE) continue;
       // text-transform — see header comment.
       const sourceRaw = node.textContent || "";

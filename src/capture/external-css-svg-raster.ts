@@ -25,6 +25,8 @@ export interface CssSvgIsolation {
   ancestors: Element[];
   slotAssignmentsChanged: boolean;
   slotListeners: AbortController;
+  textObserver?: MutationObserver;
+  textChanged?: boolean;
   /** Outside never-painted local definitions kept at their native style. */
   dependencies: Array<{ element: Element; styles: string }>;
   /** The ancestor path paints direct text or markers, hidden via text channels. */
@@ -97,6 +99,11 @@ export async function restoreExternalCssSvgIsolation(page: Page, identity: Ident
         let failures = 0;
         try {
           isolation.slotListeners.abort();
+        } catch {
+          failures++;
+        }
+        try {
+          isolation.textObserver?.disconnect();
         } catch {
           failures++;
         }
@@ -330,21 +337,14 @@ export async function rasterizeExternalCssSvgSurfaces(
               for (const child of flatChildren(element).reverse())
                 if (child instanceof Element) pendingOwner.push(child);
             }
-            const directText = (nodes: Iterable<Node>) =>
-              [...nodes].filter((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
             for (const [branch, expected] of state.projectedChildren) {
-              const nodes = flatChildren(branch);
-              const current = nodes.filter((node): node is Element => node instanceof Element);
+              const current = flatChildren(branch);
               if (current.length !== expected.length || current.some((node, i) => node !== expected[i]))
                 throw new Error("external CSS native owner projected branch changed");
-              if (owned.has(branch)) continue;
-              // The element walker serializes direct text from the physical
-              // parent. A projected host/slot cannot claim different text.
-              const text = directText(nodes);
-              const physical = directText(branch.childNodes);
-              if (text.length !== physical.length || text.some((node, i) => node !== physical[i]))
-                throw new Error("external CSS native projected branch has unsupported direct text");
             }
+            for (const [node, source] of state.projectedText)
+              if (!node.isConnected || node.data !== source.value || node.parentNode !== source.parent)
+                throw new Error("external CSS projected text changed before isolation");
             if (
               owner.getAnimations({ subtree: true }).length > 0 ||
               // Each tree scope reports only its own animations.
@@ -625,6 +625,16 @@ export async function rasterizeExternalCssSvgSurfaces(
             };
             // Publish ownership before any mutation, including a throwing setter.
             state.isolation = isolation;
+            if (state.projectedText.size > 0) {
+              const observer = new MutationObserver(() => {
+                isolation.textChanged = true;
+              });
+              isolation.textObserver = observer;
+              for (const [node, source] of state.projectedText) {
+                observer.observe(node, { characterData: true });
+                if (source.parent != null) observer.observe(source.parent, { childList: true });
+              }
+            }
             // A slot assignment can change and return to the same nodes between
             // screenshots. Listen in the actual root, including closed scopes.
             for (const root of roots)
@@ -664,8 +674,18 @@ export async function rasterizeExternalCssSvgSurfaces(
             // the stamp comes back fully transparent; an inherited-only change
             // or a plain re-attach keeps it). Clip paths survive; masks under
             // ancestor text refuse.
-            if (ancestorText && [...owned].some((element) => getComputedStyle(element).maskImage !== "none"))
-              throw new Error("external CSS native owner has unsupported ancestor text over a mask");
+            if ([...owned].some((element) => getComputedStyle(element).maskImage !== "none")) {
+              if (ancestorText) throw new Error("external CSS native owner has unsupported ancestor text over a mask");
+              // With even an unused document font face, removing the isolation
+              // sheet can clear the source mask after a correct PNG readback.
+              if (
+                document.fonts.size > 0 &&
+                [...state.projectedText.values()].some(
+                  (source) => source.parent !== source.flatParent && !owned.has(source.flatParent),
+                )
+              )
+                throw new Error("external CSS projected text cannot preserve a native mask with document font faces");
+            }
             const textHide = ancestorText
               ? ";color:transparent!important;-webkit-text-fill-color:transparent!important;-webkit-text-stroke-color:transparent!important;text-shadow:none!important;text-emphasis-color:transparent!important"
               : "";
@@ -839,6 +859,31 @@ export async function rasterizeExternalCssSvgSurfaces(
             const isolation = state.isolation;
             if (isolation.slotAssignmentsChanged)
               throw new Error("external CSS shadow ownership changed during slot assignment");
+            if (isolation.textChanged || isolation.textObserver?.takeRecords().length)
+              throw new Error("external CSS projected text changed during screenshot");
+            for (const [node, source] of state.projectedText) {
+              const current = [...source.range.getClientRects()];
+              if (
+                !node.isConnected ||
+                node.data !== source.value ||
+                node.parentNode !== source.parent ||
+                source.range.startContainer !== node ||
+                source.range.endContainer !== node ||
+                source.range.startOffset !== 0 ||
+                source.range.endOffset !== node.length ||
+                current.length !== source.rects.length ||
+                current.some((rect, i) => {
+                  const original = source.rects[i];
+                  return (
+                    rect.x !== original.x ||
+                    rect.y !== original.y ||
+                    rect.width !== original.width ||
+                    rect.height !== original.height
+                  );
+                })
+              )
+                throw new Error("external CSS projected text identity or geometry changed during screenshot");
+            }
             const roots = isolation.shadowSheets.map((saved) => saved.root);
             if (
               roots.length !== (state.authorShadowRoots ?? []).length ||
@@ -877,6 +922,11 @@ export async function rasterizeExternalCssSvgSurfaces(
               }
               return [...element.childNodes];
             };
+            for (const [branch, expected] of state.projectedChildren) {
+              const current = flatChildren(branch);
+              if (current.length !== expected.length || current.some((node, index) => node !== expected[index]))
+                throw new Error("external CSS native owner projected branch changed during screenshot");
+            }
             const ancestors: Element[] = [];
             for (let ancestor = flatParent(selected[0]); ancestor != null; ancestor = flatParent(ancestor))
               ancestors.push(ancestor);

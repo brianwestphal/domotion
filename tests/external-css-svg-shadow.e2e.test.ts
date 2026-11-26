@@ -11,6 +11,7 @@ import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { capturedTree } from "../src/test-support/captured-fixtures.js";
 import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
+import { FIXTURE_FONT_CSS, FIXTURE_MONO_FAMILY, registerFixtureFonts } from "./fixture-fonts.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 let server: Server;
@@ -21,6 +22,7 @@ const viewport = { x: 0, y: 0, width: 128, height: 96 };
 const sprite =
   '<svg xmlns="http://www.w3.org/2000/svg"><clipPath id="clip"><rect width="16" height="32"/></clipPath><mask id="mask" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect width="16" height="32" fill="white"/></mask></svg>';
 beforeAll(async () => {
+  registerFixtureFonts();
   server = createServer((request, response) => {
     if (request.url === "/sprite.svg") {
       response.setHeader("content-type", "image/svg+xml");
@@ -33,9 +35,20 @@ beforeAll(async () => {
     const ownerTag = params.has("custom") ? "x-css-owner" : "div";
     response.setHeader("content-type", "text/html");
     if (!params.has("readable")) response.setHeader("content-security-policy", "connect-src 'none'");
-    response.end(
-      `<!doctype html><body style="margin:0;background:white"><${hostTag} id="host" style="position:absolute;left:20px;top:20px;width:32px;height:32px"><${ownerTag} id="owner" style="${params.has("custom") ? "display:block;" : ""}width:32px;height:32px;background:red;${kind === "clip" ? "clip-path" : "mask-image"}:url(/sprite.svg#${kind})"></${ownerTag}></${hostTag}><div id="foreign" style="position:absolute;left:68px;top:20px;width:16px;height:16px"></div>`,
-    );
+    const owner = `<${ownerTag} id="owner" style="${params.has("custom") ? "display:block;" : ""}width:32px;height:32px;background:red;${kind === "clip" ? "clip-path" : "mask-image"}:url(/sprite.svg#${kind})"></${ownerTag}>`;
+    if (params.has("text")) {
+      // The resource owner is first connected in its final tree, after the
+      // document font has settled. Moving an already-painted mask after a
+      // webfont load can erase the source mask in Chromium.
+      const face = params.get("face");
+      response.end(
+        `<!doctype html>${face === "system" ? "" : `<style>${FIXTURE_FONT_CSS}</style>`}<body style="margin:0;background:white"><div id="host" style="position:absolute;left:20px;top:20px;width:100px;height:72px;color:blue;font:18px/24px ${face === "fixture" ? `'${FIXTURE_MONO_FAMILY}',monospace` : "Arial,sans-serif"}"></div><template id="source-owner">${owner}</template>`,
+      );
+    } else {
+      response.end(
+        `<!doctype html><body style="margin:0;background:white"><${hostTag} id="host" style="position:absolute;left:20px;top:20px;width:32px;height:32px">${owner}</${hostTag}><div id="foreign" style="position:absolute;left:68px;top:20px;width:16px;height:16px"></div>`,
+      );
+    }
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -294,21 +307,23 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
           await page.close();
         }
       });
+  async function svgPixels(tree: CapturedElement[], renderTextMode?: "embedded-font" | "system-font") {
+    const rendered = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height } });
+    try {
+      await rendered.setContent(
+        `<body style="margin:0">${elementTreeToSvg(tree, viewport.width, viewport.height, { renderTextMode })}`,
+      );
+      await rendered.evaluate(() => document.fonts.ready);
+      return await pixels(rendered);
+    } finally {
+      await rendered.close();
+    }
+  }
   /** The production capture's native raster for the owner, decoded. */
   async function capturedRaster(page: Page, expectedPage?: Buffer, selector = "body") {
     await freezeRealWorldDom(page);
     const result = await captureElementTreeWithWarnings(page, selector, viewport, {});
-    if (expectedPage) {
-      const rendered = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height } });
-      try {
-        await rendered.setContent(
-          `<body style="margin:0">${elementTreeToSvg(result.tree, viewport.width, viewport.height, {})}`,
-        );
-        expect((await pixels(rendered)).equals(expectedPage)).toBe(true);
-      } finally {
-        await rendered.close();
-      }
-    }
+    if (expectedPage) expect((await svgPixels(result.tree)).equals(expectedPage)).toBe(true);
     const rasters: NonNullable<CapturedElement["externalCssSvgRaster"]>[] = [];
     const visit = (nodes: CapturedElement[]) => {
       for (const node of nodes) {
@@ -321,7 +336,7 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
     };
     visit(result.tree);
     expect(rasters).toHaveLength(1);
-    return rasterOf(capturedTree([{ tag: "div", externalCssSvgRaster: rasters[0] }]));
+    return { ...(await rasterOf(capturedTree([{ tag: "div", externalCssSvgRaster: rasters[0] }]))), tree: result.tree };
   }
   for (const kind of ["clip", "mask"] as const)
     for (const mode of ["open", "closed"] as const)
@@ -482,21 +497,201 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
       await page.close();
     }
   });
-  it("refuses projected direct text whose physical source differs outside the captured owner", async () => {
-    const page = await pageFor();
+  async function textPage(
+    kind: string,
+    mode: ShadowRootMode,
+    placement: "direct" | "slot",
+    shadow: boolean,
+    face: "fixture" | "unused" | "system" = kind === "clip" ? "fixture" : "system",
+  ) {
+    const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height } });
+    await page.goto(`${origin}/?text&kind=${kind}&face=${face}`);
+    if (face === "fixture")
+      await page.evaluate(async (family) => {
+        await document.fonts.load(`18px "${family}"`);
+      }, FIXTURE_MONO_FAMILY);
+    const geometry = await page.evaluate(
+      ({ mode, placement, shadow }) => {
+        const host = document.querySelector("#host")!;
+        const owner = document.querySelector<HTMLTemplateElement>("#source-owner")!.content.firstElementChild!;
+        const root = shadow ? host.attachShadow({ mode }) : host;
+        root.append(owner);
+        const text = new Text("Hint");
+        let flatParent: Element | ShadowRoot = root;
+        let sibling: Node = text;
+        if (placement === "slot") {
+          const slot = document.createElement(shadow ? "slot" : "span");
+          slot.style.color = "rgb(0, 128, 0)";
+          if (shadow) host.append(text);
+          else slot.append(text);
+          flatParent = slot;
+          sibling = slot;
+        }
+        if (mode === "open" || placement === "direct") root.append(sibling);
+        else root.prepend(sibling);
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const { x, y, width, height } = range.getBoundingClientRect();
+        (globalThis as Record<string, unknown>).__projectedTextSource = {
+          text,
+          range,
+          parent: text.parentNode,
+          flatParent,
+          root,
+          siblings: [...root.childNodes],
+        };
+        const ownerRect = owner.getBoundingClientRect();
+        return { range: { x, y, width, height }, owner: { x: ownerRect.x, y: ownerRect.y } };
+      },
+      { mode, placement, shadow },
+    );
+    await page.waitForLoadState("networkidle");
+    return { page, ...geometry };
+  }
+  for (const kind of ["clip", "mask"] as const)
+    for (const mode of ["open", "closed"] as const)
+      for (const placement of ["direct", "slot"] as const)
+        it(`qualifies original ${placement} text beside a ${mode} projected ${kind} owner`, async () => {
+          const source = await textPage(kind, mode, placement, true);
+          const flat = await textPage(kind, mode, placement, false);
+          const page = source.page;
+          try {
+            const before = await pixels(page);
+            expect(before).toEqual(await pixels(flat.page));
+            expect(source.range).toEqual(flat.range);
+            const { x, y, width, height } = source.range;
+            let glyphPixels = 0,
+              red = 0;
+            for (let i = 0; i < before.length; i += 3) {
+              if (before[i] === 255 && before[i + 1] === 0 && before[i + 2] === 0) red++;
+              const ink = placement === "slot" ? 1 : 2;
+              if (before[i + ink] > before[i] && before[i + ink] > before[i + 3 - ink]) glyphPixels++;
+            }
+            expect(red).toBe(16 * 32);
+            expect(glyphPixels).toBeGreaterThan(0);
+            const refuses = placement === "direct" && kind === "mask";
+            let embeddedDiffPixels: number | undefined;
+            if (refuses) {
+              await expect(capturedRaster(page)).rejects.toThrow("unsupported ancestor text over a mask");
+            } else {
+              const actual = await capturedRaster(page, kind === "clip" ? before : undefined);
+              if (kind === "mask") {
+                expect((await svgPixels(actual.tree, "system-font")).equals(before)).toBe(true);
+                const flatCapture = await capturedRaster(flat.page);
+                const projected = await svgPixels(actual.tree, "embedded-font");
+                const reference = await svgPixels(flatCapture.tree, "embedded-font");
+                expect(projected.equals(reference)).toBe(true);
+                embeddedDiffPixels = 0;
+                for (let i = 0; i < before.length; i += 3)
+                  if (
+                    projected[i] !== before[i] ||
+                    projected[i + 1] !== before[i + 1] ||
+                    projected[i + 2] !== before[i + 2]
+                  )
+                    embeddedDiffPixels++;
+              }
+              const ownerOnly = await flatRaster(kind);
+              expect(actual.rect).toEqual([source.owner.x, source.owner.y, ...ownerOnly.rect.slice(2)]);
+              expect(actual.data).toEqual(ownerOnly.data);
+              const findText = (nodes: CapturedElement[]): CapturedElement[] =>
+                nodes.flatMap((node) => [...(node.text === "Hint" ? [node] : []), ...findText(node.children ?? [])]);
+              const texts = findText(actual.tree);
+              expect(texts).toHaveLength(1);
+              expect(texts[0]).toMatchObject({
+                tag: placement === "slot" ? "slot" : "div",
+                textLeft: x,
+                textTop: y,
+                textWidth: width,
+                textHeight: height,
+              });
+            }
+            const restored = await page.evaluate(() => {
+              const { text, range, parent, flatParent, root, siblings } = (globalThis as Record<string, unknown>)
+                .__projectedTextSource as {
+                text: Text;
+                range: Range;
+                parent: Node;
+                flatParent: Element | ShadowRoot;
+                root: ShadowRoot;
+                siblings: Node[];
+              };
+              const { x, y, width, height } = range.getBoundingClientRect();
+              return {
+                value: text.data,
+                connected: text.isConnected,
+                parent: text.parentNode === parent,
+                assignment:
+                  flatParent instanceof HTMLSlotElement
+                    ? flatParent.assignedNodes().includes(text)
+                    : flatParent === parent,
+                order:
+                  root.childNodes.length === siblings.length &&
+                  siblings.every((node, i) => root.childNodes[i] === node),
+                range: [range.startContainer === text, range.endContainer === text, range.startOffset, range.endOffset],
+                rect: { x, y, width, height },
+              };
+            });
+            expect(restored).toEqual({
+              value: "Hint",
+              connected: true,
+              parent: true,
+              assignment: true,
+              order: true,
+              range: [true, true, 0, 4],
+              rect: source.range,
+            });
+            expect((await pixels(page)).equals(before)).toBe(true);
+            evidence.push({
+              case: `projected-text-${kind}-${mode}-${placement}`,
+              ownerPixels: red,
+              glyphPixels,
+              embeddedDiffPixels,
+              range: source.range,
+              refused: refuses,
+              restored: true,
+            });
+          } finally {
+            await page.close();
+            await flat.page.close();
+          }
+        });
+  for (const [mode, face] of [
+    ["open", "fixture"],
+    ["closed", "unused"],
+  ] as const)
+    it(`refuses a native slotted mask before isolation with a ${face} document face in a ${mode} root`, async () => {
+      const { page, owner } = await textPage("mask", mode, "slot", true, face);
+      try {
+        const before = await pixels(page);
+        const offset = 3 * (owner.y * viewport.width + owner.x);
+        expect([...before.subarray(offset, offset + 3)]).toEqual([255, 0, 0]);
+        expect(await page.evaluate(() => document.fonts.size)).toBeGreaterThan(0);
+        await expect(capturedRaster(page)).rejects.toThrow("cannot preserve a native mask with document font faces");
+        expect((await pixels(page)).equals(before)).toBe(true);
+        evidence.push({ case: `projected-mask-${mode}-${face}-document-face`, refused: true, restored: true });
+      } finally {
+        await page.close();
+      }
+    });
+  it("refuses a projected Text changed and restored during the native readback", async () => {
+    const { page } = await textPage("clip", "closed", "direct", true);
     try {
-      await page.evaluate(() => {
-        const host = document.querySelector("#host")!,
-          owner = document.querySelector("#owner")!;
-        const root = host.attachShadow({ mode: "closed" });
-        root.append(owner, "foreign text");
-      });
       const before = await pixels(page);
       const { prime, tree } = await prepared(page);
+      const original = page.screenshot.bind(page);
+      const shot = vi.spyOn(page, "screenshot").mockImplementation(async (options) => {
+        await page.evaluate(() => {
+          const { text } = (globalThis as Record<string, unknown>).__projectedTextSource as { text: Text };
+          text.replaceData(0, 1, "M");
+          text.replaceData(0, 1, "H");
+        });
+        return original(options);
+      });
       try {
-        await expect(prime.rasterize(tree, viewport)).rejects.toThrow("projected branch has unsupported direct text");
+        await expect(prime.rasterize(tree, viewport)).rejects.toThrow("projected text changed during screenshot");
         expect(tree[0].externalCssSvgRaster?.dataUri).toBeUndefined();
       } finally {
+        shot.mockRestore();
         await prime.dispose();
       }
       expect(await pixels(page)).toEqual(before);
@@ -504,7 +699,6 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
       await page.close();
     }
   });
-
   for (const placement of ["slotted-painted", "foreign"] as const)
     it(`adopts the same native raster through production capture with a closed ${placement} root`, async () => {
       const flat = await pageFor();

@@ -2633,6 +2633,7 @@ async function captureElementTreeWithWarningsInternal(
         captureNeutralTextTree,
         captureReadOnlyTextTree,
         adoptReadOnlyTopology,
+        captureArgs.externalCssSvgKey,
       );
       if (textPaintProbe.verifyLiveTextFrame == null && authorShadowScope != null) {
         await disposeAll(authorShadowScope);
@@ -2668,7 +2669,15 @@ async function captureElementTreeWithWarningsInternal(
         if (!frameMatches) {
           await disposeAll(authorShadowScope, textPaintProbe);
           authorShadowScope = undefined;
-          textPaintProbe = await prepareTextPaintGeometry(page, selector, viewport, captureNeutralTextTree);
+          textPaintProbe = await prepareTextPaintGeometry(
+            page,
+            selector,
+            viewport,
+            captureNeutralTextTree,
+            undefined,
+            undefined,
+            captureArgs.externalCssSvgKey,
+          );
           await reverifyAnimationFrame();
           result = await captureWithText(textPaintProbe.key);
         }
