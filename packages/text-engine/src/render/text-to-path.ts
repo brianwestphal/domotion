@@ -365,6 +365,38 @@ function blinkRequestedSlopeDegrees(style: string | undefined): number {
   return Number.isFinite(deg) ? deg : BLINK_NORMAL_SLOPE;
 }
 
+interface FontFallbackRequest {
+  rawSlope?: number;
+  orientation?: number;
+  /** Metrics and glyph probes can select the CSS webfont without changing platform fallback. */
+  webfontRequestSlope?: number;
+}
+
+/** Retain the platform slant input while ranking webfonts by computed CSS degrees. */
+function resolveFontForComputedStyle(
+  family: string,
+  weight: number,
+  size: number,
+  style: string | undefined,
+  variationSettings?: Record<string, number>,
+  stretch?: number,
+  lang?: string,
+  cacheOptions?: DarwinFontCacheOptions,
+): FontInstance | null {
+  return resolveFont(
+    family,
+    weight,
+    size,
+    slantForStyle(style),
+    variationSettings,
+    stretch,
+    lang,
+    cacheOptions,
+    undefined,
+    blinkRequestedSlopeDegrees(style),
+  );
+}
+
 // macOS system font paths (the `darwin` column of the per-platform path
 // tables — see DM-258 / resolveFontSpec below for Linux + Windows). TTC
 // collections require picking a sub-font by postscript name — fontkit returns
@@ -458,10 +490,13 @@ export function splitTextIntoGlyphPathRuns(
   features?: string[],
   /** CSS paragraph bidi context applied before Blink's script/run segmentation. */
   bidiOverride?: BidiParagraphContext,
-  /** Exact Blink cache-key request state; neither field changes shaping. */
-  fallbackRequest?: { rawSlope: number; orientation: number },
+  /** Blink request state for platform fallback keys and webfont matching. */
+  fallbackRequest?: FontFallbackRequest,
 ): FontRun[] {
-  const semanticContext = createFontFallbackSemanticContext(fontFamily);
+  const semanticContext = createFontFallbackSemanticContext(
+    fontFamily,
+    fallbackRequest?.webfontRequestSlope ?? fallbackRequest?.rawSlope,
+  );
   const clusterEnabled = clusterFallbackEnabled();
   if (clusterEnabled) {
     return splitTextIntoFontRunsShaped(
@@ -1079,7 +1114,7 @@ function buildPathFontRuns(
     lang: string | undefined;
     bidiOverride: BidiParagraphContext | undefined;
     fontVariantEmoji: FontVariantEmojiOverride | undefined;
-    fallbackRequest: { rawSlope: number; orientation: number } | undefined;
+    fallbackRequest: FontFallbackRequest | undefined;
     cacheOptions: DarwinFontCacheOptions | undefined;
   },
 ): FontRun[] {
@@ -1188,7 +1223,7 @@ function renderTextPathRuns(
    * fill-inheriting behavior.
    */
   paint?: TextRunPaintOptions,
-  fallbackRequest?: { rawSlope: number; orientation: number },
+  fallbackRequest?: FontFallbackRequest,
   textSpacingTrim?: string,
   hanKerningEdges?: HanKerningLineEdges,
   cacheOptions?: DarwinFontCacheOptions,
@@ -1203,7 +1238,16 @@ function renderTextPathRuns(
     variationSettings,
     cacheOptions,
   };
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang, cacheOptions);
+  const primaryFont = resolveFontForComputedStyle(
+    fontFamily,
+    weight,
+    fontSize,
+    fontStyle,
+    variationSettings,
+    stretch,
+    lang,
+    cacheOptions,
+  );
   if (primaryFont == null) return null;
 
   const primaryFontKey = resolveFontKey(fontFamily, lang, description);
@@ -1228,7 +1272,7 @@ function renderTextPathRuns(
       lang,
       bidiOverride,
       fontVariantEmoji,
-      fallbackRequest,
+      fallbackRequest: { ...fallbackRequest, webfontRequestSlope: blinkRequestedSlopeDegrees(fontStyle) },
       cacheOptions,
     },
   );
@@ -1877,7 +1921,7 @@ export function textToPathMarkup(
   fontVariantEmoji?: FontVariantEmojiOverride,
   fontSynthesis?: FontSynthesisAllowance,
   paint?: TextRunPaintOptions,
-  fallbackRequest?: { rawSlope: number; orientation: number },
+  fallbackRequest?: FontFallbackRequest,
   textSpacingTrim?: string,
   hanKerningEdges?: HanKerningLineEdges,
   cacheOptions?: DarwinFontCacheOptions,
@@ -2352,7 +2396,7 @@ export function insertSyntheticDottedCircles(
    *  An explicit U+25CC makes the syllable based, so HarfBuzz does not insert a
    *  second circle. */
   shapeUncoveredOrphansNatively = false,
-  fallbackRequest?: { rawSlope: number; orientation: number },
+  fallbackRequest?: FontFallbackRequest,
   cacheOptions?: DarwinFontCacheOptions,
 ): { text: string; xOffsets: number[] | undefined } {
   // Fast path: nothing to do when the text has no combining marks AND the
@@ -2365,7 +2409,10 @@ export function insertSyntheticDottedCircles(
   // authoritative (it vetoes the static block heuristic), so it maps to an empty
   // set, NOT null. Only `undefined` (no probe data) falls back to the heuristic.
   const coveredCircleSet = dottedCircleMarks != null ? new Set(dottedCircleMarks) : null;
-  const semanticContext = createFontFallbackSemanticContext(fontFamily);
+  const semanticContext = createFontFallbackSemanticContext(
+    fontFamily,
+    fallbackRequest?.webfontRequestSlope ?? fallbackRequest?.rawSlope,
+  );
   const stretch = stretchPercent(fontStretch);
   const description = {
     weight,
@@ -2381,7 +2428,18 @@ export function insertSyntheticDottedCircles(
   // it (Blink's kFontFamily stage), so a mark covered only by a later-declared
   // family is "covered" here exactly when the emitter will paint it.
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang, description);
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang, cacheOptions);
+  const primaryFont = resolveFont(
+    fontFamily,
+    weight,
+    fontSize,
+    slant,
+    variationSettings,
+    stretch,
+    lang,
+    cacheOptions,
+    undefined,
+    semanticContext.webfontRequestSlope,
+  );
   if (primaryFont == null) return { text, xOffsets };
 
   // Resolve the dotted circle's own advance (CSS px) so the displaced mark can
@@ -2802,9 +2860,12 @@ function splitTextIntoFontRuns(
   /** OpenType features used by Blink's shape-then-requeue coverage verdict. */
   features?: string[],
   bidiOverride?: BidiParagraphContext,
-  fallbackRequest?: { rawSlope: number; orientation: number },
+  fallbackRequest?: FontFallbackRequest,
 ): FontRun[] {
-  const semanticContext = createFontFallbackSemanticContext(fontFamily);
+  const semanticContext = createFontFallbackSemanticContext(
+    fontFamily,
+    fallbackRequest?.webfontRequestSlope ?? fallbackRequest?.rawSlope,
+  );
   // Default: fallback at shaped-cluster granularity — Blink's shape-then-
   // requeue mechanism (`ExtractShapeResults`, harfbuzz_shaper.cc:627-787, rev
   // 7d859f27) instead of the per-codepoint cmap walk below. The state machine
@@ -2893,6 +2954,7 @@ function splitTextIntoFontRuns(
           cp,
           variationSettings,
           stretch,
+          semanticContext.webfontRequestSlope,
         );
         if (cpVariant != null && glyphIdForCp(cpVariant, cp) !== 0) {
           continue;
@@ -3333,7 +3395,7 @@ function renderEmbeddedGlyphRuns(
   fontSynthesis?: FontSynthesisAllowance,
   /** CSS paragraph bidi context applied before Blink's script/run segmentation. */
   bidiOverride?: BidiParagraphContext,
-  fallbackRequest?: { rawSlope: number; orientation: number },
+  fallbackRequest?: FontFallbackRequest,
   authoredTextRendering?: string,
   textSpacingTrim?: string,
   hanKerningEdges?: HanKerningLineEdges,
@@ -3348,7 +3410,16 @@ function renderEmbeddedGlyphRuns(
     variationSettings,
     cacheOptions,
   };
-  const primaryFont = resolveFont(fontFamily, weight, fontSize, slant, variationSettings, stretch, lang, cacheOptions);
+  const primaryFont = resolveFontForComputedStyle(
+    fontFamily,
+    weight,
+    fontSize,
+    fontStyle,
+    variationSettings,
+    stretch,
+    lang,
+    cacheOptions,
+  );
   if (primaryFont == null) return { markup: null, decline: { reason: "primary-font-unresolved" } };
   const primaryFontKey = resolveFontKey(fontFamily, lang, description);
   const fontKeyChain = resolveFontKeyChain(fontFamily, lang, description);
@@ -3374,7 +3445,7 @@ function renderEmbeddedGlyphRuns(
     fontFamily,
     features,
     bidiOverride,
-    fallbackRequest,
+    { ...fallbackRequest, webfontRequestSlope: blinkRequestedSlopeDegrees(fontStyle) },
   );
   adjustFallbackRunFonts(runs, primaryFont, weight, fontSize, slant, stretch, cacheOptions);
   if (runs.length === 0) return { markup: null, decline: { reason: "empty-shaped-runs" } };
@@ -3735,6 +3806,7 @@ function buildEmbeddedInstanceKey(
   run: FontRun,
   srcInfo: ReturnType<typeof getFontSourceInfo>,
   shearFactor: number,
+  webfontSourceId: string | undefined,
 ): string {
   const { variationSettings, primaryCutOpsz, weight, slant } = ctx;
   const fvsTuple =
@@ -3793,7 +3865,10 @@ function buildEmbeddedInstanceKey(
   // shears the outline and therefore remains keyed.
   const synthPart = `|sh=${shearFactor}`;
   const sizeAdjustPart = run.font.fontSizeAdjustScale == null ? "" : `|fsa=${run.font.fontSizeAdjustScale}`;
-  return `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}${sizeAdjustPart}`;
+  // Distinct descriptor groups can carry different webfont bytes for the same
+  // family, weight and legacy slant. Their glyph IDs belong to separate faces.
+  const webfontPart = webfontSourceId == null ? "" : `|src=${webfontSourceId}`;
+  return `${run.fontKey}|${weightPart}|s=${slant}${fvsTuple}${cutTuple}${axesTuple}${synthPart}${sizeAdjustPart}${webfontPart}`;
 }
 
 // DM-906 + DM-940: fontkit returns shaped glyphs in VISUAL order for
@@ -4030,7 +4105,8 @@ function buildEmbeddedRunSegment(
   const shearFactor = faceNeedsSyntheticOblique(run.font, blinkRequestedSlopeDegrees(fontStyle), fontSynthesis)
     ? OBLIQUE_SHEAR
     : 0;
-  const instanceKey = buildEmbeddedInstanceKey(ctx, run, srcInfo, shearFactor);
+  const webfontSource = webfontEmbeddingSourceFor(run.font);
+  const instanceKey = buildEmbeddedInstanceKey(ctx, run, srcInfo, shearFactor, webfontSource?.id);
 
   // DM-1714/DM-1716: tag the run with the sfnt file it resolved to, so the
   // embedded builder can hb-subset the ORIGINAL (hinted) font instead of the
@@ -4067,7 +4143,7 @@ function buildEmbeddedRunSegment(
     nativeCursiveOriginCss: cursive.nativeCursiveOriginCss,
     instanceKey,
     hintedSource: srcInfo ?? webfontHintedSourceFor(run.font),
-    webfontSource: webfontEmbeddingSourceFor(run.font),
+    webfontSource,
     shearFactor,
     targetStrikeCommandsBySize,
     ordinaryTextRenderingAttr,
@@ -4585,7 +4661,7 @@ function renderTextAsEmbedded(
   fontVariantEmoji?: FontVariantEmojiOverride,
   fontSynthesis?: FontSynthesisAllowance,
   bidiOverride?: BidiParagraphContext,
-  fallbackRequest?: { rawSlope: number; orientation: number },
+  fallbackRequest?: FontFallbackRequest,
   authoredTextRendering?: string,
   textSpacingTrim?: string,
   hanKerningEdges?: HanKerningLineEdges,
@@ -4839,11 +4915,11 @@ function selectedGlyphRasterSpansInHanContext(
     variationSettings: options.variationSettings,
     cacheOptions: options.fontCacheOptions,
   };
-  const primaryFont = resolveFont(
+  const primaryFont = resolveFontForComputedStyle(
     fontFamily,
     weight,
     fontSize,
-    slant,
+    options.fontStyle,
     options.variationSettings,
     stretch,
     options.lang,
@@ -4867,6 +4943,8 @@ function selectedGlyphRasterSpansInHanContext(
     options.fontVariantEmoji,
     fontFamily,
     options.features,
+    undefined,
+    { webfontRequestSlope: blinkRequestedSlopeDegrees(options.fontStyle) },
   );
   const out: Array<{
     start: number;
@@ -5240,11 +5318,11 @@ function renderTextAsPathInHanContext(text: string, x: number, y: number, option
       : { reason: "partial-source-outline", degradedSpans: result.ownership.degradedGlyphs }),
   });
 
-  const font = resolveFont(
+  const font = resolveFontForComputedStyle(
     fontFamily,
     weight,
     fontSize,
-    slant,
+    fontStyle,
     variationSettings,
     stretch,
     lang,
@@ -5477,12 +5555,11 @@ function getDecorationMetricsInHanContext(
     flipUnderlineAndOverline = false,
   } = decoration;
   const weight = cssWeightOf(fontOptions.fontWeight);
-  const slant = slantForStyle(fontStyle);
-  const font = resolveFont(
+  const font = resolveFontForComputedStyle(
     fontFamily,
     weight,
     fontSize,
-    slant,
+    fontStyle,
     variationSettings,
     stretchPercent(fontStretch),
     fontOptions.lang,
@@ -5643,12 +5720,11 @@ export function fontSpaceAdvancePx(fontOptions: TextFontOptions): number {
 function fontSpaceAdvancePxInHanContext(fontOptions: TextFontOptions): number {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
-  const slant = slantForStyle(fontStyle);
-  const font = resolveFont(
+  const font = resolveFontForComputedStyle(
     fontFamily,
     weight,
     fontSize,
-    slant,
+    fontStyle,
     variationSettings,
     stretchPercent(fontStretch),
     fontOptions.lang,
@@ -5699,11 +5775,11 @@ function measureTruncationMarkerInHanContext(
   fontOptions: TextFontOptions,
 ): { text: string; widthPx: number } | null {
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
-  const font = resolveFont(
+  const font = resolveFontForComputedStyle(
     fontFamily,
     cssWeightOf(fontOptions.fontWeight),
     fontSize,
-    slantForStyle(fontStyle),
+    fontStyle,
     variationSettings,
     stretchPercent(fontStretch),
     fontOptions.lang,
@@ -5734,12 +5810,11 @@ function measureLastGlyphRsbInHanContext(text: string, fontOptions: TextFontOpti
   if (trimmed === "") return 0;
   const { fontFamily, fontSize, fontStyle, fontStretch, variationSettings } = fontOptions;
   const weight = cssWeightOf(fontOptions.fontWeight);
-  const slant = slantForStyle(fontStyle);
-  const font = resolveFont(
+  const font = resolveFontForComputedStyle(
     fontFamily,
     weight,
     fontSize,
-    slant,
+    fontStyle,
     variationSettings,
     stretchPercent(fontStretch),
     fontOptions.lang,
@@ -5789,11 +5864,11 @@ function measureEmphasisMarkMetricsInHanContext(
     variationSettings,
     cacheOptions: fontOptions.fontCacheOptions,
   };
-  const primaryFont = resolveFont(
+  const primaryFont = resolveFontForComputedStyle(
     fontFamily,
     weight,
     fontSize,
-    slant,
+    fontStyle,
     variationSettings,
     stretch,
     lang,
@@ -5815,6 +5890,9 @@ function measureEmphasisMarkMetricsInHanContext(
     stretch,
     undefined,
     fontFamily,
+    undefined,
+    undefined,
+    { webfontRequestSlope: blinkRequestedSlopeDegrees(fontStyle) },
   );
   const run = runs[0];
   if (run == null) return null;
@@ -5897,11 +5975,11 @@ function measureInkMetricsInHanContext(
     variationSettings,
     cacheOptions: fontOptions.fontCacheOptions,
   };
-  const primaryFont = resolveFont(
+  const primaryFont = resolveFontForComputedStyle(
     fontFamily,
     weight,
     fontSize,
-    slant,
+    fontStyle,
     variationSettings,
     stretch,
     lang,
@@ -5925,6 +6003,8 @@ function measureInkMetricsInHanContext(
     undefined,
     fontFamily,
     features,
+    undefined,
+    { webfontRequestSlope: blinkRequestedSlopeDegrees(fontStyle) },
   );
   let maxY = -Infinity; // ink top    (font units, y-up)
   let minY = Infinity; // ink bottom (font units, y-up; negative = below baseline)
@@ -6006,11 +6086,11 @@ function renderStretchyFenceGlyphInHanContext(
   // resolver (DM-1068). Uncovered → keep the primary (its `.notdef`); the caller
   // falls back to the synthesized path when the layout has no outline.
   const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang, description);
-  const primaryFont = resolveFont(
+  const primaryFont = resolveFontForComputedStyle(
     fontFamily,
     weight,
     fontSize,
-    slant,
+    fontStyle,
     undefined,
     stretch,
     fontOptions.lang,
@@ -6031,6 +6111,9 @@ function renderStretchyFenceGlyphInHanContext(
     stretch,
     undefined,
     fontFamily,
+    undefined,
+    undefined,
+    createFontFallbackSemanticContext(fontFamily, blinkRequestedSlopeDegrees(fontStyle)),
   );
   const useKey = res.covered ? res.key : primaryFontKey;
   const font = res.covered
@@ -6149,11 +6232,11 @@ function renderRadicalGlyphInHanContext(
   // (DM-1068). Uncovered → keep the primary; the caller falls back to the
   // synthesized path when the layout has no outline.
   const primaryFontKey = resolveFontKey(fontFamily, fontOptions.lang, description);
-  const primaryFont = resolveFont(
+  const primaryFont = resolveFontForComputedStyle(
     fontFamily,
     weight,
     fontSize,
-    slant,
+    fontStyle,
     undefined,
     stretch,
     fontOptions.lang,
@@ -6174,6 +6257,9 @@ function renderRadicalGlyphInHanContext(
     stretch,
     undefined,
     fontFamily,
+    undefined,
+    undefined,
+    createFontFallbackSemanticContext(fontFamily, blinkRequestedSlopeDegrees(fontStyle)),
   );
   const useKey = res.covered ? res.key : primaryFontKey;
   const font = res.covered
@@ -6459,12 +6545,11 @@ function computeSkipInkGapsInHanContext(
     skipInkMode = "auto",
   } = skipInk;
   const weight = cssWeightOf(fontOptions.fontWeight);
-  const slant = slantForStyle(fontStyle);
-  const font = resolveFont(
+  const font = resolveFontForComputedStyle(
     fontFamily,
     weight,
     fontSize,
-    slant,
+    fontStyle,
     variationSettings,
     stretchPercent(fontStretch),
     fontOptions.lang,

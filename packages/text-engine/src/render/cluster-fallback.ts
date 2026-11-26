@@ -1096,6 +1096,7 @@ function nextSegmentedWebfontCandidate(
         slant,
         entryKey === primaryFontKey ? ctx.variationSettings : undefined,
         ctx.stretch,
+        ctx.semanticContext.webfontRequestSlope ?? ctx.opts?.fallbackRawSlope,
       ),
       index: 0,
     };

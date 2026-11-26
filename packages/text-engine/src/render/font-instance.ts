@@ -870,13 +870,22 @@ function resolveRegisteredFontInstance(
   variationSettings: Record<string, number> | undefined,
   stretch: number,
   primaryLookupCharacter?: number,
+  requestSlope?: number,
 ): RegisteredFontResolution {
   if (key.startsWith("webfont:")) {
     return {
       handled: true,
       instance:
         primaryLookupCharacter == null
-          ? pickWebfontVariant(key.slice("webfont:".length), weight, fontSize, slant, variationSettings, stretch)
+          ? pickWebfontVariant(
+              key.slice("webfont:".length),
+              weight,
+              fontSize,
+              slant,
+              variationSettings,
+              stretch,
+              requestSlope,
+            )
           : pickWebfontPrimaryForCharacter(
               key.slice("webfont:".length),
               weight,
@@ -885,6 +894,7 @@ function resolveRegisteredFontInstance(
               primaryLookupCharacter,
               variationSettings,
               stretch,
+              requestSlope,
             ),
     };
   }
@@ -935,7 +945,8 @@ function instantiateResolvedFont(
   semanticContext: FontFallbackSemanticContext = createFontFallbackSemanticContext(),
 ): FontInstance | null {
   // Webfont keys (`webfont:<lowercased family>`) resolve through the runtime
-  // registry rather than the on-disk FONT_PATHS table.
+  // registry rather than the on-disk FONT_PATHS table. Capability selection
+  // resolves the face before the system instance cache below.
   const registered = resolveRegisteredFontInstance(
     key,
     weight,
@@ -944,6 +955,7 @@ function instantiateResolvedFont(
     variationSettings,
     stretch,
     semanticContext.primaryLookupCharacter,
+    semanticContext.webfontRequestSlope,
   );
   if (registered.handled) return registered.instance;
   // `localalias:<family>` — the family was declared via @font-face local() and

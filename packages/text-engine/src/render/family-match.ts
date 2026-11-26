@@ -2454,10 +2454,11 @@ export function resolveFont(
   lang?: string,
   cacheOptions?: DarwinFontDescription["cacheOptions"],
   primaryLookupCharacter?: number,
+  webfontRequestSlope?: number,
 ): FontInstance | null {
   const matchSize = computedFontSize(variationSettings, fontSize);
   const description = { weight: fontWeight, size: matchSize, slant, stretch, variationSettings, cacheOptions };
-  const semanticContext = createFontFallbackSemanticContext(fontFamily);
+  const semanticContext = createFontFallbackSemanticContext(fontFamily, webfontRequestSlope);
   semanticContext.primaryLookupCharacter = primaryLookupCharacter;
   // A generated family-name table can recognize a face that is absent from
   // this particular host inventory. Blink's kFontFamily stage keeps walking

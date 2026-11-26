@@ -1,9 +1,18 @@
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import type { Browser, Page } from "@playwright/test";
-import { __pickWebfontVariantMetaForTest, resolveFont } from "@domotion/text-engine/testing";
-import { launchChromium } from "../src/capture/index.js";
+import {
+  __pickWebfontVariantMetaForTest,
+  getTextRunProvenance,
+  resetGeneration,
+  resetTextRunProvenance,
+  resolveFont,
+  setTextRunProvenanceEnabled,
+} from "@domotion/text-engine/testing";
+import { captureElementTree, discoverAndRegisterWebfonts, launchChromium } from "../src/capture/index.js";
+import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { clearWebfonts, registerWebfont } from "../src/render/font-resolution.js";
+import { renderTextAsPath } from "../src/render/text-to-path.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // Two @font-face capability groups that differ only in slope, discriminated by
@@ -29,12 +38,16 @@ async function nativeFace(page: Page, css: string, requestStyle: string): Promis
     `<style>${css} #t{font:400 20px Slope;font-style:${requestStyle};font-synthesis:none}</style><span id="t">Rag</span>`,
   );
   await page.evaluate(() => document.fonts.ready);
+  return chromiumFaceForNode(page, "#t");
+}
+
+async function chromiumFaceForNode(page: Page, selector: string): Promise<string> {
   const cdp = await page.context().newCDPSession(page);
   try {
     await cdp.send("DOM.enable");
     await cdp.send("CSS.enable");
     const { root } = await cdp.send("DOM.getDocument");
-    const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: "#t" });
+    const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector });
     const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", { nodeId });
     expect(fonts).toHaveLength(1);
     expect(fonts[0].isCustomFont).toBe(true);
@@ -139,6 +152,106 @@ it.each([
     // it disagrees with Chrome in exactly one of the two source orders.
     expect(legacyDisagreements).toBe(1);
   } finally {
+    clearWebfonts();
+    await page.close();
+  }
+});
+
+it("matches Chromium's computed oblique slope through capture and SVG rendering (DM-FM0H95)", async () => {
+  const viewport = { width: 400, height: 220 };
+  const page = await browser.newPage({ viewport });
+  const rows = [
+    { id: "negative", text: "Negative", style: "oblique -10deg", face: "JetBrainsMono-Regular" },
+    { id: "bare", text: "Bare", style: "oblique", face: "IBMPlexSerif-Regular" },
+    { id: "italic", text: "Italic", style: "italic", face: "IBMPlexSerif-Regular" },
+    { id: "fallback", text: "Fallback", style: "oblique -10deg", face: "JetBrainsMono-Regular" },
+  ] as const;
+  const rule = (family: string, bytes: Buffer, style: string, extras = "") =>
+    `@font-face{font-family:${family};src:url(data:font/ttf;base64,${bytes.toString("base64")});font-style:${style};${extras}}`;
+  try {
+    clearWebfonts();
+    await page.setContent(`<!doctype html><style>
+      ${rule("Slope", faces.mono, "oblique -20deg")}
+      ${rule("Slope", faces.serif, "italic")}
+      ${rule("First", faces.serif, "normal", "unicode-range: U+0058")}
+      p{font:400 20px Slope;font-synthesis:none}
+      #fallback{font-family:First,Slope}
+      #load-first{font:400 20px First}
+    </style><div id="load-first">X</div>${rows.map(({ id, text, style }) => `<p id="${id}" style="font-style:${style}">${text}</p>`).join("")}`);
+    await page.evaluate(() => document.fonts.ready);
+    expect(await chromiumFaceForNode(page, "#load-first")).toBe("IBMPlexSerif-Regular");
+    const native = new Map<string, string>();
+    for (const row of rows) {
+      const computed = await page.locator(`#${row.id}`).evaluate((node) => getComputedStyle(node).fontStyle);
+      // Some Chromium builds serialize the bare keyword as its italic
+      // sentinel. Explicit angles must survive computed-style serialization.
+      expect(row.id === "bare" ? ["oblique", "italic"] : [row.style]).toContain(computed);
+      const face = await chromiumFaceForNode(page, `#${row.id}`);
+      expect(face).toBe(row.face);
+      native.set(row.text, face);
+    }
+    await discoverAndRegisterWebfonts(page);
+    // Force the declared fallback row to start from a registered family whose
+    // segment really excludes its characters.
+    expect(resolveFont("First", 400, 20)?.postscriptName).toBe("IBMPlexSerif-Regular");
+    // Leaving out the angle reproduces the old renderer request and picks the
+    // other native face, so this fixture discriminates the slope input.
+    expect(resolveFont("Slope", 400, 20, 14)?.postscriptName).toBe(native.get("Italic"));
+    expect(native.get("Negative")).not.toBe(native.get("Italic"));
+    const tree = await captureElementTree(page, "body", { x: 0, y: 0, ...viewport });
+    for (const mode of ["paths", "embedded-font"] as const) {
+      resetGeneration();
+      resetTextRunProvenance();
+      setTextRunProvenanceEnabled(true);
+      const svg = elementTreeToSvg(tree, viewport.width, viewport.height, { renderTextMode: mode });
+      expect(svg).toContain("<svg");
+      for (const row of rows) {
+        const run = getTextRunProvenance().runs.find((candidate) => candidate.emittedText === row.text);
+        expect(run?.selected.postscriptName, `${mode} ${row.id}`).toBe(native.get(row.text));
+      }
+      if (mode === "embedded-font") {
+        // The emitted subset cache must not collapse two source faces that
+        // share a family and the same legacy nonzero slant.
+        const familyFor = (label: string) =>
+          new RegExp(`<g[^>]*aria-label="${label}"[^>]*>.*?<text[^>]*font-family="([^"]+)"`, "s").exec(svg)?.[1];
+        const negative = familyFor("Negative");
+        const bare = familyFor("Bare");
+        expect(negative).toMatch(/^dmf\d+$/);
+        expect(bare).toMatch(/^dmf\d+$/);
+        expect(negative).not.toBe(bare);
+        expect(familyFor("Italic")).toBe(bare);
+      }
+    }
+    // Also exercise the literal keyword when Chromium serialized the
+    // authored bare oblique as italic.
+    resetTextRunProvenance();
+    renderTextAsPath("Bare", 0, 24, {
+      fontFamily: "Slope",
+      fontStyle: "oblique",
+      fontWeight: "400",
+      fontSize: 20,
+      fill: "#000",
+    });
+    expect(getTextRunProvenance().runs.find((run) => run.emittedText === "Bare")?.selected.postscriptName).toBe(
+      native.get("Bare"),
+    );
+
+    // Exercise the independent legacy per-codepoint fallback path with the
+    // exact same captured source and native face oracle.
+    const previous = process.env.DOMOTION_CLUSTER_FALLBACK;
+    process.env.DOMOTION_CLUSTER_FALLBACK = "0";
+    try {
+      resetGeneration();
+      resetTextRunProvenance();
+      elementTreeToSvg(tree, viewport.width, viewport.height, { renderTextMode: "paths" });
+      const fallback = getTextRunProvenance().runs.find((run) => run.emittedText === "Fallback");
+      expect(fallback?.selected.postscriptName).toBe(native.get("Fallback"));
+    } finally {
+      if (previous == null) delete process.env.DOMOTION_CLUSTER_FALLBACK;
+      else process.env.DOMOTION_CLUSTER_FALLBACK = previous;
+    }
+  } finally {
+    setTextRunProvenanceEnabled(false);
     clearWebfonts();
     await page.close();
   }

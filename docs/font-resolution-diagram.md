@@ -1192,7 +1192,7 @@ the angle.
 ```mermaid
 flowchart TD
   subgraph WF["webfontRegistry — Map&lt;family, WebfontVariant[]&gt;"]
-    W0["pickWebfontVariant(family, weight, size, slant, fvs, stretch)"] --> W1["webfontDescriptorGroup:<br/>select descriptor capabilities BEFORE ranges<br/>Blink IsBetterMatchForRequest, compared in order:<br/>StretchDistance, StyleDistance (slope range vs request<br/>slope, 14° italic threshold), WeightDistance<br/>(font_selection_algorithm.cc:30-159);<br/>descriptor-less inference kept outside<br/>the capabilities key; distinct keys that TIE resolve to<br/>the first in FontFaceCache HashTable bucket order<br/>(font-face-cache-order.ts: rapidhash of the key,<br/>WTF HashTable insert/rehash; font_face_cache.cc:227-258)"]
+    W0["Primary, per-codepoint and segmented webfont pickers<br/>receive the computed CSS request slope"] --> W1["webfontDescriptorGroup:<br/>select descriptor capabilities BEFORE ranges<br/>Blink IsBetterMatchForRequest, compared in order:<br/>StretchDistance, StyleDistance (slope range vs request<br/>slope, 14° italic threshold), WeightDistance<br/>(font_selection_algorithm.cc:30-159);<br/>descriptor-less inference kept outside<br/>the capabilities key; distinct keys that TIE resolve to<br/>the first in FontFaceCache HashTable bucket order<br/>(font-face-cache-order.ts: rapidhash of the key,<br/>WTF HashTable insert/rehash; font_face_cache.cc:227-258)"]
     W1 --> WL["ONLY inside selected group:<br/>prefer Latin-covering primary partition;<br/>range preference cannot cross descriptors"]
     WL --> W2["best → applyVariationAxes(…, stretch,<br/>{wdthCapabilities, wghtCapabilities: descriptor caps, wdthAlways: true})<br/>wdth ALWAYS pushed for a variable webfont, clamped to the<br/>declared descriptor caps — else the font's own axis range;<br/>wght clamped the same way: declared font-weight caps first,<br/>else the quantized axis range<br/>(FontSelectionValue quarter units, font_selection_types.h:40-105)"]
     W2 --> W3["tagWebfontInstance: stamp WebfontVariant.synthesisFace onto<br/>FontInstance.webfontFace = {declaredWeightCaps, wghtAxisMax, baseIsBold,<br/>declaredStyleCaps, slntAxisMin, baseIsItalic}<br/>→ webfontSyntheticBold() / webfontSyntheticItalic() at the faux-bold/-italic seam<br/>(css_segmented_font_face.cc:116-123 +<br/>font_custom_platform_data.cc:129-154, 188-193, 289-293)"]
@@ -1223,10 +1223,14 @@ flowchart TD
   with slopes quantized onto the FontSelectionValue quarter grid. Style is
   the face's `font-style` slope range (`italic` / bare `oblique` = 14°,
   `oblique a b` = the sorted range, auto = 0°) scored against the request
-  slope. The pickers take an optional CSS-degree `requestSlope`; without it
-  the renderer's `slant` stands in (0 → 0°, nonzero → 14°), which is exact
-  for `normal`, `italic`, bare `oblique` and `oblique 14deg` only, because
-  `slantForStyle` drops other oblique angles before they reach the pickers.
+  slope. The renderer sends `blinkRequestedSlopeDegrees(fontStyle)` to
+  primary, per-codepoint and segmented webfont selection. Explicit
+  `oblique <angle>` values retain their CSS degrees. Numeric picker calls
+  without a CSS request slope use 0° for zero slant and 14° otherwise.
+  The native system fallback, synthetic styling and variation axes retain
+  their existing inputs. Embedded subsets include the selected webfont's
+  source-byte identity in their instance key, so different face buffers can
+  carry the same glyph ID independently.
   The Domotion descriptor-less inference routes the CSS-less
   resource-discovery path's faces by their OS/2 weight and italic bit (only
   faces `CSS.fontsUpdated` does not cover; covered faces carry their

@@ -75,10 +75,15 @@ export interface FontFallbackSemanticContext {
   /** Isolated font-metric lookup: filter the selected segmented face's range,
    * without requiring that a non-segmented font contain the glyph. */
   primaryLookupCharacter?: number;
+  /** Computed CSS slope for webfont capability selection only. */
+  webfontRequestSlope?: number;
 }
 
-export function createFontFallbackSemanticContext(declaredFamily?: string): FontFallbackSemanticContext {
-  return { declaredFamily, genericFamily: blinkGenericFamilyFromDeclaredStack(declaredFamily) };
+export function createFontFallbackSemanticContext(
+  declaredFamily?: string,
+  webfontRequestSlope?: number,
+): FontFallbackSemanticContext {
+  return { declaredFamily, genericFamily: blinkGenericFamilyFromDeclaredStack(declaredFamily), webfontRequestSlope };
 }
 
 /**

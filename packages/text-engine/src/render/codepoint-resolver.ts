@@ -515,7 +515,16 @@ function fallbackChainInstance(request: FontRequest, key: string): FontInstance 
     const family = key.slice("webfont:".length);
     // A range-excluded selected group skips this CSS family. Rematerializing
     // the primary here would bypass the exclusion using its physical cmap.
-    return pickWebfontVariantForCodepoint(family, weight, fontSize, slant, cp, variationSettings, stretch);
+    return pickWebfontVariantForCodepoint(
+      family,
+      weight,
+      fontSize,
+      slant,
+      cp,
+      variationSettings,
+      stretch,
+      request.semanticContext.webfontRequestSlope ?? request.rawSlope,
+    );
   }
   if (key === primaryFontKey) return primaryFont;
   return getFontInstance(key, weight, fontSize, slant, fvs);
