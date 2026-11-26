@@ -46,6 +46,7 @@ export const createTextPhaseHandler = (ctx: {
     state: TextLocals,
   ) => InjectedCapture;
   _effectiveZoomFor: (el: Element) => number;
+  hasFirstLinePaintMetrics: (segment: CaptureTextSegment) => boolean;
   _measureFontMetrics: (
     style: Pick<CSSStyleDeclaration, "fontStyle" | "fontWeight" | "fontSize" | "fontFamily">,
     fontSizeOverride?: string,
@@ -59,6 +60,7 @@ export const createTextPhaseHandler = (ctx: {
     injectPseudoSegments,
     _effectiveZoomFor,
     _measureFontMetrics,
+    hasFirstLinePaintMetrics,
   } = ctx;
   const captureTextPhase = ({
     el,
@@ -198,6 +200,11 @@ export const createTextPhaseHandler = (ctx: {
     for (const _seg of textSegments) {
       var _segLogicalSize = _seg.fontSize ?? parseFloat(cs.fontSize);
       if (!isFinite(_segLogicalSize) || _segLogicalSize <= 0) continue;
+      if (hasFirstLinePaintMetrics(_seg)) {
+        // The first-line source font box already qualified physical metrics.
+        if (_seg.fontSize != null) _seg.fontSize = _segLogicalSize * _segmentZoom;
+        continue;
+      }
       // A segment with no font overrides is measured through the element's
       // own live style, so it asks the same locale/family-type question the
       // element's metrics did (font-metrics.ts).

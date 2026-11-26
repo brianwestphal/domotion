@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { matchedFamilyIsUnambiguouslyAuthored, type MatchedFamilyDeclarations } from "./font-family-declarations.js";
+import {
+  matchedFamilyIsUnambiguouslyAuthored,
+  matchedFirstLineFamilyType,
+  type MatchedFamilyDeclarations,
+} from "./font-family-declarations.js";
 
 function rules(...values: string[]): MatchedFamilyDeclarations {
   return {
@@ -106,5 +110,22 @@ describe("opaque-sheet literal family declaration evidence", () => {
       inherited: [rules("Times")],
     };
     expect(matchedFamilyIsUnambiguouslyAuthored(partial)).toBe(false);
+  });
+});
+
+describe("matched first-line family type", () => {
+  it("distinguishes literal names, initial resets, and inherited types", () => {
+    expect(matchedFirstLineFamilyType(rules("Times"), "standard")).toBe("concrete");
+    expect(matchedFirstLineFamilyType(rules("initial"), "concrete")).toBe("standard");
+    expect(matchedFirstLineFamilyType(rules("inherit", "unset"), "concrete")).toBe("concrete");
+    expect(matchedFirstLineFamilyType(rules(), "standard")).toBe("standard");
+  });
+
+  it("requires agreement and complete canonical evidence", () => {
+    expect(matchedFirstLineFamilyType(rules("Times", "initial"), "standard")).toBeUndefined();
+    expect(matchedFirstLineFamilyType(rules("var(--face)"), "standard")).toBeUndefined();
+    expect(
+      matchedFirstLineFamilyType({ matchedCSSRules: [{ rule: { origin: "regular" } }] }, "standard"),
+    ).toBeUndefined();
   });
 });

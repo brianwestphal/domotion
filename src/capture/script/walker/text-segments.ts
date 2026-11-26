@@ -67,10 +67,30 @@ export type TextCaptureResult = {
 
 /** `lang` is an HTMLElement IDL attribute; MathML and SVG elements read as undefined. */
 const elementLang = (el: Element): string | undefined => (el as Element & { lang?: string }).lang;
+const fontDescriptionDiffers = (line: CSSStyleDeclaration, host: CSSStyleDeclaration): boolean =>
+  line.fontSize !== host.fontSize ||
+  line.fontFamily !== host.fontFamily ||
+  line.fontStyle !== host.fontStyle ||
+  line.fontWeight !== host.fontWeight;
+
+/** A preceding in-flow box can own the first formatted line instead of the
+ * first Text segment this walker happens to collect from the host. */
+function ownsFirstDirectLine(el: Element): boolean {
+  const leading = Array.from(el.childNodes).find(
+    (node) => node.nodeType === Node.ELEMENT_NODE || (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()),
+  );
+  if (leading?.nodeType !== Node.TEXT_NODE) return false;
+  const before = window.getComputedStyle(el, "::before");
+  return before.display === "none" || before.content === "none" || before.content === "normal";
+}
+
 type Metrics = { ascent: number; descent: number };
 type TextServices = {
   vp: Viewport;
-  measureFontMetrics: (style: CSSStyleDeclaration) => Metrics;
+  measureFontMetrics: (style: CSSStyleDeclaration, fontSizeOverride?: string) => Metrics;
+  effectiveZoomFor: (el: Element) => number;
+  markStandardFamilyStyle: (style: CSSStyleDeclaration) => void;
+  firstLineFamilyTypeFor: (el: Element, family: string) => "standard" | "concrete" | "unusable" | undefined;
   rasterCandidates: (text: string, variant?: string) => Array<{ start: number; end: number }>;
   normColor: (color: string) => string;
   markGetsDottedCircle: (cp: number, ch: string, font: string) => boolean;
@@ -832,6 +852,9 @@ export const buildFirstLetterTextSegment = (
 const buildTextSegmentsHandler = ({
   vp,
   measureFontMetrics,
+  effectiveZoomFor,
+  markStandardFamilyStyle,
+  firstLineFamilyTypeFor,
   rasterCandidates,
   normColor,
   markGetsDottedCircle,
@@ -840,6 +863,7 @@ const buildTextSegmentsHandler = ({
   sourceTextNodeIndexFor,
   liveTextInverseFor,
 }: TextServices) => {
+  const firstLineMetricSegments = new WeakSet<TextSegment>();
   const readHorizontalRangeRect = (el: Element, range: Range): DOMRectReadOnly => {
     const rect = range.getBoundingClientRect();
     const inverse = liveTextInverseFor?.(el);
@@ -1373,6 +1397,13 @@ const buildTextSegmentsHandler = ({
     if (textSegments.length > flLineTargetIdx) {
       const flLineStyle = window.getComputedStyle(el, "::first-line");
       const firstSeg = textSegments[flLineTargetIdx];
+      const firstFamily = flLineStyle.fontFamily;
+      const firstType = firstLineFamilyTypeFor(el, firstFamily);
+      const sameNamedFamilyChangesType =
+        firstFamily === cs.fontFamily &&
+        (firstType === "standard" || firstType === "concrete") &&
+        (firstType === "standard") !== (fontFamilyStackFor(el, cs.fontFamily)?.genericFamily === "standard");
+      const firstFontDiffers = fontDescriptionDiffers(flLineStyle, cs) || sameNamedFamilyChangesType;
       if (flLineStyle.textTransform !== cs.textTransform && firstSeg.sourceText != null) {
         const firstLineMap = transformTextWithSourceSpans(
           firstSeg.sourceText,
@@ -1400,14 +1431,41 @@ const buildTextSegmentsHandler = ({
       if (flLineStyle.fontStyle !== "" && flLineStyle.fontStyle !== cs.fontStyle) {
         firstSeg.fontStyle = flLineStyle.fontStyle;
       }
-      if (flLineStyle.fontFamily !== "" && flLineStyle.fontFamily !== cs.fontFamily) {
-        firstSeg.fontFamily = flLineStyle.fontFamily;
-        firstSeg.fontFamilyStack = fontFamilyStackFor(el, flLineStyle.fontFamily, "::first-line");
+      if (firstFamily !== "" && firstFamily !== cs.fontFamily) {
+        firstSeg.fontFamily = firstFamily;
+        firstSeg.fontFamilyStack = fontFamilyStackFor(el, firstFamily, "::first-line");
       }
       const flFs = parseFloat(flLineStyle.fontSize);
       const elFs2 = parseFloat(cs.fontSize);
       if (flFs > 0 && Math.abs(flFs - elFs2) > 0.1) {
         firstSeg.fontSize = flFs;
+      }
+      if (
+        firstFontDiffers &&
+        flFs > 0 &&
+        !didEmitStyledFirstLetter &&
+        cs.display === "block" &&
+        (cs.whiteSpace === "normal" || cs.whiteSpace === "nowrap") &&
+        liveTextInverseFor?.(el) == null &&
+        ownsFirstDirectLine(el)
+      ) {
+        const stack = fontFamilyStackFor(el, firstFamily, "::first-line");
+        const standard = stack?.genericFamily === "standard";
+        if (firstType !== "unusable" && (!standard || firstType === "standard")) {
+          if (standard) markStandardFamilyStyle(flLineStyle);
+          const size = (flFs * effectiveZoomFor(el)).toFixed(4) + "px";
+          const metrics = measureFontMetrics(flLineStyle, size);
+          // Range reported the painted font box before any font probes ran.
+          // Attach these metrics only if the description reproduces that box.
+          if (Math.abs(firstSeg.height - metrics.ascent - metrics.descent) <= 1 / 64) {
+            if (sameNamedFamilyChangesType) {
+              firstSeg.fontFamily = firstFamily;
+              firstSeg.fontFamilyStack = stack;
+            }
+            firstSeg.fontAscent = metrics.ascent;
+            firstLineMetricSegments.add(firstSeg);
+          }
+        }
       }
     }
 
@@ -1429,7 +1487,10 @@ const buildTextSegmentsHandler = ({
     return finishLineClamp(el, cs, { applied: true, text, textSegments });
   };
 
-  return { captureTextSegments };
+  return {
+    captureTextSegments,
+    hasFirstLinePaintMetrics: (segment: TextSegment) => firstLineMetricSegments.has(segment),
+  };
 };
 
 /** Construct the text walker while keeping its captured dependencies explicit. */

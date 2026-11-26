@@ -268,9 +268,12 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     fontFamilyStackFor: _fontFamilyStackFor,
   });
-  const { captureTextSegments } = createTextSegmentsHandler({
+  const { captureTextSegments, hasFirstLinePaintMetrics } = createTextSegmentsHandler({
     vp,
     measureFontMetrics: _measureFontMetrics,
+    effectiveZoomFor: (el) => _effectiveZoomFor(el),
+    markStandardFamilyStyle: _markStandardFamilyStyle,
+    firstLineFamilyTypeFor: (el, family) => _familyTypeFromDeclaration(el, family, "::first-line"),
     rasterCandidates,
     normColor,
     markGetsDottedCircle,
@@ -351,6 +354,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     injectPseudoSegments,
     _effectiveZoomFor,
     _measureFontMetrics,
+    hasFirstLinePaintMetrics,
   });
   const { captureNativeControlState } = createNativeControlsHandler({
     args,

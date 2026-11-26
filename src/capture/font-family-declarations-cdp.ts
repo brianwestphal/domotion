@@ -2,7 +2,11 @@ import type { CDPSession, Page } from "@playwright/test";
 import { detachQuietly, isSameProcessFrameError } from "./cdp-lifecycle.js";
 import { privateCaptureKey } from "./private-key.js";
 import { probeFailureWarning } from "./probe-failure.js";
-import { matchedFamilyIsUnambiguouslyAuthored, type MatchedFamilyDeclarations } from "./font-family-declarations.js";
+import {
+  matchedFamilyIsUnambiguouslyAuthored,
+  matchedFirstLineFamilyType,
+  type MatchedFamilyDeclarations,
+} from "./font-family-declarations.js";
 import { familyDomRecords, nativeFontFamilyType, type FamilyDomNode } from "./font-family-cascade-cdp.js";
 import { computedFontLocaleLanguage, isAutoFontLocale } from "./font-locale.js";
 import { fontLocaleMatchesCapturedLanguage, type ProvenFamilyType } from "./font-family-cascade.js";
@@ -283,6 +287,23 @@ export async function captureFontFamilyDeclarationFacts(
                             : "native family type is unavailable",
                       ),
                     );
+                  const firstLine = matched.pseudoElements?.find((pseudo) => pseudo.pseudoType === "first-line");
+                  if (firstLine != null) {
+                    const type = matchedFirstLineFamilyType({ matchedCSSRules: firstLine.matches }, provenance.type);
+                    if (type != null)
+                      provenance.pseudos["first-line"] = {
+                        // The host's matched pseudo rule is native, but first-line
+                        // has no node-specific computed-style CDP endpoint.
+                        // Bind its CSSOM family when the private fact is installed.
+                        family: "",
+                        type,
+                        language,
+                        fontLocale: native?.fontLocale,
+                        usable:
+                          type !== "standard" ||
+                          standardFamilyLocaleRoutable(native?.fontLocale, language, options.defaultFontLocale),
+                      };
+                  }
                   for (const pseudo of records.get(nodeId)?.node.pseudoElements ?? []) {
                     if (pseudo.pseudoType == null) continue;
                     const pseudoReplies = await withTimeout(

@@ -1,9 +1,34 @@
 import { parseCssFontFamilyEntries } from "../font-family-stack.js";
 import type { CdpMatchedStylesLike } from "./effective-appearance.js";
+import { canonicalFamily, type ProvenFamilyType } from "./font-family-cascade.js";
 
 export interface MatchedFamilyDeclarations extends CdpMatchedStylesLike {
   inherited?: CdpMatchedStylesLike[];
   pseudoElements?: Array<{ pseudoType: string; matches: NonNullable<CdpMatchedStylesLike["matchedCSSRules"]> }>;
+}
+
+/** First-line style lives on the owner's layout fragment, with no DOM pseudo
+ * node to query. Its matched rules only prove a type when every possible
+ * family contribution agrees, independently of cascade ranking. */
+export function matchedFirstLineFamilyType(
+  matched: MatchedFamilyDeclarations,
+  host: ProvenFamilyType | undefined,
+): ProvenFamilyType | undefined {
+  if (matchedFamilyIsUnambiguouslyAuthored(matched)) return "concrete";
+  if (matched.matchedCSSRules == null) return;
+  let type: ProvenFamilyType | undefined;
+  for (const { rule } of matched.matchedCSSRules) {
+    if (rule?.origin == null || rule.style?.cssProperties == null) return;
+    const entries = canonicalFamily(rule.style);
+    if (typeof entries === "string") return;
+    for (const entry of entries) {
+      const value = entry.value.trim().toLowerCase();
+      const contribution = value === "initial" ? "standard" : ["inherit", "unset"].includes(value) ? host : undefined;
+      if (contribution == null || (type != null && type !== contribution)) return;
+      type = contribution;
+    }
+  }
+  return type ?? host;
 }
 
 /**
