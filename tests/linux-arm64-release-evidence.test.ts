@@ -1,20 +1,166 @@
+import { createHash } from "node:crypto";
+import { once } from "node:events";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  assetEvidence,
   buildFinalReport,
   decorationEvidenceErrors,
   parseElfIdentity,
   pinnedGlyphProtocolForRelease,
   readPaintBrowserReleaseReport,
   readPaintGeometryReleaseReport,
+  releaseAssets,
   REQUIRED_OUTCOMES,
   sourceFingerprintErrors,
   stableFingerprint,
 } from "../tools/linux-arm64-release-evidence.js";
+import { fetchReleaseEvidence } from "../tools/lib/release-evidence-fetch.js";
 import { writeReport } from "../tools/lib/report.js";
+
+describe("release acquisition phases (DM-HY4WYN)", () => {
+  const url = "https://github.invalid/release?token=redirect-secret";
+  const tag = "v0.24.0";
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("recovers from a native socket reset and a temporary status in three GETs", async () => {
+    const log = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    let requests = 0;
+    const server = createServer((req, res) => {
+      requests++;
+      if (requests === 1) {
+        req.socket.destroy();
+      } else if (requests === 2) {
+        res.writeHead(503, { "Retry-After": "0" }).end();
+      } else {
+        res.end("verified response");
+      }
+    });
+    server.listen(0, "127.0.0.1");
+    try {
+      await once(server, "listening");
+      const address = server.address();
+      if (address == null || typeof address === "string") throw new Error("no test listener address");
+      await expect(
+        fetchReleaseEvidence("release metadata", tag, `http://127.0.0.1:${address.port}/release`, {}),
+      ).resolves.toBe("verified response");
+      expect(requests).toBe(3);
+      expect(log.mock.calls.flat().join(" ")).toMatch(/release metadata request.*UND_ERR_SOCKET.*HTTP 503/s);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("retries a transient failure while consuming the response body", async () => {
+    const log = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const cause = Object.assign(new Error(url), { code: "ECONNRESET" });
+    const broken = new ReadableStream<Uint8Array>({
+      start: (stream) => stream.error(new TypeError("terminated", { cause })),
+    });
+    const fetch = vi.fn().mockResolvedValueOnce(new Response(broken)).mockResolvedValueOnce(new Response("sha"));
+    vi.stubGlobal("fetch", fetch);
+    await expect(fetchReleaseEvidence("release checksum sidecar", "glyph.sha256", url, {})).resolves.toBe("sha");
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const notice = log.mock.calls.flat().join(" ");
+    expect(notice).toMatch(/release checksum sidecar read body \(glyph.sha256\): ECONNRESET/);
+    expect(notice).not.toContain("redirect-secret");
+  });
+
+  it("does not retry a TLS failure or publish the original URL or cause message", async () => {
+    const cause = Object.assign(new Error(url), { code: "ERR_TLS_CERT_ALTNAME_INVALID" });
+    const original = new TypeError("fetch failed", { cause });
+    const fetch = vi.fn().mockRejectedValue(original);
+    vi.stubGlobal("fetch", fetch);
+    await expect(fetchReleaseEvidence("release metadata", tag, url, {})).rejects.toMatchObject({
+      message: "release metadata request (v0.24.0): ERR_TLS_CERT_ALTNAME_INVALID after 1 attempt(s)",
+      cause: original,
+    });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([401, 403, 404])("does not retry HTTP %i", async (status) => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(fetchReleaseEvidence("release metadata", tag, url, {})).rejects.toThrow(`HTTP ${status} after 1`);
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("caps repeated temporary failures and preserves the endpoint in the terminal report", async () => {
+    vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const fetch = vi.fn().mockImplementation(() => new Response(null, { status: 503 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(fetchReleaseEvidence("release checksum sidecar", "glyph.sha256", url, {})).rejects.toThrow(
+      "release checksum sidecar request (glyph.sha256): HTTP 503 after 3 attempt(s)",
+    );
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops when Retry-After exceeds the request budget", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 429, headers: { "Retry-After": "120" } }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(fetchReleaseEvidence("release metadata", tag, url, {})).rejects.toThrow("HTTP 429 after 1");
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("decodes metadata outside the network retry loop", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response("not JSON containing a redirect-secret"));
+    vi.stubGlobal("fetch", fetch);
+    await expect(releaseAssets(tag)).rejects.toThrow("release metadata decode (v0.24.0): invalid JSON");
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("reports sidecar decoding and local file errors without retrying validation", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "domotion-release-acquisition-"));
+    try {
+      const path = join(dir, "glyph");
+      const bytes = elf(183);
+      const pin = createHash("sha256").update(bytes).digest("hex");
+      const base = {
+        id: 10,
+        name: "glyph",
+        size: bytes.length,
+        digest: `sha256:${pin}`,
+        browser_download_url: url,
+        download_count: 0,
+        updated_at: "",
+      };
+      const assets = [base, { ...base, id: 11, name: "glyph.sha256" }];
+      const fetch = vi
+        .fn()
+        .mockImplementationOnce(() => new Response("invalid checksum"))
+        .mockImplementationOnce(() => new Response(pin))
+        .mockImplementationOnce(() => new Response("0".repeat(64)))
+        .mockImplementationOnce(() => new Response(pin));
+      vi.stubGlobal("fetch", fetch);
+      await expect(assetEvidence(tag, "glyph", path, pin, assets, false)).rejects.toThrow(
+        /sidecar decode.*invalid SHA-256/,
+      );
+      await expect(assetEvidence(tag, "glyph", path, pin, assets, false)).rejects.toThrow(
+        "local artifact read (glyph): ENOENT",
+      );
+      writeFileSync(path, bytes);
+      await expect(assetEvidence(tag, "glyph", path, pin, assets, false)).resolves.toMatchObject({
+        allAuthoritiesAgree: false,
+      });
+      await expect(assetEvidence(tag, "glyph", path, pin, assets, false)).resolves.toMatchObject({
+        allAuthoritiesAgree: true,
+        sha256: pin,
+      });
+      expect(fetch).toHaveBeenCalledTimes(4);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 it("validates paint source and browser reports across envelope and legacy shapes", () => {
   const dir = mkdtempSync(join(tmpdir(), "domotion-linux-release-"));

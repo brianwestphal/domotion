@@ -70,6 +70,14 @@ consumer—there is no helper build in the workflow. It then:
    and mtimes, proving reuse rather than a hidden second install; and
 6. exports the acquired paths to later workflow steps.
 
+The release evidence GETs for metadata and checksum sidecars report the
+endpoint class, request or body phase, and a sanitized status or transport
+error code (DM-HY4WYN). Each GET allows up to three attempts in a 25-second
+budget for selected transient transport failures or temporary HTTP results.
+A server's Retry-After can delay a retry within the budget. Artifact
+acquisition, metadata and checksum decoding, and local file verification
+report separate phases. Validation failures do not enter the GET retry loop.
+
 The acquisition report fingerprints the native architecture, OS/kernel/glibc,
 GitHub image, Node/ICU/Unicode, launched Chromium, Playwright, fontconfig, full
 font inventory, checkout, and all release asset digests. Volatile timestamps

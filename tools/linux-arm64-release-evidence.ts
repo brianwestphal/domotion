@@ -19,6 +19,7 @@ import { readDecorationReport, readFontConformanceReport } from "./conformance-r
 import { readExactShapingReport } from "./exact-shaping-report-schema.js";
 import { isMain, parseCommand, requiredFlag, runMain, stringFlag, type FlagValues } from "./lib/cli.js";
 import { matchesIcuReleaseDigest, pinnedIcuRelease } from "./lib/icu-companion-release.js";
+import { fetchReleaseEvidence, releaseEvidenceErrorCodes } from "./lib/release-evidence-fetch.js";
 import { outcomeSchema, readReportData } from "./lib/report.js";
 import { stableJson } from "./lib/stable-json.js";
 import { acquireGlyphHelper } from "../src/render/helper-acquire.js";
@@ -260,17 +261,32 @@ function githubHeaders(): Record<string, string> {
   return headers;
 }
 
-async function releaseAssets(tag: string): Promise<ReleaseAsset[]> {
-  const response = await fetch(`https://api.github.com/repos/${REPO}/releases/tags/${encodeURIComponent(tag)}`, {
-    headers: githubHeaders(),
-  });
-  if (!response.ok) throw new Error(`GitHub release API ${tag} returned ${response.status}`);
-  const body = (await response.json()) as { assets?: ReleaseAsset[] };
-  if (!Array.isArray(body.assets)) throw new Error(`GitHub release ${tag} omitted assets`);
+export async function releaseAssets(tag: string): Promise<ReleaseAsset[]> {
+  const text = await fetchReleaseEvidence(
+    "release metadata",
+    tag,
+    `https://api.github.com/repos/${REPO}/releases/tags/${encodeURIComponent(tag)}`,
+    githubHeaders(),
+  );
+  let body: { assets?: ReleaseAsset[] } | null;
+  try {
+    body = JSON.parse(text);
+  } catch (cause) {
+    throw new Error(`release metadata decode (${tag}): invalid JSON`, { cause });
+  }
+  if (!Array.isArray(body?.assets)) throw new Error(`release metadata decode (${tag}): omitted assets`);
   return body.assets;
 }
 
-async function assetEvidence(
+function readAcquiredArtifact(assetName: string, localPath: string) {
+  try {
+    return { bytes: readFileSync(localPath), stat: statSync(localPath) };
+  } catch (cause) {
+    throw new Error(`local artifact read (${assetName}): ${releaseEvidenceErrorCodes(cause).join(", ")}`, { cause });
+  }
+}
+
+export async function assetEvidence(
   tag: string,
   assetName: string,
   localPath: string,
@@ -280,15 +296,25 @@ async function assetEvidence(
 ): Promise<AssetEvidence> {
   const asset = assets.find((candidate) => candidate.name === assetName);
   const sidecar = assets.find((candidate) => candidate.name === `${assetName}.sha256`);
-  if (asset == null) throw new Error(`${tag} is missing ${assetName}`);
-  if (sidecar == null) throw new Error(`${tag} is missing ${assetName}.sha256`);
-  const sidecarResponse = await fetch(sidecar.browser_download_url, { headers: githubHeaders() });
-  if (!sidecarResponse.ok) throw new Error(`${assetName}.sha256 returned ${sidecarResponse.status}`);
-  const localBytes = readFileSync(localPath);
+  if (asset == null) throw new Error(`release metadata decode (${tag}): missing ${assetName}`);
+  if (sidecar == null) throw new Error(`release metadata decode (${tag}): missing ${assetName}.sha256`);
+  const sidecarLabel = `${tag}/${assetName}.sha256`;
+  const sidecarText = await fetchReleaseEvidence(
+    "release checksum sidecar",
+    sidecarLabel,
+    sidecar.browser_download_url,
+    githubHeaders(),
+  );
+  let sidecarSha256: string;
+  try {
+    sidecarSha256 = parseSidecar(sidecarText);
+  } catch (cause) {
+    throw new Error(`release checksum sidecar decode (${sidecarLabel}): invalid SHA-256 digest`, { cause });
+  }
+  const { bytes: localBytes, stat } = readAcquiredArtifact(assetName, localPath);
   const localSha256 = sha256(localBytes);
-  const sidecarSha256 = parseSidecar(await sidecarResponse.text());
   const githubDigestSha256 = asset.digest?.replace(/^sha256:/, "").toLowerCase() ?? "";
-  const modeExecutable = !executable || (statSync(localPath).mode & 0o111) !== 0;
+  const modeExecutable = !executable || (stat.mode & 0o111) !== 0;
   const allAuthoritiesAgree =
     localSha256 === sidecarSha256 &&
     localSha256 === githubDigestSha256 &&
@@ -482,20 +508,22 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
   if (glyphName == null || icuTarget == null) throw new Error("production acquisition rejected linux/arm64");
 
   const glyphPath = await acquireGlyphHelper({ platform: "linux", arch: "arm64", version, cacheDir: glyphCache });
+  if (glyphPath == null) throw new Error(`glyph artifact acquisition failed for v${version}/${glyphName}`);
   const icuPath = await acquireIcuCompanion({ platform: "linux", arch: "arm64", cacheDir: icuCache });
-  if (glyphPath == null) throw new Error(`production glyph acquisition failed for v${version}/${glyphName}`);
-  if (icuPath == null) throw new Error(`production ICU acquisition failed for icu-v${ICU_COMPANION_VERSION}`);
-  const glyphBefore = { sha: sha256(readFileSync(glyphPath)), mtime: statSync(glyphPath).mtimeMs };
-  const icuBefore = { sha: sha256(readFileSync(icuPath)), mtime: statSync(icuPath).mtimeMs };
+  if (icuPath == null) throw new Error(`ICU artifact acquisition failed for icu-v${ICU_COMPANION_VERSION}`);
+  const glyphBefore = readAcquiredArtifact(glyphName, glyphPath);
+  const icuBefore = readAcquiredArtifact(icuTarget.executableAsset, icuPath);
   const glyphAgain = await acquireGlyphHelper({ platform: "linux", arch: "arm64", version, cacheDir: glyphCache });
   const icuAgain = await acquireIcuCompanion({ platform: "linux", arch: "arm64", cacheDir: icuCache });
+  const glyphAfter = glyphAgain == null ? null : readAcquiredArtifact(glyphName, glyphAgain);
+  const icuAfter = icuAgain == null ? null : readAcquiredArtifact(icuTarget.executableAsset, icuAgain);
   const cacheReuse = {
     glyphSamePath: glyphAgain === glyphPath,
-    glyphSameSha256: glyphAgain != null && sha256(readFileSync(glyphAgain)) === glyphBefore.sha,
-    glyphMtimeUnchanged: statSync(glyphPath).mtimeMs === glyphBefore.mtime,
+    glyphSameSha256: glyphAfter != null && sha256(glyphAfter.bytes) === sha256(glyphBefore.bytes),
+    glyphMtimeUnchanged: glyphAgain === glyphPath && glyphAfter?.stat.mtimeMs === glyphBefore.stat.mtimeMs,
     icuSamePath: icuAgain === icuPath,
-    icuSameSha256: icuAgain != null && sha256(readFileSync(icuAgain)) === icuBefore.sha,
-    icuMtimeUnchanged: statSync(icuPath).mtimeMs === icuBefore.mtime,
+    icuSameSha256: icuAfter != null && sha256(icuAfter.bytes) === sha256(icuBefore.bytes),
+    icuMtimeUnchanged: icuAgain === icuPath && icuAfter?.stat.mtimeMs === icuBefore.stat.mtimeMs,
   };
 
   const [glyphRelease, icuRelease] = await Promise.all([
