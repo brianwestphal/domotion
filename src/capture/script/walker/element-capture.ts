@@ -57,6 +57,44 @@ const insideExternalCssSvgOwner = (args: CaptureScriptArgs, element: Element) =>
   return false;
 };
 
+function openShadowModalChildren(el: Element, cs: CSSStyleDeclaration, rect: DOMRect): Element[] | undefined {
+  const root = el.shadowRoot;
+  // An ordinary in-flow host can have no box of its own while its shadow
+  // children paint a viewport-fixed dialog and backdrop. Use the original
+  // Elements so their positions and stacking order follow the usual walk.
+  if (
+    root == null ||
+    el.localName !== "div" ||
+    el.parentElement !== document.body ||
+    el.childElementCount !== 0 ||
+    el.textContent?.trim() ||
+    rect.height !== 0 ||
+    cs.display !== "block" ||
+    cs.position !== "static" ||
+    cs.overflow !== "visible" ||
+    cs.transform !== "none" ||
+    cs.perspective !== "none" ||
+    cs.filter !== "none" ||
+    cs.backdropFilter !== "none" ||
+    cs.contain !== "none" ||
+    cs.willChange !== "auto" ||
+    root.querySelector("slot") != null ||
+    Array.from(root.childNodes).some((node) => node instanceof Text && node.data.trim() !== "")
+  ) {
+    return undefined;
+  }
+  const children = Array.from(root.children, (element) => ({ element, style: getComputedStyle(element) })).filter(
+    ({ style }) => style.display !== "none",
+  );
+  if (
+    children.some(({ style }) => style.position !== "fixed") ||
+    !children.some(({ element }) => element.getAttribute("role") === "dialog" && element.ariaModal === "true")
+  ) {
+    return undefined;
+  }
+  return children.map(({ element }) => element);
+}
+
 export type ElementCaptureDeps = {
   args: CaptureScriptArgs;
   vp: CaptureScriptArgs["viewport"];
@@ -441,7 +479,9 @@ export const createElementCapture = () => {
     // is precomputed by the document prepass.
     const cssJournal = externalCssSvgJournal(d.args.externalCssSvgKey);
     const projectedNodes = cssJournal?.projectedChildren.get(el);
-    const projectedChildren = projectedNodes?.filter((node): node is Element => node instanceof Element);
+    const projectedChildren =
+      projectedNodes?.filter((node): node is Element => node instanceof Element) ??
+      (frozenTransform == null ? openShadowModalChildren(el, cs, rect) : undefined);
     const projectedTextRects = projectedNodes?.flatMap((node) =>
       node instanceof Text ? (cssJournal?.projectedText.get(node)?.rects ?? []) : [],
     );
