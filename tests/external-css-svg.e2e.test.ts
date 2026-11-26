@@ -604,8 +604,46 @@ describe("owned CSS SVG fragment prepass (DM-HK7GEB)", () => {
       const before = await page.content();
       const { prime, tree } = await nativeOwner(page);
       try {
-        await expect(prime.rasterize(tree, viewport)).rejects.toThrow("changed inherited owner paint");
+        await expect(prime.rasterize(tree, viewport)).rejects.toThrow(
+          "changed inherited owner paint (target-index=0, owner-index=0, pseudo=element, property=background-color)",
+        );
       } finally {
+        await prime.dispose();
+      }
+      expect(await page.content()).toBe(before);
+    } finally {
+      await page.close();
+    }
+  });
+  it("identifies a descendant pseudo drift without reporting author data or taking a screenshot", async () => {
+    const page = await browser.newPage();
+    try {
+      await page.goto(`${origin}/?csp=blocked`);
+      await page.evaluate(() => {
+        const child = document.createElement("div");
+        child.id = "private-author-id";
+        document.querySelector("#box")!.append(child);
+        const style = document.createElement("style");
+        style.id = "author-sheet";
+        style.textContent = `
+          #private-author-id::before { content: "private-original-value" }
+          html:has(head > style:not([id])) #private-author-id::before { content: "private-isolated-value" }
+        `;
+        document.head.append(style);
+      });
+      const before = await page.content();
+      const { prime, tree } = await nativeOwner(page);
+      const screenshot = vi.spyOn(page, "screenshot");
+      try {
+        const failure = await prime.rasterize(tree, viewport).catch((error: unknown) => error);
+        expect(failure).toBeInstanceOf(Error);
+        expect(String(failure)).toContain(
+          "changed inherited owner paint (target-index=0, owner-index=1, pseudo=::before, property=content)",
+        );
+        expect(String(failure)).not.toMatch(/private-|author-sheet/);
+        expect(screenshot).not.toHaveBeenCalled();
+      } finally {
+        screenshot.mockRestore();
         await prime.dispose();
       }
       expect(await page.content()).toBe(before);

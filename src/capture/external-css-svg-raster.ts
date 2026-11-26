@@ -247,7 +247,7 @@ export async function rasterizeExternalCssSvgSurfaces(
   if (targets.length === 0) return;
   if (targets.length > 32 || viewport.width * viewport.height > EXTERNAL_CSS_SVG_PIXEL_BUDGET)
     throw new Error("external CSS native paint budget exceeded");
-  for (const target of targets) {
+  for (const [targetIndex, target] of targets.entries()) {
     let shadowGuard: Awaited<ReturnType<typeof openCssSvgShadowGuard>> | undefined;
     let primary: unknown;
     let failed = false;
@@ -258,7 +258,7 @@ export async function rasterizeExternalCssSvgSurfaces(
       const beforePaint = await bounded(
         evaluateInFrame(
           page,
-          ({ key, token, ownerToken, attribute }) => {
+          ({ key, token, ownerToken, targetIndex, attribute }) => {
             const state = (globalThis as Record<string, unknown>)[key] as ExternalCssSvgJournal | undefined;
             if (state?.token !== token || state.isolation != null)
               throw new Error("external CSS paint document identity unavailable");
@@ -599,12 +599,11 @@ export async function rasterizeExternalCssSvgSurfaces(
             const hide = boost.repeat(2);
             const show = boost.repeat(3);
             const sheet = document.createElement("style");
-            const fingerprint = (element: Element, pseudo: string) => {
+            const fingerprintEntries = (element: Element, pseudo: string) => {
               const style = getComputedStyle(element, pseudo || null);
-              return Array.from(style)
-                .map((name) => `${name}:${style.getPropertyValue(name)}`)
-                .join("\n");
+              return Array.from(style).map((name) => `${name}:${style.getPropertyValue(name)}`);
             };
+            const fingerprint = (element: Element, pseudo: string) => fingerprintEntries(element, pseudo).join("\n");
             const isolation: CssSvgIsolation = {
               attribute,
               marked: [],
@@ -775,13 +774,36 @@ export async function rasterizeExternalCssSvgSurfaces(
               isolation.shadowSheets.push(saved);
               root.adoptedStyleSheets = [...saved.before, owned];
             }
-            for (const fact of isolation.ownerFacts)
-              if (
-                ["", "::before", "::after"].some(
-                  (pseudo, index) => fingerprint(fact.element, pseudo) !== fact.styles[index],
-                )
-              )
-                throw new Error("external CSS native isolation changed inherited owner paint");
+            for (const [ownerIndex, fact] of isolation.ownerFacts.entries()) {
+              for (const [index, pseudo] of ["", "::before", "::after"].entries()) {
+                const entries = fingerprintEntries(fact.element, pseudo);
+                const before = fact.styles[index];
+                if (entries.join("\n") === before) continue;
+
+                // Locate the first differing entry at the live declaration's
+                // boundaries. A computed value can itself contain a newline.
+                // Log only a stable subtree ordinal and a standard name.
+                let offset = 0;
+                let property = "property-list";
+                for (const entry of entries) {
+                  const end = offset + entry.length;
+                  if (!before.startsWith(entry, offset) || (end < before.length && before[end] !== "\n")) {
+                    const name = entry.slice(0, entry.indexOf(":"));
+                    if (before.startsWith(`${name}:`, offset))
+                      property = name.startsWith("--")
+                        ? "custom-property"
+                        : /^-?[a-z][a-z0-9-]{0,79}$/.test(name)
+                          ? name
+                          : "unavailable";
+                    break;
+                  }
+                  offset = end + 1;
+                }
+                throw new Error(
+                  `external CSS native isolation changed inherited owner paint (target-index=${targetIndex}, owner-index=${ownerIndex}, pseudo=${pseudo || "element"}, property=${property})`,
+                );
+              }
+            }
             for (const fact of isolation.dependencies)
               if (fingerprint(fact.element, "") !== fact.styles)
                 throw new Error("external CSS native isolation changed an outside local-definition dependency");
@@ -834,7 +856,7 @@ export async function rasterizeExternalCssSvgSurfaces(
             }
             return { paint, transformed: transformedAncestor, fullPageMismatch: facts.fullPageMismatch };
           },
-          { ...identity, ownerToken: target.token, attribute },
+          { ...identity, ownerToken: target.token, targetIndex, attribute },
         ),
       );
       requireTransparentAncestors(beforePaint.paint, "external CSS native isolation could not suppress ancestor paint");
