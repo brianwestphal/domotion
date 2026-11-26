@@ -120,10 +120,12 @@ describe("local() sources in an SVG image", () => {
     });
   });
 
-  // Host inventory: the first of these unique names the host's FontCache
-  // matches (macOS: Helvetica; Windows: Arial; the Playwright Linux image
-  // ships Liberation, not DejaVu).
-  const candidates = ["Helvetica", "Arial", "Liberation Sans", "DejaVu Sans", "Noto Sans", "FreeSans"];
+  // The Windows fidelity receipt owns the actual Arial local() case.
+  // Other hosts choose an available family from their own inventory.
+  const candidates =
+    process.platform === "win32"
+      ? ["Arial"]
+      : ["Helvetica", "Arial", "Liberation Sans", "DejaVu Sans", "Noto Sans", "FreeSans"];
   it("keeps raster when a host local() face precedes the data source", async (context) => {
     await withPage(async (page) => {
       const hostFace = await page.evaluate(async (names) => {

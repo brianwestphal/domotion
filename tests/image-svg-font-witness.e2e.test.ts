@@ -9,6 +9,7 @@ import { capturedElement } from "../src/test-support/captured-fixtures.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
 import type { CapturedElement } from "../src/capture/types.js";
+import { nativeSvgProbeRow } from "./test-support/svg-image-probe.js";
 
 let browser: Browser;
 beforeAll(async () => {
@@ -47,29 +48,9 @@ async function withPage<T>(run: (page: Page) => Promise<T>): Promise<T> {
   }
 }
 
-/** Alpha coverage across row 5, which contains the probe and no text. */
-async function nativeProbeRow(page: Page, source: string, scale = 1): Promise<number[]> {
-  return page.evaluate(
-    async ({ source, scale }) => {
-      const image = new Image();
-      image.src = `data:image/svg+xml,${encodeURIComponent(source)}`;
-      await image.decode();
-      const canvas = document.createElement("canvas");
-      canvas.width = 90 * scale;
-      canvas.height = 40 * scale;
-      const context = canvas.getContext("2d")!;
-      context.scale(scale, scale);
-      context.drawImage(image, 0, 0);
-      const row = context.getImageData(0, 5 * scale, canvas.width, 1).data;
-      return [...row].filter((_, index) => index % 4 === 3);
-    },
-    { source, scale },
-  );
-}
-
 /** Estimate the probe square's left edge from its first painted column. */
 async function nativeProbeX(page: Page, source: string): Promise<number> {
-  const row = await nativeProbeRow(page, source);
+  const row = await nativeSvgProbeRow(page, source);
   const x = row.findIndex((alpha) => alpha > 0);
   return x < 0 ? -1 : x + 1 - row[x] / 255;
 }
@@ -137,42 +118,6 @@ describe("painted used-face witness for SVG image own fonts", () => {
       expect(await witnessImageFonts(page, [right, wrong])).toEqual(["painted", "other"]);
     });
   });
-
-  it.runIf(process.platform === "darwin").each(["ex", "cap"])(
-    "matches Chromium's 30px own-font %s geometry and painted coverage (DM-HPPJ8S)",
-    async (unit) => {
-      const css = face(data(mono));
-      const source = svg(css, `translateX(1${unit})`, true, 30);
-      const nativeOffset = await withPage(async (page) => {
-        await page.goto(`data:image/svg+xml,${encodeURIComponent(source)}`);
-        return page.evaluate(async () => {
-          const root = document.documentElement;
-          await document.fonts.load(getComputedStyle(root).font, "Rag 0");
-          await document.fonts.ready;
-          return new DOMMatrix(getComputedStyle(root).transform).e;
-        });
-      });
-      expect(nativeOffset).toBe(unit === "ex" ? 16.5 : 21.9);
-
-      await withPage(async (page) => {
-        const el = fixture(source);
-        await captureImageSvgFonts(page, [el]);
-        expect(el.imageOwnFonts?.faces[0].sha256).toBe(imageFontDigest(mono));
-        const inlined = inlineImgSvg(source, { ...placement, ownFonts: el.imageOwnFonts });
-        expect(inlined).toContain(`translate(${nativeOffset} 0)`);
-        const output = `<svg xmlns="http://www.w3.org/2000/svg" width="90" height="40">${inlined}</svg>`;
-        const literal = svg(css, `translateX(${nativeOffset}px)`, true, 30);
-        // Coverage at the leading pixel need not back-solve to the CSS offset.
-        // Compare paint at each sampling scale to an explicit pixel transform.
-        for (const scale of [1, 4]) {
-          const expected = await nativeProbeRow(page, source, scale);
-          expect(expected.some((alpha) => alpha > 0)).toBe(true);
-          expect(await nativeProbeRow(page, literal, scale)).toEqual(expected);
-          expect(await nativeProbeRow(page, output, scale)).toEqual(expected);
-        }
-      });
-    },
-  );
 
   it.each(["translateX(1ex)", "translateX(1cap)", "translateX(2ch)", "translateX(1lh)"])(
     "applies size-adjust as the used size for %s, natively and in Domotion",
