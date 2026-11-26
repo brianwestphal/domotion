@@ -207,6 +207,7 @@ it.each([
 
 it("keeps a viewport screenshot producer outside the live local wrapper", async () => {
   const page = await browser.newPage({ viewport });
+  const output = await browser.newPage({ viewport });
   try {
     await setSource(page, '<canvas id="surface" width="4" height="4"></canvas>');
     await page.evaluate(() => {
@@ -215,17 +216,30 @@ it("keeps a viewport screenshot producer outside the live local wrapper", async 
       context.fillStyle = "red";
       context.fillRect(0, 0, 4, 4);
     });
-    const [owner] = await captureElementTree(page, "body", viewport);
+    const reference = await pixels(await screenshotAfterPresentedFrame(page, { omitBackground: true }));
+    expect(reference.some((channel, index) => index % 4 === 3 && channel === 255)).toBe(true);
+
+    const tree = await captureElementTree(page, "body", viewport);
+    const [owner] = tree;
     expect(owner.styles.transform).toBe("none");
     const [canvas] = owner.children;
-    expect(canvas.replacedSnapshot?.dataUri).toMatch(/^data:image\/png;base64,/);
-    expect(canvas.replacedSnapshot?.rasterToOutput).toMatchObject({
-      pixelWidth: 9,
-      pixelHeight: 13,
+    const snapshot = canvas.replacedSnapshot;
+    expect(snapshot?.dataUri).toMatch(/^data:image\/png;base64,/);
+    const bitmap = await sharp(Buffer.from(snapshot!.dataUri!.split(",")[1], "base64")).metadata();
+    expect(snapshot?.rasterToOutput).toMatchObject({
+      pixelWidth: bitmap.width,
+      pixelHeight: bitmap.height,
       cssPerPixelX: 1,
       cssPerPixelY: 1,
     });
+
+    // The mapped canvas pixels must live in viewport coordinates even when
+    // the native raster drops transparent padding around the CSS box.
+    await output.setContent("<style>body{margin:0}</style>" + elementTreeToSvg(tree, viewport.width, viewport.height));
+    const rendered = await pixels(await screenshotAfterPresentedFrame(output, { omitBackground: true }));
+    expect(Buffer.compare(reference, rendered)).toBe(0);
   } finally {
+    await output.close();
     await page.close();
   }
 });
