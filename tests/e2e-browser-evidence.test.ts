@@ -355,4 +355,14 @@ describe("CI wiring", () => {
     expect(upload?.["if"]).toBe("always()");
     expect(paths(upload)).toContain("tests/output-linux/e2e-browser-evidence/");
   });
+
+  it("retains Windows regression evidence and runs the child preload fixture", () => {
+    const job = jobs(".github/workflows/windows-fidelity.yml")["regression"]!;
+    expect(job.env?.["DOMOTION_E2E_EVIDENCE_DIR"]).toBe("tests/output/e2e-browser-evidence");
+    const upload = job.steps.find((step) => step["name"] === "Upload expected/actual/diff PNGs");
+    expect(upload?.["if"]).toBe("always()");
+    expect(paths(upload)).toContain("tests/output/e2e-browser-evidence/");
+    const browser = job.steps.find((step) => step["name"] === "Verify native client UI lifecycle");
+    expect(browser?.["run"]).toContain("tests/e2e-child-evidence.e2e.test.ts");
+  });
 });

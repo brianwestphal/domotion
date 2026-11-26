@@ -565,7 +565,10 @@ Files land in `DOMOTION_E2E_EVIDENCE_DIR`, which defaults to
 `visual-macos` job's always-run artifact `features-macos` includes
 `tests/output/e2e-browser-evidence/`. On Linux, the `regression` job sets the
 directory to `tests/output-linux/e2e-browser-evidence/` for every browser step,
-and its always-run `linux-fidelity-diffs` artifact includes it.
+and its always-run `linux-fidelity-diffs` artifact includes it. The Windows
+regression job writes to `tests/output/e2e-browser-evidence/`, uploads it
+with the always-run `windows-fidelity-diffs` artifact, and runs the real
+Chromium child-preload test to verify the Windows Node import and evidence output.
 
 To read one occurrence, find the dump's `dumpedAt`. Compare the browser lines
 just before it with the host-sample lines around the same minute. A viz,

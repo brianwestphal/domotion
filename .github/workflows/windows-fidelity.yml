@@ -73,6 +73,8 @@ jobs:
     # can be configured independently of the Linux check in branch protection.
     name: Windows fidelity regression
     runs-on: windows-latest
+    env:
+      DOMOTION_E2E_EVIDENCE_DIR: tests/output/e2e-browser-evidence
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -124,13 +126,13 @@ jobs:
         run: >-
           npx vitest run --config vitest.e2e.config.ts
           tests/kerf-client-uis.e2e.test.ts tests/scrubber-natural-size.e2e.test.ts
-          tests/studio-responsive-metrics.e2e.test.ts
+          tests/studio-responsive-metrics.e2e.test.ts tests/e2e-child-evidence.e2e.test.ts
           --reporter=json --outputFile=tests/output/owned-ui-server/native-ui.json
       - name: Require every native client UI assertion
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output/owned-ui-server/native-ui.json --minimum-passed 11
+          --browser-results tests/output/owned-ui-server/native-ui.json --minimum-passed 14
       - name: Verify native computed font locale
         if: always()
         env:
@@ -369,6 +371,7 @@ jobs:
             tests/output/srcset-resource/
             tests/output/snapshot-visibility/
             tests/output/native-control-decoration-e2e/
+            tests/output/e2e-browser-evidence/
           if-no-files-found: error
 
   decoration-geometry:
