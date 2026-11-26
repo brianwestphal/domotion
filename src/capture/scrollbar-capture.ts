@@ -456,10 +456,9 @@ function makeScrollbarSet(
 ): CapturedScrollbarSet {
   const hasForcedScrollbar = candidate.overflowX === "scroll" || candidate.overflowY === "scroll";
   const hasRange = candidate.scrollWidth > candidate.clientWidth || candidate.scrollHeight > candidate.clientHeight;
-  // The source crop is viewport-owned, but it is currently emitted inside the
-  // element's SVG paint wrapper. A rotated/skewed/projective wrapper would
-  // transform those final pixels a second time, so fail closed until an outer
-  // paint-surface owner can place that crop outside the wrapper.
+  // Axis-aligned viewport marker bounds only identify horizontal and vertical
+  // owners when their source axes remain aligned. A rotated, skewed or
+  // projective owner needs an independent source-axis correlation.
   const transformUnresolved =
     !candidate.axisAlignedOutput && candidate.scrollbarWidth !== "none" && (hasForcedScrollbar || hasRange);
   const ownedComponents = transformUnresolved ? [] : components;

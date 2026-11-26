@@ -371,6 +371,97 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
     }
   });
 
+  it.each([
+    ["author-custom", "translate(10.5px, 10px)"],
+    ["author-custom", "scale(1.2)"],
+    ["native-raster", "scale(1.2)"],
+  ])("paints viewport-owned %s scrollbars once beneath %s", async (route, transform) => {
+    const viewport = { width: 330, height: 250 };
+    const page = await env!.browser.newPage({ viewport });
+    const scratch = await mkdtemp(join(tmpdir(), "domotion-transformed-scrollbar-"));
+    try {
+      await page.setContent(`<!doctype html><style>
+        html,body{margin:0;width:100%;height:100%;background:white}
+        #wrap{position:absolute;left:63px;top:51px;transform-origin:top left;transform:${transform}}
+        ${CUSTOM_CSS}
+        #owner{width:180px;height:120px;overflow:scroll}
+        .native{scrollbar-color:rgb(20,40,160) rgb(230,220,200);background:#ffeedc;border:3px solid #123}
+        #owner>div{width:500px;height:500px}
+        .native>div{background:linear-gradient(#efe,#fee)}
+      </style><div id="wrap"><div id="owner" class="${route === "author-custom" ? "scrollbox" : "native"}" data-domotion-anim="owner"><div></div></div></div>`);
+      const owner = page.locator("#owner");
+      await owner.evaluate((element) => {
+        element.scrollTop = 90;
+        element.scrollLeft = 140;
+      });
+      const box = (await owner.boundingBox())!;
+      await page.mouse.move(box.x + box.width - 2, box.y + 50);
+      await page.waitForTimeout(250);
+      const source = await page.screenshot();
+      const path = join(scratch, "source.png");
+      await writeFile(path, source);
+      const capture = await captureElementTreeWithWarnings(
+        page,
+        "body",
+        { x: 0, y: 0, ...viewport },
+        {
+          rasterizeFromImagePath: path,
+        },
+      );
+      const set = byAnimId(capture.tree, "owner")!.scrollbars!;
+      expect([set.horizontal?.route, set.vertical?.route]).toEqual([route, route]);
+      expect(set.outputTransform).toEqual({ space: "capture-viewport", matrix: [1, 0, 0, 1, 0, 0] });
+      const svg = elementTreeToSvg(capture.tree, viewport.width, viewport.height);
+      await page.setContent(`<style>html,body{margin:0}</style>${svg}`);
+      const matrix = await page.evaluate(() => {
+        const group = document.querySelector<SVGGraphicsElement>("[data-domotion-scrollbar-route]")!;
+        const { a, b, c, d, e, f } = group.getScreenCTM()!;
+        return [a, b, c, d, e, f];
+      });
+      for (const [i, entry] of matrix.entries()) expect(entry).toBeCloseTo(set.outputTransform.matrix[i]!, 5);
+      const output = await page.screenshot();
+      if (route === "author-custom") {
+        const bars = [set.horizontal!, set.vertical!];
+        const probes = [
+          { rect: bars[0]!.frameRect, u: 0, v: 0.5, rgb: [201, 31, 32] },
+          { rect: bars[1]!.frameRect, u: 0.5, v: 0, rgb: [201, 31, 32] },
+          ...bars.map((bar) => ({
+            rect: bar.parts.find((part) => part.kind === "thumb")!.rect,
+            u: 0.5,
+            v: 0.5,
+            rgb: [33, 61, 203],
+          })),
+          { rect: set.corner!.rect, u: 0.5, v: 0.5, rgb: [25, 155, 71] },
+        ];
+        // The track starts, both thumbs and the corner must own the same viewport pixels.
+        for (const png of [source, output]) {
+          const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+          for (const { rect, u, v, rgb } of probes) {
+            const x = Math.floor(rect.x + rect.width * u),
+              y = Math.floor(rect.y + rect.height * v);
+            const offset = (y * info.width + x) * info.channels;
+            expect([...data.subarray(offset, offset + 3)], `pixel at ${x},${y}`).toEqual(rgb);
+          }
+        }
+      } else {
+        // This source has no resizer. Verify both the embedded crop and the final painted strip
+        // against the same supplied frame, independently of the platform overlay's fade timing.
+        for (const bar of [set.horizontal!, set.vertical!]) {
+          const raster = bar.nativeRaster!;
+          expect(raster.dataUri).toMatch(/^data:image\/png;base64,/);
+          const rect = { left: raster.x, top: raster.y, width: raster.pixelWidth, height: raster.pixelHeight };
+          const expected = await sharp(source).extract(rect).ensureAlpha().raw().toBuffer();
+          const embedded = Buffer.from(raster.dataUri!.split(",")[1]!, "base64");
+          expect((await sharp(embedded).ensureAlpha().raw().toBuffer()).equals(expected)).toBe(true);
+          expect((await sharp(output).extract(rect).ensureAlpha().raw().toBuffer()).equals(expected)).toBe(true);
+        }
+      }
+    } finally {
+      await page.close();
+      await rm(scratch, { recursive: true, force: true });
+    }
+  });
+
   it("selects the author route when customization exists only on a part pseudo", async () => {
     const page = await env!.browser.newPage({ viewport: { width: 360, height: 240 } });
     try {

@@ -123,6 +123,10 @@ Unsupported author filters and CSS image functions take the same narrow route
 with `unsupported-author-part` provenance, while the remaining supported
 parts stay vector. Stock paint crosses the source-frame boundary described
 below; no native theme or animator value is synthesized.
+The captured part rectangles, overflow-controls clip and native strips all
+include the source's translation or scale. At the scrollbar paint phase the
+renderer cancels the active affine transform for these owners together. The
+resizer keeps its independent layout geometry and paints afterward (DM-7P80X6).
 Non-axis-aligned transforms fail with a named axis-correlation fact instead of
 assigning a rotated marker to the wrong source axis. This is the required
 explicit unknown path; no CSSOM cascade reconstruction or platform constant

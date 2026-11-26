@@ -3195,13 +3195,11 @@ function openElementWrappers(
 }
 
 /**
- * DM-WTSX24: a Chromium screenshot is cropped in viewport space, where the
- * element's CSS transforms are already painted. Captured geometry is the
- * untransformed local box that the renderer wraps in those transforms, so a
- * screenshot emitted inside the wrappers must be mapped back by the inverse
- * of the CTM open at its emission point. `withOwn` is true when that point is
- * inside the element's own wrapper (box-phase rasters); atomic surfaces are
- * emitted before it. A projective CTM (null) is left to its own raster path.
+ * Chromium measures screenshots and scrollbar marker rectangles in viewport
+ * space after applying CSS transforms. Map this paint through the inverse of
+ * the CTM open at its emission point. Box-phase rasters and scrollbars emit
+ * inside the element's own wrapper (`withOwn`). Atomic surfaces emit before
+ * it. A projective CTM (null) is left to its own raster path.
  * Producers that crop a captured local box mark the raster `viewportSpace`
  * only when a frozen transform moved it; `viewportSpace = false` keeps such a
  * raster in local coordinates.
@@ -4904,12 +4902,11 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
     }
   }
 
-  // CustomScrollbarTheme paints the captured CSS boxes in source order:
-  // horizontal, vertical, custom corner, then the separately owned resizer.
-  // Geometry is already in capture-viewport coordinates and must not be
-  // recomputed from scroll ranges or transformed a second time.
-  svgParts.push(
-    ...paintCustomScrollbars(
+  // Both scrollbar routes and the custom overflow-controls clip use measured
+  // viewport coordinates. Cancel the open affine wrapper for their whole paint
+  // group. The resizer below uses its independently captured layout geometry.
+  if (el.scrollbars != null || el.rootScrollbars != null) {
+    const scrollbarParts = paintCustomScrollbars(
       {
         defsParts,
         nextId: (prefix) => paintCtx.nextClipId(prefix),
@@ -4919,13 +4916,10 @@ function paintElementOverlayPhase(context: ElementPaintPhaseContext, childPlan: 
       captureViewport,
       el,
       indent,
-    ),
-  );
-
-  // PaintOverflowControls orders both axes and the corner before the resizer.
-  // Native crops are already clipped source-frame pixels in capture-viewport
-  // coordinates; this consumer never reconstructs or scales platform chrome.
-  svgParts.push(...paintNativeScrollbarRasters(el, indent));
+    );
+    scrollbarParts.push(...paintNativeScrollbarRasters(el, indent));
+    if (scrollbarParts.length > 0) svgParts.push(viewportRasterMarkup(state, el, scrollbarParts.join("\n"), true));
+  }
 
   svgParts.push(...paintResizeHandle(paintCtx, captureViewport, el, indent));
 }
