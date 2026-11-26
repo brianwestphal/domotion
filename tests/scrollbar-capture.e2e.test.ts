@@ -478,9 +478,11 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
       const output = await (axis == null ? page.screenshot() : screenshotAfterPresentedFrame(page));
       if (axis == null) {
         const bars = [set.horizontal!, set.vertical!];
+        const tracks = bars.map((bar) => bar.parts.find(({ kind }) => kind === "track")?.rect);
+        expect(tracks.every((rect) => rect != null)).toBe(true);
         const probes = [
-          { rect: bars[0]!.frameRect, u: 0, v: 0.5, rgb: [201, 31, 32] },
-          { rect: bars[1]!.frameRect, u: 0.5, v: 0, rgb: [201, 31, 32] },
+          { rect: tracks[0]!, u: 0.05, v: 0.5, rgb: [201, 31, 32] },
+          { rect: tracks[1]!, u: 0.5, v: 0.05, rgb: [201, 31, 32] },
           ...bars.map((bar) => ({
             rect: bar.parts.find((part) => part.kind === "thumb")!.rect,
             u: 0.5,
@@ -489,7 +491,8 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
           })),
           { rect: set.corner!.rect, u: 0.5, v: 0.5, rgb: [25, 155, 71] },
         ];
-        // The track starts, both thumbs and the corner must own the same viewport pixels.
+        // Probe each track just inside its start. The edge pixel itself blends
+        // with the border when Chromium lays out a fractional device origin.
         for (const png of [source, output]) {
           const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
           for (const { rect, u, v, rgb } of probes) {
@@ -511,6 +514,20 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         expect(sourceThumb!.x).toBeLessThan(rect.left + rect.width);
         expect(sourceThumb!.y).toBeGreaterThanOrEqual(rect.top);
         expect(sourceThumb!.y).toBeLessThan(rect.top + rect.height);
+        const image = await sharp(source).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+        // The projected layout gutter can end one pixel inside the themed
+        // paint. Check the complete authored-color track, including its end.
+        let uncoveredTrackPixels = 0;
+        for (let y = Math.ceil(box.y); y < Math.floor(box.y + box.height); y++) {
+          for (let x = Math.ceil(box.x); x < Math.floor(box.x + box.width); x++) {
+            const offset = (y * image.info.width + x) * 3;
+            const { data } = image;
+            if (data[offset] !== 230 || data[offset + 1] !== 220 || data[offset + 2] !== 200) continue;
+            const inside = x >= rect.left && x < rect.left + rect.width && y >= rect.top && y < rect.top + rect.height;
+            if (!inside) uncoveredTrackPixels++;
+          }
+        }
+        expect(uncoveredTrackPixels, `${axis} track pixels outside the native crop`).toBe(0);
         const expected = await sharp(source).extract(rect).ensureAlpha().raw().toBuffer();
         const embedded = Buffer.from(raster.dataUri!.split(",")[1]!, "base64");
         expect(

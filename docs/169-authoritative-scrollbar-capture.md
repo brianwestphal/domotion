@@ -90,7 +90,10 @@ The resulting `CapturedScrollbarSet` stores:
   offset, visible/total ranges, enabled state, used width/colors/scheme, zoom,
   DPR, and forced-colors state;
 - capture-viewport coordinates plus an identity output transform, preventing a
-  later raster consumer from applying the element transform twice;
+  later raster consumer from applying the element transform twice. Lower author
+  layers use distinct marker colors per axis where the two strips meet at the
+  corner. Classic native crops cover the projected layout gutter and marker-proven
+  paint, including themed button ink and device-snapped edges;
 - background paint phase for non-overlay/custom controls, the measured
   ancestor clip when it is axis-aligned, and corner/resizer overlap with the
   pinned corner-before-resizer paint order; and

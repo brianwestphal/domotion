@@ -260,6 +260,17 @@ jobs:
         run: >-
           node --import tsx tools/helper-release-consumer.ts
           --browser-results tests/output/snapshot-visibility/results.json --minimum-passed 117
+      - name: Verify native scrollbar paint ownership
+        if: always()
+        run: >-
+          npx vitest run --config vitest.e2e.config.ts
+          tests/scrollbar-capture.e2e.test.ts
+          --reporter=json --outputFile=tests/output/scrollbar-capture/results.json
+      - name: Require every native scrollbar assertion
+        if: always()
+        run: >-
+          node --import tsx tools/helper-release-consumer.ts
+          --browser-results tests/output/scrollbar-capture/results.json --minimum-passed 17
       - name: Verify selected image resource and fallback ownership (DM-E0KRM2)
         if: always()
         run: >-
@@ -385,6 +396,7 @@ jobs:
             tests/output/author-shadow-context/
             tests/output/srcset-resource/
             tests/output/snapshot-visibility/
+            tests/output/scrollbar-capture/
             tests/output/native-control-decoration-e2e/
             tests/output/e2e-browser-evidence/
           if-no-files-found: error

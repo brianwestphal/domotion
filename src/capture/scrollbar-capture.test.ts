@@ -32,7 +32,8 @@ describe("Blink live scrollbar marker classification", () => {
       outputRect: { x: 34, y: 27, width: 156, height: 118 },
       layoutGutterVertical: 15,
       layoutGutterHorizontal: 15,
-      effectiveZoom: 1,
+      outputScaleX: 1,
+      outputScaleY: 1,
       direction: "ltr",
       borderTop: 4,
       borderRight: 4,
@@ -48,6 +49,15 @@ describe("Blink live scrollbar marker classification", () => {
       height: 110,
     });
     expect(classicNativeScrollbarFrame({ ...candidate, layoutGutterHorizontal: 0 }, "horizontal")).toBeNull();
+
+    const scaled = {
+      ...candidate,
+      outputRect: { x: 34, y: 27, width: 312, height: 177 },
+      outputScaleX: 2,
+      outputScaleY: 1.5,
+    };
+    expect(classicNativeScrollbarFrame(scaled, "vertical")).toEqual({ x: 308, y: 33, width: 30, height: 165 });
+    expect(classicNativeScrollbarFrame(scaled, "horizontal")).toEqual({ x: 42, y: 175.5, width: 296, height: 22.5 });
   });
 
   it("derives the native corner from the physical horizontal/vertical frame overlap", () => {

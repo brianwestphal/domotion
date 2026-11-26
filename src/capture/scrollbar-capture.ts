@@ -117,6 +117,8 @@ interface BrowserCandidate {
   borderBottom: number;
   borderLeft: number;
   effectiveZoom: number;
+  outputScaleX: number;
+  outputScaleY: number;
   devicePixelRatio: number;
   forcedColors: boolean;
   prefersDark: boolean;
@@ -275,12 +277,20 @@ export function scrollbarMarkerComponents(
   return components;
 }
 
+function scrollbarAxisIsVisible(target: BrowserCandidate, orientation: "horizontal" | "vertical"): boolean {
+  const overflow = orientation === "horizontal" ? target.overflowX : target.overflowY;
+  // Root overflow may be propagated from the body. On an ordinary owner,
+  // hidden overflow can be scrolled programmatically but cannot paint a bar.
+  return target.rootScroller || (overflow !== "hidden" && overflow !== "clip");
+}
+
 function classifyComponent(
   component: MarkerComponent,
   scaleX: number,
   scaleY: number,
   target: BrowserCandidate,
   viewport: ScrollbarCaptureViewport,
+  isolatedOrientation?: "horizontal" | "vertical",
 ): ClassifiedComponent | null {
   const absolute = {
     x: component.pixelRect.x / scaleX,
@@ -300,14 +310,24 @@ function classifyComponent(
   const verticalDistance = Math.min(distanceLeft, distanceRight);
   const aspectHorizontal = absolute.width > absolute.height * 1.2;
   const aspectVertical = absolute.height > absolute.width * 1.2;
+  const horizontalVisible = scrollbarAxisIsVisible(target, "horizontal");
+  const verticalVisible = scrollbarAxisIsVisible(target, "vertical");
+  if (!horizontalVisible && !verticalVisible) return null;
+  // A short themed track or button can look vertical inside a horizontal
+  // strip (and vice versa). Suppressed axes cannot own these marker pixels.
   const orientation =
-    aspectHorizontal && !aspectVertical
+    isolatedOrientation ??
+    (!verticalVisible
       ? "horizontal"
-      : aspectVertical && !aspectHorizontal
+      : !horizontalVisible
         ? "vertical"
-        : distanceBottom < verticalDistance
+        : aspectHorizontal
           ? "horizontal"
-          : "vertical";
+          : aspectVertical
+            ? "vertical"
+            : distanceBottom < verticalDistance
+              ? "horizontal"
+              : "vertical");
   const edgeDistance = orientation === "horizontal" ? distanceBottom : verticalDistance;
   const edgeLimit = Math.max(8, Math.min(targetRect.width, targetRect.height) / 3);
   if (edgeDistance > edgeLimit) return null;
@@ -333,7 +353,8 @@ export function classicNativeScrollbarFrame(
     | "outputRect"
     | "layoutGutterVertical"
     | "layoutGutterHorizontal"
-    | "effectiveZoom"
+    | "outputScaleX"
+    | "outputScaleY"
     | "direction"
     | "borderTop"
     | "borderRight"
@@ -344,13 +365,12 @@ export function classicNativeScrollbarFrame(
 ): CapturedScrollbarRect | null {
   const layoutGutter = orientation === "horizontal" ? candidate.layoutGutterHorizontal : candidate.layoutGutterVertical;
   if (layoutGutter <= 0.5) return null;
-  const zoom = candidate.effectiveZoom;
-  const vertical = candidate.layoutGutterVertical * zoom;
-  const horizontal = candidate.layoutGutterHorizontal * zoom;
-  const left = candidate.borderLeft * zoom;
-  const right = candidate.borderRight * zoom;
-  const top = candidate.borderTop * zoom;
-  const bottom = candidate.borderBottom * zoom;
+  const vertical = candidate.layoutGutterVertical * candidate.outputScaleX;
+  const horizontal = candidate.layoutGutterHorizontal * candidate.outputScaleY;
+  const left = candidate.borderLeft * candidate.outputScaleX;
+  const right = candidate.borderRight * candidate.outputScaleX;
+  const top = candidate.borderTop * candidate.outputScaleY;
+  const bottom = candidate.borderBottom * candidate.outputScaleY;
   if (orientation === "horizontal")
     return {
       x: candidate.outputRect.x + left,
@@ -404,7 +424,11 @@ function scrollbarForOrientation(
   // axis' corner exactly once.
   const layoutGutter = orientation === "horizontal" ? candidate.layoutGutterHorizontal : candidate.layoutGutterVertical;
   if (route === "native-raster" && layoutGutter > 0.5) {
-    frameRect = classicNativeScrollbarFrame(candidate, orientation);
+    const layoutFrame = classicNativeScrollbarFrame(candidate, orientation);
+    const markerFrame = unionRects(owned.map(({ rect }) => rect));
+    // Native snap can move the edge of the transformed gutter one device
+    // pixel past the CSS projection. Retain pixels the marker proves.
+    if (layoutFrame != null && markerFrame != null) frameRect = unionRects([layoutFrame, markerFrame]);
   }
   if (frameRect == null) return null;
   const parts: CapturedScrollbarPart[] = owned.map(({ kind, rect }) => ({
@@ -647,27 +671,35 @@ function customMarkerCss(attribute: string, token: string, isolatedKind?: Captur
   // matches. Marker declarations remain paint-only; source display/sizing and
   // margins continue to own layout.
   const host = `[${attribute}="${token}"]:not(#dm-scrollbar-a#dm-scrollbar-b#dm-scrollbar-c#dm-scrollbar-d)`;
-  const rule = (pseudo: string, marker: MarkerDefinition): string => {
-    const color = cssColor(marker.rgb);
-    const selected = isolatedKind == null || marker.kind === isolatedKind;
-    const background = selected ? color : "transparent";
+  const rule = (pseudo: string, marker: MarkerDefinition | null): string => {
+    const selected = marker != null;
+    const color = selected ? cssColor(marker.rgb) : "transparent";
     const image = selected ? `linear-gradient(${color},${color})` : "none";
     const shadow = selected ? `inset 0 0 0 100vmax ${color}` : "none";
-    const border = selected ? color : "transparent";
-    return `${host}${pseudo}{visibility:visible!important;opacity:1!important;background-color:${background}!important;background-image:${image}!important;box-shadow:${shadow}!important;border-color:${border}!important;border-radius:0!important;filter:none!important;}`;
+    return `${host}${pseudo}{visibility:visible!important;opacity:1!important;background-color:${color}!important;background-image:${image}!important;box-shadow:${shadow}!important;border-color:${color}!important;border-radius:0!important;filter:none!important;}`;
   };
   const marker = (kind: CapturedScrollbarPartKind): MarkerDefinition =>
     SCROLLBAR_MARKERS.find((entry) => entry.kind === kind)!;
-  return [
-    rule("::-webkit-scrollbar", marker("background")),
-    rule("::-webkit-scrollbar-track", marker("track")),
-    rule("::-webkit-scrollbar-button:decrement", marker("back-button")),
-    rule("::-webkit-scrollbar-button:increment", marker("forward-button")),
-    rule("::-webkit-scrollbar-track-piece:start", marker("back-track")),
-    rule("::-webkit-scrollbar-track-piece:end", marker("forward-track")),
-    rule("::-webkit-scrollbar-thumb", marker("thumb")),
-    rule("::-webkit-scrollbar-corner", marker("corner")),
-  ].join("\n");
+  const parts: ReadonlyArray<readonly [string, CapturedScrollbarPartKind]> = [
+    ["::-webkit-scrollbar", "background"],
+    ["::-webkit-scrollbar-track", "track"],
+    ["::-webkit-scrollbar-button:decrement", "back-button"],
+    ["::-webkit-scrollbar-button:increment", "forward-button"],
+    ["::-webkit-scrollbar-track-piece:start", "back-track"],
+    ["::-webkit-scrollbar-track-piece:end", "forward-track"],
+    ["::-webkit-scrollbar-thumb", "thumb"],
+    ["::-webkit-scrollbar-corner", "corner"],
+  ];
+  if (isolatedKind == null) return parts.map(([pseudo, kind]) => rule(pseudo, marker(kind))).join("\n");
+  // A shared color can join the two axes into one L-shaped component at the
+  // corner. During the single-layer probe, give each actual axis its own color.
+  return parts
+    .flatMap(([pseudo, kind]) =>
+      kind === isolatedKind
+        ? [rule(`${pseudo}:horizontal`, marker("background")), rule(`${pseudo}:vertical`, marker("track"))]
+        : [rule(pseudo, null)],
+    )
+    .join("\n");
 }
 
 type ScrollbarPseudoKind =
@@ -837,8 +869,12 @@ function nativeOverlayComponentsFromSource(
     viewport,
   );
   if (analysis.verdict !== "visible") return [];
-  const hasHorizontal = candidate.overflowX === "scroll" || candidate.scrollWidth > candidate.clientWidth;
-  const hasVertical = candidate.overflowY === "scroll" || candidate.scrollHeight > candidate.clientHeight;
+  const hasHorizontal =
+    scrollbarAxisIsVisible(candidate, "horizontal") &&
+    (candidate.overflowX === "scroll" || candidate.scrollWidth > candidate.clientWidth);
+  const hasVertical =
+    scrollbarAxisIsVisible(candidate, "vertical") &&
+    (candidate.overflowY === "scroll" || candidate.scrollHeight > candidate.clientHeight);
   return analysis.rects.map((rect) => {
     let orientation: "horizontal" | "vertical";
     if (hasHorizontal && !hasVertical) orientation = "horizontal";
@@ -1299,7 +1335,7 @@ async function captureMarkerComponents(
     });
     await waitForCaptureAnimationFrames(candidate.frame, 2);
     const baseline = await sharp(baselinePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const classifyScreenshot = async (): Promise<ClassifiedComponent[]> => {
+    const classifyScreenshot = async (isolatedKind?: "background" | "track"): Promise<ClassifiedComponent[]> => {
       const png = await screenshotWithoutUnneededCaretWrites(page, { type: "png" });
       const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
       const surfaceWidth = viewportSize?.width ?? decoded.info.width / Math.max(1, candidate.devicePixelRatio);
@@ -1321,7 +1357,12 @@ async function captureMarkerComponents(
           ? baseline.data
           : undefined,
       )
-        .map((component) => classifyComponent(component, scaleX, scaleY, candidate, viewport))
+        .map((component) => {
+          if (isolatedKind == null) return classifyComponent(component, scaleX, scaleY, candidate, viewport);
+          const axis = component.kind === "background" ? "horizontal" : component.kind === "track" ? "vertical" : null;
+          if (axis == null || !scrollbarAxisIsVisible(candidate, axis)) return null;
+          return classifyComponent({ ...component, kind: isolatedKind }, scaleX, scaleY, candidate, viewport, axis);
+        })
         .filter((component): component is ClassifiedComponent => component != null);
     };
     components = await classifyScreenshot();
@@ -1334,7 +1375,7 @@ async function captureMarkerComponents(
         const css = customMarkerCss(markerAttribute, token, isolatedKind);
         await candidate.frame.evaluate(setMarkerCssInFrame, { markerKey, css });
         await waitForCaptureAnimationFrames(candidate.frame, 2);
-        const isolated = (await classifyScreenshot()).filter(({ kind }) => kind === isolatedKind);
+        const isolated = await classifyScreenshot(isolatedKind);
         components = [...components.filter(({ kind }) => kind !== isolatedKind), ...isolated];
       }
     }
@@ -1488,6 +1529,8 @@ const discoverScrollbarCandidatesInFrame = ({
       }
     }
     let zoom = 1;
+    let transformScaleX = frameMeta.scaleX;
+    let transformScaleY = frameMeta.scaleY;
     let axisAlignedOutput = frameMeta.axisAligned;
     for (let current: Element | null = element; current != null; current = current.parentElement) {
       const currentStyle = getComputedStyle(current);
@@ -1496,7 +1539,18 @@ const discoverScrollbarCandidatesInFrame = ({
       if (currentStyle.transform !== "none") {
         try {
           const matrix = new DOMMatrixReadOnly(currentStyle.transform);
-          if (!matrix.is2D || Math.abs(matrix.b) > 1e-7 || Math.abs(matrix.c) > 1e-7) axisAlignedOutput = false;
+          if (
+            !matrix.is2D ||
+            matrix.a <= 0 ||
+            matrix.d <= 0 ||
+            Math.abs(matrix.b) > 1e-7 ||
+            Math.abs(matrix.c) > 1e-7
+          ) {
+            axisAlignedOutput = false;
+          } else if (!rootScroller) {
+            transformScaleX *= matrix.a;
+            transformScaleY *= matrix.d;
+          }
         } catch {
           axisAlignedOutput = false;
         }
@@ -1544,6 +1598,8 @@ const discoverScrollbarCandidatesInFrame = ({
       borderBottom,
       borderLeft,
       effectiveZoom: zoom,
+      outputScaleX: zoom * transformScaleX,
+      outputScaleY: zoom * transformScaleY,
       devicePixelRatio: window.devicePixelRatio,
       forcedColors: matchMedia("(forced-colors: active)").matches,
       prefersDark: matchMedia("(prefers-color-scheme: dark)").matches,
