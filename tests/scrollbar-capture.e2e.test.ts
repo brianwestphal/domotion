@@ -10,6 +10,7 @@ import { prepareCapturedScrollbarSets } from "../src/capture/scrollbar-capture.j
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
 
 const env = await (async () => {
   try {
@@ -56,6 +57,29 @@ function rgbaDifference(
     if (changed) changedPixels++;
   }
   return { changedPixels, maxChannelDelta, firstChangedByte };
+}
+
+/** The native fixture uses a blue thumb and warm or neutral backing pixels. */
+async function nativeThumbCenter(png: Buffer, box: { x: number; y: number; width: number; height: number }) {
+  const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  let left = info.width;
+  let top = info.height;
+  let right = -1;
+  let bottom = -1;
+  for (let y = Math.ceil(box.y); y < Math.floor(box.y + box.height); y++) {
+    for (let x = Math.ceil(box.x); x < Math.floor(box.x + box.width); x++) {
+      const offset = (y * info.width + x) * info.channels;
+      const red = data[offset]!;
+      const green = data[offset + 1]!;
+      const blue = data[offset + 2]!;
+      if (blue < red + 45 || blue < green + 30) continue;
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
+    }
+  }
+  return right < left ? null : { x: (left + right + 1) / 2, y: (top + bottom + 1) / 2 };
 }
 
 const CUSTOM_CSS = `
@@ -372,32 +396,61 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
   });
 
   it.each([
-    ["author-custom", "translate(10.5px, 10px)"],
-    ["author-custom", "scale(1.2)"],
-    ["native-raster", "scale(1.2)"],
-  ])("paints viewport-owned %s scrollbars once beneath %s", async (route, transform) => {
+    { name: "author-custom scrollbars", transform: "translate(10.5px, 10px)", axis: null },
+    { name: "author-custom scrollbars", transform: "scale(1.2)", axis: null },
+    { name: "native-raster horizontal scrollbar", transform: "scale(1.2)", axis: "horizontal" },
+    { name: "native-raster vertical scrollbar", transform: "scale(1.2)", axis: "vertical" },
+  ] as const)("paints viewport-owned $name once beneath $transform", async ({ transform, axis }) => {
     const viewport = { width: 330, height: 250 };
-    const page = await env!.browser.newPage({ viewport });
+    const page = await env!.browser.newPage({ viewport, deviceScaleFactor: 1 });
     const scratch = await mkdtemp(join(tmpdir(), "domotion-transformed-scrollbar-"));
     try {
+      const horizontal = axis === "horizontal";
+      const route = axis == null ? "author-custom" : "native-raster";
       await page.setContent(`<!doctype html><style>
         html,body{margin:0;width:100%;height:100%;background:white}
         #wrap{position:absolute;left:63px;top:51px;transform-origin:top left;transform:${transform}}
         ${CUSTOM_CSS}
-        #owner{width:180px;height:120px;overflow:scroll}
-        .native{scrollbar-color:rgb(20,40,160) rgb(230,220,200);background:#ffeedc;border:3px solid #123}
-        #owner>div{width:500px;height:500px}
-        .native>div{background:linear-gradient(#efe,#fee)}
-      </style><div id="wrap"><div id="owner" class="${route === "author-custom" ? "scrollbox" : "native"}" data-domotion-anim="owner"><div></div></div></div>`);
+        #owner{width:180px;height:120px;overflow:${axis == null ? "scroll" : horizontal ? "auto hidden" : "hidden auto"}}
+        .native{scrollbar-color:rgb(20,40,160) rgb(230,220,200);background:#ffeedd;border:3px solid #333}
+        #owner>div{width:${axis === "vertical" ? "100%" : "500px"};height:${horizontal ? "100%" : "500px"}}
+        .native>div{background:#efe}
+      </style><div id="wrap"><div id="owner" class="${axis == null ? "scrollbox" : "native"}" data-domotion-anim="owner"><div></div></div></div>`);
       const owner = page.locator("#owner");
-      await owner.evaluate((element) => {
-        element.scrollTop = 90;
-        element.scrollLeft = 140;
-      });
+      await owner.evaluate((element, axis) => {
+        element.scrollTop = axis === "horizontal" ? 0 : 90;
+        element.scrollLeft = axis === "vertical" ? 0 : 140;
+      }, axis);
       const box = (await owner.boundingBox())!;
-      await page.mouse.move(box.x + box.width - 2, box.y + 50);
-      await page.waitForTimeout(250);
-      const source = await page.screenshot();
+      let source: Buffer;
+      let sourceThumb: Awaited<ReturnType<typeof nativeThumbCenter>> = null;
+      if (axis == null) {
+        await page.mouse.move(box.x + box.width - 2, box.y + 50);
+        await page.waitForTimeout(250);
+        source = await page.screenshot();
+      } else {
+        // Actual wheel input activates the one platform scrollbar for this
+        // host. Use its presented ink to hit the thumb inside the scaled
+        // border, including when the platform paints a wider hovered strip.
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.wheel(horizontal ? 16 : 0, horizontal ? 0 : 16);
+        const offsets = () =>
+          owner.evaluate((element) => ({ horizontal: element.scrollLeft, vertical: element.scrollTop }));
+        await expect.poll(async () => (await offsets())[axis]).toBeGreaterThan(horizontal ? 140 : 90);
+        expect((await offsets())[horizontal ? "vertical" : "horizontal"]).toBe(0);
+        const observed = { center: null as Awaited<ReturnType<typeof nativeThumbCenter>> };
+        await expect
+          .poll(async () => {
+            observed.center = await nativeThumbCenter(await screenshotAfterPresentedFrame(page), box);
+            return observed.center;
+          })
+          .not.toBeNull();
+        const center = observed.center!;
+        await page.mouse.move(center.x, center.y);
+        source = await screenshotAfterPresentedFrame(page);
+        sourceThumb = await nativeThumbCenter(source, box);
+        expect(sourceThumb, `${axis} thumb is painted in the supplied frame`).not.toBeNull();
+      }
       const path = join(scratch, "source.png");
       await writeFile(path, source);
       const capture = await captureElementTreeWithWarnings(
@@ -409,7 +462,10 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         },
       );
       const set = byAnimId(capture.tree, "owner")!.scrollbars!;
-      expect([set.horizontal?.route, set.vertical?.route]).toEqual([route, route]);
+      expect(
+        [set.horizontal?.route, set.vertical?.route],
+        `scrollbar paints ${set.status} with ${set.noInkReason ?? set.missingFacts.join(", ")}`,
+      ).toEqual([axis === "vertical" ? undefined : route, horizontal ? undefined : route]);
       expect(set.outputTransform).toEqual({ space: "capture-viewport", matrix: [1, 0, 0, 1, 0, 0] });
       const svg = elementTreeToSvg(capture.tree, viewport.width, viewport.height);
       await page.setContent(`<style>html,body{margin:0}</style>${svg}`);
@@ -419,8 +475,8 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
         return [a, b, c, d, e, f];
       });
       for (const [i, entry] of matrix.entries()) expect(entry).toBeCloseTo(set.outputTransform.matrix[i]!, 5);
-      const output = await page.screenshot();
-      if (route === "author-custom") {
+      const output = await (axis == null ? page.screenshot() : screenshotAfterPresentedFrame(page));
+      if (axis == null) {
         const bars = [set.horizontal!, set.vertical!];
         const probes = [
           { rect: bars[0]!.frameRect, u: 0, v: 0.5, rgb: [201, 31, 32] },
@@ -444,17 +500,27 @@ describeBrowser("DM-2481: authoritative Blink scrollbar capture", () => {
           }
         }
       } else {
-        // This source has no resizer. Verify both the embedded crop and the final painted strip
-        // against the same supplied frame, independently of the platform overlay's fade timing.
-        for (const bar of [set.horizontal!, set.vertical!]) {
-          const raster = bar.nativeRaster!;
-          expect(raster.dataUri).toMatch(/^data:image\/png;base64,/);
-          const rect = { left: raster.x, top: raster.y, width: raster.pixelWidth, height: raster.pixelHeight };
-          const expected = await sharp(source).extract(rect).ensureAlpha().raw().toBuffer();
-          const embedded = Buffer.from(raster.dataUri!.split(",")[1]!, "base64");
-          expect((await sharp(embedded).ensureAlpha().raw().toBuffer()).equals(expected)).toBe(true);
-          expect((await sharp(output).extract(rect).ensureAlpha().raw().toBuffer()).equals(expected)).toBe(true);
-        }
+        // This source has no resizer. Compare the whole embedded crop and the
+        // final strip with the same source frame.
+        expect(set.status).toBe("captured");
+        expect(set.missingFacts).toEqual([]);
+        const raster = set[axis]!.nativeRaster!;
+        expect(raster.dataUri).toMatch(/^data:image\/png;base64,/);
+        const rect = { left: raster.x, top: raster.y, width: raster.pixelWidth, height: raster.pixelHeight };
+        expect(sourceThumb!.x).toBeGreaterThanOrEqual(rect.left);
+        expect(sourceThumb!.x).toBeLessThan(rect.left + rect.width);
+        expect(sourceThumb!.y).toBeGreaterThanOrEqual(rect.top);
+        expect(sourceThumb!.y).toBeLessThan(rect.top + rect.height);
+        const expected = await sharp(source).extract(rect).ensureAlpha().raw().toBuffer();
+        const embedded = Buffer.from(raster.dataUri!.split(",")[1]!, "base64");
+        expect(
+          rgbaDifference(expected, await sharp(embedded).ensureAlpha().raw().toBuffer()),
+          `${axis} embedded crop`,
+        ).toEqual({ changedPixels: 0, maxChannelDelta: 0, firstChangedByte: null });
+        expect(
+          rgbaDifference(expected, await sharp(output).extract(rect).ensureAlpha().raw().toBuffer()),
+          `${axis} final SVG crop`,
+        ).toEqual({ changedPixels: 0, maxChannelDelta: 0, firstChangedByte: null });
       }
     } finally {
       await page.close();
