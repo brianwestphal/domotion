@@ -165,6 +165,12 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     resolveCounterStyle,
     isCustomCounterStyle,
     measureFontMetrics: _measureFontMetrics,
+    applyMarkerFamilyType: (el, markerStyle) => {
+      // The same CSSOM name can be a locale-selected standard family or an
+      // authored literal. Mark only the live style backed by the native fact.
+      if (_familyTypeFromDeclaration(el, markerStyle.fontFamily, "::marker") === "standard")
+        _markStandardFamilyStyle(markerStyle);
+    },
   });
   const { handleReplacedElement } = createReplacedElementsHandler({ vp, externalCssSvgKey: args.externalCssSvgKey });
   const {

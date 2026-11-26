@@ -16,11 +16,13 @@ export const createListsCountersHandler = ({
   resolveCounterStyle,
   isCustomCounterStyle,
   measureFontMetrics,
+  applyMarkerFamilyType,
 }: {
   normColor: (color: string) => string;
   resolveCounterStyle: (name: string, index: number) => string | null;
   isCustomCounterStyle: (name: string) => boolean;
   measureFontMetrics: (cs: CSSStyleDeclaration) => { ascent: number; descent: number };
+  applyMarkerFamilyType: (el: Element, markerStyle: CSSStyleDeclaration) => void;
 }) => {
   const captureListsCounters = (el: Element, cs: CSSStyleDeclaration, tag: string) => {
     // CSS treats any element with display:list-item as a list item — the tag
@@ -106,6 +108,7 @@ export const createListsCountersHandler = ({
     // else the values come back equal to the element's own font and are
     // quietly ignored at render time, so leave them undefined.
     const markerCs = isListItem ? window.getComputedStyle(el, "::marker") : null;
+    if (markerCs != null) applyMarkerFamilyType(el, markerCs);
     let markerContent = markerCs ? markerCs.content : undefined;
 
     // DM-770: if list-style-type names a custom @counter-style and the

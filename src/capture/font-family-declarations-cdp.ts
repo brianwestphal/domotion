@@ -55,11 +55,15 @@ const collectCandidates = String.raw`function(literalOnly) {
   var elements = root.querySelectorAll('*');
   for (var i = 0; i < elements.length; i++) {
     var el = elements[i];
-    var candidate = view.getComputedStyle(el).fontFamily.toLowerCase() === initial;
+    var hostStyle = view.getComputedStyle(el);
+    var candidate = hostStyle.fontFamily.toLowerCase() === initial;
     if (!literalOnly && !candidate) {
       candidate = ['before', 'after', 'first-letter', 'first-line', 'placeholder', 'file-selector-button'].some(function(pseudo) {
         return view.getComputedStyle(el, '::' + pseudo).fontFamily.toLowerCase() === initial;
       });
+      if (!candidate && hostStyle.display.includes('list-item')) {
+        candidate = view.getComputedStyle(el, '::marker').fontFamily.toLowerCase() === initial;
+      }
     }
     if (candidate) candidates.push(el);
   }
