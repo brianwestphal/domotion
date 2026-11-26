@@ -2364,6 +2364,8 @@ export interface CapturedElement {
   }>;
   children: CapturedElement[];
   imageSrc?: string;
+  /** Static blob embed correlation, consumed before the captured tree is returned. */
+  staticBlobSourceNodeIndex?: number;
   /** Unzoomed intrinsic pixel dimensions of <img>. */
   imageIntrinsic?: { w: number; h: number };
   /** Native selected decoded resource dimensions, orientation applied. Ratio
@@ -3247,6 +3249,8 @@ export interface CaptureScriptArgs {
   /** Projective (3D) facts by node index, the registry key, and the sampled animation frame. */
   projectiveFacts: unknown[];
   projectiveKey: string;
+  /** Correlate selected top-document blob images for self-contained capture. */
+  embedStaticBlobImages?: boolean;
   projectiveSampleTimeMs?: number;
   projectiveAnimationCount?: number;
   /** Registry keys of the collapsed-border, pseudo-fragment and pseudo-image prepasses. */

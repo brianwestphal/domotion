@@ -48,6 +48,21 @@ await embedRemoteImages(tree); // ← new pre-pass (DM-512)
 const svg = elementTreeToSvg(tree, w, h); // every URL is now inline
 ```
 
+### Static images owned by the browser document
+
+`captureElementTreeSelfContained` and the recorder's self-contained mode
+inline supported static PNG, JPEG, GIF, and WebP blob sources selected by
+top-document HTML images (DM-ZRPWFP). Capture correlates the exact live image
+to its private source-node registry and reads the blob in Chromium under the
+document's origin, storage partition, and CSP. The original bytes are part of
+the captured node, so a cloned tree can render after the source page closes.
+
+A detached or changed image, unavailable or revoked blob, unsupported type,
+or exceeded read budget keeps the captured URL and reports a capture warning.
+The pass verifies blob permissions in the browser and uses no network
+fallback. CSS-generated images, child documents, and animated-image
+transactions retain their existing capture routes.
+
 For images behind an application session, supply request headers without changing
 the process-wide `fetch` function:
 

@@ -643,6 +643,15 @@ export const createElementCapture = () => {
       const borderPaintSnap = captureBorderPaintSnap(el, rect);
       if (borderPaintSnap != null) captured.borderPaintSnap = borderPaintSnap;
     }
+    if (
+      d.args.embedStaticBlobImages === true &&
+      tag === "img" &&
+      captured.imageSrc?.startsWith("blob:") &&
+      captured.imageIntrinsic != null &&
+      cs.content === "normal"
+    ) {
+      captured.staticBlobSourceNodeIndex = d.topDocumentNodeIndex.get(el);
+    }
     // ImagePainter snaps an image's destination and content rects in the same
     // local paint space; record that basis separately from the DOM geometry.
     if (

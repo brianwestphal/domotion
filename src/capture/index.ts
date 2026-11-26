@@ -32,6 +32,7 @@ import { firstLineBlockOwners, withFirstLineBlockOwners } from "./first-line-blo
 import { FIRST_LINE_BLOCK_SHADOW_CONTEXT, LIVE_AFFINE_BOX_SHADOW_CONTEXT } from "./author-shadow-context-record.js";
 import { readInlineSvgRootRuntime } from "./inline-svg-root-runtime.js";
 import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
+import { embedCapturedStaticBlobImages } from "./static-blob-images.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
 import { rasterizeConicGradients } from "../render/conic-raster.js";
@@ -596,7 +597,7 @@ export class DemoRecorder {
   /** Capture the current page state as SVG content. */
   async captureCurrent(idPrefix = ""): Promise<string> {
     if (this.page == null) throw new Error("Call init() first");
-    const { tree, warnings } = await captureElementTreeWithWarnings(
+    const { tree, warnings } = await captureElementTreeWithWarningsInternal(
       this.page,
       "body",
       {
@@ -606,6 +607,8 @@ export class DemoRecorder {
         height: this.height,
       },
       { crossOriginFrames: this.captureCrossOriginFrames },
+      undefined,
+      this.selfContained,
     );
     return this.renderCapturedTree(tree, warnings, this.height, idPrefix);
   }
@@ -617,7 +620,7 @@ export class DemoRecorder {
   async captureFullPage(idPrefix = ""): Promise<{ svgContent: string; pageHeight: number }> {
     if (this.page == null) throw new Error("Call init() first");
     const pageHeight = await this.page.evaluate(() => document.body.scrollHeight);
-    const { tree, warnings } = await captureElementTreeWithWarnings(
+    const { tree, warnings } = await captureElementTreeWithWarningsInternal(
       this.page,
       "body",
       {
@@ -627,6 +630,8 @@ export class DemoRecorder {
         height: pageHeight,
       },
       { crossOriginFrames: this.captureCrossOriginFrames },
+      undefined,
+      this.selfContained,
     );
     const svgContent = await this.renderCapturedTree(tree, warnings, pageHeight, idPrefix);
     return { svgContent, pageHeight };
@@ -2310,10 +2315,17 @@ export async function captureElementTreeSelfContained(
     animationTimeMs?: number;
   },
 ): Promise<CapturedElement[]> {
-  const tree = await captureElementTree(page, selector, viewport, {
-    ...(opts?.crossOriginFrames != null ? { crossOriginFrames: opts.crossOriginFrames } : {}),
-    ...(opts?.animationTimeMs != null ? { animationTimeMs: opts.animationTimeMs } : {}),
-  });
+  const { tree } = await captureElementTreeWithWarningsInternal(
+    page,
+    selector,
+    viewport,
+    {
+      ...(opts?.crossOriginFrames != null ? { crossOriginFrames: opts.crossOriginFrames } : {}),
+      ...(opts?.animationTimeMs != null ? { animationTimeMs: opts.animationTimeMs } : {}),
+    },
+    undefined,
+    true,
+  );
   await embedRemoteImages(tree, opts?.embed ?? {});
   // Remote `<img>` SVGs are resolvable only now that they are embedded.
   await captureImageSvgSupports(page, tree);
@@ -2377,6 +2389,7 @@ async function captureElementTreeWithWarningsInternal(
   viewport: { x: number; y: number; width: number; height: number },
   opts?: CaptureElementTreeOptions,
   captureStableFrame?: () => Promise<void>,
+  embedStaticBlobImages = false,
 ): Promise<CaptureElementTreeResult> {
   let animationFrameState: StableAnimationFrameState | undefined;
   let rafClockState: StableCaptureRafState | undefined;
@@ -2559,6 +2572,7 @@ async function captureElementTreeWithWarningsInternal(
         frameScrollPropertyKey: frameScrollCapture.propertyKey,
         projectiveFacts: projectiveProbe.facts,
         projectiveKey: projectiveProbe.key,
+        ...(embedStaticBlobImages ? { embedStaticBlobImages: true } : {}),
         projectiveSampleTimeMs: animationFrameState?.requestedTimeMs,
         projectiveAnimationCount: animationFrameState?.animationCount,
         collapsedBorderFragmentKey: collapsedBorderFragmentProbe.key,
@@ -2816,6 +2830,10 @@ async function captureElementTreeWithWarningsInternal(
         await captureSummaryMarkerGeometry(page, typed.tree, viewport, warnings, projectiveProbe?.key);
         await reverifyAnimationFrame();
         await rasterizeProjectiveSurfaces(page, typed.tree, viewport, projectiveProbe?.key, warnings);
+        if (embedStaticBlobImages) {
+          await reverifyAnimationFrame();
+          await embedCapturedStaticBlobImages(page, typed.tree, projectiveProbe?.key, warnings);
+        }
       } finally {
         // Cleared only after a clean dispose: on a throw the outer `finally` retries them.
         await disposeAll(pseudoStyles, projectiveProbe);
