@@ -119,6 +119,86 @@ async function captureLiveImages(
   };
 }
 
+describeBrowser("broken-image icon isolation restores source declarations (DM-ESY89C)", () => {
+  const viewport = { x: 0, y: 0, width: 220, height: 120 };
+  const literalStyle = "transform:translate(7px,5px) scale(1.1);transform-origin:0 0";
+  const setup = (page: Page, style: string | null) =>
+    page.setContent(
+      `<!doctype html><html style=" --note:  one  ; "><style>html,body{margin:0}img{position:absolute;left:32px;top:24px;transform:translate(7px,5px) scale(1.1);transform-origin:0 0}aside{display:none}</style><body style=""><main><img src="${BROKEN}" alt="transformed"${style == null ? "" : ` style="${style}"`}><aside></aside></main></body></html>`,
+    );
+  const styleValues = (page: Page) =>
+    page.locator("html,body,main,img,aside").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("style")));
+  async function captureIcon(page: Page) {
+    const { tree, warnings } = await captureElementTreeWithWarnings(page, "main", viewport);
+    expect(warnings.filter(({ feature }) => feature === "broken-image-fallback")).toEqual([]);
+    const image = tree.flatMap((node) => [node, ...node.children]).find((node) => node.tag === "img");
+    const raster = image?.brokenImageFallback?.icon?.raster;
+    expect(raster?.source).toBe("chromium-isolated-ua-shadow-icon-v1");
+    return raster!;
+  }
+
+  it("preserves absent, empty and literal attributes with identical native icon RGBA", async () => {
+    const page = await env!.browser.newPage({ viewport });
+    const icons: Buffer[] = [];
+    try {
+      for (const style of [null, "", literalStyle]) {
+        await setup(page, style);
+        const expected = [" --note:  one  ; ", "", null, style, null];
+        expect(await styleValues(page)).toEqual(expected);
+        const before = await page.screenshot({ caret: "initial" });
+        const raster = await captureIcon(page);
+        expect(await styleValues(page)).toEqual(expected);
+        expect(await page.screenshot({ caret: "initial" })).toEqual(before);
+        const png = Buffer.from(raster.dataUri.split(",")[1], "base64");
+        const rgba = await sharp(png).ensureAlpha().raw().toBuffer();
+        expect(rgba.some((value, index) => index % 4 === 3 && value > 0)).toBe(true);
+        icons.push(rgba);
+      }
+      expect(icons[1]).toEqual(icons[0]);
+      expect(icons[2]).toEqual(icons[0]);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("keeps an observer's changes to owned and unrelated declarations", async () => {
+    const page = await env!.browser.newPage({ viewport });
+    try {
+      await setup(page, literalStyle);
+      const expectedIcon = await captureIcon(page);
+      await setup(page, literalStyle);
+      const observer = await page.locator("img").evaluateHandle((image: HTMLImageElement) => {
+        const state = { changed: false };
+        new MutationObserver(() => {
+          if (state.changed || image.style.getPropertyPriority("mix-blend-mode") !== "important") return;
+          state.changed = true;
+          image.style.setProperty("mix-blend-mode", "normal");
+          image.style.setProperty("--observer-state", "author");
+        }).observe(image, { attributes: true, attributeFilter: ["style"] });
+        return state;
+      });
+      const raster = await captureIcon(page);
+      expect(await observer.jsonValue()).toEqual({ changed: true });
+      expect(await page.locator("img").evaluate((image: HTMLImageElement) => [...image.style])).toEqual([
+        "transform",
+        "transform-origin",
+        "mix-blend-mode",
+        "--observer-state",
+      ]);
+      expect(
+        await page.locator("img").evaluate((image: HTMLImageElement) => ({
+          override: image.style.getPropertyValue("mix-blend-mode"),
+          priority: image.style.getPropertyPriority("mix-blend-mode"),
+          state: image.style.getPropertyValue("--observer-state"),
+        })),
+      ).toEqual({ override: "normal", priority: "", state: "author" });
+      expect(raster.dataUri).toBe(expectedIcon.dataUri);
+    } finally {
+      await page.close();
+    }
+  });
+});
+
 describeBrowser("Chromium broken-image UA-shadow capture (DM-2463)", () => {
   for (const dpr of [1, 2]) {
     it.each([

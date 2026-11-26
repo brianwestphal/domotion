@@ -14,11 +14,13 @@ import sharp from "sharp";
 import { createPageRegistry } from "./page-registry.js";
 import { planNativeControlClip, type NativeControlViewport } from "./native-control-raster.js";
 
+type StyleValue = { value: string; priority: string };
 type RestoreEntry = {
   element: Element & { style: CSSStyleDeclaration };
-  property: string;
-  value: string;
-  priority: string;
+  exact: boolean;
+  originalStyle: string | null;
+  isolatedStyle: string | null;
+  properties: Array<{ name: string; original: StyleValue; isolated: StyleValue }>;
 };
 
 export interface CapturedBrokenImageIconRaster {
@@ -46,8 +48,25 @@ async function restoreLightDom(page: Page, restoreKey: string): Promise<void> {
       const entries = pageGlobal[key] as RestoreEntry[] | undefined;
       for (let index = (entries?.length ?? 0) - 1; index >= 0; index--) {
         const entry = entries![index];
-        if (entry.value === "" && entry.priority === "") entry.element.style.removeProperty(entry.property);
-        else entry.element.style.setProperty(entry.property, entry.value, entry.priority);
+        const { element, originalStyle, isolatedStyle, properties } = entry;
+        const current = element.getAttribute("style");
+        if (entry.exact && current === isolatedStyle) {
+          if (current === originalStyle) continue;
+          if (originalStyle == null) element.removeAttribute("style");
+          else element.setAttribute("style", originalStyle);
+          continue;
+        }
+        // Source observers can edit the declaration during the screenshot.
+        // Roll back only declarations that still carry our isolated value.
+        for (const { name, original, isolated } of properties) {
+          if (
+            element.style.getPropertyValue(name) !== isolated.value ||
+            element.style.getPropertyPriority(name) !== isolated.priority
+          )
+            continue;
+          if (original.value === "") element.style.removeProperty(name);
+          else element.style.setProperty(name, original.value, original.priority);
+        }
       }
     }, restoreKey)
     .catch(() => undefined);
@@ -76,55 +95,66 @@ export async function captureBrokenImageIconRaster(
         if (!(host instanceof HTMLElement) || !host.isConnected) return false;
         const entries = pageGlobal[restoreKey] as RestoreEntry[];
 
-        for (const element of Array.from(document.querySelectorAll("*"))) {
-          const styled = element as Element & { style: CSSStyleDeclaration };
-          entries.push({
-            element: styled,
-            property: "visibility",
-            value: styled.style.getPropertyValue("visibility"),
-            priority: styled.style.getPropertyPriority("visibility"),
-          });
-          styled.style.setProperty("visibility", "hidden", "important");
-        }
-        for (const canvas of [document.documentElement, document.body]) {
-          if (canvas == null) continue;
-          for (const property of ["background-color", "background-image"]) {
-            entries.push({
-              element: canvas,
-              property,
-              value: canvas.style.getPropertyValue(property),
-              priority: canvas.style.getPropertyPriority(property),
-            });
-            canvas.style.setProperty(property, property === "background-color" ? "transparent" : "none", "important");
-          }
-        }
-        const hostStyle = host.style;
+        const canvasValues: Array<[string, string]> = [
+          ["background-color", "transparent"],
+          ["background-image", "none"],
+        ];
         const hostValues: Array<[string, string]> = [
           ["visibility", "visible"],
           ["opacity", "1"],
           ["filter", "none"],
           ["backdrop-filter", "none"],
           ["mix-blend-mode", "normal"],
-          ["background-color", "transparent"],
-          ["background-image", "none"],
+          ...canvasValues,
           ["border-top-color", "transparent"],
           ["border-right-color", "transparent"],
           ["border-bottom-color", "transparent"],
           ["border-left-color", "transparent"],
           ["border-image-source", "none"],
           ["box-shadow", "none"],
-          ["outline", "none"],
+          ["outline-style", "none"],
           ["clip-path", "none"],
           ["mask-image", "none"],
         ];
-        for (const [property, value] of hostValues) {
-          entries.push({
-            element: host,
-            property,
-            value: hostStyle.getPropertyValue(property),
-            priority: hostStyle.getPropertyPriority(property),
-          });
-          hostStyle.setProperty(property, value, "important");
+
+        // Derive what the isolated attribute should contain on an inert node.
+        // Reading it off a source node after writing could claim a synchronous
+        // custom-element callback's change as part of our own transaction.
+        const witness = document.createElement("span");
+        for (const node of document.querySelectorAll("*")) {
+          if (!("style" in node)) continue;
+          const element = node as RestoreEntry["element"];
+          const originalStyle = element.getAttribute("style");
+          if (originalStyle == null) witness.removeAttribute("style");
+          else witness.setAttribute("style", originalStyle);
+          const entry: RestoreEntry = {
+            element,
+            exact: true,
+            originalStyle,
+            isolatedStyle: originalStyle,
+            properties: [],
+          };
+          entries.push(entry);
+          const values: Array<[string, string]> = element === host ? hostValues : [["visibility", "hidden"]];
+          if (element === document.documentElement || element === document.body) values.push(...canvasValues);
+          for (const [name, value] of values) {
+            const original = {
+              value: element.style.getPropertyValue(name),
+              priority: element.style.getPropertyPriority(name),
+            };
+            witness.style.setProperty(name, value, "important");
+            entry.isolatedStyle = witness.getAttribute("style");
+            entry.properties.push({
+              name,
+              original,
+              isolated: {
+                value: witness.style.getPropertyValue(name),
+                priority: witness.style.getPropertyPriority(name),
+              },
+            });
+            element.style.setProperty(name, value, "important");
+            if (entry.exact && element.getAttribute("style") !== entry.isolatedStyle) entry.exact = false;
+          }
         }
         return true;
       },
@@ -183,6 +213,7 @@ export async function captureBrokenImageIconRaster(
         omitBackground: true,
         type: "png",
         animations: "allow",
+        caret: "initial",
       }),
     );
     const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
