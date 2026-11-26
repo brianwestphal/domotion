@@ -1,5 +1,6 @@
 import type { CDPSession, Page } from "@playwright/test";
 import sharp from "sharp";
+import { isTransparentBackground } from "../utils/transparent-background.js";
 import type { CssQuad, CssRect } from "./replaced-snapshot-geometry.js";
 
 // Keep the native viewport read bounded. Larger or unverified scenes use the
@@ -16,7 +17,7 @@ function readCanvasViewportWitness({
   rid: string;
   viewport: CssRect;
   maxElements: number;
-}): string | null {
+}): { fingerprint: string; backgrounds: string[] } | null {
   const { target, saved } =
     (
       globalThis as typeof globalThis & {
@@ -54,8 +55,8 @@ function readCanvasViewportWitness({
 
   const parents = new Set<HTMLElement>();
   const geometry: unknown[] = [];
+  const backgrounds: string[] = [];
   let scaleOwner: HTMLElement | undefined;
-  const transparent = "rgba(0, 0, 0, 0)";
   for (let element: HTMLElement | null = target; element != null; element = element.parentElement) {
     if (element !== target && element !== root && element !== document.body && !(element instanceof HTMLDivElement))
       return null;
@@ -100,11 +101,10 @@ function readCanvasViewportWitness({
         style.objectFit !== "fill")
     )
       return null;
-    if (
-      (element === target || element === root || element === document.body) &&
-      (style.backgroundColor !== transparent || style.backgroundImage !== "none")
-    )
-      return null;
+    if (element === target || element === root || element === document.body) {
+      if (style.backgroundImage !== "none") return null;
+      backgrounds.push(style.backgroundColor);
+    }
     for (const pseudo of ["::before", "::after"]) {
       const content = getComputedStyle(element, pseudo).content;
       if (content !== "none" && content !== "normal") return null;
@@ -146,7 +146,17 @@ function readCanvasViewportWitness({
     animation.effect.target !== scaleOwner
   )
     return null;
-  return JSON.stringify([geometry, target.width, target.height, animation.currentTime, animation.playbackRate]);
+  return {
+    fingerprint: JSON.stringify([
+      geometry,
+      backgrounds,
+      target.width,
+      target.height,
+      animation.currentTime,
+      animation.playbackRate,
+    ]),
+    backgrounds,
+  };
 }
 
 /** Tie the stock marked target to the actual Blink node, through a pierced
@@ -206,7 +216,11 @@ export async function captureIsolatedCanvasInk(
 ): Promise<{ png: Buffer; rect: CssRect } | null> {
   if (viewport.x !== 0 || viewport.y !== 0 || viewport.width * viewport.height > MAX_VIEWPORT_PIXELS) return null;
   const args = { rid, viewport, maxElements: MAX_WITNESS_ELEMENTS };
-  const before = await page.evaluate(readCanvasViewportWitness, args).catch(() => null);
+  const readViewportWitness = async () => {
+    const witness = await page.evaluate(readCanvasViewportWitness, args);
+    return witness?.backgrounds.every(isTransparentBackground) ? witness.fingerprint : null;
+  };
+  const before = await readViewportWitness().catch(() => null);
   if (before == null) return null;
   if (
     !(await cdp.send("CSS.enable").then(
@@ -245,7 +259,7 @@ export async function captureIsolatedCanvasInk(
       caret: "initial",
       timeout: 5000,
     });
-    const after = await page.evaluate(readCanvasViewportWitness, args);
+    const after = await readViewportWitness();
     const currentDocument = await readCanvasDocumentWitness(cdp, rid, quad);
     if (changed || before !== after || JSON.stringify(document) !== JSON.stringify(currentDocument)) {
       throw new Error("isolated canvas or viewport changed during paint sampling");
