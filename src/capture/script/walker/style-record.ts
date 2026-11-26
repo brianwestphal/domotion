@@ -4,10 +4,7 @@
 // Stable orchestrator services come in through the factory argument; the per-element locals
 // (`el`, `cs`, `tag`, ...) through the returned builder's argument.
 
-import {
-  physicalComputedGradientImage,
-  physicalComputedTileSize as physicalComputedCssPixelTerms,
-} from "./borders-backgrounds.js";
+import { physicalComputedGradientImage, physicalComputedCssPixelTerms } from "./borders-backgrounds.js";
 import { focusRingCornerSource } from "./focus-ring.js";
 import { extractCssUrl } from "../utils.js";
 import type { AuthorControlStyleFacts } from "../../effective-appearance.js";

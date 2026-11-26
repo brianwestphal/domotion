@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   physicalComputedPaintLength,
   physicalComputedGradientImage,
-  physicalComputedTileSize,
+  physicalComputedCssPixelTerms,
   tableGridRectFromCaptions,
 } from "./borders-backgrounds.js";
 
@@ -60,8 +60,8 @@ describe("zoomed border and outline paint lengths (DM-2323)", () => {
 
 describe("zoomed background tile lengths (DM-2327)", () => {
   it("scales px and calc px terms but leaves percentages physical-box-relative", () => {
-    expect(physicalComputedTileSize("40px 30px", 1.25)).toBe("50px 37.5px");
-    expect(physicalComputedTileSize("50% calc(40% - 2px)", 1.25)).toBe("50% calc(40% - 2.5px)");
+    expect(physicalComputedCssPixelTerms("40px 30px", 1.25)).toBe("50px 37.5px");
+    expect(physicalComputedCssPixelTerms("50% calc(40% - 2px)", 1.25)).toBe("50% calc(40% - 2.5px)");
   });
 });
 

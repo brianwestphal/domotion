@@ -197,6 +197,7 @@ Checked = round-trips faithfully (passes the region-based diff gate vs. the Chro
 - [~] border-image — URL and gradient sources use shared nine-piece slice, snapped destination, and repeat/round/space tiling geometry; see [doc 263](263-nine-piece-image-paint.md). Other source forms remain tracked by SK-466.
 - [x] outline (style/width/color/offset, including dashed/dotted/double) — SK-1111 / DM-2355
 - [x] box-shadow: outset and inset, with blur via `<filter feGaussianBlur>` — SK-1101 / SK-1111 / SK-1113
+  - Capture restores effective CSS zoom to the computed offsets, blur and spread. Blink stores these lengths in paint-space pixels, then divides by effective zoom when serializing `box-shadow` to CSSOM. This applies to ordinary element boxes under their own or an ancestor's CSS zoom (DM-J0M31A).
   - An inset shadow paints whenever any of its offset, blur or spread is non-zero. An offset-only inset (`inset 0 -3px 0 …`) is an unblurred crescent, because Blink's `BoxPainterBase::PaintInsetBoxShadow` has no blur/spread early-out (`core/paint/box_painter_base.cc:526-571`, Chromium 7d859f27). Fixture: `box-shadow-inset-offset-only`.
 - [x] text-shadow: x/y offset + blur, multi-layered — SK-1113
 - [x] opacity (element-level, applies to whole subtree)

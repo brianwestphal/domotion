@@ -2,6 +2,7 @@ import type { Browser } from "@playwright/test";
 import sharp from "sharp";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { captureElementTree, launchChromium } from "../src/capture/index.js";
+import { parseBoxShadow } from "../src/render/box-shadow.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { screenshotAfterPresentedFrame } from "../src/test-support/presented-frame-screenshot.js";
@@ -212,6 +213,76 @@ it.each(cases)(
   },
   30000,
 );
+
+it.each([
+  {
+    name: "own fractional zoom",
+    outer: 1,
+    inner: 1.25,
+    size: 24,
+    shadow: "4px 3px 0 rgb(22, 163, 74)",
+    physicalShadow: "5px 3.75px 0 rgb(22, 163, 74)",
+  },
+  {
+    name: "ancestor zoom with mixed sharp layers",
+    outer: 0.8,
+    inner: 1,
+    size: 37.5,
+    shadow: "inset -5px 2.5px 0 2.5px blue, 5px -2.5px 0 -1.25px red",
+    physicalShadow: "inset -4px 2px 0 2px blue, 4px -2px 0 -1px red",
+  },
+  {
+    name: "nested zoom with blur on a rounded box",
+    outer: 1.25,
+    inner: 1.6,
+    size: 10,
+    shadow: "2px 2px 2px red",
+    physicalShadow: "4px 4px 4px red",
+    physicalRadius: 5,
+    physicalSize: 20,
+    background: "blue",
+  },
+  {
+    name: "nested zoom with sharp blurred spread",
+    outer: 1.25,
+    inner: 1.6,
+    size: 15,
+    shadow: "-2px 1.5px 3px 1px rgba(255, 0, 0, 0.5)",
+    physicalShadow: "-4px 3px 6px 2px rgba(255, 0, 0, 0.5)",
+    // The sharp analytic Chromium blur profile is tracked by DM-4GNZZD.
+    comparePhysicallyEquivalentCaptures: true,
+  },
+])("uses Chromium's physical shadow lengths for $name", async (sample) => {
+  const page = await browser.newPage({ viewport });
+  const output = await browser.newPage({ viewport });
+  try {
+    const read = async (outer: number, inner: number, size: number, shadow: string) => {
+      const radius = (sample.physicalRadius ?? 0) / (outer * inner);
+      await page.setContent(`<!DOCTYPE html><style>body{margin:0}
+        #only{position:absolute;left:${size}px;top:${size}px;width:${size}px;height:${size}px;
+          zoom:${inner};box-shadow:${shadow};border-radius:${radius}px;background:${sample.background ?? "white"}}</style>
+        <div id="container" style="zoom:${outer}"><div id="only"></div></div>`);
+      const computedShadow = await page.locator("#only").evaluate((node) => getComputedStyle(node).boxShadow);
+      const native = await rgba(await page.screenshot({ omitBackground: true }));
+      const captured = await captureElementTree(page, "#container", viewport);
+      expect(captured).toHaveLength(1);
+      const shadows = parseBoxShadow(captured[0].styles.boxShadow ?? "none");
+      await output.setContent(`<style>body{margin:0}</style>${elementTreeToSvg(captured, 100, 100)}`);
+      const rendered = await rgba(await output.screenshot({ omitBackground: true }));
+      return { computedShadow, shadows, native, rendered };
+    };
+    const zoomed = await read(sample.outer, sample.inner, sample.size, sample.shadow);
+    const control = await read(1, 1, sample.physicalSize ?? 30, sample.physicalShadow);
+    expect(zoomed.computedShadow).not.toEqual(control.computedShadow);
+    expect(Buffer.compare(zoomed.native, control.native)).toBe(0);
+    expect(zoomed.shadows).toEqual(control.shadows);
+    expect(Buffer.compare(zoomed.rendered, control.rendered)).toBe(0);
+    if (!sample.comparePhysicallyEquivalentCaptures) expect(Buffer.compare(zoomed.rendered, zoomed.native)).toBe(0);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
 
 it.each(["border-radius:5px;corner-shape:bevel", "border-radius:50%;corner-shape:squircle"])(
   "retains the selected-root boundary for a non-round corner-shape contour: %s",

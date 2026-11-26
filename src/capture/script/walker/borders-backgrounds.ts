@@ -92,10 +92,9 @@ export const physicalComputedPaintLength = (value: string, effectiveZoom: number
   return `${Math.round(number * effectiveZoom * 1e6) / 1e6}px`;
 };
 
-/** Computed background sizes retain pre-zoom px lengths while their consumer
- * rect is physical. Percentages already use that rect; scale only px terms,
- * including px components inside calc(). */
-export const physicalComputedTileSize = (value: string, effectiveZoom: number): string => {
+/** Convert computed CSS pixel terms to paint-space lengths. Percentages
+ * already resolve against the physical reference box. */
+export const physicalComputedCssPixelTerms = (value: string, effectiveZoom: number): string => {
   if (effectiveZoom === 1) return value;
   return value.replace(
     /(-?(?:\d+(?:\.\d+)?|\.\d+))px\b/g,
@@ -1175,12 +1174,12 @@ export const createBordersBackgroundsHandler = ({
       ...resolveCollapsedBorderOverrides(el, cs, tag, collapsedTableDeps),
       frostedBgFallback: computeFrostedBgFallback(cs, normColor),
       backgroundImage: physicalComputedGradientImage(normGradientColors(cs.backgroundImage, cs.color), effectiveZoom),
-      backgroundSize: physicalComputedTileSize(cs.backgroundSize, effectiveZoom),
+      backgroundSize: physicalComputedCssPixelTerms(cs.backgroundSize, effectiveZoom),
       // Computed px terms are serialized before effective zoom, while the
       // captured positioning/painting DOMRects are already physical. Blink's
       // FillLayer stores zoomed Length values, so cross that boundary once here
       // for position just as we already do for background-size.
-      backgroundPosition: physicalComputedTileSize(cs.backgroundPosition, effectiveZoom),
+      backgroundPosition: physicalComputedCssPixelTerms(cs.backgroundPosition, effectiveZoom),
       backgroundRepeat: cs.backgroundRepeat,
       backgroundClip: cs.backgroundClip,
       backgroundBlendMode: cs.backgroundBlendMode,
@@ -1211,7 +1210,9 @@ export const createBordersBackgroundsHandler = ({
       outlineColor: normColor(cs.outlineColor),
       outlineOffset: physicalComputedPaintLength(cs.outlineOffset, effectiveZoom),
       focusRing: captureFocusRing(el, cs, effectiveZoom, normColor(cs.outlineColor)),
-      boxShadow: cs.boxShadow,
+      // Blink stores physical offsets, blur and spread in ShadowData and
+      // divides by effective zoom when serializing the computed shadow list.
+      boxShadow: physicalComputedCssPixelTerms(cs.boxShadow, effectiveZoom),
       // box-decoration-break: 'slice' (default) vs 'clone'. Drives per-fragment
       // paint of wrapped inline elements; see CapturedElement.inlineFragments.
       boxDecorationBreak: cs.boxDecorationBreak || cs.webkitBoxDecorationBreak || "slice",

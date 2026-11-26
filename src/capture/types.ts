@@ -1311,7 +1311,7 @@ export interface CapturedStyles {
   outlineOffset?: string;
   /** `outline-style: auto` focus-ring facts (ring width, offsets, ring colors). */
   focusRing?: FocusRingFacts;
-  /** CSS box-shadow (raw value: outset/inset, x y blur spread color, comma-separated). */
+  /** Computed CSS box-shadow with offsets, blur and spread in captured paint-space pixels. */
   boxShadow?: string;
   /** CSS text-shadow (raw value: x y blur color, comma-separated; no inset/spread). */
   textShadow?: string;

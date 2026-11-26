@@ -38,7 +38,7 @@ import { createTransformsHandler, composeEffectiveTransform, transformReferenceB
 import {
   createBordersBackgroundsHandler,
   physicalComputedGradientImage,
-  physicalComputedTileSize as physicalComputedCssPixelTerms,
+  physicalComputedCssPixelTerms,
 } from "./walker/borders-backgrounds.js";
 import { createBackgroundAttachmentHandler } from "./walker/background-attachment.js";
 import { createPseudoContentHandler } from "./walker/pseudo-content.js";
