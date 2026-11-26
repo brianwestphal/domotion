@@ -158,6 +158,12 @@ describeBrowser("source-owned partial native-control decorations", () => {
         .grid{display:grid;grid-template-columns:repeat(3,280px);gap:14px;padding:20.25px}
         .split{width:250px;height:42px;background:rgb(13,71,109);border:3px solid rgb(149,31,73);
           box-shadow:0 0 0 3px rgb(31,149,73);color:white;padding:4px 15px}
+        /* macOS appearance notifications can reload Chromium's generic font
+           settings independently of capture. Use concrete faces for the
+           restoration comparison on the affected text surfaces (doc 198). */
+        [data-domotion-anim="base"]{font-family:"Times New Roman","Liberation Serif"}
+        input:is([type="date"],[type="time"],[type="datetime-local"],[type="month"],[type="week"]){
+          font-family:"Courier New","Liberation Mono"}
         #search::-webkit-search-cancel-button{-webkit-appearance:none;opacity:1;width:18px;height:18px;background:rgb(121,21,122);border:0}
         #number::-webkit-inner-spin-button{-webkit-appearance:none;opacity:1;width:18px;background:rgb(19,119,20);border:0}
         #date-custom::-webkit-calendar-picker-indicator{-webkit-appearance:none;background:rgb(20,80,180)}
