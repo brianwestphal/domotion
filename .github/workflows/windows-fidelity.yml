@@ -106,7 +106,7 @@ jobs:
         if: always()
         run: >-
           node --import tsx tools/helper-release-consumer.ts
-          --browser-results tests/output/svg-image-own-fonts/results.json --minimum-passed 43
+          --browser-results tests/output/svg-image-own-fonts/results.json --minimum-passed 45
       - name: Verify native author-shadow capability ownership (DM-QKGJQ5)
         if: always()
         env:

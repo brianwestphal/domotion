@@ -7,8 +7,11 @@ import { captureElementTree, launchChromium } from "../src/capture/index.js";
 import { captureImageSvgFonts } from "../src/capture/image-svg-fonts.js";
 import { capturedElement } from "../src/test-support/captured-fixtures.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
+import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { inlineImgSvg } from "../src/render/svg-inline.js";
 import { resolveImageNamespace } from "../src/render/svg-image-namespace.js";
+import { imageFontDigest } from "../src/render/svg-image-own-fonts.js";
+import { nativeSvgProbeRow } from "./test-support/svg-image-probe.js";
 import { forEachElement } from "../src/tree-ops/for-each-element.js";
 import type { CapturedElement } from "../src/capture/types.js";
 
@@ -220,6 +223,126 @@ describe("image-owned font metric evidence", () => {
         expect(Array.from(image.data.subarray(at, at + 3))).toEqual([255, 0, 0]);
         expect(image.data[at - image.info.channels + 1]).toBe(255);
       }
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("retains native SVG paint when an active face variation changes root metrics (DM-QQV70M)", async () => {
+    const bytes = buildVariableHintedFont({ family: "Image Variable", firstCodePoint: 0x30, withOs2: true });
+    const range = "font-weight:100 900";
+    const variations = 'font-variation-settings:"wght" 900';
+    const normal = svg(face(bytes, range));
+    const active = svg(face(bytes, `${range};${variations}`));
+    const escapedRule = svg(
+      face(bytes, range) + face(bytes, `${range};${variations}`).replace("@font-face", String.raw`@font-\66 ace`),
+    );
+    const property = svg(
+      face(bytes, range),
+      false,
+      "font:20px 'Image Face';transform:translateX(2ch);font-variation-settings:&quot;wght&quot; 900",
+    );
+    const page = await browser.newPage();
+    try {
+      const row = await nativeSvgProbeRow(page, normal);
+      const changed = await nativeSvgProbeRow(page, active);
+      expect(row.findIndex((alpha) => alpha > 0)).toBe(24);
+      expect(changed.findIndex((alpha) => alpha > 0)).toBe(28);
+      expect(await nativeSvgProbeRow(page, property)).toEqual(changed);
+      expect(await nativeSvgProbeRow(page, escapedRule)).toEqual(changed);
+
+      const control = fixture(normal);
+      await captureImageSvgFonts(page, [control]);
+      expect(control.imageOwnFonts?.faceSettingsChecked).toBe(true);
+      expect(inlineImgSvg(normal, { ...placement, ownFonts: control.imageOwnFonts })).toContain("translate(24 0)");
+      const legacy = { ...control.imageOwnFonts!, faceSettingsChecked: undefined };
+      expect(inlineImgSvg(normal, { ...placement, ownFonts: legacy })).toContain("translate(24 0)");
+
+      for (const source of [
+        active,
+        escapedRule,
+        svg(face(bytes, `${range};${variations}`), true),
+        svg(face(bytes, String.raw`${range};font-\76 ariation-settings:"wght" 900`)),
+      ]) {
+        const image = fixture(source);
+        await captureImageSvgFonts(page, [image]);
+        expect(image.imageOwnFonts).toBeUndefined();
+        expect(inlineImgSvg(source, { ...placement, ownFonts: image.imageOwnFonts })).toBeNull();
+        expect(
+          inlineImgSvg(source, { ...placement, ownFonts: { ...legacy, sourceSha256: imageFontDigest(source) } }),
+        ).toBeNull();
+      }
+
+      await page.setContent(
+        `<style>body{margin:0}img{display:block}</style><img src="${fixture(active).imageSrc}" width="90" height="40">`,
+      );
+      await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
+      const capture = await captureElementTree(page, "body", { x: 0, y: 0, width: 90, height: 40 });
+      const rendered = elementTreeToSvg(capture, 90, 40);
+      expect(rendered).toMatch(/<image\b[^>]*href="data:image\/svg\+xml,/);
+      expect(await nativeSvgProbeRow(page, rendered)).toEqual(changed);
+
+      for (const source of [
+        svg(face(bytes, `${range};font-feature-settings:normal;font-variation-settings:normal`)),
+        svg(face(bytes, `${range};font-variation-settings:bogus`)),
+        svg(face(bytes, range) + `@media(max-width:1px){${face(bytes, variations)}}`),
+      ]) {
+        const image = fixture(source);
+        await captureImageSvgFonts(page, [image]);
+        expect(inlineImgSvg(source, { ...placement, ownFonts: image.imageOwnFonts })).toContain("translate(24 0)");
+      }
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("withholds isolated metrics for a face feature that changes native SVG image glyph paint (DM-QQV70M)", async () => {
+    const bytes = readFileSync(
+      new URL("./fixtures/shaping/FontWithFancyFeatures.otf.base64", import.meta.url),
+      "utf8",
+    ).replace(/\s/g, "");
+    const source = (descriptor: string, property = "") =>
+      svg(
+        `@font-face{font-family:'Image Face';src:url(data:font/otf;base64,${bytes});${descriptor}}`,
+        false,
+        "font:20px 'Image Face';transform:translateX(0px)" + property,
+      ).replace("</svg>", '<text x="5" y="32">n</text></svg>');
+    const declared = source('font-feature-settings:"salt" 1');
+    const page = await browser.newPage();
+    try {
+      const image = fixture(declared);
+      await captureImageSvgFonts(page, [image]);
+      expect(image.imageOwnFonts).toBeUndefined();
+      const inlined = inlineImgSvg(declared, placement);
+      expect(inlined).not.toBeNull();
+
+      const paints = await page.evaluate(
+        async (sources) => {
+          const canvas = document.createElement("canvas");
+          canvas.width = 90;
+          canvas.height = 40;
+          const context = canvas.getContext("2d")!;
+          const pixels = [];
+          for (const svg of sources) {
+            const image = new Image();
+            image.src = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+            await image.decode();
+            context.clearRect(0, 0, 90, 40);
+            context.drawImage(image, 0, 0);
+            pixels.push([...context.getImageData(0, 0, 90, 40).data]);
+          }
+          return pixels;
+        },
+        [
+          source(""),
+          declared,
+          source("", ";font-feature-settings:&quot;salt&quot; 1"),
+          `<svg xmlns="http://www.w3.org/2000/svg" width="90" height="40">${inlined}</svg>`,
+        ],
+      );
+      expect(paints[1]).not.toEqual(paints[0]);
+      expect(paints[1]).toEqual(paints[2]);
+      expect(paints[1]).toEqual(paints[3]);
     } finally {
       await page.close();
     }

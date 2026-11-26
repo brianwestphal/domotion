@@ -477,9 +477,11 @@ These also emit `<image>` tags but **aren't fallbacks** — they're the renderer
   stay raster for font-dependent root metrics unless the painted used-face
   witness (`src/capture/image-svg-font-witness.ts`) shows the image painted
   exactly Domotion's selected source. `font-display: optional` always stays
-  raster there, and so do non-`data:` sources and a `local()` name the host
-  provides (it paints the host face). A `local()` name the host lacks is
-  skipped like Chromium skips it. Faces in `@media` / `@supports` groups are
+  raster there. Active non-default `@font-face` feature or variation
+  settings also retain the source image for font-dependent root metrics
+  (DM-QQV70M).
+  Non-`data:` sources stay raster, as does a `local()` face the host provides.
+  A missing `local()` name is skipped as Chromium skips it. Faces in `@media` / `@supports` groups are
   decided in the image's own environment and witnessed; `@layer`, `@scope`
   and `@container` parents, and media groups of a non-`fill` object-fit
   image, stay raster ([doc 274](../274-dynamic-svg-image-fonts.md), DM-3P65HE,

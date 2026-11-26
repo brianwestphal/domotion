@@ -208,6 +208,13 @@ FreeType may borrow a pixel from the ascent. A variable face with
 `size-adjust` stays unresolved, because optical sizing keeps the specified
 size.
 
+Active non-default `@font-face` feature and variation settings withhold
+image-owned metric evidence (DM-QQV70M). Chromium merges these descriptors
+into the face request, and a variation axis can change an advance used by
+`ch`. Font-dependent transforms retain the source image. Static transforms
+can still be lowered with the original stylesheet. Captures made before the
+descriptor check need recapture when the source may contain non-default settings.
+
 Native metrics retain platform-specific authority. macOS queries the owned
 buffer with resolved axes and requires `nameMatchedInFile`, rejecting a helper
 that falls back to an installed PostScript name. Live CoreText CSS-size metrics

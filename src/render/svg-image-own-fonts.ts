@@ -3,12 +3,16 @@ import { createHash } from "node:crypto";
 import postcss from "postcss";
 import { imageStyleSheets, replaceImageStyleSheets, serializeImageStyleText } from "./svg-image-stylesheets.js";
 import type { IsolatedFontFace } from "./font-resolution.js";
-import { xmlStyleText } from "./svg-image-css-import.js";
-import { parseImageElementTree } from "./svg-image-selector-engine.js";
+import { resolveSvgImageCssImports, xmlStyleText } from "./svg-image-css-import.js";
+import { cssUnescape, parseImageElementTree } from "./svg-image-selector-engine.js";
+import { referenceCssIdentifier } from "./svg-image-reference-syntax.js";
 
 export interface ImageOwnFontContext {
   authority: "chromium-svg-image-fonts-v1";
   sourceSha256: string;
+  /** Capture's CSSOM rejected non-default feature / variation settings on
+   * active faces. Older contexts did not perform that check. */
+  faceSettingsChecked?: true;
   faces: Array<{
     family: string;
     data: string;
@@ -41,9 +45,12 @@ export interface ImageFontCondition {
 export const imageFontDigest = (data: string | Buffer): string => createHash("sha256").update(data).digest("hex");
 
 /** Decode XML before CSS parsing; preserve its exact text in the emitted sheet. */
-export function imageOwnFontSheets(
-  source: string,
-): { source: string; faces: string[]; conditions: ImageFontCondition[][] } | null {
+export function imageOwnFontSheets(source: string): {
+  source: string;
+  faces: string[];
+  conditions: ImageFontCondition[][];
+  hasNonDefaultFaceSettings: boolean;
+} | null {
   if (/<\?xml[^>]*encoding\s*=\s*['"](?!utf-8['"])[^'"]+['"]/i.test(source)) return null;
   // These can change which stylesheet nodes are active. Do not authenticate
   // a regex-collected face as a member of a different document/style set.
@@ -53,6 +60,7 @@ export function imageOwnFontSheets(
   const faces: string[] = [];
   const conditions: ImageFontCondition[][] = [];
   let invalid = false;
+  let hasNonDefaultFaceSettings = false;
   const normalized = replaceImageStyleSheets(source, ({ open, css: raw, close }) => {
     const _all = open + raw + close;
     const css = xmlStyleText(raw);
@@ -72,7 +80,24 @@ export function imageOwnFontSheets(
     try {
       const sheet = postcss.parse(css);
       sheet.walkAtRules((rule) => {
-        if (rule.name.toLowerCase() !== "font-face") return;
+        if (rule.name.toLowerCase() !== "font-face") {
+          // PostCSS can split an escaped at-keyword into a name and prelude.
+          // This scanner cannot authenticate the resulting face inventory.
+          if (
+            (rule.name + rule.params).includes("\\") &&
+            referenceCssIdentifier(rule.toString(), 1)?.value.toLowerCase() === "font-face"
+          )
+            invalid = true;
+          return;
+        }
+        rule.walkDecls((decl) => {
+          const name = cssUnescape(decl.prop).toLowerCase();
+          if (
+            (name === "font-feature-settings" || name === "font-variation-settings") &&
+            cssUnescape(decl.value.trim()).toLowerCase() !== "normal"
+          )
+            hasNonDefaultFaceSettings = true;
+        });
         // `@media` / `@supports` groups are decided against the image's own
         // environment (`conditions`). Every other parent stays unresolved:
         // FontFaceList sorts layered faces by CascadeLayerMap rank
@@ -92,7 +117,7 @@ export function imageOwnFontSheets(
     }
     return open + serializeImageStyleText(css, true) + close;
   });
-  return invalid || faces.length > 64 ? null : { source: normalized, faces, conditions };
+  return invalid || faces.length > 64 ? null : { source: normalized, faces, conditions, hasNonDefaultFaceSettings };
 }
 
 /**
@@ -156,6 +181,12 @@ export function authenticatedImageFonts(
     context.faces.length > 64
   )
     return null;
+  // Legacy evidence predates the CSSOM check. Reuse it for ordinary sources;
+  // only recapture can qualify sources with possible non-default settings.
+  if (context.faceSettingsChecked !== true) {
+    const expanded = resolveSvgImageCssImports(source, true);
+    if (expanded == null || imageOwnFontSheets(expanded)?.hasNonDefaultFaceSettings !== false) return null;
+  }
   let bytes = 0;
   const out: IsolatedFontFace[] = [];
   for (const face of context.faces) {

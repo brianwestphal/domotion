@@ -146,6 +146,11 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
             // Descriptors this path does not model stay unresolved. Invalid
             // declarations have already been dropped by CSSOM.
             if (!["", "normal", "italic"].includes(style.getPropertyValue("font-style"))) return null;
+            // CSSFontFace::GetFontData merges these settings into the face's
+            // description (both flags are stable at Chromium 7d859f27). The
+            // isolated metrics resolver has no authenticated settings merge.
+            for (const property of ["font-feature-settings", "font-variation-settings"])
+              if (!["", "normal"].includes(style.getPropertyValue(property))) return null;
             return {
               family: style.getPropertyValue("font-family"),
               src: style.getPropertyValue("src"),
@@ -303,6 +308,7 @@ export async function captureImageSvgFonts(page: Page, tree: CapturedElement[]):
     const context: ImageOwnFontContext = {
       authority: "chromium-svg-image-fonts-v1",
       sourceSha256: imageFontDigest(item.source),
+      faceSettingsChecked: true,
       faces,
       ...(item.conditions.some((chain) => chain.some((c) => c.type === "media")) ? { viewport: viewport() } : {}),
     };

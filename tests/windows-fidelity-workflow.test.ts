@@ -37,7 +37,7 @@ describe("Windows fidelity workflow", () => {
     ]);
     expect(run.run).toContain(`--reporter=json --outputFile=${report}`);
     expect(gate.run).toContain("tools/helper-release-consumer.ts");
-    expect(gate.run).toContain(`--browser-results ${report} --minimum-passed 43`);
+    expect(gate.run).toContain(`--browser-results ${report} --minimum-passed 45`);
     expect(steps.indexOf(run)).toBeLessThan(steps.indexOf(gate));
     expect(steps.indexOf(gate)).toBeLessThan(steps.indexOf(upload));
     for (const step of [run, gate, upload]) {
