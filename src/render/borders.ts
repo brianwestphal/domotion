@@ -837,6 +837,14 @@ function normalized(vector: Point): Point {
   return length === 0 ? { x: 0, y: 0 } : { x: vector.x / length, y: vector.y / length };
 }
 
+/** Chromium `ContouredRect::Corner::IsEmpty`. */
+function isEmptyCorner(corner: CornerGeometry): boolean {
+  return (
+    (corner.outer.x === corner.start.x && corner.outer.y === corner.start.y) ||
+    (corner.end.x === corner.outer.x && corner.end.y === corner.outer.y)
+  );
+}
+
 /** Chromium `ContouredRect::Corner::AlignedToOrigin`. */
 function alignedCorner(
   target: CornerGeometry,
@@ -845,7 +853,7 @@ function alignedCorner(
   thicknessEnd: number,
 ): CornerGeometry {
   if (
-    (origin.start.x === origin.end.x && origin.start.y === origin.end.y) ||
+    isEmptyCorner(origin) ||
     (target.start.x === origin.start.x &&
       target.start.y === origin.start.y &&
       target.outer.x === origin.outer.x &&
@@ -999,9 +1007,6 @@ export function contouredOutsetRectPath(x: number, y: number, w: number, h: numb
     const control = 2 * Math.pow(0.5, 1 / k) - 0.5;
     return mapCornerPoint(geometry, { x: control, y: control });
   };
-  const isEmpty = (corner: CornerGeometry) =>
-    (corner.outer.x === corner.start.x && corner.outer.y === corner.start.y) ||
-    (corner.end.x === corner.outer.x && corner.end.y === corner.outer.y);
   type Line = { p1: Point; p2: Point };
   // gfx::LineF::IntersectionWith (infinite lines) and Normal().
   const intersect = (a: Line, b: Line): Point | null => {
@@ -1015,7 +1020,7 @@ export function contouredOutsetRectPath(x: number, y: number, w: number, h: numb
     return { x: a.p1.x + ax * param, y: a.p1.y + ay * param };
   };
   const miter = (corner: CornerGeometry, edge: Line, ref: Point): Point => {
-    const through = isEmpty(corner)
+    const through = isEmptyCorner(corner)
       ? { x: ref.x + (edge.p1.y - edge.p2.y), y: ref.y + (edge.p2.x - edge.p1.x) }
       : quadraticControlPoint(corner);
     return intersect(edge, { p1: through, p2: ref }) ?? ref;

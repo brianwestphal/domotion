@@ -121,6 +121,28 @@ it.each([
   }
 });
 
+it("keeps both one-axis-empty corners on the inset padding-box edges", async () => {
+  const page = await browser.newPage({ viewport });
+  const output = await browser.newPage({ viewport });
+  // The top-left and top-right corners each have one empty axis. The bottom-right
+  // bevel takes the contoured route. Sample the top corners above that bevel.
+  const clip = { x: 20, y: 20, width: 38, height: 8 };
+  const bodyStyle = "<style>body{margin:0;background:white}</style>";
+  try {
+    await page.setContent(`${bodyStyle}<div style="position:absolute;left:20px;top:20px;
+      width:38px;height:38px;box-sizing:border-box;border:5px solid transparent;
+      background:blue padding-box;border-radius:8px 0 12px 0 / 0 8px 12px 0;corner-shape:bevel"></div>`);
+    const source = await rgba(await page.screenshot({ clip }));
+    const svg = elementTreeToSvg(await captureElementTree(page, "body", viewport), 100, 100);
+    await output.setContent(bodyStyle + svg);
+    const actual = await rgba(await output.screenshot({ clip }));
+    expect(actual.equals(source)).toBe(true);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
+
 // A rounded box whose border paints and obscures the background edge shrinks
 // its border-box background by half of each border width (a sixth for a
 // double border) for bleed avoidance, so the background's antialiased rim
