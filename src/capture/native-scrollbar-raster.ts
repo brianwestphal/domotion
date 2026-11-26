@@ -16,6 +16,7 @@ import { dirname, resolve } from "node:path";
 import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import { withCdpSession } from "./cdp-lifecycle.js";
+import { screenshotWithoutUnneededCaretWrites } from "./screenshot-caret.js";
 import type {
   CapturedNativeScrollbarRaster,
   CapturedScrollbarPlatformFingerprint,
@@ -79,7 +80,7 @@ export async function captureNativeScrollbarSourceFrame(
   )
     return supplied;
   try {
-    const png = await page.screenshot({ clip: viewport, type: "png" });
+    const png = await screenshotWithoutUnneededCaretWrites(page, { clip: viewport, type: "png" });
     return decodeFrame(Buffer.from(png));
   } catch {
     return null;

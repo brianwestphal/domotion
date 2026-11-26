@@ -87,6 +87,52 @@ function state(page: Page) {
 
 const walk = (nodes: CapturedElement[]): CapturedElement[] => nodes.flatMap((node) => [node, ...walk(node.children)]);
 
+describe("native checkbox source styles during screenshot capture (DM-NGE3GT)", () => {
+  it.each([
+    { name: "absent", attribute: "", expected: null, focus: false },
+    { name: "absent and focused", attribute: "", expected: null, focus: true },
+    { name: "empty", attribute: ' style=""', expected: "", focus: false },
+    {
+      name: "authored",
+      attribute: ' style=" COLOR : red ; --note:  one  ; "',
+      expected: " COLOR : red ; --note:  one  ; ",
+      focus: false,
+    },
+  ])("preserves $name styles under a live affine owner", async ({ attribute, expected, focus }) => {
+    const viewport = { width: 320, height: 240 };
+    const page = await browser.newPage({ viewport });
+    try {
+      await page.setContent(
+        `<style>@keyframes sample{from,to{transform:scale(1.5,1.25)}}#owner{animation:sample 2s -1s linear both paused} span{display:inline-block}</style><div id="owner"><span>quick world<input type="checkbox" checked${attribute}></span></div>`,
+      );
+      const input = page.locator('input[type="checkbox"]');
+      if (focus) await input.focus();
+      expect(await input.getAttribute("style")).toBe(expected);
+      const observed = await input.evaluateHandle((checkbox) => {
+        const values: (string | null)[] = [];
+        const observer = new MutationObserver((records) => {
+          values.push(...records.map((record) => record.oldValue), checkbox.getAttribute("style"));
+        });
+        observer.observe(checkbox, { attributes: true, attributeFilter: ["style"], attributeOldValue: true });
+        return values;
+      });
+      const paint = await page.screenshot({ caret: "initial" });
+      const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, ...viewport });
+      expect(await input.getAttribute("style")).toBe(expected);
+      expect(await input.evaluate((checkbox) => checkbox.matches(":focus"))).toBe(focus);
+      const changes = await observed.jsonValue();
+      expect(changes.some((value) => value?.includes("visibility: visible !important"))).toBe(true);
+      expect(changes.some((value) => value?.includes("caret-color"))).toBe(false);
+      expect(await page.screenshot({ caret: "initial" })).toEqual(paint);
+      expect(capture.warnings.filter((warning) => warning.feature === "native-control-raster")).toEqual([]);
+      const raster = walk(capture.tree).find((node) => node.tag === "input")?.nativeControlRaster;
+      expect(raster?.dataUri).toMatch(/^data:image\/png;base64,/);
+    } finally {
+      await page.close();
+    }
+  });
+});
+
 describe("native control source style restoration (DM-D8Y3WJ)", () => {
   for (const profile of profiles) {
     it.each(styles)(`preserves $name attributes with ${profile.name} controls`, async ({ attribute, callbacks }) => {

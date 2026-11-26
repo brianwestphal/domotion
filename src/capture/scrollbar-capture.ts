@@ -43,6 +43,7 @@ import {
   type NativeOverlayInkVerdict,
   type NativeScrollbarFrame,
 } from "./native-scrollbar-raster.js";
+import { screenshotWithoutUnneededCaretWrites } from "./screenshot-caret.js";
 import type {
   CapturedElement,
   CapturedScrollbar,
@@ -1222,7 +1223,7 @@ async function probeScrollbarCandidate(session: ScrollbarProbeSession, candidate
     });
     return;
   }
-  const baselinePng = await page.screenshot({ type: "png" });
+  const baselinePng = await screenshotWithoutUnneededCaretWrites(page, { type: "png" });
   let components = await captureMarkerComponents(session, candidate, route, baselinePng);
 
   if (
@@ -1300,7 +1301,7 @@ async function captureMarkerComponents(
     await waitForCaptureAnimationFrames(candidate.frame, 2);
     const baseline = await sharp(baselinePng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const classifyScreenshot = async (): Promise<ClassifiedComponent[]> => {
-      const png = await page.screenshot({ type: "png" });
+      const png = await screenshotWithoutUnneededCaretWrites(page, { type: "png" });
       const decoded = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
       const surfaceWidth = viewportSize?.width ?? decoded.info.width / Math.max(1, candidate.devicePixelRatio);
       const surfaceHeight = viewportSize?.height ?? decoded.info.height / Math.max(1, candidate.devicePixelRatio);

@@ -38,6 +38,7 @@ import { rasterizeAdvancedGradients } from "../render/advanced-gradient-raster.j
 import { captureImageFontHinting, recordBrowserFontEnvironment } from "./image-font-hinting.js";
 import { awaitGpuFeatureInfo } from "./gpu-startup-barrier.js";
 import { waitForPresentedFrame } from "./presented-frame.js";
+import { screenshotWithoutUnneededCaretWrites } from "./screenshot-caret.js";
 import { browserRunsSingleProcess } from "./single-process-browser.js";
 import { warnLostCanvasContexts } from "./lost-canvas-contexts.js";
 import { captureImageSvgSupports } from "./image-svg-supports.js";
@@ -1738,7 +1739,7 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
       }
       // The fitted box starts at the viewport origin, which Playwright uses for clip coordinates.
       const clipOrigin = fitted ? { x: 0, y: 0 } : { x: position.x, y: position.y };
-      const png = await probePage.screenshot({
+      const png = await screenshotWithoutUnneededCaretWrites(probePage, {
         clip: { ...clipOrigin, width: probeSize, height: probeSize },
         type: "png",
       });
@@ -2355,7 +2356,7 @@ export async function captureElementTreeWithDebug(
     // driven by a virtual rAF clock has replaced requestAnimationFrame, so the
     // wait would only run to its deadline; that path is left unchanged.
     if (opts?.rafClock == null) await waitForPresentedFrame(page);
-    expectedPng = await page.screenshot({
+    expectedPng = await screenshotWithoutUnneededCaretWrites(page, {
       clip: viewport,
       omitBackground: false,
       type: "png",

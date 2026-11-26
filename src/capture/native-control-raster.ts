@@ -30,6 +30,7 @@ import type { Page } from "@playwright/test";
 import sharp from "sharp";
 import { createPageRegistry } from "./page-registry.js";
 import { createRasterViewportSpace, mapRectThroughAffine } from "./raster-viewport-space.js";
+import { screenshotWithoutUnneededCaretWrites } from "./screenshot-caret.js";
 import {
   suppressSnapshotVisibilityTransitions,
   type SnapshotVisibilityState,
@@ -264,7 +265,7 @@ async function decodeFrame(input: Buffer | string): Promise<DecodedFrame | null>
 
 async function takeAtomicFrame(page: Page, viewport: NativeControlViewport): Promise<DecodedFrame | null> {
   try {
-    const png = await page.screenshot({
+    const png = await screenshotWithoutUnneededCaretWrites(page, {
       clip: {
         x: viewport.x,
         y: viewport.y,
