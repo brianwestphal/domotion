@@ -21,7 +21,11 @@ const SITES = [
     from: "../capture/presented-frame.js",
     screenshot: "return page.screenshot({\n            clip: { x: clip[0]",
   },
-  { file: "src/capture/index.ts", from: "./presented-frame.js", screenshot: "expectedPng = await page.screenshot({" },
+  {
+    file: "src/capture/index.ts",
+    from: "./presented-frame.js",
+    screenshot: "expectedPng = await screenshotWithoutUnneededCaretWrites(page, {",
+  },
 ] as const;
 
 describe("first-capture presented-frame policy (DM-Z869QZ)", () => {
@@ -34,7 +38,7 @@ describe("first-capture presented-frame policy (DM-Z869QZ)", () => {
       const wait = source.lastIndexOf("await waitForPresentedFrame(page);", capture);
       expect(wait).toBeGreaterThan(-1);
       // The wait belongs to this capture: no other screenshot sits between them.
-      expect(source.slice(wait, capture)).not.toContain(".screenshot(");
+      expect(source.slice(wait, capture)).not.toMatch(/\.screenshot\(|\bscreenshotWithoutUnneededCaretWrites\(/);
     });
   }
 });
