@@ -268,11 +268,12 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     fontFamilyStackFor: _fontFamilyStackFor,
   });
-  const { captureTextSegments, hasFirstLinePaintMetrics } = createTextSegmentsHandler({
+  const { captureTextSegments, hasMeasuredPaintAscent } = createTextSegmentsHandler({
     vp,
     measureFontMetrics: _measureFontMetrics,
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     markStandardFamilyStyle: _markStandardFamilyStyle,
+    markPseudoStandardForMetrics: _markPseudoStandardForMetrics,
     firstLineFamilyTypeFor: (el, family) => _familyTypeFromDeclaration(el, family, "::first-line"),
     rasterCandidates,
     normColor,
@@ -354,7 +355,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     injectPseudoSegments,
     _effectiveZoomFor,
     _measureFontMetrics,
-    hasFirstLinePaintMetrics,
+    hasMeasuredPaintAscent,
   });
   const { captureNativeControlState } = createNativeControlsHandler({
     args,

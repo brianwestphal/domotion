@@ -90,6 +90,7 @@ type TextServices = {
   measureFontMetrics: (style: CSSStyleDeclaration, fontSizeOverride?: string) => Metrics;
   effectiveZoomFor: (el: Element) => number;
   markStandardFamilyStyle: (style: CSSStyleDeclaration) => void;
+  markPseudoStandardForMetrics: (el: Element, style: CSSStyleDeclaration, pseudo: string) => boolean;
   firstLineFamilyTypeFor: (el: Element, family: string) => "standard" | "concrete" | "unusable" | undefined;
   rasterCandidates: (text: string, variant?: string) => Array<{ start: number; end: number }>;
   normColor: (color: string) => string;
@@ -854,6 +855,7 @@ const buildTextSegmentsHandler = ({
   measureFontMetrics,
   effectiveZoomFor,
   markStandardFamilyStyle,
+  markPseudoStandardForMetrics,
   firstLineFamilyTypeFor,
   rasterCandidates,
   normColor,
@@ -863,7 +865,17 @@ const buildTextSegmentsHandler = ({
   sourceTextNodeIndexFor,
   liveTextInverseFor,
 }: TextServices) => {
-  const firstLineMetricSegments = new WeakSet<TextSegment>();
+  const measuredPaintAscents = new WeakSet<TextSegment>();
+  const recordPaintAscent = (el: Element, segment: TextSegment, style: CSSStyleDeclaration, logicalSize: number) => {
+    const size = (logicalSize * effectiveZoomFor(el)).toFixed(4) + "px";
+    const metrics = measureFontMetrics(style, size);
+    // Range reported the painted font box before any font probes ran.
+    // Attach the ascent only if the live description reproduces that box.
+    if (!(Math.abs(segment.height - metrics.ascent - metrics.descent) <= 1 / 64)) return false;
+    segment.fontAscent = metrics.ascent;
+    measuredPaintAscents.add(segment);
+    return true;
+  };
   const readHorizontalRangeRect = (el: Element, range: Range): DOMRectReadOnly => {
     const rect = range.getBoundingClientRect();
     const inverse = liveTextInverseFor?.(el);
@@ -1379,6 +1391,32 @@ const buildTextSegmentsHandler = ({
     // overlay (DM-439, DM-823, DM-931).
     if (firstLetterChars != null && firstLetterChars.length > 0) {
       const fl = buildFirstLetterSegment(firstLetterChars, flStyle, hasInitialLetter, el, cs);
+      const familyStack = fl.seg.fontFamilyStack;
+      if (
+        !hasInitialLetter &&
+        flStyle.float === "none" &&
+        flStyle.display === "inline" &&
+        cs.display === "block" &&
+        (cs.whiteSpace === "normal" || cs.whiteSpace === "nowrap") &&
+        flFsRaw > 0 &&
+        familyStack?.entries.some((entry) => entry.type === "generic-family") &&
+        flStyle.getPropertyValue("-webkit-locale") === cs.getPropertyValue("-webkit-locale") &&
+        liveTextInverseFor?.(el) == null &&
+        ownsFirstDirectLine(el)
+      ) {
+        // A first-line font can participate in the first-letter cascade even
+        // when the two CSSOM family strings match. Keep the ordinary inline
+        // metric proof on the host's own font and locale basis.
+        const lineStyle = window.getComputedStyle(el, "::first-line");
+        if (
+          !fontDescriptionDiffers(lineStyle, cs) &&
+          fontFamilyStackFor(el, lineStyle.fontFamily, "::first-line")?.genericFamily ===
+            fontFamilyStackFor(el, cs.fontFamily)?.genericFamily &&
+          (familyStack.genericFamily !== "standard" || markPseudoStandardForMetrics(el, flStyle, "::first-letter"))
+        ) {
+          recordPaintAscent(el, fl.seg, flStyle, flFsRaw);
+        }
+      }
       textSegments.unshift(fl.seg);
       didEmitStyledFirstLetter = true;
       // Fold the styled run into the host's textLeft/Top/Width/Height envelope
@@ -1453,17 +1491,9 @@ const buildTextSegmentsHandler = ({
         const standard = stack?.genericFamily === "standard";
         if (firstType !== "unusable" && (!standard || firstType === "standard")) {
           if (standard) markStandardFamilyStyle(flLineStyle);
-          const size = (flFs * effectiveZoomFor(el)).toFixed(4) + "px";
-          const metrics = measureFontMetrics(flLineStyle, size);
-          // Range reported the painted font box before any font probes ran.
-          // Attach these metrics only if the description reproduces that box.
-          if (Math.abs(firstSeg.height - metrics.ascent - metrics.descent) <= 1 / 64) {
-            if (sameNamedFamilyChangesType) {
-              firstSeg.fontFamily = firstFamily;
-              firstSeg.fontFamilyStack = stack;
-            }
-            firstSeg.fontAscent = metrics.ascent;
-            firstLineMetricSegments.add(firstSeg);
+          if (recordPaintAscent(el, firstSeg, flLineStyle, flFs) && sameNamedFamilyChangesType) {
+            firstSeg.fontFamily = firstFamily;
+            firstSeg.fontFamilyStack = stack;
           }
         }
       }
@@ -1489,7 +1519,7 @@ const buildTextSegmentsHandler = ({
 
   return {
     captureTextSegments,
-    hasFirstLinePaintMetrics: (segment: TextSegment) => firstLineMetricSegments.has(segment),
+    hasMeasuredPaintAscent: (segment: TextSegment) => measuredPaintAscents.has(segment),
   };
 };
 
