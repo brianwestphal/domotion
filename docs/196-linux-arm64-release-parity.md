@@ -59,16 +59,21 @@ verdict `exact-arm64-release-parity`; it closes the live release-consumer claim.
 `tools/linux-arm64-release-evidence.ts acquire` refuses any process other than
 native `linux/arm64` and refuses a non-empty cache root. It calls the same async
 `acquireGlyphHelper` and `acquireIcuCompanion` exports available to a published
-consumer—there is no helper build in the workflow. It then:
+consumer. The workflow uses the published helpers.
 
-1. authenticates the three downloaded artifacts as described above;
-2. runs glyph-helper version and Fontations/fontconfig readiness probes;
-3. exercises `familyMatch` at the discriminating Arial weight, batched Latin +
-   Han `fcfallback`, metadata, and a real `H` outline;
-4. checks the ICU protocol/version and exhaustive property digest;
-5. acquires both companions a second time and requires identical paths, bytes,
-   and mtimes, proving reuse rather than a hidden second install; and
-6. exports the acquired paths to later workflow steps.
+1. Authenticate the three downloaded artifacts and require the second
+   acquisition to return identical paths, bytes, and mtimes.
+2. Capture the native environment and verify the governing source revisions.
+3. Run glyph-helper version and Fontations/fontconfig readiness probes.
+4. Exercise `familyMatch` at the discriminating Arial weight, batched Latin +
+   Han `fcfallback`, metadata, and a real `H` outline.
+5. Check the ICU protocol/version and exhaustive property digest using the
+   authenticated ICU data path.
+6. Export the authenticated paths after the exact verdict.
+
+A rejected integrity or provenance check skips helper execution. The drift
+receipt preserves the available asset evidence and errors, and leaves the
+workflow environment file untouched (DM-XXCPYH).
 
 The release evidence GETs for metadata and checksum sidecars report the
 endpoint class, request or body phase, and a sanitized status or transport

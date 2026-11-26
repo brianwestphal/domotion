@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assetEvidence,
   buildFinalReport,
+  completeAcquisition,
   decorationEvidenceErrors,
   parseElfIdentity,
   pinnedGlyphProtocolForRelease,
@@ -18,6 +19,7 @@ import {
   REQUIRED_OUTCOMES,
   sourceFingerprintErrors,
   stableFingerprint,
+  writeAcquisitionReport,
 } from "../tools/linux-arm64-release-evidence.js";
 import { fetchReleaseEvidence } from "../tools/lib/release-evidence-fetch.js";
 import { writeReport } from "../tools/lib/report.js";
@@ -228,6 +230,191 @@ const exactAcquisition = {
     },
   },
 };
+
+describe("authenticated acquisition ordering (DM-XXCPYH)", () => {
+  type Facts = Parameters<typeof completeAcquisition>[0];
+  const protocol = "domotion-glyph-paths (linux/freetype) 0.3.0";
+
+  function fixture(root: string): Facts {
+    const digest = "a".repeat(64);
+    const glyph = {
+      tag: "v0.24.0",
+      name: "glyph",
+      assetId: 1,
+      size: 64,
+      updatedAt: "",
+      downloadCountAtProbe: 0,
+      sha256: digest,
+      sidecarSha256: digest,
+      githubDigestSha256: digest,
+      pinnedSha256: digest,
+      allAuthoritiesAgree: true,
+      path: join(root, "glyph"),
+      executable: true,
+      elf: parseElfIdentity(elf(183)),
+    };
+    return {
+      packageVersion: "0.24.0",
+      cacheRoot: root,
+      cacheReuse: {
+        glyphSamePath: true,
+        glyphSameSha256: true,
+        glyphMtimeUnchanged: true,
+        icuSamePath: true,
+        icuSameSha256: true,
+        icuMtimeUnchanged: true,
+      },
+      assets: {
+        glyph,
+        icuExecutable: { ...glyph, name: "icu", path: join(root, "icu") },
+        icuData: { ...glyph, name: "icudtl.dat", path: join(root, "icudtl.dat"), elf: undefined },
+      },
+    };
+  }
+
+  const badFacts: Array<[string, (facts: Facts) => void, string]> = [
+    [
+      "glyph digest",
+      ({ assets }) => {
+        assets.glyph.pinnedSha256 = "b".repeat(64);
+        assets.glyph.allAuthoritiesAgree = false;
+      },
+      "glyph: release digest authorities disagree",
+    ],
+    [
+      "ICU data digest",
+      ({ assets }) => {
+        assets.icuData.sidecarSha256 = "b".repeat(64);
+        assets.icuData.allAuthoritiesAgree = false;
+      },
+      "icuData: release digest authorities disagree",
+    ],
+    [
+      "ICU executable mode",
+      ({ assets }) => {
+        assets.icuExecutable.executable = false;
+        assets.icuExecutable.allAuthoritiesAgree = false;
+      },
+      "icuExecutable: expected executable mode",
+    ],
+    [
+      "glyph ELF architecture",
+      ({ assets }) => {
+        assets.glyph.elf = parseElfIdentity(elf(62));
+      },
+      "glyph: expected little-endian ELF64 AArch64",
+    ],
+    [
+      "ICU executable ELF identity",
+      ({ assets }) => {
+        assets.icuExecutable.elf = undefined;
+      },
+      "icuExecutable: expected little-endian ELF64 AArch64",
+    ],
+    [
+      "cache identity",
+      ({ cacheReuse }) => {
+        cacheReuse.icuSameSha256 = false;
+      },
+      "second acquisition did not reuse byte-identical cache entries",
+    ],
+  ];
+
+  it.each(badFacts)(
+    "rejects %s before either probe and leaves the environment file untouched",
+    async (_, change, reason) => {
+      const dir = mkdtempSync(join(tmpdir(), "domotion-release-integrity-"));
+      try {
+        const facts = fixture(dir);
+        change(facts);
+        const sentinel = join(dir, "invoked");
+        const probes = {
+          captureEnvironment: vi.fn(async () => exactAcquisition.environment),
+          runSmoke: vi.fn(() => {
+            writeFileSync(sentinel, "smoke launched");
+            return {};
+          }),
+        };
+        const report = await completeAcquisition(facts, protocol, probes);
+        const output = join(dir, "acquisition.json");
+        const runEnv = join(dir, "run-env.json");
+        const githubEnv = join(dir, "github-env");
+        writeFileSync(githubEnv, "EVIDENCE_DIR=preserved\n");
+        expect(writeAcquisitionReport(report, output, runEnv, githubEnv)).toBe(1);
+        expect(probes.captureEnvironment).not.toHaveBeenCalled();
+        expect(probes.runSmoke).not.toHaveBeenCalled();
+        expect(existsSync(sentinel)).toBe(false);
+        expect(readFileSync(githubEnv, "utf8")).toBe("EVIDENCE_DIR=preserved\n");
+        const evidence = JSON.parse(readFileSync(output, "utf8"));
+        expect(evidence).toMatchObject({
+          verdict: "acquisition-drift",
+          assets: JSON.parse(JSON.stringify(facts.assets)),
+          smoke: null,
+        });
+        expect(evidence.errors.join("\n")).toContain(reason);
+        expect(JSON.parse(readFileSync(runEnv, "utf8"))).toMatchObject({
+          verdict: "acquisition-drift",
+          errors: evidence.errors,
+          fingerprint: null,
+        });
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each(["missing source revision", "failed smoke", "authenticated success"] as const)(
+    "publishes only after provenance and smoke succeed (%s)",
+    async (scenario) => {
+      const dir = mkdtempSync(join(tmpdir(), "domotion-release-integrity-"));
+      try {
+        const facts = fixture(dir);
+        const invocationOrder: string[] = [];
+        const probes = {
+          captureEnvironment: vi.fn(async () => {
+            invocationOrder.push("provenance");
+            return scenario === "missing source revision"
+              ? { source: { ...exactAcquisition.environment.source, chromiumRevision: null } }
+              : exactAcquisition.environment;
+          }),
+          runSmoke: vi.fn(() => {
+            invocationOrder.push("smoke");
+            if (scenario === "failed smoke") throw new Error("fixture smoke refused");
+            return { glyph: { version: protocol }, icu: { version: "domotion-icu 1 ICU 78.2" } };
+          }),
+        };
+        const report = await completeAcquisition(facts, protocol, probes);
+        const output = join(dir, "acquisition.json");
+        const runEnv = join(dir, "run-env.json");
+        const githubEnv = join(dir, "github-env");
+        const success = scenario === "authenticated success";
+        expect(writeAcquisitionReport(report, output, runEnv, githubEnv)).toBe(success ? 0 : 1);
+        expect(report.assets).toEqual(facts.assets);
+        expect(invocationOrder).toEqual(
+          scenario === "missing source revision" ? ["provenance"] : ["provenance", "smoke"],
+        );
+        if (success) {
+          expect(probes.runSmoke).toHaveBeenCalledExactlyOnceWith(facts.assets, protocol);
+          expect(report.environmentFingerprint).toBe(stableFingerprint(exactAcquisition.environment));
+          expect(readFileSync(githubEnv, "utf8").trim().split("\n")).toEqual([
+            `DOMOTION_HELPER_PATH=${facts.assets.glyph.path}`,
+            `DOMOTION_HELPER_VERSION=github-release:v0.24.0:sha256:${facts.assets.glyph.sha256}`,
+            `DOMOTION_ICU_HELPER_PATH=${facts.assets.icuExecutable.path}`,
+            `DOMOTION_ICU_DATA=${facts.assets.icuData.path}`,
+          ]);
+        } else {
+          expect(report.smoke).toBeNull();
+          expect(existsSync(githubEnv)).toBe(false);
+          expect(report.errors.join("\n")).toContain(
+            scenario === "missing source revision" ? "chromiumRevision is missing" : "fixture smoke refused",
+          );
+        }
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+});
 
 describe("DM-2353 Linux arm64 release evidence", () => {
   it("pins the helper protocol to the ratified release instead of the checkout", () => {

@@ -135,14 +135,14 @@ interface AcquisitionReport {
     icuExecutable: AssetEvidence;
     icuData: AssetEvidence;
   };
-  smoke: Record<string, unknown>;
+  smoke: Record<string, unknown> | null;
   trust: {
     signing: "not-applicable-linux-elf";
     signingReason: string;
     checksums: "pinned-sidecar-github-digest-exact";
   };
-  environment: Record<string, unknown>;
-  environmentFingerprint: string;
+  environment: Record<string, unknown> | null;
+  environmentFingerprint: string | null;
   verdict: "acquisition-exact" | "acquisition-drift";
   errors: string[];
 }
@@ -219,9 +219,10 @@ function execText(command: string, args: string[]): string | null {
   }
 }
 
-function runJson(binary: string, args: string[], input?: unknown): unknown {
+function runJson(binary: string, args: string[], input?: unknown, env?: NodeJS.ProcessEnv): unknown {
   const result = spawnSync(binary, args, {
     input: input == null ? undefined : JSON.stringify(input),
+    env,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
     timeout: 120_000,
@@ -236,8 +237,8 @@ function runJson(binary: string, args: string[], input?: unknown): unknown {
   }
 }
 
-function runText(binary: string, args: string[]): string {
-  const result = spawnSync(binary, args, { encoding: "utf8", timeout: 120_000 });
+function runText(binary: string, args: string[], env?: NodeJS.ProcessEnv): string {
+  const result = spawnSync(binary, args, { encoding: "utf8", timeout: 120_000, env });
   if (result.status !== 0) {
     throw new Error(`${path.basename(binary)} ${args.join(" ")} exited ${result.status}: ${result.stderr.trim()}`);
   }
@@ -392,13 +393,21 @@ function helperSmoke(helperPath: string, expectedVersion: string): Record<string
   };
 }
 
-function icuSmoke(helperPath: string): Record<string, unknown> {
-  const version = runText(helperPath, ["--version"]);
-  const digest = runJson(helperPath, ["--digest"]) as Record<string, unknown>;
+function icuSmoke(helperPath: string, dataPath: string): Record<string, unknown> {
+  const env = { ...process.env, DOMOTION_ICU_DATA: dataPath };
+  const version = runText(helperPath, ["--version"], env);
+  const digest = runJson(helperPath, ["--digest"], undefined, env) as Record<string, unknown>;
   if (version !== "domotion-icu 1 ICU 78.2" || !matchesIcuReleaseDigest(ICU_COMPANION_VERSION, digest)) {
     throw new Error(`ICU companion protocol drift: version=${version}, digest=${JSON.stringify(digest)}`);
   }
   return { version, digest };
+}
+
+function runAcquiredSmoke(assets: AcquisitionReport["assets"], glyphProtocol: string): Record<string, unknown> {
+  return {
+    glyph: helperSmoke(assets.glyph.path, glyphProtocol),
+    icu: icuSmoke(assets.icuExecutable.path, assets.icuData.path),
+  };
 }
 
 function fontInventory(): { source: string; count: number; digest: string; entries: string[] } {
@@ -511,6 +520,8 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
   if (glyphPath == null) throw new Error(`glyph artifact acquisition failed for v${version}/${glyphName}`);
   const icuPath = await acquireIcuCompanion({ platform: "linux", arch: "arm64", cacheDir: icuCache });
   if (icuPath == null) throw new Error(`ICU artifact acquisition failed for icu-v${ICU_COMPANION_VERSION}`);
+  if (icuPath !== icuTarget.executablePath)
+    throw new Error("ICU artifact acquisition returned a path outside its target");
   const glyphBefore = readAcquiredArtifact(glyphName, glyphPath);
   const icuBefore = readAcquiredArtifact(icuTarget.executableAsset, icuPath);
   const glyphAgain = await acquireGlyphHelper({ platform: "linux", arch: "arm64", version, cacheDir: glyphCache });
@@ -549,35 +560,54 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
       false,
     ),
   };
+  return completeAcquisition({ packageVersion: version, cacheRoot, cacheReuse, assets }, pinned.glyphProtocol);
+}
+
+/** Verify the evidence before running the downloaded executables. */
+export async function completeAcquisition(
+  facts: Pick<AcquisitionReport, "packageVersion" | "cacheRoot" | "cacheReuse" | "assets">,
+  glyphProtocol: string,
+  probes: { captureEnvironment: typeof captureEnvironment; runSmoke: typeof runAcquiredSmoke } = {
+    captureEnvironment,
+    runSmoke: runAcquiredSmoke,
+  },
+): Promise<AcquisitionReport> {
+  const { assets, cacheReuse } = facts;
   const errors: string[] = [];
   for (const [name, asset] of Object.entries(assets)) {
     if (!asset.allAuthoritiesAgree) errors.push(`${name}: release digest authorities disagree`);
+    if (name === "icuData") continue;
+    if (!asset.executable) errors.push(`${name}: expected executable mode`);
     if (
-      asset.elf != null &&
-      (!asset.elf.valid ||
-        asset.elf.class !== "ELF64" ||
-        asset.elf.endian !== "little" ||
-        asset.elf.architecture !== "arm64")
+      asset.elf?.valid !== true ||
+      asset.elf.class !== "ELF64" ||
+      asset.elf.endian !== "little" ||
+      asset.elf.architecture !== "arm64"
     ) {
       errors.push(`${name}: expected little-endian ELF64 AArch64, got ${JSON.stringify(asset.elf)}`);
     }
   }
   if (Object.values(cacheReuse).some((value) => !value))
     errors.push("second acquisition did not reuse byte-identical cache entries");
-  const smoke = { glyph: helperSmoke(glyphPath, pinned.glyphProtocol), icu: icuSmoke(icuPath) };
-  const environment = await captureEnvironment(assets);
-  errors.push(...sourceFingerprintErrors(environment));
-  const report: AcquisitionReport = {
+  let smoke: AcquisitionReport["smoke"] = null;
+  let environment: AcquisitionReport["environment"] = null;
+  if (errors.length === 0) {
+    try {
+      environment = await probes.captureEnvironment(assets);
+      errors.push(...sourceFingerprintErrors(environment));
+      if (errors.length === 0) smoke = probes.runSmoke(assets, glyphProtocol);
+    } catch (error) {
+      errors.push(String(error instanceof Error ? error.message : error));
+    }
+  }
+  return {
+    ...facts,
     schemaVersion: 1,
     ticket: "DM-2353",
     generatedAt: new Date().toISOString(),
     target: { platform: process.platform, architecture: process.arch },
-    packageVersion: version,
     icuCompanionVersion: ICU_COMPANION_VERSION,
-    cacheRoot,
     cacheWasEmpty: true,
-    cacheReuse,
-    assets,
     smoke,
     trust: {
       signing: "not-applicable-linux-elf",
@@ -586,11 +616,10 @@ async function acquireEvidence(cacheRoot: string, version: string): Promise<Acqu
       checksums: "pinned-sidecar-github-digest-exact",
     },
     environment,
-    environmentFingerprint: stableFingerprint(environment),
+    environmentFingerprint: environment == null ? null : stableFingerprint(environment),
     verdict: errors.length === 0 ? "acquisition-exact" : "acquisition-drift",
     errors,
   };
-  return report;
 }
 
 function parseOutcomes(raw: string): Record<string, string> {
@@ -799,6 +828,40 @@ export function buildFinalReport(
   };
 }
 
+export function writeAcquisitionReport(
+  report: AcquisitionReport,
+  output: string,
+  runEnvOutput: string,
+  githubEnv?: string,
+): number {
+  writeJson(output, report);
+  writeJson(runEnvOutput, {
+    ...report.environment,
+    fingerprint: report.environmentFingerprint,
+    ...(report.verdict === "acquisition-drift"
+      ? { target: report.target, verdict: report.verdict, errors: report.errors }
+      : {}),
+  });
+  if (report.verdict === "acquisition-drift") {
+    for (const error of report.errors) process.stderr.write(`${error}\n`);
+    return 1;
+  }
+  if (githubEnv != null) {
+    const { glyph, icuExecutable, icuData } = report.assets;
+    const lines = [
+      `DOMOTION_HELPER_PATH=${glyph.path}`,
+      `DOMOTION_HELPER_VERSION=github-release:${glyph.tag}:sha256:${glyph.sha256}`,
+      `DOMOTION_ICU_HELPER_PATH=${icuExecutable.path}`,
+      `DOMOTION_ICU_DATA=${icuData.path}`,
+    ];
+    writeFileSync(githubEnv, `${lines.join("\n")}\n`, { flag: "a" });
+  }
+  process.stdout.write(
+    `${JSON.stringify({ verdict: report.verdict, environmentFingerprint: report.environmentFingerprint })}\n`,
+  );
+  return 0;
+}
+
 async function acquireCommand(values: CliValues): Promise<number> {
   const output = requiredArg(values, "--json");
   const runEnvOutput = requiredArg(values, "--run-env");
@@ -806,28 +869,7 @@ async function acquireCommand(values: CliValues): Promise<number> {
     const cacheRoot = path.resolve(requiredArg(values, "--cache-root"));
     const version = argValue(values, "--glyph-version") ?? PKG.version;
     const report = await acquireEvidence(cacheRoot, version);
-    writeJson(output, report);
-    writeJson(runEnvOutput, { ...report.environment, fingerprint: report.environmentFingerprint });
-    const githubEnv = argValue(values, "--github-env");
-    if (githubEnv != null) {
-      const icuTarget = resolveIcuCompanionTarget({
-        platform: "linux",
-        arch: "arm64",
-        cacheDir: path.join(cacheRoot, "icu"),
-      });
-      if (icuTarget == null) throw new Error("could not resolve acquired ICU target");
-      const lines = [
-        `DOMOTION_HELPER_PATH=${report.assets.glyph.path}`,
-        `DOMOTION_HELPER_VERSION=github-release:v${version}:sha256:${report.assets.glyph.sha256}`,
-        `DOMOTION_ICU_HELPER_PATH=${report.assets.icuExecutable.path}`,
-        `DOMOTION_ICU_DATA=${icuTarget.dataPath}`,
-      ];
-      writeFileSync(githubEnv, `${lines.join("\n")}\n`, { flag: "a" });
-    }
-    process.stdout.write(
-      `${JSON.stringify({ verdict: report.verdict, environmentFingerprint: report.environmentFingerprint })}\n`,
-    );
-    return report.verdict === "acquisition-exact" ? 0 : 1;
+    return writeAcquisitionReport(report, output, runEnvOutput, argValue(values, "--github-env"));
   } catch (error) {
     const failure = {
       schemaVersion: 1,
