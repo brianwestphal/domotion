@@ -798,7 +798,7 @@ function childOverflowClip(el: CapturedElement): AxisClip | null | "unknown" {
   });
   if (usedMargin != null) {
     const geometry = overflowClipMarginGeometry(
-      { x: el.x, y: el.y, width: el.width, height: el.height },
+      isReplaced ? { x: el.x, y: el.y, width: el.width, height: el.height } : el,
       { top: top!, right: right!, bottom: bottom!, left: left! },
       { top: paddingTop!, right: paddingRight!, bottom: paddingBottom!, left: paddingLeft! },
       parseCornerRadii(el.styles, el.width, el.height),

@@ -93,6 +93,39 @@ function el(
 }
 
 describe("renderer-owned viewBox-culling geometry", () => {
+  it("bounds rounded overflow-clip-margin ink in the emitted local paint space (DM-5V1HB6)", () => {
+    const owner = el(
+      25.8125,
+      25,
+      32.25,
+      27.625,
+      {
+        borderRadius: "8px",
+        borderTopWidth: "2px",
+        borderRightWidth: "2px",
+        borderBottomWidth: "2px",
+        borderLeftWidth: "2px",
+        overflowX: "clip",
+        overflowY: "clip",
+        overflowClipMargin: "5px",
+      },
+      [el(0, 0, 100, 100, { backgroundColor: "red" })],
+    );
+    owner.borderPaintSnap = {
+      source: "blink-pixel-snapped-border-v1",
+      width: 32.25,
+      height: 27.625,
+      left: -0.1875,
+      top: 0.375,
+      right: -0.4375,
+      bottom: -0.25,
+    };
+    const bounds = () => buildRendererCullGeometry(owner, 110, 100).get(owner)?.visualBounds;
+    expect(bounds()).toEqual({ kind: "bounded", box: { x: 22.625, y: 22.375, w: 38, h: 33 } });
+    owner.borderPaintSnap.width = 32;
+    expect(bounds()).toEqual({ kind: "bounded", box: { x: 23, y: 22, w: 38, h: 34 } });
+  });
+
   it("uses generated descendant geometry for a transparent carrier fill box", () => {
     const child = el(300, 100, 20, 20, { backgroundColor: "rgb(220, 20, 60)" });
     const carrier = el(0, 0, 400, 200, {}, [child]);

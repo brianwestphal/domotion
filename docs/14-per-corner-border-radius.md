@@ -63,6 +63,12 @@ Activation follows `LayoutObject::ShouldApplyOverflowClipMargin`: ordinary boxes
 
 Computed margin lengths are serialized before effective CSS zoom while captured DOMRects are physical, so capture scales px terms exactly once. Device pixel ratio does not change this CSS-coordinate geometry.
 
+For ordinary rounded boxes, the authenticated border paint record supplies the
+local inner-edge snap, including any captured paint-isolation shift (DM-5V1HB6).
+SVG clipping and descendant culling both use the corrected bounds. Native
+Chromium controls cover a fractional frozen ancestor scale and fractional paint
+isolation. Replaced images use their own authenticated paint basis.
+
 ## Path geometry
 
 `roundedRectPath` walks clockwise from `(x + tl.h, y)`:

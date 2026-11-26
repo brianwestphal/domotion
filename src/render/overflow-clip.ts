@@ -1,4 +1,11 @@
-import { insetCornerRadii, outsetCornerRadiiWithCoverageCorrection, type CornerRadii } from "./borders.js";
+import {
+  authenticBorderPaintSnap,
+  insetCornerRadii,
+  outsetCornerRadiiWithCoverageCorrection,
+  snappedInsetBox,
+  type BorderPaintSnapCarrier,
+  type CornerRadii,
+} from "./borders.js";
 import type { PhysicalEdges } from "./geometry-box.js";
 import type { CapturedElement } from "../capture/types.js";
 import { hasPaintContainment } from "./containment.js";
@@ -33,6 +40,8 @@ export interface OverflowClipMarginGeometry {
   height: number;
   corners: CornerRadii;
   outsets: PhysicalBoxSides;
+  /** The locally snapped edges differ from the legacy viewport rounding. */
+  localPaintSnap?: true;
 }
 
 const REFERENCE_BOXES = new Set<OverflowClipReferenceBox>(["border-box", "padding-box", "content-box"]);
@@ -174,18 +183,30 @@ export function usedOverflowClipMargin(
  * and correct each rounded corner using the stable coverage-factor algorithm.
  */
 export function overflowClipMarginGeometry(
-  borderBox: { x: number; y: number; width: number; height: number },
+  borderBox: BorderPaintSnapCarrier,
   borders: PhysicalBoxSides,
   padding: PhysicalBoxSides,
   outerCorners: CornerRadii,
   value: ParsedOverflowClipMargin,
 ): OverflowClipMarginGeometry {
-  const innerLeft = Math.round(borderBox.x + borders.left);
-  const innerTop = Math.round(borderBox.y + borders.top);
-  const innerRight = Math.round(borderBox.x + borderBox.width - borders.right);
-  const innerBottom = Math.round(borderBox.y + borderBox.height - borders.bottom);
-  const sourceWidth = Math.max(0, innerRight - innerLeft);
-  const sourceHeight = Math.max(0, innerBottom - innerTop);
+  const x = Math.round(borderBox.x + borders.left);
+  const y = Math.round(borderBox.y + borders.top);
+  const global = {
+    x,
+    y,
+    width: Math.round(borderBox.x + borderBox.width - borders.right) - x,
+    height: Math.round(borderBox.y + borderBox.height - borders.bottom) - y,
+  };
+  // Blink's InnerBorderRadiusClip snaps the rounded padding contour before
+  // applying outsets. A square overflow rect uses OverflowClipRect instead.
+  const rounded = [outerCorners.tl, outerCorners.tr, outerCorners.br, outerCorners.bl].some(
+    ({ h, v }) => h > 0 && v > 0,
+  );
+  const inner = rounded && authenticBorderPaintSnap(borderBox) != null ? snappedInsetBox(borderBox, borders) : global;
+  const localPaintSnap =
+    inner.x !== global.x || inner.y !== global.y || inner.width !== global.width || inner.height !== global.height;
+  const sourceWidth = Math.max(0, inner.width);
+  const sourceHeight = Math.max(0, inner.height);
   const innerCorners = insetCornerRadii(outerCorners, borders.top, borders.right, borders.bottom, borders.left);
 
   let outsets: PhysicalBoxSides;
@@ -208,8 +229,8 @@ export function overflowClipMarginGeometry(
   }
 
   return {
-    x: innerLeft - outsets.left,
-    y: innerTop - outsets.top,
+    x: inner.x - outsets.left,
+    y: inner.y - outsets.top,
     width: Math.max(0, sourceWidth + outsets.left + outsets.right),
     height: Math.max(0, sourceHeight + outsets.top + outsets.bottom),
     corners: outsetCornerRadiiWithCoverageCorrection(
@@ -222,6 +243,7 @@ export function overflowClipMarginGeometry(
       sourceHeight,
     ),
     outsets,
+    ...(localPaintSnap ? { localPaintSnap: true } : {}),
   };
 }
 

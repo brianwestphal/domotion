@@ -214,11 +214,11 @@ function resolvedOverflowClipMarginGeometry(
   // An image's overflow clip snaps in the same authenticated local paint
   // space as its PaintIntoRect destination (image-paint-snap.ts): compute it
   // at the local origin and translate back, isolation shift included.
+  // Ordinary contours instead reuse the captured border paint snap.
   const basis = authenticImagePaintBasis(el);
+  const borderBox = { x: el.x, y: el.y, width: el.width, height: el.height };
   const geometry = overflowClipMarginGeometry(
-    basis == null
-      ? { x: el.x, y: el.y, width: el.width, height: el.height }
-      : { x: basis.origin.x, y: basis.origin.y, width: el.width, height: el.height },
+    basis == null ? (isReplaced ? borderBox : el) : { ...borderBox, x: basis.origin.x, y: basis.origin.y },
     {
       top: side(el.styles.borderTopWidth),
       right: side(el.styles.borderRightWidth),
@@ -2924,9 +2924,12 @@ function resolveOverflowClipId(state: RenderState, el: CapturedElement, corners:
     const cpW = xVisibleCp ? boxW + UNBOUNDED_CLIP_EXTENT * 2 : boxW + inflateL + inflateR;
     const cpY = yVisibleCp ? boxY - UNBOUNDED_CLIP_EXTENT : boxY - inflateT;
     const cpH = yVisibleCp ? boxH + UNBOUNDED_CLIP_EXTENT * 2 : boxH + inflateT + inflateB;
+    // Keep the synthetic wrapper's bounds at the same precision as the
+    // corrected child contour, including fractional local edges.
+    const clipNumber = ocmGeometry?.localPaintSnap === true ? (n: number) => formatNumberLoose(n, 6) : r;
     clipPathUrlId = paintCtx.nextClipId("cp");
     defsParts.push(
-      `<clipPath id="${clipPathUrlId}"><rect x="${r(cpX)}" y="${r(cpY)}" width="${r(cpW)}" height="${r(cpH)}"/></clipPath>`,
+      `<clipPath id="${clipPathUrlId}"><rect x="${clipNumber(cpX)}" y="${clipNumber(cpY)}" width="${clipNumber(cpW)}" height="${clipNumber(cpH)}"/></clipPath>`,
     );
   }
   return clipPathUrlId;
@@ -4174,6 +4177,7 @@ export interface ChildOverflowClipGeometry {
   width: number;
   height: number;
   corners: CornerRadii;
+  localPaintSnap?: true;
 }
 
 /**
@@ -4231,7 +4235,14 @@ export function childOverflowClipGeometry(
     y = el.y - UNBOUNDED_CLIP_EXTENT;
     height = el.height + UNBOUNDED_CLIP_EXTENT * 2;
   }
-  return { x, y, width, height, corners: clipCorners };
+  return {
+    x,
+    y,
+    width,
+    height,
+    corners: clipCorners,
+    ...(marginGeometry?.localPaintSnap ? { localPaintSnap: true } : {}),
+  };
 }
 
 /**
@@ -4264,6 +4275,7 @@ function ensureChildOverflowClipId(
         geometry.height,
         geometry.corners,
         "",
+        geometry.localPaintSnap === true ? (n: number) => formatNumberLoose(n, 6) : r,
       )}</clipPath>`,
     );
     // DM-673: stash the clip-path id so hoisted descendants of this

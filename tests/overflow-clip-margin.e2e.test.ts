@@ -1,5 +1,7 @@
+import sharp from "sharp";
 import { afterAll, describe, expect, it } from "vitest";
 import { captureElementTree, elementTreeToSvgInner, launchChromium, type CapturedElement } from "../src/index.js";
+import { childOverflowClipGeometry, elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 const env = await (async () => {
@@ -120,6 +122,59 @@ describeBrowser("DM-2419: Chromium overflow-clip-margin capture oracle", () => {
       expect(rectGeometry(clipBody(ordinarySvg, "ov"))).toEqual({ x: 134, y: 34, width: 32, height: 22 });
     } finally {
       await page.close();
+    }
+  });
+});
+
+describeBrowser("DM-5V1HB6: native local paint space for ordinary rounded clips", () => {
+  it.each([
+    {
+      name: "a fractional frozen scale",
+      frame: "transform:scale(1.5);transform-origin:0 0",
+      expected: { x: 22.625, y: 22.375, width: 38, height: 33 },
+    },
+    {
+      name: "a fractional paint isolation",
+      frame: "contain:paint",
+      expected: { x: 23, y: 22, width: 38, height: 33 },
+    },
+  ])("matches full native RGBA beneath $name", async ({ frame, expected }) => {
+    const viewport = { x: 0, y: 0, width: 110, height: 100 };
+    const page = await env!.browser.newPage({ viewport });
+    const output = await env!.browser.newPage({ viewport });
+    const canvas = "<style>html,body{margin:0;background:white}</style>";
+    const rgba = (bytes: Buffer) => sharp(bytes).ensureAlpha().raw().toBuffer();
+    try {
+      await page.setContent(`${canvas}<style>
+        #frame{position:absolute;left:16.625px;top:15.375px;width:58px;height:54px;${frame}}
+        #host{position:absolute;left:9.1875px;top:9.625px;box-sizing:border-box;
+          width:32.25px;height:27.625px;border:2px solid transparent;border-radius:8px;
+          overflow:clip;overflow-clip-margin:5px}
+        #host>i{position:absolute;inset:-14px;background:red}
+      </style><div id="frame" data-domotion-anim="frame"><div id="host" data-domotion-anim="host"><i></i></div></div>`);
+      const expectedPixels = await rgba(await page.screenshot());
+      const tree = await captureElementTree(page, "body", viewport);
+      const host = byAnimId(tree, "host")!;
+      expect(host.borderPaintSnap).toMatchObject({
+        source: "blink-pixel-snapped-border-v1",
+        width: 32.25,
+        height: 27.625,
+      });
+      expect(host.imagePaintBasis).toBeUndefined();
+      expect(childOverflowClipGeometry(host)).toMatchObject({ ...expected, localPaintSnap: true });
+      const render = async () => {
+        await output.setContent(canvas + elementTreeToSvg(tree, viewport.width, viewport.height));
+        return rgba(await output.screenshot());
+      };
+      expect((await render()).equals(expectedPixels)).toBe(true);
+
+      // Removing the source authority must expose the previously global snap.
+      delete host.borderPaintSnap;
+      expect(childOverflowClipGeometry(host)).toMatchObject({ x: 23, y: 22, width: 38, height: 34 });
+      expect((await render()).equals(expectedPixels)).toBe(false);
+    } finally {
+      await page.close();
+      await output.close();
     }
   });
 });
