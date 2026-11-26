@@ -96,4 +96,89 @@ describeBrowser("frame-aware mask-source rasterize (DM-1447)", () => {
       await ctx.close();
     }
   }, 60_000);
+
+  it.each([
+    {
+      label: "integer control",
+      transform: "none",
+      origin: { x: 0, y: 0 },
+      clip: { left: 63, top: 51, width: 48, height: 44 },
+    },
+    {
+      label: "the fractional far-right column",
+      transform: "translate(10.5px, 10px)",
+      origin: { x: 0, y: 0 },
+      clip: { left: 73, top: 61, width: 49, height: 44 },
+    },
+    {
+      label: "both fractional far edges with a nonzero capture origin",
+      transform: "translate(10.5px, 10.25px)",
+      origin: { x: 23.25, y: 17.75 },
+      clip: { left: 73, top: 61, width: 49, height: 45 },
+    },
+    {
+      label: "the visible paint across the screenshot surface's top-left corner",
+      transform: "translate(-69.5px, -54.25px)",
+      origin: { x: 0, y: 0 },
+      clip: { left: 0, top: 0, width: 42, height: 41 },
+    },
+  ])(
+    "retains $label in the native mask producer (DM-YPD6X4)",
+    async ({ transform, origin, clip }) => {
+      const page = await env!.browser.newPage({ deviceScaleFactor: 1, viewport: { width: 300, height: 220 } });
+      try {
+        await page.setContent(`
+        <!doctype html>
+        <style>html,body{margin:0;background:transparent}</style>
+        <div style="position:absolute;left:63px;top:51px;transform-origin:0 0;transform:${transform}">
+          <div id="mask-source" data-domotion-rid="maskRef"
+               style="width:48px;height:44px;background:#ba2010;mask-image:element(#mask-source)">
+            <div style="width:17px;height:19px;background:#0b883a"></div>
+          </div>
+        </div>
+      `);
+        const source = await page.locator("#mask-source").evaluate((element) => {
+          const { x, y, width, height } = element.getBoundingClientRect();
+          return { x, y, width, height, mask: getComputedStyle(element).maskImage };
+        });
+        expect(source.mask).toBe("none");
+        const sourceDom = await page.content();
+        const sourcePng = await page.screenshot({ omitBackground: true });
+        // This reference crops a full native frame using fixture bounds, so it
+        // cannot repeat a mistake in the producer's Playwright clip.
+        const expected = await sharp(sourcePng).ensureAlpha().extract(clip).raw().toBuffer();
+        if (transform === "translate(10.5px, 10px)") {
+          const rightEdgeAlpha = Array.from({ length: 44 }, (_, row) => expected[(row * 49 + 48) * 4 + 3]);
+          expect(rightEdgeAlpha.every((alpha) => alpha > 0)).toBe(true);
+        }
+
+        const tree = rootWithMaskRaster("maskRef", {
+          x: source.x - origin.x,
+          y: source.y - origin.y,
+          w: source.width,
+          h: source.height,
+        });
+        await rasterizeMaskSources(page, tree, { ...origin, width: 240, height: 180 });
+        expect(await page.content()).toBe(sourceDom);
+        const pixels = (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer();
+        expect((await pixels(await page.screenshot({ omitBackground: true }))).equals(await pixels(sourcePng))).toBe(
+          true,
+        );
+
+        const raster = tree[0].maskRasters![0];
+        expect(raster.width).toBe(48);
+        expect(raster.height).toBe(44);
+        expect(raster.dataUri).toMatch(/^data:image\/png;base64,/);
+        const { data, info } = await sharp(Buffer.from(raster.dataUri!.split(",")[1], "base64"))
+          .ensureAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        expect({ width: info.width, height: info.height }).toEqual({ width: clip.width, height: clip.height });
+        expect(data.equals(expected)).toBe(true);
+      } finally {
+        await page.close();
+      }
+    },
+    60_000,
+  );
 });

@@ -78,7 +78,6 @@ import { captureSummaryMarkerGeometry } from "./summary-marker-cdp.js";
 import { adoptReadOnlyLiveTextTopology, prepareTextPaintGeometry } from "./text-paint-geometry-cdp.js";
 import { preparePseudoFragmentGeometry } from "./pseudo-fragment-cdp.js";
 import { prepareCollapsedBorderFragmentRecords } from "./collapsed-border-fragment-cdp.js";
-import { clipRectForScreenshot } from "./clip-rect.js";
 import {
   isNonAffineProjectiveQuad,
   isProjectivePaintQuad,
@@ -3377,7 +3376,19 @@ export async function rasterizeMaskSources(
       } catch {
         continue;
       }
-      const clip = clipRectForScreenshot(mr.rect, viewport);
+      // Enclose both page-space edges. Rounding the width on its own
+      // loses the last painted column when the left edge is fractional.
+      // Playwright intersects this rectangle with its screenshot surface.
+      const left = viewport.x + mr.rect.x;
+      const top = viewport.y + mr.rect.y;
+      const x = Math.floor(left);
+      const y = Math.floor(top);
+      const clip = {
+        x,
+        y,
+        width: Math.ceil(left + mr.rect.width) - x,
+        height: Math.ceil(top + mr.rect.height) - y,
+      };
       try {
         const buf = await page.screenshot({ clip, omitBackground: true, type: "png" });
         mr.dataUri = `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
