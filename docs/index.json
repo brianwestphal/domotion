@@ -602,6 +602,7 @@
         "platforms": ["macos", "linux", "windows"],
         "tickets": [
           "DM-2380",
+          "DM-JH8DRF",
           "DM-457",
           "DM-2642",
           "DM-FTB9WG",
@@ -617,6 +618,7 @@
         ],
         "code": [
           "src/capture/replaced-element-raster.ts",
+          "src/capture/isolated-canvas-ink.ts",
           "src/capture/snapshot-visibility-transitions.ts",
           "src/capture/webgl-output-freeze.ts",
           "src/capture/gpu-startup-barrier.ts",

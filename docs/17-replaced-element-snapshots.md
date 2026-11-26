@@ -8,6 +8,7 @@ platforms: ["macos", "linux", "windows"]
 tickets:
   [
     "DM-2380",
+    "DM-JH8DRF",
     "DM-457",
     "DM-2642",
     "DM-FTB9WG",
@@ -24,6 +25,7 @@ tickets:
 code:
   [
     "src/capture/replaced-element-raster.ts",
+    "src/capture/isolated-canvas-ink.ts",
     "src/capture/snapshot-visibility-transitions.ts",
     "src/capture/webgl-output-freeze.ts",
     "src/capture/gpu-startup-barrier.ts",
@@ -361,6 +363,17 @@ by a translation and have identical extents; it then transfers the single
 outward-snapped screenshot margin back to the original output quad. A residual
 skew/projective quad or a size change is rejected instead of silently falling
 back to an AABB. Every temporary declaration and its priority is restored.
+
+DM-JH8DRF covers an ordinary undecorated canvas with visible overflow, one
+held diagonal live transform, and no serialized wrapper or sample shift.
+Blink can snap its local paint before applying that transform, placing painted
+pixels outside the outward-snapped live DOM quad. The raster pass verifies
+that the marked light-DOM canvas owns the only paint in the isolated viewport.
+The proof requires the same pierced document and backend node, content quad,
+held transform, and unscrolled DPR-1 viewport before and after the screenshot.
+DOM and stylesheet changes invalidate the sample. The full native bitmap
+supplies device-pixel paint bounds and bytes. The mapped crop widens only
+when that bitmap witnesses paint outside the ordinary clip.
 
 `replacedSnapshot.rasterToOutput` records the capture-local content quad, PNG
 pixel dimensions, and CSS-pixels-per-image-pixel on each axis. The renderer

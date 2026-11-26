@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import type { CDPSession, ElementHandle, Page } from "@playwright/test";
 import { detachQuietly } from "./cdp-lifecycle.js";
+import { captureIsolatedCanvasInk } from "./isolated-canvas-ink.js";
 import { suppressSnapshotVisibilityTransitions } from "./snapshot-visibility-transitions.js";
 import {
   axisAlignedQuadBounds,
@@ -557,7 +558,18 @@ async function rasterizeTargetByScreenshot(session: RasterSession, target: Raste
       return;
     }
     phase = "screenshot";
-    const buf = await page.screenshot({ clip: mapping.clip, omitBackground: true, type: "png" });
+    const ink =
+      session.cdp != null &&
+      target.tag === "canvas" &&
+      !target.imageReplacement &&
+      !target.serializedTransform &&
+      dx === 0 &&
+      dy === 0 &&
+      outputQuad.every((value, i) => value === sampledQuad[i])
+        ? await captureIsolatedCanvasInk(page, session.cdp, target.snapshot.rid, viewport, outputQuad, mapping.clip)
+        : null;
+    const buf = ink?.png ?? (await page.screenshot({ clip: mapping.clip, omitBackground: true, type: "png" }));
+    const output = ink?.rect ?? mapping.output;
     const metadata = await sharp(buf).metadata();
     const pixelWidth = metadata.width ?? 0;
     const pixelHeight = metadata.height ?? 0;
@@ -570,10 +582,10 @@ async function rasterizeTargetByScreenshot(session: RasterSession, target: Raste
       viewport,
       `data:image/png;base64,${Buffer.from(buf).toString("base64")}`,
       {
-        x: mapping.output.x - viewport.x,
-        y: mapping.output.y - viewport.y,
-        width: mapping.output.width,
-        height: mapping.output.height,
+        x: output.x - viewport.x,
+        y: output.y - viewport.y,
+        width: output.width,
+        height: output.height,
       },
       outputQuad,
       pixelWidth,
