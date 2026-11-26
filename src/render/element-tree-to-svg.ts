@@ -133,6 +133,7 @@ import {
 } from "../capture/embed.js";
 import {
   inlineImgSvg,
+  editSvgRootAttributes,
   flattenImgSvg,
   flattenedRootGroupAttributes,
   getFlattenNestedSvg,
@@ -146,6 +147,7 @@ import {
   type SvgNaturalSizing,
 } from "./svg-inline.js";
 import { computeViewportMatrix, parsePreserveAspectRatio } from "./svg-viewport-matrix.js";
+import { decodeXmlAttributeValue } from "./svg-image-selector-engine.js";
 import { hoistDuplicateImagePayloads } from "../post-processing/hoist-image-payloads.js";
 import { propagateTextDecorations } from "../tree-ops/decoration-propagation.js";
 import { blinkPlatformResizerStrokes } from "./resize-handle.js";
@@ -1328,14 +1330,24 @@ function paintListMarker(el: CapturedElement, textColor: ReturnType<typeof parse
 
 function inlineSvgRootPaint(el: CapturedElement): CapturedElement["svgRootPaint"] {
   const paint = el.svgRootPaint;
-  return el.svgContent != null &&
-    paint?.source === "blink-inline-svg-root-paint-v1" &&
-    paint.width === el.width &&
-    paint.height === el.height &&
-    Number.isFinite(paint.dx) &&
-    Number.isFinite(paint.dy)
-    ? paint
-    : undefined;
+  if (
+    el.svgContent == null ||
+    paint == null ||
+    paint.width !== el.width ||
+    paint.height !== el.height ||
+    !Number.isFinite(paint.dx) ||
+    !Number.isFinite(paint.dy)
+  )
+    return undefined;
+  if (paint.source === "blink-inline-svg-root-paint-v1") return paint;
+  if (
+    paint.source === "blink-inline-svg-root-paint-v2" &&
+    [paint.scaleX, paint.scaleY].every((scale) => Number.isFinite(scale) && scale > 0) &&
+    [paint.snappedWidth, paint.snappedHeight].every((size) => Number.isSafeInteger(size) && size > 0) &&
+    typeof paint.clip === "boolean"
+  )
+    return paint;
+  return undefined;
 }
 
 // Inline-SVG content paint, extracted from renderElement (DM-1306, DM-1312).
@@ -1385,7 +1397,10 @@ function paintInlineSvg(
   // fall back to its 300x150 default viewport, and the defs contents would
   // paint visibly. Skip emission for 0x0 host elements.
   if (contentW <= 0 || contentH <= 0) return { svg, handled: true };
-  let sized = injectSvgSize(el.svgContent, contentW, contentH);
+  const paint = inlineSvgRootPaint(el);
+  const mapped = paint?.source === "blink-inline-svg-root-paint-v2" ? paint : undefined;
+  const formatLayoutSize = (n: number) => formatNumberLoose(n, 6);
+  let sized = injectSvgSize(el.svgContent, contentW, contentH, mapped == null ? r : formatLayoutSize);
   const referencePrefix =
     el.svgReferenceScope != null ? `${idPrefix}svgscope${el.svgReferenceScope}-` : allocClassPrefix?.();
   if (referencePrefix != null) sized = prefixSvgIds(sized, referencePrefix);
@@ -1404,7 +1419,6 @@ function paintInlineSvg(
   // up the host's text color. Set the wrapping group's `color` to the captured
   // text color so currentColor resolves to what Chrome painted (DM-279).
   const iconColor = el.styles.color != null && el.styles.color !== "" ? el.styles.color : "currentColor";
-  const paint = inlineSvgRootPaint(el);
   const place = {
     x: el.x + blW + plW + (paint?.dx ?? 0),
     y: el.y + btW + ptW + (paint?.dy ?? 0),
@@ -1413,7 +1427,33 @@ function paintInlineSvg(
   };
   // A crop or tree translation can put the source-snapped viewport at a
   // fractional output coordinate. Keep the source's placement in both modes.
-  const position = paint == null ? r : (value: number) => formatNumberLoose(value, 6);
+  const position = paint == null ? r : formatLayoutSize;
+  if (mapped != null && (!mapped.clip || allocClassPrefix != null)) {
+    // Blink clips the snapped border viewport independently of the viewBox's
+    // original layout size and any paint-only shrink. Move the clip outside
+    // the nested SVG (or the flattened viewBox transform) in both modes.
+    const rawStyle = svgRootAttribute(sized, "style") ?? "";
+    const style = decodeXmlAttributeValue(rawStyle) ?? rawStyle;
+    const local = editSvgRootAttributes(sized, [], {
+      overflow: "visible",
+      style: `${style};overflow:visible!important`,
+    });
+    const content = getFlattenNestedSvg()
+      ? (flattenCapturedInlineSvg(local, { ...place, x: 0, y: 0 }, undefined, position, 12) ?? local)
+      : local;
+    const scale =
+      mapped.scaleX === 1 && mapped.scaleY === 1
+        ? ""
+        : ` scale(${formatNumberLoose(mapped.scaleX, 12)}, ${formatNumberLoose(mapped.scaleY, 12)})`;
+    const placed = `<g transform="translate(${position(place.x)}, ${position(place.y)})${scale}" color="${iconColor}">${content}</g>`;
+    if (mapped.clip) {
+      const clipId = allocClassPrefix!();
+      svg.push(
+        `${indent}<clipPath id="${clipId}"><rect x="${position(place.x)}" y="${position(place.y)}" width="${mapped.snappedWidth}" height="${mapped.snappedHeight}"/></clipPath><g clip-path="url(#${clipId})">${placed}</g>`,
+      );
+    } else svg.push(`${indent}${placed}`);
+    return { svg, handled: true };
+  }
   // DM-7AN9AH: opt-in flatten this captured DOM inline `<svg>` into a
   // `<g transform="matrix(...)">` (for tools that mishandle nested `<svg>`). The
   // `sized` body already carries this path's id/class handling — critically the
@@ -1447,6 +1487,7 @@ function flattenCapturedInlineSvg(
   place: { x: number; y: number; w: number; h: number },
   allocClip?: () => string,
   position = r,
+  matrixDigits = 6,
 ): string | null {
   const tag = readSvgOpeningTag(sized);
   if (tag == null) return null;
@@ -1471,7 +1512,7 @@ function flattenCapturedInlineSvg(
   );
   if (matrix == null) return null;
 
-  const mf = (n: number): string => formatNumberLoose(n, 6);
+  const mf = (n: number): string => formatNumberLoose(n, matrixDigits);
   const m = `matrix(${mf(matrix.a)} ${mf(matrix.b)} ${mf(matrix.c)} ${mf(matrix.d)} ${mf(matrix.e)} ${mf(matrix.f)})`;
   // DM-97E2CN: keep the root's inheritable presentation attributes (capture
   // bakes the page-cascade `font-family` / `fill` / `stroke` there) — `sized`

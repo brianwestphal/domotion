@@ -1661,10 +1661,10 @@ export function computeWedgeApexes(
  * Captured contentW/contentH are CSS-resolved layout dimensions, so forcing
  * them onto the nested `<svg>` is correct in both cases.
  */
-export function injectSvgSize(svgHtml: string, w: number, h: number): string {
+export function injectSvgSize(svgHtml: string, w: number, h: number, format = r): string {
   if (w <= 0 || h <= 0) return svgHtml;
   if (readSvgOpeningTag(svgHtml)?.start !== 0) return svgHtml;
-  return editSvgRootAttributes(svgHtml, [], { width: r(w), height: r(h) });
+  return editSvgRootAttributes(svgHtml, [], { width: format(w), height: format(h) });
 }
 
 /**

@@ -29,6 +29,7 @@ import { disposeAll, runPrepasses, withCdpSession } from "./cdp-lifecycle.js";
 import { prepareInsetRootShadowContext, type InsetRootShadowContextProbe } from "./inset-root-shadow-context.js";
 import { createAuthorShadowScope, type AuthorShadowScope } from "./author-shadow-context.js";
 import { LIVE_AFFINE_BOX_SHADOW_CONTEXT } from "./author-shadow-context-record.js";
+import { readInlineSvgRootRuntime } from "./inline-svg-root-runtime.js";
 import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
 import { resizeEmbeddedImages, type FrozenAnimatedImageResizeRecord } from "../tree-ops/resize-embedded-images.js";
@@ -2595,8 +2596,10 @@ async function captureElementTreeWithWarningsInternal(
         authorShadowScope = scope;
         if (candidates.outline)
           await scope.prepare(selector, { mode: "selected-root", purpose: "outline root admission" });
-        if (candidates.inlineSvg)
+        if (candidates.inlineSvg) {
           await scope.prepare(selector, { mode: "inline-svg-roots", purpose: "inline SVG root paint" });
+          captureArgs.inlineSvgRootRuntime = await readInlineSvgRootRuntime(page);
+        }
         if (liveAffineBoxes) await scope.prepare(selector, LIVE_AFFINE_BOX_SHADOW_CONTEXT);
         await reverifyAnimationFrame();
         return scope;
@@ -2636,9 +2639,9 @@ async function captureElementTreeWithWarningsInternal(
       }
       await reverifyAnimationFrame();
       const captureWithText = async (textPaintGeometryKey: string) => {
-        const finalArgs = { ...captureArgs, textPaintGeometryKey };
         const scope =
           authorShadowScope ?? (await prepareShadowScope(textPaintProbe?.hasLiveAffineBoxCandidates === true));
+        const finalArgs = { ...captureArgs, textPaintGeometryKey };
         if (scope != null) return scope.evaluateCapture(CAPTURE_SCRIPT, finalArgs);
         return page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(finalArgs)})`);
       };

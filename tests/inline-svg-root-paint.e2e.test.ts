@@ -154,12 +154,12 @@ for (const deviceScaleFactor of [1, 2]) {
   );
 }
 
-it("adopts the actual SVG candidate and declines a light child of a closed slotted host", async () => {
+it.each([20, 20.25])("adopts the actual SVG candidate at %d px and declines a closed slotted host", async (width) => {
   const page = await browser.newPage({ viewport });
   try {
     await page.setContent(
       pageStyle +
-        `<main style="outline:1px solid black;width:60px;height:60px"><div id="host">${svg(positioned(29, 29.484375))}</div></main>`,
+        `<main style="outline:1px solid black;width:60px;height:60px"><div id="host">${svg(positioned(29, 29.484375) + `;width:${width}px`)}</div></main>`,
     );
     const capture = async () => sourceSvg(await captureElementTree(page, "main", viewport))!;
     expect((await capture()).svgRootPaint?.dy).toBe(-0.484375);
@@ -175,7 +175,6 @@ it("adopts the actual SVG candidate and declines a light child of a closed slott
 });
 
 it.each([
-  ["fractional stitched size", "width:20.25px", ""],
   ["nonunit CSS zoom", "", "zoom:1.25"],
   ["frozen transform", "", "transform:translate(3.125px,2px)"],
   ["SVG border box", "padding:2px", ""],
@@ -190,3 +189,173 @@ it.each([
     await page.close();
   }
 });
+
+const fractionalViewport = { x: 0, y: 0, width: 136, height: 137 };
+const stripes =
+  '<path fill="blue" d="M-4 -4h28v28H-4z"/><path fill="red" d="M3.23 -4h1.28v28H3.23z M13.75 -4h1.7v28h-1.7z"/>';
+const fractionalCases = [
+  {
+    name: "shrink",
+    x: 19.234375,
+    y: 11.234375,
+    width: 20.25,
+    height: 20,
+    snappedWidth: 20,
+    snappedHeight: 20,
+    clip: true,
+  },
+  {
+    name: "expand",
+    x: 19.484375,
+    y: 11.234375,
+    width: 20.25,
+    height: 20,
+    snappedWidth: 21,
+    snappedHeight: 20,
+    clip: true,
+  },
+  {
+    name: "mixed shrink and expand",
+    x: 19.234375,
+    y: 11.484375,
+    width: 20.25,
+    height: 17.75,
+    snappedWidth: 20,
+    snappedHeight: 18,
+    clip: true,
+  },
+  {
+    name: "visible overflow",
+    x: 19.234375,
+    y: 11.234375,
+    width: 20.25,
+    height: 20,
+    snappedWidth: 20,
+    snappedHeight: 20,
+    clip: false,
+  },
+] as const;
+
+type FractionalCase = {
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  snappedWidth: number;
+  snappedHeight: number;
+  clip: boolean;
+};
+async function verifyFractionalCase(
+  contextBrowser: Browser,
+  deviceScaleFactor: number,
+  row: FractionalCase,
+  scaleX = 1,
+  scaleY = 1,
+) {
+  const context = await contextBrowser.newContext({ viewport: fractionalViewport, deviceScaleFactor });
+  const page = await context.newPage(),
+    output = await context.newPage();
+  try {
+    const style =
+      positioned(row.x, row.y) +
+      `;width:${row.width}px;height:${row.height}px;overflow:${row.clip ? "hidden" : "visible"}`;
+    await page.setContent(`<!doctype html>${pageStyle}${svg(style, 'viewBox="0 0 20 20"', stripes)}`);
+    const source = await pixels(page);
+    const tree = await captureElementTree(page, "body", fractionalViewport);
+    const node = sourceSvg(tree)!;
+    expect([node.x, node.y, node.width, node.height]).toEqual([row.x, row.y, row.width, row.height]);
+    expect(node.svgRootPaint).toEqual({
+      source: "blink-inline-svg-root-paint-v2",
+      dx: Math.round(row.x) - row.x,
+      dy: Math.round(row.y) - row.y,
+      width: row.width,
+      height: row.height,
+      snappedWidth: row.snappedWidth,
+      snappedHeight: row.snappedHeight,
+      clip: row.clip,
+      scaleX,
+      scaleY,
+    });
+    for (const flattenNestedSvg of [false, true]) {
+      const result = elementTreeToSvg(tree, fractionalViewport.width, fractionalViewport.height, { flattenNestedSvg });
+      expect((result.match(/<svg\b/g) ?? []).length).toBe(flattenNestedSvg ? 1 : 2);
+      await output.setContent(`<!doctype html>${pageStyle}${result}`);
+      expect(
+        (await pixels(output)).equals(source),
+        `${row.name}, flatten=${flattenNestedSvg}, DPR=${deviceScaleFactor}`,
+      ).toBe(true);
+    }
+    delete node.svgRootPaint;
+    await output.setContent(
+      `<!doctype html>${pageStyle}${elementTreeToSvg(tree, fractionalViewport.width, fractionalViewport.height)}`,
+    );
+    expect((await pixels(output)).equals(source)).toBe(false);
+  } finally {
+    await context.close();
+  }
+}
+
+for (const deviceScaleFactor of [1, 2]) {
+  it.each(fractionalCases)(
+    `preserves the fractional layout and snapped paint viewport at DPR ${deviceScaleFactor}: $name`,
+    (row) => verifyFractionalCase(browser, deviceScaleFactor, row),
+  );
+}
+
+it("matches native uniform and nonuniform paint shrink when Chromium's test feature is explicitly enabled", async () => {
+  const enabled = await launchChromium({ args: ["--enable-blink-features=SvgInlineRootPixelSnappingScaleAdjustment"] });
+  try {
+    const horizontalScale = Math.fround(20 / 20.25);
+    await verifyFractionalCase(enabled, 1, fractionalCases[0], horizontalScale, horizontalScale);
+    await verifyFractionalCase(enabled, 1, fractionalCases[2], horizontalScale, horizontalScale);
+    await verifyFractionalCase(enabled, 1, fractionalCases[1]);
+    await verifyFractionalCase(
+      enabled,
+      1,
+      {
+        ...fractionalCases[2],
+        name: "exactly one pixel of uniform remainder",
+        height: 20.25,
+        snappedHeight: 21,
+      },
+      horizontalScale,
+      horizontalScale,
+    );
+    await verifyFractionalCase(
+      enabled,
+      1,
+      {
+        ...fractionalCases[0],
+        name: "nonuniform shrink beyond one pixel",
+        width: 10.25,
+        height: 100,
+        snappedWidth: 10,
+        snappedHeight: 100,
+      },
+      Math.fround(10 / 10.25),
+      1,
+    );
+  } finally {
+    await closeBrowserSafely(enabled);
+  }
+}, 30_000);
+
+it("uses only the runtime-independent expansion when the shrink mode is unverified", async () => {
+  const unverified = await launchChromium({ args: ["--enable-features=SvgInlineRootPixelSnappingScaleAdjustment"] });
+  try {
+    const page = await unverified.newPage({ viewport });
+    try {
+      const shrink = svg(positioned(19.234375, 11.234375) + ";width:20.25px");
+      await page.setContent(pageStyle + shrink);
+      const node = sourceSvg(await captureElementTree(page, "body", viewport))!;
+      expect(node.svgContent).toContain("path");
+      expect(node.svgRootPaint).toBeUndefined();
+    } finally {
+      await page.close();
+    }
+    await verifyFractionalCase(unverified, 1, fractionalCases[1]);
+  } finally {
+    await closeBrowserSafely(unverified);
+  }
+}, 30_000);

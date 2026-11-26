@@ -552,7 +552,12 @@ export const createElementCapture = () => {
       ...buildCapturedRasters(d, facts, nextBackdropToken),
     } as CapturedElement;
     if (captured.svgContent != null && transformSubtreeRaster == null) {
-      const paint = captureSvgRootPaint(el, rect, d.args.authorShadowContexts?.inlineSvgRoots);
+      const paint = captureSvgRootPaint(
+        el,
+        rect,
+        d.args.authorShadowContexts?.inlineSvgRoots,
+        d.args.inlineSvgRootRuntime,
+      );
       if (paint != null) captured.svgRootPaint = paint;
     }
     const legacyClipRect = captureLegacyClipRect({

@@ -2565,12 +2565,22 @@ export interface CapturedElement {
   /** Blink SVGRootPainter's translation relative to this integral source border box.
    * The original DOM coordinates, dimensions and source viewport stay in their own fields. */
   svgRootPaint?: {
-    source: "blink-inline-svg-root-paint-v1";
     dx: number;
     dy: number;
+    /** Unsnapped layout viewport. */
     width: number;
     height: number;
-  };
+  } & (
+    | { source: "blink-inline-svg-root-paint-v1" }
+    | {
+        source: "blink-inline-svg-root-paint-v2";
+        scaleX: number;
+        scaleY: number;
+        snappedWidth: number;
+        snappedHeight: number;
+        clip: boolean;
+      }
+  );
   /** Individual text node segments (for mixed content with interleaved child elements) */
   textSegments?: TextSegment[];
   /** DM-2469 authoritative pre-transform fragment planes and paint matrices. */
@@ -3212,6 +3222,7 @@ export interface CaptureScriptArgs {
   insetRootShadowContextKey?: string;
   /** Source-realm capabilities injected only by the owned capture carrier. */
   authorShadowContexts?: import("./author-shadow-context-record.js").AuthorShadowContextCapabilities;
+  inlineSvgRootRuntime?: import("./inline-svg-root-runtime.js").InlineSvgRootRuntime;
   /** Element property carrying the live-scrollbar records. */
   scrollbarPropertyKey: string;
   /** Window property carrying the authenticated frame-scroll registry. */

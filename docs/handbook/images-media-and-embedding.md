@@ -181,20 +181,21 @@ and a maximum of 93. The real card also has a paint-isolating ancestor. Both
 policies converge at that icon's origin, so the crop alone cannot apportion the
 difference between the two policies.
 
-For a single undecorated HTML inline SVG with positive integral dimensions,
-the capture can record the displacement from its DOM rectangle to its painted
-viewport. The ordinary and flattened SVG outputs both use this displacement
-for the contents and their viewport clip. The captured DOM rectangle and SVG
-markup retain their source values. Blink's inline shrink adjustment cannot
-activate at these sizes. [Chromium 147 SVG root painter](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/paint/svg_root_painter.cc)
+An undecorated HTML inline SVG can retain its fractional layout viewport
+and map it to Blink's snapped paint origin and independent overflow clip.
+The nested and flattened modes share this mapping, while capture retains the
+DOM rectangle. Integral dimensions use the existing translation path.
 
-The capture verifies the candidate's main-document ancestry through the
-author-shadow capability and composes the native local paint offset through
-eligible containment and integer scrolling. Browser tests compare both
-rendering modes with Chromium at device scale factors 1 and 2, including
-nonunit translated viewBoxes and visible and hidden overflow. Fractional
-root sizes, transformed or zoomed ancestors, shadow ancestry and ambiguous
-geometry retain their existing rendering. [Native capture and rendering tests](../../tests/inline-svg-root-paint.e2e.test.ts)
+The pinned Chromium 147 headless shell defaults to unscaled fractional paint.
+An explicit test feature enables uniform shrink, switching to per-axis scales
+when the uniform fit leaves more than one CSS pixel unused. Capture reads the
+browser revision and feature switches. An unresolved shrink mode keeps legacy
+paint, while pinned expansion is independent of the flag. [Blink root painter](https://chromium.googlesource.com/chromium/src/+/6b5a1b80ccc1e8a4967901d8e58fc2e162cdf050/third_party/blink/renderer/core/paint/svg_root_painter.cc)
+
+The source ancestry check and local paint-offset proof also cover transformed,
+zoomed, shadow, or ambiguous cases by leaving their existing paths in place.
+The native tests compare both SVG modes at DPR 1 and 2 for shrink, expansion,
+mixed sizing, containment, scrolling, and overflow. [Native tests](../../tests/inline-svg-root-paint.e2e.test.ts)
 
 The raster controls compare a pixel-snapped HTML image with a fractional SVG
 image using identical resource bytes. A separate control holds the DOM image
