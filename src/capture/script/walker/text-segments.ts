@@ -1,6 +1,12 @@
 import { isPaintedColor } from "../../../utils/transparent-background.js";
 import type { CapturedTextSegmentSourceMapping, TextSegment } from "../../types.js";
 import { invertLiveTextRect, type LiveTextInverse } from "../../live-text-inverse.js";
+import { hasBlockBeforeDirectFirstLineCandidate } from "../../first-line-block-ownership.js";
+import {
+  adoptAuthorShadowContext,
+  FIRST_LINE_BLOCK_SHADOW_CONTEXT,
+  type AuthorShadowContextCapability,
+} from "../../author-shadow-context-record.js";
 import {
   blinkUsesTextCombine,
   isMixedVerticalUpright,
@@ -91,6 +97,7 @@ type TextServices = {
   effectiveZoomFor: (el: Element) => number;
   markStandardFamilyStyle: (style: CSSStyleDeclaration) => void;
   markPseudoStandardForMetrics: (el: Element, style: CSSStyleDeclaration, pseudo: string) => boolean;
+  firstLineBlockContext?: AuthorShadowContextCapability;
   firstLineFamilyTypeFor: (el: Element, family: string) => "standard" | "concrete" | "unusable" | undefined;
   rasterCandidates: (text: string, variant?: string) => Array<{ start: number; end: number }>;
   normColor: (color: string) => string;
@@ -858,6 +865,7 @@ const buildTextSegmentsHandler = ({
   effectiveZoomFor,
   markStandardFamilyStyle,
   markPseudoStandardForMetrics,
+  firstLineBlockContext,
   firstLineFamilyTypeFor,
   rasterCandidates,
   normColor,
@@ -947,6 +955,7 @@ const buildTextSegmentsHandler = ({
       return finishLineClamp(el, cs, captureVertical(el, cs));
     }
     const textSegments: TextSegment[] = [];
+    let firstDirectText: Node | undefined;
     let text = "";
     let minLeft = Infinity;
     let minTop = Infinity;
@@ -1353,6 +1362,7 @@ const buildTextSegmentsHandler = ({
           }
           utf16Idx += cRec.ch.length;
         }
+        firstDirectText ??= node;
         textSegments.push({
           text: visualText,
           hanKerningLineStart: line.hanKerningLineStart ?? "fragment",
@@ -1435,8 +1445,15 @@ const buildTextSegmentsHandler = ({
     // overrides land on the first BODY line (textSegments[1]) instead of
     // clobbering the styled first-letter's own font/color overrides.
     const flLineTargetIdx = didEmitStyledFirstLetter ? 1 : 0;
-    if (textSegments.length > flLineTargetIdx) {
-      const flLineStyle = window.getComputedStyle(el, "::first-line");
+    const flLineStyle = textSegments.length > flLineTargetIdx ? window.getComputedStyle(el, "::first-line") : undefined;
+    const directRunFollowsBlock =
+      flLineStyle != null &&
+      !didEmitStyledFirstLetter &&
+      firstDirectText != null &&
+      firstLineBlockContext != null &&
+      hasBlockBeforeDirectFirstLineCandidate(el, firstDirectText, cs, flLineStyle) &&
+      adoptAuthorShadowContext(el, firstLineBlockContext, FIRST_LINE_BLOCK_SHADOW_CONTEXT) === "none";
+    if (flLineStyle != null && !directRunFollowsBlock) {
       const firstSeg = textSegments[flLineTargetIdx];
       const firstFamily = flLineStyle.fontFamily;
       const firstType = firstLineFamilyTypeFor(el, firstFamily);

@@ -1102,6 +1102,7 @@ export async function prepareTextPaintGeometry(
   captureReadOnlyTree?: (key: string) => Promise<TextProbeTree>,
   adoptReadOnlyTopology?: (key: string) => Promise<boolean>,
   externalCssSvgKey?: string,
+  prepareNeutralCapture?: (hasLiveAffineBoxCandidates: boolean) => Promise<void>,
 ): Promise<TextPaintGeometryProbe> {
   const registry = createPageRegistry<unknown>(page, "TextPaintGeometry");
   const key = registry.key;
@@ -1140,6 +1141,12 @@ export async function prepareTextPaintGeometry(
         dispose: () => registry.dispose(),
       };
     }
+  }
+  try {
+    if (prepared.some(({ rows }) => rows.length !== 0)) await prepareNeutralCapture?.(hasLiveAffineBoxCandidates);
+  } catch (error) {
+    await registry.dispose().catch(() => undefined);
+    throw error;
   }
   try {
     await withCdpSession(page, async (session) => {

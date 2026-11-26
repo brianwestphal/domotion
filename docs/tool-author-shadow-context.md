@@ -5,8 +5,9 @@ consumers. It changes no capture admission, SVG mapping, outline policy, public
 options, or existing inset/CSP helpers by itself.
 
 `createAuthorShadowScope(page)` owns one public CDP session. Call `prepare` for
-at most one purpose per mode (`selected-root`, `inline-svg-roots`, or
-`live-affine-boxes`) before calling `evaluateCapture`. Each preparation retains actual candidate Elements,
+at most one purpose per mode (`selected-root`, `inline-svg-roots`,
+`live-affine-boxes`, or `first-line-blocks`) before calling `evaluateCapture`.
+Each preparation retains actual candidate Elements,
 DOM parent chains, selected roots, Document, Window and default execution-context
 identity. The inset helper’s pierced-DOM classifier identifies author-shadow
 ancestry, including light descendants of closed slotted hosts. CSS clip and
@@ -14,8 +15,8 @@ mask isolation uses its own document-wide ownership guard. [Native CSS shadow
 isolation](278-native-css-shadow-isolation.md)
 
 The scope passes only frozen adoption capabilities into the private
-`args.authorShadowContexts.selectedRoot`, `inlineSvgRoots`, and `liveAffineBoxes`
-slots. It overwrites
+`args.authorShadowContexts.selectedRoot`, `inlineSvgRoots`, `liveAffineBoxes`,
+and `firstLineBlocks` slots. It overwrites
 caller-provided slots. Original admins, records and sticky usage ledgers remain
 in closures behind remote objects on the same session. No registry, token,
 expando or callable bridge is placed in page globals. A copied capability
@@ -51,6 +52,12 @@ for the final walk. Missing or stale topology before that walk uses the existing
 text preparation path. A failed final execution or post-capture topology check
 is terminal. The independent Range and frame comparison still detects geometry
 drift and permits the existing retry after a successful final walk.
+
+DM-XYBKVH adopts the exact ordinary block owner when its first captured direct
+Text follows a preceding in-flow block. The neutral text walk and the final
+walk read the Text and sibling layout under the same owner capability. Pierced CDP confirms that a closed shadow root or an
+ancestor's slot cannot reorder those children into a different first formatted
+line. Missing authority preserves the prior first-line behavior.
 
 Authority work has a three-second Node deadline, inventory limits (128 selected
 roots/candidates/ancestors per probe, one probe per mode), a 20,000-node/512-level pierced

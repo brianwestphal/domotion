@@ -28,7 +28,8 @@ declare const browserImageNaturalSize: typeof import("./evaluate-in-frame.js").b
 import { disposeAll, runPrepasses, withCdpSession } from "./cdp-lifecycle.js";
 import { prepareInsetRootShadowContext, type InsetRootShadowContextProbe } from "./inset-root-shadow-context.js";
 import { createAuthorShadowScope, type AuthorShadowScope } from "./author-shadow-context.js";
-import { LIVE_AFFINE_BOX_SHADOW_CONTEXT } from "./author-shadow-context-record.js";
+import { firstLineBlockOwners, withFirstLineBlockOwners } from "./first-line-block-ownership.js";
+import { FIRST_LINE_BLOCK_SHADOW_CONTEXT, LIVE_AFFINE_BOX_SHADOW_CONTEXT } from "./author-shadow-context-record.js";
 import { readInlineSvgRootRuntime } from "./inline-svg-root-runtime.js";
 import { _dataUriCache, elementTreeToSvgInner } from "../render/element-tree-to-svg.js";
 import { embedRemoteImages, type EmbedRemoteImagesOptions } from "./embed.js";
@@ -2566,33 +2567,38 @@ async function captureElementTreeWithWarningsInternal(
         externalSvgUseKey: externalSvgUsePrime.registryKey,
         externalCssSvgKey: externalCssSvg.registryKey,
       };
-      const captureNeutralTextTree = async (textPaintKey: string) => {
-        const neutralResult = await page.evaluate(
-          `(${CAPTURE_SCRIPT})(${JSON.stringify({ ...captureArgs, textPaintGeometryKey: textPaintKey, textPaintProbe: true })})`,
+      // The serialized callback binds this local name in withFirstLineBlockOwners.
+      const readFirstLineBlockOwners = firstLineBlockOwners;
+      const readShadowCandidates = (
+        includeFirstLine: boolean,
+      ): Promise<{ outline: boolean; inlineSvg: boolean; firstLineBlocks: boolean }> =>
+        page.evaluate(
+          withFirstLineBlockOwners(
+            browserCallbackExpression(
+              ({ rootSelector, includeFirstLine }) => {
+                const root = document.querySelector(rootSelector);
+                const style = root instanceof HTMLElement ? getComputedStyle(root) : null;
+                return {
+                  outline:
+                    style != null &&
+                    style.outlineStyle !== "none" &&
+                    style.outlineStyle !== "hidden" &&
+                    style.outlineStyle !== "auto" &&
+                    parseFloat(style.outlineWidth) > 0,
+                  inlineSvg: root instanceof SVGSVGElement || root?.querySelector("svg") != null,
+                  firstLineBlocks: includeFirstLine && root != null && readFirstLineBlockOwners(root).length > 0,
+                };
+              },
+              { rootSelector: selector, includeFirstLine },
+            ),
+          ),
         );
-        return assertCapturedTreeShape(neutralResult, "neutral text-paint capture") as { tree: CapturedElement[] };
-      };
-      const readShadowCandidates = () =>
-        evaluateInFrame(
-          page,
-          (rootSelector) => {
-            const root = document.querySelector(rootSelector);
-            const style = root instanceof HTMLElement ? getComputedStyle(root) : null;
-            return {
-              outline:
-                style != null &&
-                style.outlineStyle !== "none" &&
-                style.outlineStyle !== "hidden" &&
-                style.outlineStyle !== "auto" &&
-                parseFloat(style.outlineWidth) > 0,
-              inlineSvg: root instanceof SVGSVGElement || root?.querySelector("svg") != null,
-            };
-          },
-          selector,
-        );
-      const prepareShadowScope = async (liveAffineBoxes: boolean) => {
-        const candidates = await readShadowCandidates();
-        if (!candidates.outline && !candidates.inlineSvg && !liveAffineBoxes) return undefined;
+      const prepareShadowScope = async (
+        liveAffineBoxes: boolean,
+        candidates: Awaited<ReturnType<typeof readShadowCandidates>>,
+      ) => {
+        if (!candidates.outline && !candidates.inlineSvg && !candidates.firstLineBlocks && !liveAffineBoxes)
+          return undefined;
         const scope = createAuthorShadowScope(page);
         authorShadowScope = scope;
         if (candidates.outline)
@@ -2602,11 +2608,32 @@ async function captureElementTreeWithWarningsInternal(
           captureArgs.inlineSvgRootRuntime = await readInlineSvgRootRuntime(page);
         }
         if (liveAffineBoxes) await scope.prepare(selector, LIVE_AFFINE_BOX_SHADOW_CONTEXT);
+        if (candidates.firstLineBlocks) await scope.prepare(selector, FIRST_LINE_BLOCK_SHADOW_CONTEXT);
         await reverifyAnimationFrame();
         return scope;
       };
+      let neutralShadowScope: AuthorShadowScope | undefined;
+      const prepareNeutralTextTopology = async (liveAffineBoxes: boolean) => {
+        const candidates = await readShadowCandidates(true);
+        if (!candidates.firstLineBlocks) return;
+        // A declined read-only text attempt may have marked its old ledger.
+        // Prepare the neutral and final walks against a fresh shared proof.
+        await disposeAll(authorShadowScope);
+        authorShadowScope = undefined;
+        neutralShadowScope = await prepareShadowScope(liveAffineBoxes, candidates);
+      };
+      const captureNeutralTextTree = async (textPaintGeometryKey: string) => {
+        const args = { ...captureArgs, textPaintGeometryKey, textPaintProbe: true };
+        // The renderer uses neutral text fragments even for an identity matrix,
+        // so style membership must be resolved in this walk as well.
+        const firstLineCapture = `(args)=>(${CAPTURE_SCRIPT})({...args,authorShadowContexts:{firstLineBlocks:args.authorShadowContexts?.firstLineBlocks}})`;
+        const neutralResult = await (neutralShadowScope != null
+          ? neutralShadowScope.evaluateCapture(firstLineCapture, args)
+          : page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(args)})`));
+        return assertCapturedTreeShape(neutralResult, "neutral text-paint capture") as { tree: CapturedElement[] };
+      };
       const adoptReadOnlyTopology = async (textPaintGeometryKey: string) => {
-        const scope = await prepareShadowScope(true);
+        const scope = await prepareShadowScope(true, await readShadowCandidates(true));
         return (
           scope?.evaluateCapture<boolean>(adoptReadOnlyLiveTextTopology.toString(), {
             textPaintGeometryKey,
@@ -2616,9 +2643,9 @@ async function captureElementTreeWithWarningsInternal(
       };
       const captureReadOnlyTextTree = async (textPaintGeometryKey: string) => {
         if (authorShadowScope == null) throw new Error("read-only text topology scope unavailable");
-        // The geometry probe needs only its own retained Elements. The
-        // selected-root and inline-SVG consumers first run in the final walk.
-        const readOnlyCapture = `(args)=>(${CAPTURE_SCRIPT})({...args,authorShadowContexts:{liveAffineBoxes:args.authorShadowContexts?.liveAffineBoxes}})`;
+        // Geometry producers adopt their own retained Elements. Box outline
+        // and SVG consumers first run in the final walk.
+        const readOnlyCapture = `(args)=>(${CAPTURE_SCRIPT})({...args,authorShadowContexts:{liveAffineBoxes:args.authorShadowContexts?.liveAffineBoxes,firstLineBlocks:args.authorShadowContexts?.firstLineBlocks}})`;
         const neutralResult = await authorShadowScope.evaluateCapture(readOnlyCapture, {
           ...captureArgs,
           textPaintGeometryKey,
@@ -2634,15 +2661,22 @@ async function captureElementTreeWithWarningsInternal(
         captureReadOnlyTextTree,
         adoptReadOnlyTopology,
         captureArgs.externalCssSvgKey,
+        prepareNeutralTextTopology,
       );
-      if (textPaintProbe.verifyLiveTextFrame == null && authorShadowScope != null) {
+      if (textPaintProbe.verifyLiveTextFrame == null && authorShadowScope != null && neutralShadowScope == null) {
         await disposeAll(authorShadowScope);
         authorShadowScope = undefined;
       }
       await reverifyAnimationFrame();
       const captureWithText = async (textPaintGeometryKey: string) => {
+        // An owner discovered only after the geometry walk cannot correct an
+        // already retained neutral fragment.
         const scope =
-          authorShadowScope ?? (await prepareShadowScope(textPaintProbe?.hasLiveAffineBoxCandidates === true));
+          authorShadowScope ??
+          (await prepareShadowScope(
+            textPaintProbe?.hasLiveAffineBoxCandidates === true,
+            await readShadowCandidates(false),
+          ));
         const finalArgs = { ...captureArgs, textPaintGeometryKey };
         if (scope != null) return scope.evaluateCapture(CAPTURE_SCRIPT, finalArgs);
         return page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(finalArgs)})`);
@@ -2677,6 +2711,7 @@ async function captureElementTreeWithWarningsInternal(
             undefined,
             undefined,
             captureArgs.externalCssSvgKey,
+            prepareNeutralTextTopology,
           );
           await reverifyAnimationFrame();
           result = await captureWithText(textPaintProbe.key);

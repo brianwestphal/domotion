@@ -1,6 +1,7 @@
 import type { CDPSession, Page } from "@playwright/test";
 import { withTimeout } from "../utils/with-timeout.js";
 import { browserCallbackExpression } from "./evaluate-in-frame.js";
+import { withFirstLineBlockOwners } from "./first-line-block-ownership.js";
 import { privateCaptureKey } from "./private-key.js";
 import { rootHasAuthorShadowContext } from "./inset-root-shadow-context.js";
 import { probeFailureWarning } from "./probe-failure.js";
@@ -66,6 +67,7 @@ const capabilitySlots: Record<AuthorShadowContextMode, keyof AuthorShadowContext
   "selected-root": "selectedRoot",
   "inline-svg-roots": "inlineSvgRoots",
   "live-affine-boxes": "liveAffineBoxes",
+  "first-line-blocks": "firstLineBlocks",
 };
 
 /** Match public Playwright1.59.1's Chromium exception description/value
@@ -310,7 +312,8 @@ export function createAuthorShadowScope(page: Page, options: { timeoutMs?: numbe
     for (const event of earlyEvents) target(event);
     for (const owner of slots.values()) {
       const dispositions = owner.backends.map((backend, index) =>
-        owner.options.mode === "live-affine-boxes" && owner.invalid.has(index)
+        (owner.options.mode === "live-affine-boxes" || owner.options.mode === "first-line-blocks") &&
+        owner.invalid.has(index)
           ? null
           : rootHasAuthorShadowContext(tree.root, backend, deadline),
       );
@@ -427,14 +430,15 @@ export function createAuthorShadowScope(page: Page, options: { timeoutMs?: numbe
       await ensure();
       const active = session!,
         defaultContext = context!;
+      const initialize = browserCallbackExpression(createBrowserAuthorShadowAdmin, {
+        selector,
+        mode: consumer.mode,
+        purpose: consumer.purpose,
+      });
       const reply = await query(() => {
         const creating = active.send("Runtime.evaluate", {
           uniqueContextId: defaultContext.uniqueId,
-          expression: browserCallbackExpression(createBrowserAuthorShadowAdmin, {
-            selector,
-            mode: consumer.mode,
-            purpose: consumer.purpose,
-          }),
+          expression: consumer.mode === "first-line-blocks" ? withFirstLineBlockOwners(initialize) : initialize,
           objectGroup: key,
         });
         const late = creating.then(async (reply) => {

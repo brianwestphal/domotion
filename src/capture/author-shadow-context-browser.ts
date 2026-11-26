@@ -5,6 +5,12 @@ import type {
   AuthorShadowExpectation,
 } from "./author-shadow-context-record.js";
 
+import { firstLineBlockOwners } from "./first-line-block-ownership.js";
+
+// The serialized initializer binds this local name in its browser expression.
+// Keeping the local alias also avoids Vitest rewriting it to an import lookup.
+const readFirstLineBlockOwners = firstLineBlockOwners;
+
 export interface BrowserAuthorShadowRead {
   active: boolean;
   valid: boolean;
@@ -45,6 +51,8 @@ export function createBrowserAuthorShadowAdmin(options: {
           (element as SVGSVGElement).ownerSVGElement === null
         )
           inventory.add(element);
+    } else if (options.mode === "first-line-blocks") {
+      for (const owner of readFirstLineBlockOwners(root)) inventory.add(owner);
     } else {
       const tags = "div,span,section,article,main,header,footer,aside,nav,figure,figcaption,p,h1,h2,h3,h4,h5,h6";
       for (const owner of [root, ...root.querySelectorAll(tags)]) {
@@ -72,6 +80,8 @@ export function createBrowserAuthorShadowAdmin(options: {
       ancestors.push(parent);
     }
     const children = options.mode === "live-affine-boxes" ? [...element.children] : undefined;
+    // Text and sibling order are read together with the Range in the final walk.
+    // This mode only retains the Element that owns those direct children.
     return { element, ancestors, children, disposition: "unavailable" as AuthorShadowDisposition };
   });
   let sourceDocument: Document | null = document;

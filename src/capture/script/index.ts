@@ -276,6 +276,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     markStandardFamilyStyle: _markStandardFamilyStyle,
     markPseudoStandardForMetrics: _markPseudoStandardForMetrics,
+    firstLineBlockContext: args.authorShadowContexts?.firstLineBlocks,
     firstLineFamilyTypeFor: (el, family) => _familyTypeFromDeclaration(el, family, "::first-line"),
     rasterCandidates,
     normColor,
