@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { captureElementTree, launchChromium } from "./index.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
+import { screenshotAfterPresentedFrame } from "../test-support/presented-frame-screenshot.js";
 import { elementTreeToSvg } from "../render/element-tree-to-svg.js";
 import { captureAnimateFrame } from "../cli/animate-frame-capture.js";
 import { generateAnimatedSvg } from "../animation/svg-generator.js";
@@ -180,18 +181,22 @@ describe("document canvas background propagation (DM-GFE90Q)", () => {
 
 describe("canvas paint without captured element boxes", () => {
   const viewport = { x: 0, y: 0, width: W, height: H };
-  const pixels = async (target: Page) => rgbaPixels(await target.screenshot({ omitBackground: true }));
+  const pixels = async (target: Page) =>
+    rgbaPixels(await screenshotAfterPresentedFrame(target, { omitBackground: true }));
   const render = async (svg: string) => {
     await generated.setContent(`<style>html,body{margin:0}</style>${svg}`);
     return pixels(generated);
   };
   const seek = async (ms: number) => {
-    await generated.evaluate((time) => {
-      for (const animation of document.getAnimations()) {
-        animation.pause();
-        animation.currentTime = time;
-      }
+    const times = await generated.evaluate(async (time) => {
+      const animations = document.getAnimations();
+      for (const animation of animations) animation.pause();
+      await Promise.all(animations.map((animation) => animation.ready));
+      for (const animation of animations) animation.currentTime = time;
+      return animations.map((animation) => animation.currentTime);
     }, ms);
+    expect(times.length).toBeGreaterThan(0);
+    expect(times).toEqual(times.map(() => ms));
     return pixels(generated);
   };
 
