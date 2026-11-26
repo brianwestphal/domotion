@@ -49,9 +49,8 @@ function axisIsSingleTile(
 
 /**
  * Returns a `<pattern>` (preceded by its tile gradient) whose fill paints the
- * gradient layer with Blink's tile geometry, or null when one gradient
- * stretched over the positioning area already paints identically (the
- * byte-stable legacy path) or the geometry cannot be resolved.
+ * gradient layer with Blink's tile geometry, an empty string for a zero-area
+ * tile, or null when one stretched gradient suffices or geometry is unresolved.
  */
 export function buildGradientTilePatternDef(input: {
   id: string;
@@ -79,7 +78,7 @@ export function buildGradientTilePatternDef(input: {
   if (geometry == null) return null;
   const tileW = geometry.tileSize.width;
   const tileH = geometry.tileSize.height;
-  if (!(tileW > 0) || !(tileH > 0)) return null;
+  if (!(tileW > 0) || !(tileH > 0)) return "";
   const noRepeatX = geometry.repeat.x === "no-repeat";
   const noRepeatY = geometry.repeat.y === "no-repeat";
   const originX = geometry.snappedDestination.x + geometry.phase.x;

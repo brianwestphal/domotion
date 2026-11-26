@@ -4,6 +4,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { captureElementTree, launchChromium } from "./index.js";
 import { closeBrowserSafely } from "../test-support/close-browser-safely.js";
 import { elementTreeToSvg } from "../render/element-tree-to-svg.js";
+import { captureAnimateFrame } from "../cli/animate-frame-capture.js";
+import { generateAnimatedSvg } from "../animation/svg-generator.js";
+import { composeScrollSvg } from "../scroll/composer.js";
+import { executeScrollPattern } from "../scroll/executor.js";
+import { parseScrollPattern } from "../scroll/pattern.js";
 import type { CapturedElement } from "./types.js";
 
 // DM-GFE90Q: Blink paints a <body> background that transferred to the view
@@ -171,4 +176,127 @@ describe("document canvas background propagation (DM-GFE90Q)", () => {
       expect(result.withoutRecord, html).toBeGreaterThan(1000);
     }
   }, 60_000);
+});
+
+describe("canvas paint without captured element boxes", () => {
+  const viewport = { x: 0, y: 0, width: W, height: H };
+  const pixels = async (target: Page) => rgbaPixels(await target.screenshot({ omitBackground: true }));
+  const render = async (svg: string) => {
+    await generated.setContent(`<style>html,body{margin:0}</style>${svg}`);
+    return pixels(generated);
+  };
+  const seek = async (ms: number) => {
+    await generated.evaluate((time) => {
+      for (const animation of document.getAnimations()) {
+        animation.pause();
+        animation.currentTime = time;
+      }
+    }, ms);
+    return pixels(generated);
+  };
+
+  it.each([
+    ["short HTML gradient", "html{height:60px;background:linear-gradient(red,blue)}", "", "body", "html"],
+    ["intrinsically sized URL tile", `html{background-image:url(${tilePng})}`, "", "body", "html"],
+    [
+      "explicit tile on a zero-height root",
+      "html{background:linear-gradient(red,blue),linear-gradient(green,yellow);background-size:auto,12px 12px}",
+      "",
+      "body",
+      "html",
+    ],
+    ["non-painting body content", "html{background:rgba(10,40,220,.5)}", "<div hidden>x</div>", "body", "html"],
+    ["one-alpha-byte canvas", "html{background:rgba(255,0,0,.004)}", "", "body", "html"],
+    [
+      "transferred body color",
+      "body{visibility:hidden;background:rgba(10,40,220,.5);border:6px solid red;box-shadow:inset 0 0 0 8px blue}",
+      "",
+      "body",
+      "body",
+    ],
+    ["selected clip", "html{background:rgba(10,40,220,.5)}", "<div id=selected></div>", "#selected", "html"],
+  ])("matches all RGBA pixels of the %s after a JSON round-trip", async (_label, css, content, selector, owner) => {
+    await page.setContent(`<!doctype html><style>body{margin:0}${css}</style><body>${content}</body>`);
+    const expected = await pixels(page);
+    const tree = await captureElementTree(page, selector, viewport);
+    expect(tree).toHaveLength(1);
+    expect(tree[0]).toMatchObject({ tag: owner, documentCanvasOnly: true, children: [], text: "" });
+    const restored: CapturedElement[] = JSON.parse(JSON.stringify(tree));
+    expect(diffPixels(expected, await render(elementTreeToSvg(restored, W, H)))).toBe(0);
+    expect(diffPixels(expected, await render(elementTreeToSvg([], W, H)))).toBe(W * H);
+  });
+
+  it("keeps empty selections and documents with no visible canvas transparent", async () => {
+    for (const [css, selector] of [
+      ["", "body"],
+      ["", "#selected"],
+      ["html{display:none;background:red}", "body"],
+      ["body{contain:paint;background:red;display:none}", "body"],
+      ["html{background:red}", "#missing"],
+    ]) {
+      await page.setContent(`<!doctype html><style>body{margin:0}${css}</style><body><div id=selected hidden></div>`);
+      const tree = await captureElementTree(page, selector, viewport);
+      expect(tree, css).toEqual([]);
+      const actual = await render(elementTreeToSvg(tree, W, H));
+      expect(actual.every((channel) => channel === 0)).toBe(true);
+      if (selector !== "#missing") expect(diffPixels(await pixels(page), actual)).toBe(0);
+    }
+  });
+
+  it("leaves an auto-sized gradient transparent on a zero-height root", async () => {
+    await page.setContent("<!doctype html><style>body{margin:0}html{background:linear-gradient(red,blue)}</style>");
+    const tree = await captureElementTree(page, "body", viewport);
+    expect(tree[0]).toMatchObject({ documentCanvasOnly: true, documentRootBox: { height: 0 } });
+    const expected = await pixels(page);
+    expect(expected.every((channel) => channel === 0)).toBe(true);
+    expect(diffPixels(expected, await render(elementTreeToSvg(tree, W, H)))).toBe(0);
+  });
+
+  it("paints each captured animation frame's own translucent HTML color", async () => {
+    const frames = [];
+    const expected = [];
+    for (const [index, color] of ["rgba(220,20,10,.5)", "rgba(30,40,210,.25)"].entries()) {
+      await page.setContent(`<!doctype html><style>html{background:${color}}body{margin:0}</style>`);
+      expected.push(await pixels(page));
+      const frame = await captureAnimateFrame({
+        page,
+        selector: "body",
+        width: W,
+        height: H,
+        framePrefix: `f${index}-`,
+        animations: [],
+        frameStartMs: index * 1000,
+        totalDurationMs: 2000,
+      });
+      frames.push({ ...frame, duration: 1000, transition: { type: "cut" as const, duration: 0 } });
+    }
+    await render(generateAnimatedSvg({ width: W, height: H, frames, background: frames[0].rootBackground }));
+    expect(diffPixels(expected[0], expected[1])).toBe(W * H);
+    expect(diffPixels(expected[0], await seek(250))).toBe(0);
+    expect(diffPixels(expected[1], await seek(1250))).toBe(0);
+  });
+
+  it.each(["fixed", "sticky"])("keeps a %s canvas source in both captured page-scroll segments", async (position) => {
+    await page.setContent(`<!doctype html><style>
+      html{height:240px;scrollbar-width:none}
+      body{margin:0;position:${position};visibility:hidden;background:linear-gradient(red 50%, blue 50%)}
+    </style>`);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const first = await pixels(page);
+    const segments = await executeScrollPattern(page, parseScrollPattern("pause:200ms,down:120px/300ms,pause:200ms"), {
+      viewportW: W,
+      viewportH: H,
+      prescroll: false,
+    });
+    const last = await pixels(page);
+    const painted = segments.filter((s) => !s.timelineOnly);
+    expect(painted.map((s) => s.scrollY)).toEqual([0, H]);
+    for (const segment of painted) {
+      expect(segment.tree[0]).toMatchObject({ tag: "body", documentCanvasOnly: true, styles: { position } });
+    }
+    expect(diffPixels(first, last)).toBe(W * H);
+    await render(composeScrollSvg(segments, { viewportW: W, viewportH: H }));
+    expect(diffPixels(first, await seek(100))).toBe(0);
+    expect(diffPixels(last, await seek(600))).toBe(0);
+  });
 });

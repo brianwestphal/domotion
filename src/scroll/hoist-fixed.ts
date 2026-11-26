@@ -38,7 +38,7 @@ export function extractFixedSubtrees(tree: CapturedElement[]): {
   const fixed: CapturedElement[] = [];
   const stripped = mapTreePruning(
     tree,
-    (node) => node.styles?.position === "fixed",
+    (node) => !node.documentCanvasOnly && node.styles?.position === "fixed",
     (node) => fixed.push(node),
   );
   return { stripped, fixed };

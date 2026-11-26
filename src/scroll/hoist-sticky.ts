@@ -144,7 +144,7 @@ function walkCollect(
   for (let i = 0; i < list.length; i++) {
     const node = list[i];
     const path = parentPath.concat(i);
-    if (node.styles?.position === "sticky") {
+    if (!node.documentCanvasOnly && node.styles?.position === "sticky") {
       const key = identityKey(node, path);
       let bucket = out.get(key);
       if (bucket == null) {

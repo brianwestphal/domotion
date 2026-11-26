@@ -26,10 +26,9 @@ aliases: ["docs/280-document-canvas-background.md", "doc-280"]
 **Status:** the document canvas paints its full background — color and every
 image layer — whether `<html>` or a transferred `<body>` supplies it, and
 whatever element the capture is rooted at. Gradient layers tile across the
-canvas from the root box like any element's (DM-8F20GA, doc 07). Open: a
-capture whose tree is empty (the page paints nothing but its canvas) still
-emits a blank SVG, because the root payloads have no element to ride on
-(DM-G89D0B).
+canvas from the root box like any element's (DM-8F20GA, doc 07). A capture
+whose canvas supplies its only paint retains the canvas source in the
+serialized roots array (DM-G89D0B).
 
 ## Source (Chromium `7d859f27`)
 
@@ -62,6 +61,12 @@ emits a blank SVG, because the root payloads have no element to ride on
   The record exists even when the source element is not captured (a capture
   rooted below `<body>`, e.g. a selector for one card). Iframe documents never
   transfer to the outer canvas.
+- When a selector matches but no element boxes survive, the same source record
+  occupies the first slot with `documentCanvasOnly: true` and no children.
+  The renderer paints its color and layers once inside the frame. Page-scroll
+  composition keeps the record in its own segment even when the source element
+  has fixed or sticky positioning. A missing selector or a canvas without
+  authored paint can still yield an empty array.
 - Resource passes that walk the tree — `walkCapturedElements` (conic and
   advanced-gradient rasters, embedded-image resizing) and
   `embedRemoteImages` — visit the record right after its host, so its URL and
@@ -69,10 +74,9 @@ emits a blank SVG, because the root payloads have no element to ride on
 - The renderer paints the canvas before any content: a `<body>` source's color
   over the render's whole `width × height`, then the source's image layers
   positioned against `documentRootBox` (all clips `border-box`). A transferring
-  body skips both on its own box. An `<html>` source's color is not painted
-  here: `transparentRootBgRect` (and the multi-frame composers' root rect)
-  already paints `rootBgComputed` once beneath it, so a translucent color is not
-  doubled. Older trees without the record fall back to the captured
+  body skips both on its own box. For a tree with element boxes,
+  `transparentRootBgRect` and the multi-frame composers' root rect paint
+  `rootBgComputed` once beneath the image layers. Older trees without the record fall back to the captured
   transferring body.
 - Multi-frame output: every animator frame and every scroll segment renders
   through `elementTreeToSvgInner(tree, width, height)`, so the canvas spans that
@@ -99,3 +103,11 @@ stays 0 px (painted once). Gradient comparisons keep the clip origin on a
 multiple of 4 px: Skia dithers gradients on a 4 × 4 device-space matrix, so an
 off-grid clip differs by 1 level in a regular pattern (rasterization phase,
 not geometry).
+
+DM-G89D0B compares transparent-background RGBA at 120 × 120. A 60 px-tall
+HTML gradient and a translucent HTML color each went from 14,400 different
+pixels to zero after a JSON round-trip. The canvas-only positioning area uses
+the root fragment's border box. In a separate standards-mode control with
+one painted 1 × 1 child, the existing element-tree path uses the 120 px CSSOM
+document scroll height for that same 60 px tile, leaving 14,399 different
+pixels (DM-CRN48M).

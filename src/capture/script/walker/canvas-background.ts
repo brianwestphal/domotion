@@ -52,7 +52,9 @@ const firstBody = (doc: Document): Element | null => {
 export const documentCanvasSource = (): "html" | "body" | null => {
   const root = document.documentElement;
   if (root == null) return null;
-  if (hasBackground(getComputedStyle(root))) return "html";
+  const rootStyle = getComputedStyle(root);
+  if (rootStyle.display === "none") return null;
+  if (hasBackground(rootStyle)) return "html";
   const body = firstBody(document);
   if (body == null || root.localName !== "html") return null;
   if (stopsPropagation(root) || stopsPropagation(body)) return null;
@@ -72,7 +74,7 @@ export const bodyBackgroundTransfersToView = (el: Element): boolean =>
 
 /** The root element's border box and edge widths: the canvas background's
  * positioning area, in capture coordinates. */
-export const documentRootBox = (vp: { x: number; y: number }) => {
+const documentRootBox = (vp: { x: number; y: number }, canvasOnly: boolean) => {
   const root = document.documentElement;
   if (root == null) return undefined;
   const cs = getComputedStyle(root);
@@ -82,10 +84,12 @@ export const documentRootBox = (vp: { x: number; y: number }) => {
   return {
     x: rect.left - vp.x,
     y: rect.top - vp.y,
-    // The stitched root size LayoutView paint positions against, matching
-    // the URL-layer canvas record (`background-attachment.ts`).
-    width: Math.max(rect.width, Number(root.scrollWidth || 0) * zoom),
-    height: Math.max(rect.height, Number(root.scrollHeight || 0) * zoom),
+    // With no captured boxes the root fragment can be shorter than the
+    // viewport. Blink uses RootBox().StitchedSize(), not CSSOM's
+    // viewport-clamped document scroll extent, for the tile. DM-CRN48M
+    // tracks the same sizing question for element-backed captures.
+    width: canvasOnly ? rect.width : Math.max(rect.width, Number(root.scrollWidth || 0) * zoom),
+    height: canvasOnly ? rect.height : Math.max(rect.height, Number(root.scrollHeight || 0) * zoom),
     borderTopWidth: px(cs.borderTopWidth),
     borderRightWidth: px(cs.borderRightWidth),
     borderBottomWidth: px(cs.borderBottomWidth),
@@ -98,7 +102,7 @@ export const documentRootBox = (vp: { x: number; y: number }) => {
 };
 
 /**
- * Stamp the canvas background record on the captured tree's first element:
+ * Capture the canvas background record:
  * the source element's full style record (the same builder every captured
  * element uses, so URL selections, intrinsic sizes and the canvas attachment
  * record come along) positioned at the root box. Independent of where the
@@ -107,6 +111,7 @@ export const documentRootBox = (vp: { x: number; y: number }) => {
  */
 export const stampDocumentCanvasBackground = (
   result: CapturedElement[],
+  viewport: { x: number; y: number },
   buildStyleRecord: (scope: {
     el: HTMLElement;
     cs: CSSStyleDeclaration;
@@ -116,13 +121,17 @@ export const stampDocumentCanvasBackground = (
   }) => unknown,
   fontFamilyStackFor: (el: Element, computedFontFamily: string) => unknown,
 ) => {
-  if (result.length === 0) return;
-  const rootBox = result[0].documentRootBox;
   const source = documentCanvasSourceElement();
-  if (rootBox == null || source == null) return;
+  if (source == null) return;
+  const first = result[0];
+  const rootBox = documentRootBox(viewport, first == null);
+  if (rootBox == null) return;
+  // Older trees and a failed image-style capture can still paint a
+  // transferring body's background using its own record and the root box.
+  if (first != null) first.documentRootBox = rootBox;
   const cs = getComputedStyle(source);
   const tag = source.localName;
-  result[0].documentCanvasBackground = {
+  const canvas: CapturedElement = {
     tag,
     text: "",
     x: rootBox.x,
@@ -138,4 +147,18 @@ export const stampDocumentCanvasBackground = (
       _capturedFontFamilyStack: fontFamilyStackFor(source, cs.fontFamily),
     }) as CapturedElement["styles"],
   };
+  if (first != null) {
+    first.documentCanvasBackground = canvas;
+  } else {
+    // The canvas is the entire capture. Keep its real source record directly
+    // in the serializable roots array. It has no element box to paint.
+    canvas.documentCanvasOnly = true;
+    canvas.documentRootBox = rootBox;
+    const attachment = canvas.styles.backgroundAttachmentGeometry?.canvas;
+    if (attachment != null) {
+      const { x, y, width, height } = rootBox;
+      attachment.positioningRect = { x, y, width, height };
+    }
+    result.push(canvas);
+  }
 };

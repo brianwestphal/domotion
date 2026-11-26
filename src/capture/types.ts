@@ -1344,7 +1344,8 @@ export interface CapturedStyles {
    * resolved by Chromium at capture time. Covers the transparent-root
    * case where the page declares no background and Chromium fills its
    * UA default per scheme (`#ffffff` for light, `rgb(28, 28, 28)`-ish
-   * for dark). ONLY populated on the captured tree's root element.
+   * for dark). Only populated on the captured tree's root element. A
+   * canvas-only record paints its own background color inside its frame.
    */
   rootBgComputed?: string;
   /**
@@ -2394,6 +2395,9 @@ export interface CapturedElement {
    * element; never painted as a box.
    */
   documentCanvasBackground?: CapturedElement;
+  /** The document canvas source record itself, retained as the sole root
+   * when no element boxes survived capture. Paint it only as the canvas. */
+  documentCanvasOnly?: true;
   /**
    * The root element's border box and edge widths, in capture coordinates —
    * the canvas background's positioning area. Only on the captured tree's

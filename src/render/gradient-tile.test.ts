@@ -36,6 +36,12 @@ describe("buildGradientTilePatternDef", () => {
     expect(def).toContain('fill="url(#bg0t)"');
   });
 
+  it("omits a gradient whose resolved tile has zero area inside a painted canvas", () => {
+    const positioningArea = { ...base.positioningArea, height: 0 };
+    expect(buildGradientTilePatternDef({ ...base, positioningArea })).toBe("");
+    expect(buildGradientTilePatternDef({ ...base, positioningArea, size: "10px 10px" })).toContain("<pattern");
+  });
+
   it("repeats an auto-sized tile into a larger painting area (border box)", () => {
     const def = buildGradientTilePatternDef({ ...base, paintingArea: { x: 0, y: 0, width: 120, height: 120 } })!;
     // Tile phase 10 px modulo the 100 px step, starting at the painting area.

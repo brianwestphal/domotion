@@ -407,21 +407,22 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     pseudoFragmentFactsFor,
     args.authorShadowContexts?.selectedRoot,
   );
+  try {
+    stampDocumentCanvasBackground(
+      result,
+      args.viewport,
+      buildStyleRecord as Parameters<typeof stampDocumentCanvasBackground>[2],
+      _fontFamilyStackFor,
+    );
+  } catch (_e) {
+    /* no-op — never block capture on the canvas record */
+  }
   attachRootPayloads(result, args, {
     maskDefs: _maskDefs,
     clipPathDefs: _clipPathDefs,
     filterDefs: _filterDefs,
     maskRasters: _maskRasters,
   });
-  try {
-    stampDocumentCanvasBackground(
-      result,
-      buildStyleRecord as Parameters<typeof stampDocumentCanvasBackground>[1],
-      _fontFamilyStackFor,
-    );
-  } catch (_e) {
-    /* no-op — never block capture on the canvas record */
-  }
   return { tree: result, warnings: _warnings };
 };
 

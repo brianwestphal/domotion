@@ -892,22 +892,22 @@ function findCanvasBackgroundOwner(elements: CapturedElement[]): CapturedElement
  *
  * The layers come from the captured canvas record (`documentCanvasBackground`),
  * which exists whatever element the capture is rooted at; trees from before
- * that record fall back to the captured transferring `<body>`. An `<html>`
- * source's color is already painted once, beneath this, by
- * `transparentRootBgRect` (or the multi-frame composers' root rect), so only
- * its image layers are painted here.
+ * that record fall back to the captured transferring `<body>`. Element-backed
+ * captures paint the HTML color in the outer SVG's root rect. A canvas-only
+ * source paints its own color here, inside its frame or scroll segment.
  */
 function paintDocumentCanvas(state: RenderState, elements: CapturedElement[], width: number, height: number): void {
   const rootBox = elements[0]?.documentRootBox;
   if (rootBox == null) return;
   const transferringBody = findCanvasBackgroundOwner(elements);
   state.canvasBackgroundOwner = transferringBody;
-  const owner = elements[0].documentCanvasBackground ?? transferringBody;
+  const first = elements[0];
+  const owner = first.documentCanvasOnly ? first : (first.documentCanvasBackground ?? transferringBody);
   if (owner == null) return;
   const { svgParts, paintCtx, captureViewport } = state;
   const start = svgParts.length;
-  const bgColor = owner.tag === "html" ? null : parseColor(owner.styles.backgroundColor);
-  if (bgColor != null && bgColor.a > INVISIBLE_ALPHA) {
+  const bgColor = owner.tag === "html" && !first.documentCanvasOnly ? null : parseColor(owner.styles.backgroundColor);
+  if (bgColor != null && bgColor.a > (first.documentCanvasOnly ? 0 : INVISIBLE_ALPHA)) {
     svgParts.push(`<rect x="0" y="0" width="${r(width)}" height="${r(height)}" fill="${colorStr(bgColor)}" />`);
   }
   const image = owner.styles.backgroundImage;
@@ -2184,7 +2184,7 @@ function buildRenderState(
 }
 
 function elementTreeToSvgInnerImpl(
-  elements: CapturedElement[],
+  roots: CapturedElement[],
   width: number,
   height: number,
   /** Prefix for clipPath IDs — required when combining multiple frames in one SVG to avoid ID collisions */
@@ -2213,6 +2213,9 @@ function elementTreeToSvgInnerImpl(
    */
   includeEmbeddedFontCss: boolean = includeGlyphDefs,
 ): string {
+  // A canvas-only source carries its actual element styles for background
+  // layers. Its border, shadow, opacity and other box paint do not apply.
+  const elements = roots[0]?.documentCanvasOnly ? roots.slice(1) : roots;
   const { state, fragmentFilterDefs } = buildRenderState(elements, width, height, idPrefix);
   const { svgParts, defsParts, hoistedFromAncestor, overflowClipForHoisted } = state;
 
@@ -2305,7 +2308,7 @@ function elementTreeToSvgInnerImpl(
     flat3d: null,
     pseudos: state.pseudoStacking.contexts.get(null) ?? [],
   };
-  paintDocumentCanvas(state, elements, width, height);
+  paintDocumentCanvas(state, roots, width, height);
   renderChildBoxPhase(state, topPlan, 0);
   renderChildInlinePhase(state, topPlan, 0);
 
