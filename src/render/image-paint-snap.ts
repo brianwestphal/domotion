@@ -60,10 +60,6 @@ export function rasterScaleDownRect(
   ratio: { w: number; h: number },
   position: string | undefined,
 ): PaintRect | null {
-  const [horizontal, vertical, extra] = (position ?? "50% 50%").trim().split(/\s+/);
-  if (!horizontal?.endsWith("%") || !vertical?.endsWith("%") || extra != null) return null;
-  const percentX = Number(horizontal.slice(0, -1));
-  const percentY = Number(vertical.slice(0, -1));
   const w = Math.round(width * 64);
   const h = Math.round(height * 64);
   if (
@@ -72,9 +68,7 @@ export function rasterScaleDownRect(
     reverted.w <= 0 ||
     reverted.h <= 0 ||
     !Number.isSafeInteger(w * ratio.h) ||
-    !Number.isSafeInteger(h * ratio.w) ||
-    !Number.isFinite(percentX) ||
-    !Number.isFinite(percentY)
+    !Number.isSafeInteger(h * ratio.w)
   ) {
     return null;
   }
@@ -86,14 +80,28 @@ export function rasterScaleDownRect(
   const useReverted = containWidth > reverted.w * 64;
   const objectW = useReverted ? reverted.w : containWidth / 64;
   const objectH = useReverted ? reverted.h : containHeight / 64;
+  return positionRasterObjectRect({ x, y, width: w / 64, height: h / 64 }, { w: objectW, h: objectH }, position);
+}
+
+/** Blink's MinimumValueForLength percentage position for a known LayoutUnit object size. */
+export function positionRasterObjectRect(
+  content: PaintRect,
+  object: { w: number; h: number },
+  position: string | undefined,
+): PaintRect | null {
+  const [horizontal, vertical, extra] = (position ?? "50% 50%").trim().split(/\s+/);
+  if (!horizontal?.endsWith("%") || !vertical?.endsWith("%") || extra != null) return null;
+  const percentX = Number(horizontal.slice(0, -1));
+  const percentY = Number(vertical.slice(0, -1));
+  if (!Number.isFinite(percentX) || !Number.isFinite(percentY)) return null;
   const float = Math.fround;
   const offset = (free: number, percent: number) =>
     Math.trunc(float(float(float(free) * float(percent)) / 100) * 64) / 64;
   return {
-    x: x + offset(w / 64 - objectW, percentX),
-    y: y + offset(h / 64 - objectH, percentY),
-    width: objectW,
-    height: objectH,
+    x: content.x + offset(quantize(content.width) - object.w, percentX),
+    y: content.y + offset(quantize(content.height) - object.h, percentY),
+    width: object.w,
+    height: object.h,
   };
 }
 

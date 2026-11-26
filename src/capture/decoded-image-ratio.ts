@@ -19,7 +19,7 @@ async function withNodeDeadline<T>(operation: Promise<T>, timeoutMs: number, lab
 }
 
 /** Which measurement a probe failure invalidated, so the warning names the fallback. */
-type ProbeFailureKind = "decoded" | "natural";
+type ProbeFailureKind = "decoded" | "natural" | "none-paint";
 const PROBE_EFFECTS: Record<ProbeFailureKind, { probe: string; effect: string }> = {
   decoded: {
     probe: "selected decoded image sizing",
@@ -28,6 +28,10 @@ const PROBE_EFFECTS: Record<ProbeFailureKind, { probe: string; effect: string }>
   natural: {
     probe: "selected responsive candidate natural size",
     effect: "object-fit:none retains legacy DOM integer intrinsic sizing",
+  },
+  "none-paint": {
+    probe: "selected responsive raster paint size",
+    effect: "object-fit:none retains the measured auto-layout natural size",
   },
 };
 
@@ -40,8 +44,8 @@ const PROBE_EFFECTS: Record<ProbeFailureKind, { probe: string; effect: string }>
  * srcset image's density for scale-down ("they need to use the underlying image
  * src's size", `core/layout/layout_replaced.cc:444-450`, Chromium 7d859f27).
  *
- * Responsive natural size: `object-fit: none` paints at Blink's natural size,
- * `LayoutImageResource::GetNaturalDimensions` — the decoded size scaled by
+ * Responsive natural size for `object-fit: none` starts from
+ * `LayoutImageResource::GetNaturalDimensions`, the decoded size scaled by
  * `1 / candidate.Density()` (`core/layout/layout_image_resource.cc:145-170`,
  * `core/html/html_image_element.cc:281-301`, Chromium 7d859f27) — and only its
  * truncated integers reach the DOM (`DensityCorrectedIntrinsicDimensions`,
@@ -50,8 +54,9 @@ const PROBE_EFFECTS: Record<ProbeFailureKind, { probe: string; effect: string }>
  * closed-shadow probe `<img>` carrying exactly that ONE candidate (its raw URL
  * and raw descriptor) and the same raw `sizes` is laid out: with a single
  * candidate Blink selects nothing, evaluates `sizes` and the density itself,
- * and the probe's auto-sized box is that natural size. The source element is
- * never touched and its candidate is never reselected. */
+ * and the probe's auto-sized box supplies the natural size fallback. A
+ * qualified static raster can also supply Blink's independently rounded
+ * replaced paint size. The source element and selected candidate stay intact. */
 export async function primeDecodedImageRatios(
   page: Page,
   timeoutMs = 3000,
@@ -97,7 +102,7 @@ export async function primeDecodedImageRatios(
                 /** Blink natural size (density applied, unit zoom, LayoutUnit). */
                 layoutNaturalWidth?: number;
                 layoutNaturalHeight?: number;
-                scaleDown?: { w: number; h: number; srcset: string; sizes: string };
+                responsivePaint?: { fit: "none" | "scale-down"; w: number; h: number; srcset: string; sizes: string };
               }
               const host = window as Window & {
                 __domotionDecodedImageRatios?: { token: string; active: boolean; facts: WeakMap<Element, Fact> };
@@ -105,7 +110,7 @@ export async function primeDecodedImageRatios(
               if (host.__domotionDecodedImageRatios != null) throw new Error("decoded ratio probe already owned");
               const state = { token: owner, active: true, facts: new WeakMap<Element, Fact>() };
               host.__domotionDecodedImageRatios = state;
-              const errors: Array<{ kind: "decoded" | "natural"; cause: string }> = [];
+              const errors: Array<{ kind: ProbeFailureKind; cause: string }> = [];
               const images: HTMLImageElement[] = [];
               const collect = (root: Document | ShadowRoot): void => {
                 images.push(...root.querySelectorAll<HTMLImageElement>("img"));
@@ -185,17 +190,14 @@ export async function primeDecodedImageRatios(
                   found.push({ url: src, descriptor: "1x", sizes: "", srcset: false });
                 return found;
               };
-              const measureScaleDown = (
-                image: HTMLImageElement,
-                fact: Fact & { width: number; height: number },
-              ): Fact["scaleDown"] => {
-                // A response's Content-DPR can override LayoutImage's
-                // candidate density. Data and blob URLs have no such header.
-                if (!/^(?:data|blob):/i.test(fact.source) || image.parentElement?.localName === "picture") return;
+              const staticRasterCandidate = (image: HTMLImageElement, source: string) => {
+                // An HTTP response can override the candidate's density with
+                // Content-DPR. Data and blob URLs have no response header.
+                if (!/^(?:data|blob):/i.test(source) || image.parentElement?.localName === "picture") return;
                 const srcset = image.getAttribute("srcset");
                 const sizes = image.getAttribute("sizes");
                 if (srcset == null || sizes == null) return;
-                const candidates = candidatesFor(image, fact.source);
+                const candidates = candidatesFor(image, source);
                 if (candidates.length !== 1 || !candidates[0].srcset) return;
                 const descriptor = /^([0-9]+)w$/.exec(candidates[0].descriptor);
                 const sourceSize = /^([0-9]+)px$/i.exec(sizes.trim());
@@ -204,14 +206,26 @@ export async function primeDecodedImageRatios(
                 const pixels = Number(sourceSize[1]);
                 if (!(width > 0 && width <= 0x7fffffff && pixels > 0 && Number.isSafeInteger(pixels))) return;
 
-                // Chromium 7d859f27: PickBestImageCandidate computes the
-                // candidate's float density and HTMLImageElement stores the
-                // float reciprocal. LayoutImageResource applies it before
-                // PhysicalNaturalSizingInfo rounds to 1/64px. Scale-down
-                // multiplies that rounded size by the float reciprocal and
-                // truncates the result to LayoutUnit.
+                // Chromium 7d859f27: PickBestImageCandidate calculates the float
+                // density and HTMLImageElement stores its float reciprocal.
                 const float = Math.fround;
-                const correction = float(1 / float(float(width) / float(pixels)));
+                return { srcset, sizes, correction: float(1 / float(float(width) / float(pixels))) };
+              };
+              const measureResponsivePaint = (
+                image: HTMLImageElement,
+                fact: Fact & { width: number; height: number },
+                candidate: NonNullable<ReturnType<typeof staticRasterCandidate>>,
+                fit: "none" | "scale-down",
+              ): Fact["responsivePaint"] => {
+                const { srcset, sizes, correction } = candidate;
+                if (
+                  image.getAttribute("srcset") !== srcset ||
+                  image.getAttribute("sizes") !== sizes ||
+                  image.parentElement?.localName === "picture"
+                ) {
+                  return;
+                }
+                const float = Math.fround;
                 const correctedWidth = float(fact.width * correction);
                 const correctedHeight = float(fact.height * correction);
                 if (
@@ -219,14 +233,20 @@ export async function primeDecodedImageRatios(
                   Math.trunc(correctedHeight) !== fact.naturalHeight
                 )
                   return;
-                const reverse = (size: number) => {
+                // LayoutImageResource applies density before PhysicalNaturalSizingInfo
+                // rounds to 1/64px. Scale-down then applies the reciprocal and
+                // truncates to LayoutUnit. The auto-layout probe sizes a box
+                // through a separate layout path.
+                const usedSize = (size: number) => {
                   const physical = Math.round(size * 64) / 64;
-                  return Math.trunc(float(float(physical) * float(1 / correction)) * 64) / 64;
+                  return fit === "none"
+                    ? physical
+                    : Math.trunc(float(float(physical) * float(1 / correction)) * 64) / 64;
                 };
-                const w = reverse(correctedWidth);
-                const h = reverse(correctedHeight);
+                const w = usedSize(correctedWidth);
+                const h = usedSize(correctedHeight);
                 if (!(w > 0 && h > 0)) return;
-                return { w, h, srcset, sizes };
+                return { fit, w, h, srcset, sizes };
               };
               const measureNatural = async (image: HTMLImageElement, source: string): Promise<void> => {
                 const candidates = candidatesFor(image, source);
@@ -319,13 +339,17 @@ export async function primeDecodedImageRatios(
                 )
                   continue;
                 const source = image.currentSrc || image.src;
+                const responsiveFit = fit === "none" || fit === "scale-down" ? fit : undefined;
+                const candidate = responsiveFit == null ? undefined : staticRasterCandidate(image, source);
+                const failureKind = fit === "none" ? "none-paint" : "decoded";
                 if (fit === "none") {
                   await measureNatural(image, source);
-                  continue;
+                  if (candidate == null || state.facts.get(image)?.layoutNaturalWidth == null) continue;
                 }
                 // Orientation-none is feature-gated for ImageBitmap in supported
                 // Chromium builds. Never guess that it matches CSS image-orientation.
                 if (style.imageOrientation !== "from-image") {
+                  if (fit === "none") continue;
                   errors.push({
                     kind: "decoded",
                     cause: "CSS image-orientation has no authenticated decoded-ratio authority",
@@ -335,8 +359,6 @@ export async function primeDecodedImageRatios(
                 const orientation = style.imageOrientation;
                 const naturalWidth = image.naturalWidth;
                 const naturalHeight = image.naturalHeight;
-                const srcset = fit === "scale-down" ? image.getAttribute("srcset") : null;
-                const sizes = fit === "scale-down" ? image.getAttribute("sizes") : null;
                 let bitmap: ImageBitmap | undefined;
                 try {
                   bitmap = await createImageBitmap(image);
@@ -357,21 +379,23 @@ export async function primeDecodedImageRatios(
                       width: bitmap.width,
                       height: bitmap.height,
                     };
-                    state.facts.set(image, {
-                      ...fact,
-                      scaleDown:
-                        srcset != null &&
-                        sizes != null &&
-                        image.getAttribute("srcset") === srcset &&
-                        image.getAttribute("sizes") === sizes
-                          ? measureScaleDown(image, fact)
-                          : undefined,
-                    });
+                    const responsivePaint =
+                      candidate == null || responsiveFit == null
+                        ? undefined
+                        : measureResponsivePaint(image, fact, candidate, responsiveFit);
+                    if (fit === "none") {
+                      const previous = state.facts.get(image);
+                      if (previous != null && responsivePaint != null) {
+                        state.facts.set(image, { ...previous, responsivePaint });
+                      }
+                    } else {
+                      state.facts.set(image, { ...fact, responsivePaint });
+                    }
                   } else if (state.active) {
-                    errors.push({ kind: "decoded", cause: "selected image changed during decoded ratio probe" });
+                    errors.push({ kind: failureKind, cause: "selected image changed during decoded ratio probe" });
                   }
                 } catch (error) {
-                  errors.push({ kind: "decoded", cause: error instanceof Error ? error.message : String(error) });
+                  errors.push({ kind: failureKind, cause: error instanceof Error ? error.message : String(error) });
                 } finally {
                   // Also closes bitmaps resolving after the Node deadline/disposal.
                   bitmap?.close();

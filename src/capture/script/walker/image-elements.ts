@@ -44,6 +44,7 @@ export const captureImageElement = ({
   let imageDecodedIntrinsic;
   let imageLayoutNatural;
   let imageScaleDownIntrinsic;
+  let imageNonePaintIntrinsic;
   let imageEffectiveZoom;
   let imageBroken;
   let imageAlt;
@@ -107,7 +108,7 @@ export const captureImageElement = ({
                   height?: number;
                   layoutNaturalWidth?: number;
                   layoutNaturalHeight?: number;
-                  scaleDown?: { w: number; h: number; srcset: string; sizes: string };
+                  responsivePaint?: { fit: "none" | "scale-down"; w: number; h: number; srcset: string; sizes: string };
                 }
               >;
             };
@@ -127,17 +128,19 @@ export const captureImageElement = ({
           imageDecodedIntrinsic = { w: decoded.width, h: decoded.height };
         if (decoded.layoutNaturalWidth != null && decoded.layoutNaturalHeight != null)
           imageLayoutNatural = { w: decoded.layoutNaturalWidth, h: decoded.layoutNaturalHeight };
-        const scaleDown = decoded.scaleDown;
+        const responsivePaint = decoded.responsivePaint;
         const viewBox = imageStyle.getPropertyValue("object-view-box");
         if (
-          scaleDown != null &&
+          responsivePaint != null &&
           imageEffectiveZoom === 1 &&
           (viewBox === "" || viewBox === "none") &&
           img.parentElement?.localName !== "picture" &&
-          img.getAttribute("srcset") === scaleDown.srcset &&
-          img.getAttribute("sizes") === scaleDown.sizes
+          img.getAttribute("srcset") === responsivePaint.srcset &&
+          img.getAttribute("sizes") === responsivePaint.sizes
         ) {
-          imageScaleDownIntrinsic = { w: scaleDown.w, h: scaleDown.h };
+          const size = { w: responsivePaint.w, h: responsivePaint.h };
+          if (responsivePaint.fit === "scale-down") imageScaleDownIntrinsic = size;
+          else imageNonePaintIntrinsic = size;
         }
       }
     }
@@ -258,6 +261,7 @@ export const captureImageElement = ({
     imageDecodedIntrinsic,
     imageLayoutNatural,
     imageScaleDownIntrinsic,
+    imageNonePaintIntrinsic,
     imageEffectiveZoom,
     imageBroken,
     imageAlt,

@@ -2375,8 +2375,8 @@ export interface CapturedElement {
    * (`LayoutImageResource::GetNaturalDimensions`), unzoomed and LayoutUnit-
    * quantized, measured natively from a single-candidate probe. Unlike the
    * truncated `naturalWidth`/`naturalHeight` in `imageIntrinsic` it keeps the
-   * fraction (389.984375 rather than 389). Captured only for
-   * `object-fit: none`, which paints at this size.
+   * fraction (389.984375 rather than 389). Captured for `object-fit: none`
+   * as the fallback when the rounded paint size is unavailable.
    */
   imageLayoutNatural?: { w: number; h: number };
   /**
@@ -2385,6 +2385,11 @@ export interface CapturedElement {
    * independently supplies the contain aspect ratio.
    */
   imageScaleDownIntrinsic?: { w: number; h: number };
+  /**
+   * Rounded Blink paint size for an authenticated unit-zoom responsive raster
+   * with object-fit:none. The auto-layout measurement is imageLayoutNatural.
+   */
+  imageNonePaintIntrinsic?: { w: number; h: number };
   /**
    * The top document's first `<body>` whose background moved to the view
    * (`LayoutBoxModelObject::BackgroundTransfersToView`,

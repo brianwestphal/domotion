@@ -313,6 +313,7 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
       const rendered = await renderExtent(generated, tree);
       // Negative control: the same tree with only the legacy DOM integers.
       delete image.imageLayoutNatural;
+      delete image.imageNonePaintIntrinsic;
       delete image.imageDecodedIntrinsic;
       const legacy = await renderExtent(generated, tree);
       return { native, rendered, legacy, image: captured, warnings };
@@ -334,6 +335,7 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
           );
           expect(image.imageIntrinsic, sizes).toEqual(dom);
           expect(image.imageLayoutNatural, sizes).toEqual(natural);
+          if (sizes === "389.99px") expect(image.imageNonePaintIntrinsic).toBeUndefined();
           expect(warnings.filter((warning) => warning.feature === "raster-intrinsic-ratio")).toEqual([]);
           // Chromium paints the pixel snap of the fractional object rect
           // (ImagePainter::PaintIntoRect, ToPixelSnappedRect,
@@ -346,6 +348,59 @@ describe("raster intrinsic density provenance (DM-MJAMW0)", () => {
           expect(Math.abs(native.h - natural.h), sizes).toBeLessThan(1);
           // Negative control: the truncated DOM integers paint a different size.
           expect(Math.abs(legacy.w - native.w) + Math.abs(legacy.h - native.h), sizes).toBeGreaterThan(0.15);
+        }
+      } finally {
+        await generated.close();
+        await page.close();
+      }
+    }, 60_000);
+
+    it("matches the rounded responsive none paint size at the half-pixel phase (DM-2VDJGF)", async () => {
+      const viewport = { width: 800, height: 800 };
+      const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+      const generated = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+      const rgba = (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer();
+      const render = async (tree: CapturedElement[], output = generated) => {
+        await output.setContent(`<style>body{margin:0;background:white}</style>${elementTreeToSvg(tree, 800, 800)}`);
+        return rgba(await output.screenshot());
+      };
+      try {
+        const halfPhaseStyle = "width:700px;height:700px;margin:.296875px 0 0 .5px;object-position:0% 0%";
+        const blob = await page.evaluate(
+          async (source) => URL.createObjectURL(await (await fetch(source)).blob()),
+          uri,
+        );
+        for (const { source, style } of [
+          { source: uri, style: "width:700px;height:700px" },
+          { source: uri, style: halfPhaseStyle },
+          { source: uri, style: "width:151.375px;height:65.25px;margin:.375px;overflow:hidden" },
+          { source: blob, style: halfPhaseStyle },
+        ]) {
+          await page.setContent(
+            `<body style="margin:0;background:white"><img srcset="${source} 396w" sizes="390px" style="display:block;object-fit:none;${style}"></body>`,
+          );
+          await page.locator("img").evaluate((image: HTMLImageElement) => image.decode());
+          const native = await rgba(await page.screenshot());
+          const { tree, image } = await captureImage(page);
+          expect(image.imageLayoutNatural).toEqual({ w: 389.984375, h: 572.1875 });
+          expect(image.imageNonePaintIntrinsic).toEqual({ w: 390, h: 572.203125 });
+          expect(image.imageScaleDownIntrinsic).toBeUndefined();
+          expect(image.imagePaintBasis).toBeDefined();
+          // The live document owns the blob URL. Compare its geometry in
+          // that document while the data sources render in a consumer page.
+          const output = source === blob ? page : generated;
+          expect((await render(tree, output)).equals(native), style).toBe(true);
+
+          if (source === uri && style === halfPhaseStyle) {
+            // The old auto-layout size moves both native half-pixel edges.
+            delete image.imageNonePaintIntrinsic;
+            const previous = await render(tree);
+            let changed = 0;
+            for (let i = 0; i < native.length; i += 4) {
+              if (previous.readUInt32LE(i) !== native.readUInt32LE(i)) changed++;
+            }
+            expect(changed).toBe(962);
+          }
         }
       } finally {
         await generated.close();

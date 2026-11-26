@@ -46,6 +46,7 @@ import {
   authenticImagePaintBasis,
   imagePaintIntoRect,
   paintRectContains,
+  positionRasterObjectRect,
   rasterScaleDownRect,
 } from "./image-paint-snap.js";
 import { paintClipForLayer } from "./paint-clip-layers.js";
@@ -605,6 +606,14 @@ function paintImage(
           el.styles.objectPosition,
         )
       : null;
+  const noneRect =
+    fit === "none" && paintBasis != null && capturedImageZoom === 1 && el.imageNonePaintIntrinsic != null
+      ? positionRasterObjectRect(
+          { x: contentX, y: contentY, width: contentW, height: contentH },
+          el.imageNonePaintIntrinsic,
+          el.styles.objectPosition,
+        )
+      : null;
   const objectRect =
     svgNatural != null
       ? computeObjectFitRectFromNaturalSizing(
@@ -620,7 +629,8 @@ function paintImage(
           el.styles.objectPosition,
         )
       : paintIntrinsic != null && paintIntrinsic.w > 0 && paintIntrinsic.h > 0
-        ? (scaleDownRect ??
+        ? (noneRect ??
+          scaleDownRect ??
           computeObjectFitRect(
             contentX,
             contentY,

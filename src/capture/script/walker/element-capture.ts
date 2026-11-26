@@ -288,6 +288,7 @@ const buildCapturedContent = (d: ElementCaptureDeps, f: ElementFacts) => {
     imageDecodedIntrinsic: f.image.imageDecodedIntrinsic,
     imageLayoutNatural: f.image.imageLayoutNatural,
     imageScaleDownIntrinsic: f.image.imageScaleDownIntrinsic,
+    imageNonePaintIntrinsic: f.image.imageNonePaintIntrinsic,
     backgroundTransfersToView: tag === "body" && bodyBackgroundTransfersToView(el) ? true : undefined,
     imageEffectiveZoom: f.image.imageEffectiveZoom,
     imageEmbeddingColorScheme: f.image.imageEmbeddingColorScheme,

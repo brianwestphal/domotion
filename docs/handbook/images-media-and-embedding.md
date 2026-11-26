@@ -100,7 +100,7 @@ and PNG `eXIf` (`SkPngRustCodec`, Skia `fd139e79`). Blink's WebP decoder ignores
 EXIF. AVIF orients through its `irot`/`imir` item properties; the renderer zeroes the `irot` angle in place and swaps axes for quarter turns (DM-4G5NX9), and, because `imir` cannot be neutralized in the bytes, flips the painted image about the `imir` axis (axis 0 top/bottom, axis 1 left/right) to restore the stored grid (DM-FPTFZB).
 
 Responsive `none` and `scale-down` (DM-FRF6A8) take different natural sizes at
-Chromium `7d859f27`. `none` paints at `LayoutImageResource::GetNaturalDimensions`:
+Chromium `7d859f27`. `none` starts from `LayoutImageResource::GetNaturalDimensions`:
 the decoded size scaled by `1 / candidate.Density()` and kept fractional
 (`layout_image_resource.cc:145-170`, `html_image_element.cc:281-301`); a
 `396w`/`sizes=390px` control lays out 389.984375 × 572.1875 while the API getters
@@ -115,13 +115,16 @@ raw URL, descriptor and `sizes`. Blink's auto-sized box supplies
 `imageLayoutNatural`. The probe reuses the decoded resource without modifying
 the source. It falls back to DOM integers for `sizes=auto`, conflicting
 descriptors, ancestor zoom or a mismatch in source or natural dimensions.
-For a data or blob raster whose `<img>` selects one width descriptor and fixed
-integer-pixel `sizes`, capture checks the descriptor against the decoded bitmap
-and DOM natural dimensions and records Blink's LayoutUnit density reversal.
-At unit zoom with percentage positions and an authenticated local paint basis,
-the renderer uses this size in the scale-down comparison and resolves position
-in LayoutUnit before snapping (DM-4SA0HW). Other cases use the decoded intrinsic
-fallback. An HTTP response can supply its own density through `Content-DPR`.
+For a data or blob raster with one selected width descriptor and fixed integer
+`sizes` in pixels, capture checks the descriptor against the decoded bitmap and
+DOM dimensions. Blink rounds the density-corrected size to LayoutUnit for
+replaced paint. A `396w`/`sizes=390px` image has a paint size of
+390 × 572.203125, which can put the far edge on the next pixel compared with
+the auto-layout measurement (DM-2VDJGF). `scale-down` reverses density after
+rounding (DM-4SA0HW). With an authenticated local paint basis, unit zoom and
+percentage positioning, the renderer uses these sizes and positions the object
+in LayoutUnit before snapping. Other cases keep the existing size fallback.
+An HTTP response can supply its own density through `Content-DPR`.
 
 ## Raster image paint rectangles
 
