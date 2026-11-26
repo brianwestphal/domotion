@@ -1092,6 +1092,61 @@ export function contouredRectIntersectionPaths(
   ];
 }
 
+/**
+ * The linear part of Blink's inset PathBuilder::AddContouredRect
+ * (platform/geometry/path_builder.cc:327–401, Chromium 7d859f27).
+ * Intersect the target rect with each nonempty origin bevel. This route
+ * applies when the aligned bevel segment reaches both adjacent target edges,
+ * so the corner's closing lines beyond those edges do not affect the clip.
+ */
+export function insetBevelRectPath(x: number, y: number, w: number, h: number, c: CornerRadii): string | null {
+  const origin = c.originRadii;
+  if (origin == null || c.contourInsets == null || !Object.values(c.contourInsets).some((inset) => inset > 0))
+    return null;
+
+  const right = x + w;
+  const bottom = y + h;
+  const corners = contouredCornerGeometries(x, y, w, h, c);
+  const bevels = [
+    { corner: corners.tr, radius: origin.tr, reachesEdges: corners.tr.start.y <= y && corners.tr.end.x >= right },
+    { corner: corners.br, radius: origin.br, reachesEdges: corners.br.start.x >= right && corners.br.end.y >= bottom },
+    { corner: corners.bl, radius: origin.bl, reachesEdges: corners.bl.start.y >= bottom && corners.bl.end.x <= x },
+    { corner: corners.tl, radius: origin.tl, reachesEdges: corners.tl.start.x <= x && corners.tl.end.y <= y },
+  ].filter(({ radius }) => radius.h > 0 && radius.v > 0);
+  if (
+    bevels.length === 0 ||
+    bevels.some(({ corner, reachesEdges }) => corner.curvature !== 1 || isEmptyCorner(corner) || !reachesEdges)
+  )
+    return null;
+
+  let polygon: Point[] = [
+    { x, y },
+    { x: right, y },
+    { x: right, y: bottom },
+    { x, y: bottom },
+  ];
+  for (const {
+    corner: { start, end },
+  } of bevels) {
+    const side = (p: Point) => (end.x - start.x) * (p.y - start.y) - (end.y - start.y) * (p.x - start.x);
+    const clipped: Point[] = [];
+    for (let i = 0; i < polygon.length; i++) {
+      const from = polygon[i];
+      const to = polygon[(i + 1) % polygon.length];
+      const fromSide = side(from);
+      const toSide = side(to);
+      if (fromSide >= 0) clipped.push(from);
+      if (fromSide * toSide < 0) {
+        const fraction = fromSide / (fromSide - toSide);
+        clipped.push({ x: from.x + (to.x - from.x) * fraction, y: from.y + (to.y - from.y) * fraction });
+      }
+    }
+    polygon = clipped;
+  }
+  const coordinate = (p: Point) => `${formatNumberLoose(p.x, 6)},${formatNumberLoose(p.y, 6)}`;
+  return polygon.length === 0 ? "" : `M${polygon.map(coordinate).join(" L")} Z`;
+}
+
 /** Emit an SVG path `d` attribute for a rounded rectangle with per-corner radii.
  *  Path goes clockwise from the top-left, using elliptical arc commands at each
  *  corner. Zero-radius corners collapse to a sharp 90° join. */

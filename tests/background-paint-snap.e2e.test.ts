@@ -143,6 +143,35 @@ it("keeps both one-axis-empty corners on the inset padding-box edges", async () 
   }
 });
 
+it.each([
+  { name: "bottom-right", radius: "0 0 12px 0" },
+  { name: "top-left", radius: "12px 0 0 0" },
+  { name: "top-right", radius: "0 12px 0 0" },
+  { name: "bottom-left", radius: "0 0 0 12px" },
+  { name: "all four", radius: "12px" },
+  { name: "asymmetric borders and radii", radius: "0 9px 12px 0 / 0 10px 15px 0", border: "3px 8px 5px 2px" },
+  { name: "other one-axis-empty corners", radius: "8px 0 12px 0 / 0 8px 12px 0" },
+  { name: "a translucent background", radius: "0 0 12px 0", color: "rgba(0,0,255,.65)" },
+])("clips the $name inset bevel to Blink's padding-box intersection (DM-KKY5P5)", async ({ radius, border, color }) => {
+  const page = await browser.newPage({ viewport });
+  const output = await browser.newPage({ viewport });
+  const bodyStyle = "<style>body{margin:0;background:white}</style>";
+  try {
+    await page.setContent(`${bodyStyle}<div style="position:absolute;left:20px;top:20px;
+      width:38px;height:38px;box-sizing:border-box;border:5px solid transparent;
+      border-width:${border ?? "5px"};background:${color ?? "blue"} padding-box;
+      border-radius:${radius};corner-shape:bevel"></div>`);
+    const source = await rgba(await page.screenshot());
+    const svg = elementTreeToSvg(await captureElementTree(page, "body", viewport), 100, 100);
+    await output.setContent(bodyStyle + svg);
+    const actual = await rgba(await output.screenshot());
+    expect(actual.equals(source)).toBe(true);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
+
 // A rounded box whose border paints and obscures the background edge shrinks
 // its border-box background by half of each border width (a sixth for a
 // double border) for bleed avoidance, so the background's antialiased rim

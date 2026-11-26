@@ -25,7 +25,7 @@ SVG `<rect>` only supports a single `rx` (and `ry`) value, so an asymmetric CSS 
 - **Uniform fast path**: when all four corners share a single circular radius, emit `<rect rx="r">`. Cheaper, less markup, no path-arithmetic.
 - **Per-corner path**: when corners differ — by radius, by axis pair, or both — emit a `<path>` whose `d` walks the rect clockwise with one elliptical arc per non-zero corner.
 
-The branching lives in `roundedRectSvg(x, y, w, h, corners, attrs)`. Every captured element rect that participates in the box rendering — background fill, gradient layer clip, border stroke, double-border inner/outer strokes, outer/inset box-shadow rect, overflow-clip path — flows through this helper, so per-corner radii survive end-to-end.
+The branching for elliptical corners lives in `roundedRectSvg(x, y, w, h, corners, attrs)`. Box rendering uses these per-corner radii for background fill, gradient clipping, borders, shadows, and overflow clipping.
 
 ## Capture
 
@@ -40,6 +40,20 @@ CSS spec ([css-backgrounds-3 §5.5](https://www.w3.org/TR/css-backgrounds-3/#cor
 ## Inner radii
 
 When the bg-image clip box, the border-stroke rect, or an inset-shadow ring is inside the border-box (inset by some amount on each side), the outer corner needs to shrink to the inner corner. CSS specifies that the inner corner of a rounded box is the outer corner pulled in by the adjacent border-side widths — so `rTL.h` shrinks by the left-border width and `rTL.v` shrinks by the top-border width. `insetCornerRadii(corners, top, right, bottom, left)` does this clamp-to-zero shrinkage and returns a fresh `CornerRadii`.
+
+### Beveled padding-box color
+
+For an authenticated snapped padding-box color fill, an inset linear bevel
+is clipped against the straight edges of the padding box. Blink intersects
+the target rectangle with the nonempty origin corners
+(`PathBuilder::AddContouredRect`, Chromium `7d859f27`). Connecting the aligned
+bevel endpoint directly to the adjacent corner can tilt the whole straight
+edge when the endpoint lies outside the padding box.
+
+Domotion emits the intersected polygon when each nonempty origin corner is
+a bevel whose aligned segment reaches both adjacent edges (DM-KKY5P5).
+Native Chromium controls cover every corner, unequal border widths and
+elliptical radii, empty axes, and translucent color.
 
 ## Rounded overflow-clip-margin
 

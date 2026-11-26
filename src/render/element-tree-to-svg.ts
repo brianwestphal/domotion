@@ -80,6 +80,7 @@ import {
   backgroundBleedShrinkInsets,
   parseCornerRadii,
   insetCornerRadii,
+  insetBevelRectPath,
   roundedRectSvg,
   injectSvgSize,
   snappedInsetBox,
@@ -862,9 +863,12 @@ function paintBackgroundColor(
     // Snapped edges and inset radii are exact LayoutUnit values (5.75, x.25);
     // the default one-decimal format would move them, so keep three decimals.
     const fmt = authenticBorderPaintSnap(el) == null ? r : (n: number) => formatNumberLoose(n, 3);
-    out.push(
-      `${indent}${roundedRectSvg(box.x, box.y, box.width, box.height, box.corners, `fill="${colorStr(bgColor)}"`, fmt)}`,
-    );
+    const fill = `fill="${colorStr(bgColor)}"`;
+    const shape =
+      box.bevelPath == null
+        ? roundedRectSvg(box.x, box.y, box.width, box.height, box.corners, fill, fmt)
+        : `<path d="${box.bevelPath}" ${fill} />`;
+    out.push(indent + shape);
   }
   return out;
 }
@@ -967,7 +971,7 @@ function paintDocumentCanvas(state: RenderState, elements: CapturedElement[], wi
 function backgroundColorClipBox(
   el: CapturedElement,
   corners: CornerRadii,
-): { x: number; y: number; width: number; height: number; corners: CornerRadii } {
+): { x: number; y: number; width: number; height: number; corners: CornerRadii; bevelPath?: string } {
   const image = el.styles.backgroundImage;
   const layerCount = image == null || image === "" || image === "none" ? 0 : splitTopLevelCommas(image).length;
   const clip = paintClipForLayer(el.styles.backgroundClip, Math.max(0, layerCount - 1));
@@ -1007,7 +1011,10 @@ function backgroundColorClipBox(
     y = outer.y + inset(insets.top);
   const right = outer.x + outer.width - (snapped ? -Math.round(-insets.right) : insets.right);
   const bottom = outer.y + outer.height - (snapped ? -Math.round(-insets.bottom) : insets.bottom);
-  return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y), corners: innerCorners };
+  const width = Math.max(0, right - x);
+  const height = Math.max(0, bottom - y);
+  const bevelPath = clip === "padding-box" && snapped ? insetBevelRectPath(x, y, width, height, innerCorners) : null;
+  return { x, y, width, height, corners: innerCorners, bevelPath: bevelPath ?? undefined };
 }
 
 /** Blink associates background-color with the bottom FillLayer. Therefore the
