@@ -34,7 +34,7 @@ function fakePage(png: Buffer, control: { failEvaluate: boolean }) {
       counts.evaluate++;
       await Promise.resolve();
       if (control.failEvaluate) throw new Error("probe blocked by CSP");
-      return { x: 0, y: 0, scaleFromDIP: 2 };
+      return { x: 0, y: 0, scaleFromDIP: 2, probeSize: PROBE, clientWidth: 1024, clientHeight: 768 };
     },
     screenshot: async () => {
       counts.screenshot++;
@@ -117,6 +117,7 @@ describe("measureBlinkPlatformResizer promise cache", () => {
         scaleFromDIP: 3,
         clientWidth: isolatedViewport.width,
         clientHeight: isolatedViewport.height,
+        probeSize: PROBE,
       }),
       screenshot: async () => png,
       viewportSize: () => isolatedViewport,
@@ -131,7 +132,7 @@ describe("measureBlinkPlatformResizer promise cache", () => {
       evaluate: async (fn: unknown) => {
         // the in-page probe returns its viewport; the captured-scale read returns a number
         return String(fn).includes("clientWidth")
-          ? { x: 0, y: 0, scaleFromDIP: 2, clientWidth: 160, clientHeight: 60 }
+          ? { x: 0, y: 0, scaleFromDIP: 2, clientWidth: 160, clientHeight: 60, probeSize: PROBE }
           : 2;
       },
       screenshot: async () => {
@@ -163,7 +164,7 @@ describe("measureBlinkPlatformResizer isolated-page fallback by browser process 
     const calls = { browserNewPage: 0, cdpSessions: 0, detached: 0, probes: [] as string[] };
     let remainingFailures = failures;
     const isolated = {
-      evaluate: async () => ({ x: 0, y: 0, scaleFromDIP: 1, clientWidth: 320, clientHeight: 180 }),
+      evaluate: async () => ({ x: 0, y: 0, scaleFromDIP: 1, clientWidth: 320, clientHeight: 180, probeSize: PROBE }),
       screenshot: async () => png,
       viewportSize: () => ({ width: 320, height: 180 }),
       close: async () => {},
@@ -180,7 +181,7 @@ describe("measureBlinkPlatformResizer isolated-page fallback by browser process 
         if (!source.includes("clientWidth")) return source.includes("devicePixelRatio") ? 1 : 2;
         calls.probes.push(source.includes('"constructedSheet":true') ? "constructed" : "element");
         if (remainingFailures-- > 0) throw new Error(`probe failure ${calls.probes.length}`);
-        return { x: 0, y: 0, scaleFromDIP: 2, clientWidth: 320, clientHeight: 180 };
+        return { x: 0, y: 0, scaleFromDIP: 2, clientWidth: 320, clientHeight: 180, probeSize: PROBE };
       },
       screenshot: async () => png,
       viewportSize: () => ({ width: 320, height: 180 }),

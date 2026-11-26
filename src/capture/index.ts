@@ -1649,7 +1649,7 @@ export interface BlinkPlatformResizerMetrics {
   recoveredFrom?: string;
 }
 
-/** CSS-px side of the resizer probe box; it must fit the probed page's viewport. */
+/** Preferred CSS-px side of the resizer probe box. */
 const RESIZER_PROBE_SIZE = 64;
 
 const blinkPlatformResizerMetricsByPage = new WeakMap<Page, Promise<BlinkPlatformResizerMetrics>>();
@@ -1670,10 +1670,21 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
     { constructedSheet = false }: { constructedSheet?: boolean } = {},
   ): Promise<BlinkPlatformResizerMetrics> => {
     const token = `domotion-resizer-probe-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const probeSize = RESIZER_PROBE_SIZE;
     const position = await evaluateInFrame(
       probePage,
-      ({ token, probeSize, constructedSheet }) => {
+      ({ token, preferredSize, constructedSheet, screenshotViewport }) => {
+        // The document element can exceed the screenshot viewport in quirks mode.
+        // Intersect it with Playwright's viewport, also excluding any scrollbars.
+        const clientWidth = Math.min(
+          document.documentElement.clientWidth,
+          screenshotViewport?.width ?? window.innerWidth,
+        );
+        const clientHeight = Math.min(
+          document.documentElement.clientHeight,
+          screenshotViewport?.height ?? window.innerHeight,
+        );
+        // Blink's native corner thickness is independent of the probe box size.
+        const probeSize = constructedSheet ? Math.min(preferredSize, clientWidth, clientHeight) : preferredSize;
         // Forced colors normally replace authored background colors, including
         // the marker on a custom scrollbar part. Keep this temporary probe's
         // colors so the same pixel discriminator works under that emulation.
@@ -1681,7 +1692,7 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
         const probe = document.createElement("div");
         probe.dataset.domotionResizerProbe = token;
         probe.setAttribute("aria-hidden", "true");
-        probe.style.cssText = `all:initial;forced-color-adjust:none;position:fixed;left:0;top:0;width:${probeSize}px;height:${probeSize}px;overflow:hidden;resize:both;border:0;padding:0;background:rgb(255,0,253);z-index:2147483647;pointer-events:none;`;
+        probe.style.cssText = `all:initial;forced-color-adjust:none;position:fixed;left:0;top:0;width:${probeSize}px;height:${probeSize}px;overflow:hidden;resize:both;direction:ltr;border:0;padding:0;background:rgb(255,0,253);z-index:2147483647;pointer-events:none;`;
         if (constructedSheet) {
           // A constructed sheet is script-created CSSOM, which a page CSP's
           // style-src does not govern, unlike an inline <style> element.
@@ -1699,27 +1710,36 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
           x: window.scrollX,
           y: window.scrollY,
           scaleFromDIP: window.visualViewport?.scale ?? 1,
-          // The scrollbar-excluded layout viewport: the screenshot below is
-          // clipped to it, so a smaller viewport would crop the probe's
-          // bottom-right corner and scale the recovered size.
-          clientWidth: document.documentElement.clientWidth,
-          clientHeight: document.documentElement.clientHeight,
+          clientWidth,
+          clientHeight,
+          probeSize,
         };
       },
-      { token, probeSize, constructedSheet },
+      { token, preferredSize: RESIZER_PROBE_SIZE, constructedSheet, screenshotViewport: probePage.viewportSize() },
     );
 
     try {
-      if (
-        (typeof position.clientWidth === "number" && position.clientWidth < probeSize) ||
-        (typeof position.clientHeight === "number" && position.clientHeight < probeSize)
-      ) {
+      const { clientWidth, clientHeight, probeSize } = position;
+      if (probeSize <= 0) {
         throw new Error(
-          `Chromium platform-resizer probe needs a ${probeSize}x${probeSize} viewport; this page's is ${position.clientWidth}x${position.clientHeight}`,
+          `Chromium platform-resizer probe needs a nonempty viewport; this page's is ${clientWidth}x${clientHeight}`,
         );
       }
+      if (clientWidth < probeSize || clientHeight < probeSize) {
+        throw new Error(
+          `Chromium platform-resizer probe needs a ${probeSize}x${probeSize} viewport; this page's is ${clientWidth}x${clientHeight}`,
+        );
+      }
+      const fitted = probeSize < RESIZER_PROBE_SIZE;
+      // Pinch zoom changes how much document area a Playwright clip covers and
+      // can make a partially visible corner fill the intended screenshot edge.
+      if (fitted && position.scaleFromDIP !== 1) {
+        throw new Error("Chromium platform-resizer probe cannot fit a scaled visual viewport");
+      }
+      // The fitted box starts at the viewport origin, which Playwright uses for clip coordinates.
+      const clipOrigin = fitted ? { x: 0, y: 0 } : { x: position.x, y: position.y };
       const png = await probePage.screenshot({
-        clip: { x: position.x, y: position.y, width: probeSize, height: probeSize },
+        clip: { ...clipOrigin, width: probeSize, height: probeSize },
         type: "png",
       });
       const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -1740,6 +1760,14 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
       }
       if (maxX < minX || maxY < minY) {
         throw new Error("Chromium platform-resizer probe painted no custom corner pixels");
+      }
+      if (fitted) {
+        if (minX === 0 || minY === 0) {
+          throw new Error("Chromium platform-resizer probe viewport is too small to measure the full corner");
+        }
+        if (maxX !== info.width - 1 || maxY !== info.height - 1) {
+          throw new Error("Chromium platform-resizer probe did not reach its fitted bottom-right corner");
+        }
       }
       const pixelsPerCssX = info.width / probeSize;
       const pixelsPerCssY = info.height / probeSize;
@@ -1789,7 +1817,7 @@ export async function measureBlinkPlatformResizer(page: Page): Promise<BlinkPlat
           // --single-process supports one BrowserContext only; a page in a new
           // context crashed or hung the whole browser (single-process-browser.ts).
           // Re-probe the captured page itself, once, with a CSP-exempt
-          // constructed sheet. A viewport smaller than the probe still fails.
+          // constructed sheet and a probe box fitted to its existing viewport.
           try {
             return { ...(await runProbe(page, { constructedSheet: true })), recoveredFrom: String(pageError) };
           } catch (retryError) {

@@ -189,7 +189,7 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
     }
   });
 
-  it("never opens a second BrowserContext in a --single-process browser", async () => {
+  it("fits a small viewport without opening a second BrowserContext in a --single-process browser", async () => {
     // A single-process Chromium supports one BrowserContext. Opening the isolated
     // fallback page in a new context (Browser.newPage()) crashed that browser on
     // macOS and in the Linux container and hung it on an x64 CI runner, so a
@@ -217,33 +217,41 @@ describeBrowser("DM-2418: Blink platform resizer capture and paint", () => {
       // Browser.newPage() owns an implicit context that refuses context.newPage(),
       // and a second Browser.newPage() would itself open the unsupported second
       // context, so one page covers both cases.
-      const page = await single.newPage({ viewport: { width: 160, height: 60 } });
-      // A viewport too small for the probe cannot be re-probed in place: the
-      // capture fails explicitly instead of crashing or hanging the browser.
+      const tinySide = expected.themeThickness - 1;
+      const page = await single.newPage({ viewport: { width: tinySide, height: tinySide } });
+      // A marker clipped by the fitted probe edge cannot establish its size.
       await expect(measureBlinkPlatformResizer(page)).rejects.toThrow(
-        /--single-process browser.*needs a 64x64 viewport/,
+        /viewport is too small to measure the full corner/,
       );
       expect(single.isConnected()).toBe(true);
       expect(await page.locator("[data-domotion-resizer-probe]").count()).toBe(0);
 
-      // The rejection was evicted, so a usable viewport with a strict CSP is re-measured.
-      await page.setViewportSize({ width: 320, height: 180 });
-      await page.setContent(`<meta http-equiv="Content-Security-Policy" content="style-src 'none'">
-        <main id="sentinel">strict page</main>`);
-      const adoptedBefore = await page.evaluate(() => document.adoptedStyleSheets.length);
-      // The CSP blocks the in-page probe's inline rule; the constructed-sheet
-      // re-probe recovers, and the recovered failure is kept as a diagnostic.
+      // The rejection was evicted. A viewport that fits the native corner can
+      // be measured in place, including under a strict CSP.
+      const viewport = { width: 48, height: 40 };
+      await page.setViewportSize(viewport);
+      await page.setContent(`<html dir="rtl"><meta http-equiv="Content-Security-Policy" content="style-src 'none'">
+        <main id="sentinel">strict page</main>${"<br>".repeat(20)}</html>`);
+      const before = await page.evaluate(() => {
+        window.scrollTo(0, 24);
+        return { scrollY: window.scrollY, adoptedSheets: document.adoptedStyleSheets.length };
+      });
+      expect(before.scrollY).toBeGreaterThan(0);
+      // The fitted, CSP-exempt re-probe recovers the reference thickness.
       expect(await measureBlinkPlatformResizer(page)).toEqual({
         themeThickness: expected.themeThickness,
         scaleFromDIP: 1,
-        recoveredFrom: expect.stringMatching(/painted no custom corner pixels/),
+        recoveredFrom: expect.stringMatching(/needs a 64x64 viewport/),
       });
+      expect(page.viewportSize()).toEqual(viewport);
       expect(single.isConnected()).toBe(true);
       expect(single.contexts()).toHaveLength(1);
       expect(single.contexts()[0]!.pages()).toEqual([page]);
       expect(await page.locator("#sentinel").textContent()).toBe("strict page");
       expect(await page.locator("[data-domotion-resizer-probe]").count()).toBe(0);
-      expect(await page.evaluate(() => document.adoptedStyleSheets.length)).toBe(adoptedBefore);
+      expect(
+        await page.evaluate(() => ({ scrollY: window.scrollY, adoptedSheets: document.adoptedStyleSheets.length })),
+      ).toEqual(before);
     } finally {
       await closeBrowserSafely(single, 4_000);
       if (child != null) await settleAbandonedLinuxBrowser(child);
