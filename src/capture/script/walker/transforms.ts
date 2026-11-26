@@ -317,6 +317,9 @@ export const transformIsAnimated = (el: Element, cs: CSSStyleDeclaration): boole
   return false;
 };
 
+export const frozenTransformSignature = (style: CSSStyleDeclaration): string =>
+  JSON.stringify([style.transform, style.translate, style.rotate, style.scale, style.transformOrigin]);
+
 // The single freeze decision, shared by the walk and by the Node-side passes
 // that must neutralize exactly the transforms the renderer re-applies
 // (`src/capture/frozen-transform-neutralizer.ts` ships these functions' source
@@ -490,6 +493,17 @@ export const createTransformsHandler = (
   const liveTransformStyles = new WeakSet<CSSStyleDeclaration>();
   let livePaintSpace: LiveTransformPaintSpace | undefined;
   let nestedPaintSpace: NestedLiveTransformPaintSpace | undefined;
+  const frozenOwners: Array<{ element: Element; signature: string }> = [];
+  const frozenTransformOwnersFor = (sourceIndices: WeakMap<Element, number>) => {
+    if (frozenOwners.length === 0) return undefined;
+    const result: Array<{ sourceNodeIndex: number; signature: string }> = [];
+    for (const { element, signature } of frozenOwners) {
+      const sourceNodeIndex = sourceIndices.get(element);
+      if (sourceNodeIndex == null) return undefined;
+      result.push({ sourceNodeIndex, signature });
+    }
+    return result;
+  };
   const authenticatePaintParticipants = (elements: Element[]): boolean => {
     const probe = {
       ...LIVE_AFFINE_BOX_SHADOW_CONTEXT,
@@ -545,6 +559,7 @@ export const createTransformsHandler = (
       // box; the renderer re-applies the original transform. This holds for an
       // animated or transitioning rotation or skew too, which cannot take the
       // live-rect path (its live rect is the rotated bounding box).
+      const signature = frozenTransformSignature(cs);
       const restore = neutralizeTransformForFreeze(el);
       // Blink pivots and offsets the subtree from the box's rounded paint
       // offset; fold that shift into the matrix the renderer re-applies.
@@ -557,10 +572,13 @@ export const createTransformsHandler = (
           : new DOMMatrix().translate(shift.x, shift.y).multiply(new DOMMatrix(zoomedTransform)).toString();
       // The renderer re-applies this matrix as the subtree's wrapper only when
       // threadFrozenTransform keeps it (an affine 2D matrix).
-      registerPaintTransformTranslation(el, transformWrapsAsAffine2D(paintTransform) ? paintTransform : null);
+      const wraps = transformWrapsAsAffine2D(paintTransform);
+      registerPaintTransformTranslation(el, wraps ? paintTransform : null);
+      if (wraps) frozenOwners.push({ element: el, signature });
       try {
         return captureInner(el, cs, paintTransform, zoomTransformOrigin(cs.transformOrigin, zoom));
       } finally {
+        if (wraps) frozenOwners.pop();
         releaseFrozenPaintBase(el);
         releasePaintTransformTranslation(el);
         restore();
@@ -672,5 +690,5 @@ export const createTransformsHandler = (
 
   const liveTextInverseFor = (el: Element) =>
     livePaintSpace?.localRect(el) != null && readOnlyLiveText?.text === el ? readOnlyLiveText.inverse : undefined;
-  return { wrapWithFrozenTransform, threadFrozenTransform, liveTextInverseFor };
+  return { wrapWithFrozenTransform, threadFrozenTransform, liveTextInverseFor, frozenTransformOwnersFor };
 };

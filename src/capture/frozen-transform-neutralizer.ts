@@ -23,6 +23,7 @@ import type { Page } from "@playwright/test";
 import { privateCaptureKey } from "./private-key.js";
 import {
   composeEffectiveTransform,
+  frozenTransformSignature,
   neutralizeTransformForFreeze,
   parseAngleToDeg,
   resolveTranslateComponent,
@@ -46,6 +47,7 @@ export function frozenTransformPredicateSource(): string {
     `const transitionCoversTransform = (${transitionCoversTransform.toString()});`,
     `const transformIsAnimated = (${transformIsAnimated.toString()});`,
     `const transformFreezes = (${transformFreezes.toString()});`,
+    `const frozenTransformSignature = (${frozenTransformSignature.toString()});`,
     `const neutralizeTransformForFreeze = (${neutralizeTransformForFreeze.toString()});`,
   ].join("\n");
 }
@@ -64,10 +66,12 @@ function evaluateWithFreezePredicate<Argument, Result>(
     argument: Argument,
     freezes: typeof transformFreezes,
     neutralize: typeof neutralizeTransformForFreeze,
+    isAnimated: typeof transformIsAnimated,
+    signature: typeof frozenTransformSignature,
   ) => Result,
   argument: Argument,
 ): Promise<Result> {
-  const expression = `((__name) => { ${frozenTransformPredicateSource()}\nreturn (${callback.toString()})(${JSON.stringify(argument)}, transformFreezes, neutralizeTransformForFreeze); })(function(target, value) { try { Object.defineProperty(target, "name", { value: value, configurable: true }); } catch {} return target; })`;
+  const expression = `((__name) => { ${frozenTransformPredicateSource()}\nreturn (${callback.toString()})(${JSON.stringify(argument)}, transformFreezes, neutralizeTransformForFreeze, transformIsAnimated, frozenTransformSignature); })(function(target, value) { try { Object.defineProperty(target, "name", { value: value, configurable: true }); } catch {} return target; })`;
   return page.evaluate(expression) as Promise<Result>;
 }
 
@@ -157,5 +161,180 @@ export async function withFrozenTransformsNeutralized<T>(
         void document.documentElement.getBoundingClientRect();
       }, key)
       .catch(() => undefined);
+  }
+}
+
+export interface FrozenTransformOwner {
+  sourceNodeIndex: number;
+  signature: string;
+}
+
+interface FrozenTransformPlaneScope extends FrozenAncestorScope {
+  owners: readonly FrozenTransformOwner[];
+  sourceBox: { x: number; y: number; width: number; height: number };
+}
+
+interface FrozenTransformPlaneTransaction {
+  stillNeutral(): boolean;
+  restore(): boolean;
+}
+
+/** Sample a retained source Element in the exact plane used by the capture
+ * walk. Its own frozen wrapper can participate as well as its ancestors. */
+export async function withVerifiedFrozenTransformPlane<T>(
+  page: Page,
+  scope: FrozenTransformPlaneScope,
+  work: () => Promise<T>,
+): Promise<T> {
+  const key = privateCaptureKey("VerifiedFrozenTransformPlane");
+  let active = false;
+  try {
+    await evaluateWithFreezePredicate(
+      page,
+      ({ key, scope }, freezes, neutralize, isAnimated, signature) => {
+        const host = globalThis as typeof globalThis & Record<string, unknown>;
+        const nodes = host[scope.sourceNodeKey] as Element[] | undefined;
+        const source = nodes?.[scope.index];
+        if (source == null || !source.isConnected || source.getRootNode() !== document || scope.owners.length === 0)
+          throw new Error("retained frozen-plane source is unavailable");
+
+        const owners = (): HTMLElement[] => {
+          let expected = scope.owners.length - 1;
+          const verified: HTMLElement[] = [];
+          for (let node: Element | null = source; node != null; node = node.parentElement) {
+            const style = getComputedStyle(node);
+            if (node.assignedSlot != null || style.perspective !== "none" || style.transformStyle !== "flat")
+              throw new Error("source path does not have a flat frozen transform plane");
+            if ([style.transform, style.translate, style.rotate, style.scale].every((value) => value === "none"))
+              continue;
+            const proof = scope.owners[expected--];
+            if (
+              proof == null ||
+              nodes?.[proof.sourceNodeIndex] !== node ||
+              !(node instanceof HTMLElement) ||
+              node.getClientRects().length !== 1 ||
+              style.display === "inline" ||
+              proof.signature !== signature(style) ||
+              !freezes(node, style) ||
+              isAnimated(node, style)
+            )
+              throw new Error("source transform ancestry differs from the captured frozen wrappers");
+            verified.push(node);
+          }
+          if (expected !== -1) throw new Error("captured frozen wrapper is absent from the source path");
+          return verified.reverse();
+        };
+
+        const matched = owners();
+        const original = source.getBoundingClientRect();
+        const ancestors: Element[] = [];
+        for (let node: Element | null = source; node != null; node = node.parentElement) ancestors.push(node);
+        const samePath = () => {
+          let node: Element | null = source;
+          for (const ancestor of ancestors) {
+            if (node !== ancestor) return false;
+            node = node.parentElement;
+          }
+          return (
+            node == null &&
+            source.isConnected &&
+            source.getRootNode() === document &&
+            host[scope.sourceNodeKey] === nodes &&
+            nodes?.[scope.index] === source
+          );
+        };
+        const attributes = matched.map((owner) => owner.getAttribute("style"));
+        const animations = matched.map((owner) => owner.getAnimations());
+        const matchesBox = (wanted: typeof scope.sourceBox, tolerance: number) => {
+          if (source.getClientRects().length !== 1) return false;
+          const live = source.getBoundingClientRect();
+          return (
+            Math.abs(live.x - wanted.x) <= tolerance &&
+            Math.abs(live.y - wanted.y) <= tolerance &&
+            Math.abs(live.width - wanted.width) <= tolerance &&
+            Math.abs(live.height - wanted.height) <= tolerance
+          );
+        };
+        let sourceChanged = false;
+        const observation = new MutationObserver(() => {
+          sourceChanged = true;
+        });
+        for (const ancestor of ancestors)
+          observation.observe(ancestor, { childList: true, attributes: true, attributeFilter: ["slot", "open"] });
+        const restores: Array<() => void> = [];
+        const transaction: FrozenTransformPlaneTransaction = {
+          stillNeutral() {
+            return (
+              !sourceChanged &&
+              observation.takeRecords().length === 0 &&
+              samePath() &&
+              matched.every((owner) => {
+                const style = getComputedStyle(owner);
+                return (
+                  style.transform === "matrix(1, 0, 0, 1, 0, 0)" &&
+                  style.translate === "none" &&
+                  style.rotate === "none" &&
+                  style.scale === "none"
+                );
+              }) &&
+              matchesBox(scope.sourceBox, 1 / 64)
+            );
+          },
+          restore() {
+            observation.disconnect();
+            let success = true;
+            for (const restore of restores.reverse()) {
+              try {
+                restore();
+              } catch {
+                success = false;
+              }
+            }
+            return (
+              success &&
+              samePath() &&
+              matchesBox(original, 0) &&
+              owners().every((owner, index) => {
+                const after = owner.getAnimations();
+                return (
+                  owner === matched[index] &&
+                  owner.getAttribute("style") === attributes[index] &&
+                  after.length === animations[index].length &&
+                  after.every((animation, animationIndex) => animation === animations[index][animationIndex])
+                );
+              })
+            );
+          },
+        };
+        host[key] = transaction;
+        for (const owner of matched) restores.push(neutralize(owner));
+        if (!transaction.stillNeutral()) throw new Error("neutral source box does not match the captured local plane");
+      },
+      { key, scope },
+    );
+    active = true;
+    const value = await work();
+    if (
+      !(await page.evaluate((key) => {
+        const transaction = (globalThis as typeof globalThis & Record<string, unknown>)[key] as
+          FrozenTransformPlaneTransaction | undefined;
+        return transaction?.stillNeutral() === true;
+      }, key))
+    )
+      throw new Error("neutral marker source changed during the protocol sample");
+    return value;
+  } finally {
+    const restored = await page
+      .evaluate(
+        ({ key, active }) => {
+          const host = globalThis as typeof globalThis & Record<string, unknown>;
+          const transaction = host[key] as FrozenTransformPlaneTransaction | undefined;
+          delete host[key];
+          return transaction == null ? !active : transaction.restore();
+        },
+        { key, active },
+      )
+      .catch(() => false);
+    if (!restored) throw new Error("restoration of the frozen marker source could not be verified");
   }
 }

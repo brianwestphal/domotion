@@ -2264,6 +2264,7 @@ export interface CapturedElement {
   };
   /** Private live-node correlation consumed and deleted by the CDP post-pass. */
   _summaryMarkerSourceNodeIndex?: number;
+  _summaryMarkerFrozenOwners?: import("./frozen-transform-neutralizer.js").FrozenTransformOwner[];
   /** Relative planar homography measured after Blink composes a static CSS 3D transform tree. */
   projectiveTransform?: [number, number, number, number, number, number, number, number, number];
   /** Blink culled this plane because `backface-visibility: hidden` faced away. */

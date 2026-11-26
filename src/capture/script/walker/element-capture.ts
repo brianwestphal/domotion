@@ -101,6 +101,7 @@ export type ElementCaptureDeps = {
   warn: (selector: string, property: string, message: string) => void;
   shortSelector: (el: Element) => string;
   wrapWithFrozenTransform: ReturnType<typeof createTransformsHandler>["wrapWithFrozenTransform"];
+  frozenTransformOwnersFor: ReturnType<typeof createTransformsHandler>["frozenTransformOwnersFor"];
   textPaintFactFor: (el: Element) => TextPaintFact;
   textPaintSourceKeyFor: (el: Element) => string | undefined;
   pseudoFragmentFactsFor: (el: Element) => CapturedElement["pseudoFragments"] | undefined;
@@ -216,6 +217,8 @@ const captureInlineSvgPhase = (d: ElementCaptureDeps, el: Element, cs: CSSStyleD
 // Record identity, box, and reference-scope fields (the head of the record).
 const buildCapturedIdentity = (d: ElementCaptureDeps, f: ElementFacts) => {
   const { el, cs, tag, rect, sel } = f;
+  const summarySourceIndex =
+    tag === "summary" && cs.display?.includes("list-item") ? d.topDocumentNodeIndex.get(el) : undefined;
   return {
     tag,
     text: f.text.text,
@@ -237,10 +240,12 @@ const buildCapturedIdentity = (d: ElementCaptureDeps, f: ElementFacts) => {
     magicKey: (el as HTMLElement).dataset?.magicKey,
     // DM-2457: private correlation only. The Node/CDP post-pass resolves the
     // real generated ::marker fragment and deletes this index before return.
-    _summaryMarkerSourceNodeIndex:
-      tag === "summary" && cs.display != null && cs.display.includes("list-item")
-        ? d.topDocumentNodeIndex.get(el)
-        : undefined,
+    ...(summarySourceIndex == null
+      ? {}
+      : {
+          _summaryMarkerSourceNodeIndex: summarySourceIndex,
+          _summaryMarkerFrozenOwners: d.frozenTransformOwnersFor(d.topDocumentNodeIndex),
+        }),
     svgReferenceScope: f.svgReferenceScope,
     fragmentReferenceScope:
       f.maskFragmentReferenceScope != null ? f.maskFragmentReferenceScope : f.clipFragmentReferenceScope,

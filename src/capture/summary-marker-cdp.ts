@@ -4,13 +4,16 @@
  * Blink exposes the generated list marker as a real CDP pseudo node.  Read its
  * first-line content quad without adding probe DOM, pair it with the computed
  * marker style/font metrics, and attach one physical fragment record to the
- * already-captured summary.  Missing or transformed protocol facts fail
- * closed; the renderer never reconstructs a disclosure marker from the
+ * already-captured summary. Missing protocol facts fail closed. Frozen
+ * planar wrappers read the same fragment in their verified neutral source
+ * plane. The renderer never reconstructs a disclosure marker from the
  * details/summary border boxes.
  */
 
 import type { CDPSession, Page } from "@playwright/test";
 import { withCdpSession } from "./cdp-lifecycle.js";
+import { withVerifiedFrozenTransformPlane, type FrozenTransformOwner } from "./frozen-transform-neutralizer.js";
+import { rootHasAuthorShadowContext } from "./inset-root-shadow-context.js";
 
 import type { CapturedElement, CaptureWarning } from "./types.js";
 
@@ -41,16 +44,29 @@ interface MarkerStyleFact {
   writingMode: string;
   direction: string;
   transformed: boolean;
+  nativeDisclosure: boolean;
 }
 
 const FEATURE = "summary-disclosure-marker-geometry";
 
-function summaries(nodes: CapturedElement[]): CapturedElement[] {
-  const result: CapturedElement[] = [];
+function summaries(nodes: CapturedElement[]) {
+  const result: Array<{
+    element: CapturedElement;
+    sourceNodeIndex: number;
+    frozenOwners?: FrozenTransformOwner[];
+  }> = [];
   const visit = (items: CapturedElement[]): void => {
-    for (const item of items) {
-      if (item.tag === "summary" && item._summaryMarkerSourceNodeIndex != null) result.push(item);
-      if (item.children != null) visit(item.children);
+    for (const element of items) {
+      if (element.tag === "summary" && element._summaryMarkerSourceNodeIndex != null) {
+        result.push({
+          element,
+          sourceNodeIndex: element._summaryMarkerSourceNodeIndex,
+          frozenOwners: element._summaryMarkerFrozenOwners,
+        });
+        delete element._summaryMarkerSourceNodeIndex;
+        delete element._summaryMarkerFrozenOwners;
+      }
+      if (element.children != null) visit(element.children);
     }
   };
   visit(nodes);
@@ -158,6 +174,10 @@ async function markerStyle(page: Page, key: string, index: number): Promise<Mark
           writingMode: marker.writingMode,
           direction: marker.direction,
           transformed,
+          nativeDisclosure:
+            marker.content === "normal" &&
+            style.listStyleImage === "none" &&
+            (style.listStyleType === "disclosure-open" || style.listStyleType === "disclosure-closed"),
         };
       },
       { key, index },
@@ -169,7 +189,7 @@ async function resolveMarkerNode(
   session: CDPSession,
   key: string,
   index: number,
-): Promise<{ objectId?: string; marker?: CdpNode }> {
+): Promise<{ objectId?: string; host?: CdpNode; marker?: CdpNode }> {
   const evaluated = await session.send("Runtime.evaluate", {
     expression: `globalThis[${JSON.stringify(key)}]?.[${index}]`,
     returnByValue: false,
@@ -179,7 +199,7 @@ async function resolveMarkerNode(
   if (objectId == null) return {};
   const described = await session.send("DOM.describeNode", { objectId, depth: 1, pierce: true });
   const host = described.node as CdpNode;
-  return { objectId, marker: host.pseudoElements?.find((node) => node.pseudoType === "marker") };
+  return { objectId, host, marker: host.pseudoElements?.find((node) => node.pseudoType === "marker") };
 }
 
 /** Attach exact live Blink marker facts and delete private correlation fields. */
@@ -193,8 +213,7 @@ export async function captureSummaryMarkerGeometry(
   const candidates = summaries(tree);
   if (candidates.length === 0) return;
   if (sourceNodeKey == null || sourceNodeKey === "") {
-    for (const candidate of candidates) {
-      delete candidate._summaryMarkerSourceNodeIndex;
+    for (const _candidate of candidates) {
       warnings.push({
         selector: "summary",
         feature: FEATURE,
@@ -207,16 +226,16 @@ export async function captureSummaryMarkerGeometry(
   try {
     await withCdpSession(page, async (session) => {
       await Promise.all([session.send("DOM.enable"), session.send("Runtime.enable")]);
-      await session.send("DOM.getDocument", { depth: -1, pierce: true });
-      const snapshot: SnapshotResult = await session.send("DOMSnapshot.captureSnapshot", {
-        computedStyles: [],
-        includeDOMRects: true,
-        includePaintOrder: true,
-      });
-      for (const candidate of candidates) {
-        const index = candidate._summaryMarkerSourceNodeIndex!;
-        delete candidate._summaryMarkerSourceNodeIndex;
-        const style = await markerStyle(page, sourceNodeKey, index);
+      const { root } = await session.send("DOM.getDocument", { depth: -1, pierce: true });
+      const snapshot = (): Promise<SnapshotResult> =>
+        session.send("DOMSnapshot.captureSnapshot", {
+          computedStyles: [],
+          includeDOMRects: true,
+          includePaintOrder: true,
+        });
+      const liveSnapshot = await snapshot();
+      for (const { element, sourceNodeIndex, frozenOwners } of candidates) {
+        const style = await markerStyle(page, sourceNodeKey, sourceNodeIndex);
         if (style == null) {
           warnings.push({
             selector: "summary",
@@ -226,7 +245,7 @@ export async function captureSummaryMarkerGeometry(
           continue;
         }
         if (style.suppressed) continue;
-        if (style.transformed) {
+        if (style.transformed && (frozenOwners == null || !style.nativeDisclosure)) {
           warnings.push({
             selector: "summary",
             feature: FEATURE,
@@ -237,15 +256,64 @@ export async function captureSummaryMarkerGeometry(
         }
         let objectId: string | undefined;
         try {
-          const resolved = await resolveMarkerNode(session, sourceNodeKey, index);
+          const resolved = await resolveMarkerNode(session, sourceNodeKey, sourceNodeIndex);
           objectId = resolved.objectId;
-          if (resolved.marker == null) throw new Error("Chromium marker pseudo node missing");
-          const quads = await session.send("DOM.getContentQuads", { backendNodeId: resolved.marker.backendNodeId });
-          const contentRect = quads.quads.length === 1 ? axisAlignedRect(quads.quads[0], viewport) : null;
-          if (contentRect == null) throw new Error("Chromium marker did not expose one axis-aligned content quad");
-          const fragmentRect = markerPaintFragmentRect(snapshot, resolved.marker.backendNodeId, viewport);
-          if (fragmentRect == null) throw new Error("Chromium marker did not expose one authoritative paint fragment");
-          candidate.summaryMarkerGeometry = {
+          if (resolved.marker == null || resolved.host == null) throw new Error("Chromium marker pseudo node missing");
+          const markerBackend = resolved.marker.backendNodeId;
+          const sampleFragment = async (snapshotForPlane: SnapshotResult) => {
+            const quads = await session.send("DOM.getContentQuads", { backendNodeId: markerBackend });
+            const contentRect = quads.quads.length === 1 ? axisAlignedRect(quads.quads[0], viewport) : null;
+            if (contentRect == null) throw new Error("Chromium marker did not expose one axis-aligned content quad");
+            const fragmentRect = markerPaintFragmentRect(snapshotForPlane, markerBackend, viewport);
+            if (fragmentRect == null)
+              throw new Error("Chromium marker did not expose one authoritative paint fragment");
+            return fragmentRect;
+          };
+          let fragmentRect;
+          if (style.transformed && frozenOwners != null) {
+            const backend = resolved.host.backendNodeId;
+            if (rootHasAuthorShadowContext(root, backend) !== false)
+              throw new Error("frozen marker has unavailable or changed author-shadow context");
+            fragmentRect = await withVerifiedFrozenTransformPlane(
+              page,
+              {
+                sourceNodeKey,
+                index: sourceNodeIndex,
+                owners: frozenOwners,
+                sourceBox: {
+                  x: element.x + viewport.x,
+                  y: element.y + viewport.y,
+                  width: element.width,
+                  height: element.height,
+                },
+              },
+              async () => {
+                if (JSON.stringify(await markerStyle(page, sourceNodeKey, sourceNodeIndex)) !== JSON.stringify(style))
+                  throw new Error("neutral marker style differs from the source marker");
+                return sampleFragment(await snapshot());
+              },
+            );
+            const { node: restored } = await session.send("DOM.describeNode", {
+              backendNodeId: root.backendNodeId,
+              depth: -1,
+              pierce: true,
+            });
+            const sameMarker = await session.send("DOM.describeNode", {
+              backendNodeId: backend,
+              depth: 1,
+              pierce: true,
+            });
+            const restoredMarker = sameMarker.node.pseudoElements?.find((node) => node.pseudoType === "marker");
+            if (
+              rootHasAuthorShadowContext(restored, backend) !== false ||
+              restoredMarker?.backendNodeId !== markerBackend ||
+              JSON.stringify(await markerStyle(page, sourceNodeKey, sourceNodeIndex)) !== JSON.stringify(style)
+            )
+              throw new Error("frozen marker source changed during capture");
+          } else {
+            fragmentRect = await sampleFragment(liveSnapshot);
+          }
+          element.summaryMarkerGeometry = {
             source: "blink-list-marker-v1",
             fragmentRect,
             fontAscent: style.fontAscent,
@@ -269,8 +337,7 @@ export async function captureSummaryMarkerGeometry(
       }
     });
   } catch (error) {
-    for (const candidate of candidates) {
-      delete candidate._summaryMarkerSourceNodeIndex;
+    for (const _candidate of candidates) {
       warnings.push({
         selector: "summary",
         feature: FEATURE,

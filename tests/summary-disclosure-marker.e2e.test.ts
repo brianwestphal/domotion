@@ -1,4 +1,5 @@
-import { afterAll, describe, expect, it } from "vitest";
+import type { CDPSession } from "@playwright/test";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 
 import {
@@ -241,4 +242,228 @@ describeBrowser("source-owned summary disclosure marker (DM-2457)", () => {
       }
     }, 60_000);
   }
+});
+
+const frozenViewport = { x: 0, y: 0, width: 280, height: 220 };
+const markerFixture = ({
+  outer = "",
+  inner = "",
+  summary = "",
+  open = false,
+  nested = false,
+}: {
+  outer?: string;
+  inner?: string;
+  summary?: string;
+  open?: boolean;
+  nested?: boolean;
+} = {}) => `<!doctype html><style>
+  html,body{margin:0;width:100%;height:100%;background:white}
+  #outer{position:absolute;left:63px;top:51px;transform-origin:top left;${outer ? `transform:${outer}` : ""}}
+  #inner{margin:13px 0 0 7px;transform-origin:top left;${inner ? `transform:${inner}` : ""}}
+  summary{font:27px/33px Arial;color:#842070;transform-origin:top left;${summary ? `transform:${summary}` : ""}}
+  span{visibility:hidden}
+</style><div id="outer"><details id="detail" ${open || nested ? "open" : ""}><summary><span>Marker</span></summary>${
+  nested ? '<div id="inner"><details><summary><span>Child</span></summary></details></div>' : ""
+}</details></div>`;
+
+const markerRecords = (tree: CapturedElement[]) =>
+  flatten(tree)
+    .filter((node) => node.tag === "summary")
+    .map((node) => node.summaryMarkerGeometry);
+
+const markerPixels = async (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer();
+
+describeBrowser("frozen source disclosure marker (DM-9QRMAG)", () => {
+  for (const dpr of [1, 2]) {
+    it(`retains open, closed, nested and own-wrapper native marker paint at DPR ${dpr}`, async () => {
+      const context = await env.browser.newContext({ viewport: frozenViewport, deviceScaleFactor: dpr });
+      try {
+        const source = await context.newPage();
+        const neutral = await context.newPage();
+        const generated = await context.newPage();
+        const cases: Array<NonNullable<Parameters<typeof markerFixture>[0]> & { id: string; rotated?: boolean }> = [
+          { id: "identity" },
+          { id: "fractional translate", outer: "translate(10.5px,10px)" },
+          { id: "open scale", outer: "scale(1.2)", open: true },
+          { id: "closed rotation", outer: "rotate(5deg)", rotated: true },
+          {
+            id: "nested open and closed",
+            outer: "translate(7.5px,2px) rotate(5deg)",
+            inner: "scale(1.2)",
+            nested: true,
+            rotated: true,
+          },
+          { id: "own wrapper", summary: "scale(1.2)", open: true },
+        ];
+        for (const fixture of cases) {
+          const witness = `${fixture.id} DPR ${dpr}`;
+          await source.setContent(markerFixture(fixture));
+          await neutral.setContent(markerFixture({ open: fixture.open, nested: fixture.nested }));
+          const before = await source.content();
+          const expectedPng = await source.screenshot();
+          const expected = await markerPixels(expectedPng);
+          const capture = await captureElementTreeWithWarnings(source, "body", frozenViewport);
+          const reference = await captureElementTreeWithWarnings(neutral, "body", frozenViewport);
+          expect(
+            capture.warnings.filter(({ feature }) => feature === "summary-disclosure-marker-geometry"),
+            witness,
+          ).toEqual([]);
+          const actualMarkers = markerRecords(capture.tree);
+          const referenceMarkers = markerRecords(reference.tree);
+          expect(
+            actualMarkers.map((marker) => marker?.listStyleType),
+            witness,
+          ).toEqual(
+            fixture.nested
+              ? ["disclosure-open", "disclosure-closed"]
+              : fixture.open
+                ? ["disclosure-open"]
+                : ["disclosure-closed"],
+          );
+          expect(actualMarkers, witness).toEqual(referenceMarkers);
+          expect(
+            flatten(capture.tree).some((node) => "_summaryMarkerFrozenOwners" in node),
+            witness,
+          ).toBe(false);
+          expect(await source.content(), witness).toBe(before);
+          expect((await markerPixels(await source.screenshot())).equals(expected), witness).toBe(true);
+
+          const svg = elementTreeToSvg(capture.tree, frozenViewport.width, frozenViewport.height);
+          expect([...svg.matchAll(/<polygon /g)], witness).toHaveLength(actualMarkers.length);
+          await generated.setContent(`<style>html,body{margin:0;background:white}</style>${svg}`);
+          const actualPng = await generated.screenshot();
+          const actual = await markerPixels(actualPng);
+          if (dpr === 2) {
+            // Match the established native bounds/area oracle at DPR 2, where
+            // even the identity marker has a shape-rasterization difference.
+            const [browserInk, svgInk] = await Promise.all([
+              inkBounds(expectedPng, dpr, frozenViewport, [132, 32, 112]),
+              inkBounds(actualPng, dpr, frozenViewport, [132, 32, 112]),
+            ]);
+            expect(browserInk.count, witness).toBeGreaterThan(30);
+            expect(svgInk.count, witness).toBeGreaterThan(30);
+            for (const edge of ["left", "top", "right", "bottom"] as const)
+              expect(Math.abs(svgInk[edge] - browserInk[edge]), `${witness} ${edge}`).toBeLessThanOrEqual(1);
+            expect(Math.abs(svgInk.count - browserInk.count), witness).toBeLessThanOrEqual(
+              Math.max(8, Math.ceil(browserInk.count * 0.08)),
+            );
+          } else if (!fixture.rotated) {
+            expect(actual.equals(expected), witness).toBe(true);
+          } else {
+            // The two Chromium paths use different antialiasing for fractional
+            // rotated edges. A pixel of missing marker ink exceeds this bound.
+            let maxDelta = 0;
+            for (let i = 0; i < expected.length; i++) maxDelta = Math.max(maxDelta, Math.abs(actual[i] - expected[i]));
+            expect(maxDelta, witness).toBeLessThanOrEqual(16);
+          }
+        }
+      } finally {
+        await context.close();
+      }
+    }, 60_000);
+  }
+
+  it("preserves captured paint ownership and the original held transform", async () => {
+    const context = await env.browser.newContext({ viewport: frozenViewport });
+    try {
+      const source = await context.newPage();
+      await source.setContent(markerFixture({ outer: "scale(1.2)" }));
+      const selected = await captureElementTreeWithWarnings(source, "#detail", frozenViewport);
+      expect(markerRecords(selected.tree)).toEqual([undefined]);
+      expect(selected.warnings.some(({ detail }) => detail.includes("transformed ancestor"))).toBe(true);
+
+      await source.setContent(markerFixture({ outer: "rotate(5deg)" }));
+      const readState = () =>
+        source.locator("#outer").evaluate((owner) => ({
+          style: owner.getAttribute("style"),
+          matrix: getComputedStyle(owner).transform,
+          animations: owner.getAnimations().map((animation) => ({
+            state: animation.playState,
+            time: animation.currentTime,
+            target: (animation.effect as KeyframeEffect).target === owner,
+          })),
+        }));
+      await source.locator("#outer").evaluate((owner) => {
+        const animation = owner.animate([{ transform: "rotate(5deg)" }, { transform: "rotate(20deg)" }], {
+          duration: 1000,
+          fill: "both",
+        });
+        animation.pause();
+        animation.currentTime = 400;
+      });
+      const held = await readState();
+      const original = await source.screenshot();
+      const animated = await captureElementTreeWithWarnings(source, "body", frozenViewport);
+      expect(markerRecords(animated.tree)).toEqual([undefined]);
+      expect(animated.warnings.some(({ detail }) => detail.includes("differs from the captured frozen wrappers"))).toBe(
+        true,
+      );
+      expect(await readState()).toEqual(held);
+      expect((await source.screenshot()).equals(original)).toBe(true);
+
+      await source.setContent(markerFixture({ outer: "rotate(5deg)" }));
+      await source.locator("#outer").evaluate((owner) => {
+        owner.attachShadow({ mode: "closed" }).innerHTML = '<div style="margin-left:13px"><slot></slot></div>';
+      });
+      const slotted = await captureElementTreeWithWarnings(source, "body", frozenViewport);
+      expect(markerRecords(slotted.tree)).toEqual([undefined]);
+      expect(slotted.warnings.some(({ detail }) => detail.includes("author-shadow context"))).toBe(true);
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
+
+  it("restores the frozen source after a native marker snapshot is refused", async () => {
+    const context = await env.browser.newContext({ viewport: frozenViewport });
+    try {
+      const source = await context.newPage();
+      await source.setContent(markerFixture({ outer: "scale(1.2)" }));
+      const before = await source.content();
+      const expected = await source.screenshot();
+      const readTransaction = () =>
+        source.locator("#outer").evaluate((outer) => ({
+          active: Object.getOwnPropertyNames(globalThis).some((key) =>
+            key.startsWith("__domotionVerifiedFrozenTransformPlane_"),
+          ),
+          transform: getComputedStyle(outer).transform,
+          animations: outer.getAnimations().length,
+        }));
+      const original = await readTransaction();
+      const newSession = context.newCDPSession.bind(context);
+      const interruptions: Array<Awaited<ReturnType<typeof readTransaction>>> = [];
+      const spy = vi.spyOn(context, "newCDPSession").mockImplementation(async (target) => {
+        const session = await newSession(target);
+        const send = session.send.bind(session);
+        session.send = (async (method: string, params?: object) => {
+          if (method === "DOMSnapshot.captureSnapshot") {
+            const state = await readTransaction();
+            if (state.active) {
+              interruptions.push(state);
+              throw new Error("controlled neutral marker snapshot refusal");
+            }
+          }
+          return Reflect.apply(send, session, [method, params]);
+        }) as CDPSession["send"];
+        return session;
+      });
+      try {
+        const refused = await captureElementTreeWithWarnings(source, "body", frozenViewport);
+        expect(interruptions).toEqual([{ active: true, transform: "matrix(1, 0, 0, 1, 0, 0)", animations: 1 }]);
+        expect(markerRecords(refused.tree)).toEqual([undefined]);
+        expect(
+          refused.warnings.some(({ detail }) => detail.includes("controlled neutral marker snapshot refusal")),
+        ).toBe(true);
+        expect(await readTransaction()).toEqual(original);
+        expect(await source.content()).toBe(before);
+        expect((await source.screenshot()).equals(expected)).toBe(true);
+      } finally {
+        spy.mockRestore();
+      }
+      const retried = await captureElementTreeWithWarnings(source, "body", frozenViewport);
+      expect(markerRecords(retried.tree).map((marker) => marker?.listStyleType)).toEqual(["disclosure-closed"]);
+    } finally {
+      await context.close();
+    }
+  }, 30_000);
 });

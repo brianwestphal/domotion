@@ -52,11 +52,22 @@ six CSS pixels above the paint fragment in the focused row.
 ## Capture and paint contract
 
 `src/capture/summary-marker-cdp.ts` attaches `summaryMarkerGeometry` only for an
-unsuppressed, untransformed Chromium marker with one pseudo node, one content
+unsuppressed Chromium marker on an authenticated capture plane with one pseudo node, one content
 quad, and one authoritative paint-fragment row. The record contains the source
 fragment rectangle, primary-font ascent, specified font size, cumulative zoom,
 color, list type/position, writing mode, and direction. Missing or ambiguous
 protocol facts warn and omit disclosure paint; there is no details-box fallback.
+
+DM-9QRMAG also accepts a default disclosure marker inside a static frozen
+planar transform. The capture walk retains the source Elements and computed
+transform values for its emitted wrappers. The marker pass checks those same
+Elements, including the summary's own wrapper when present, in the pierced
+Chromium source. It holds just that chain at identity while reading the local
+fragment and checks the summary box against the capture walk's plane. After
+sampling, it restores the original transforms and checks the live marker
+identity, style, geometry, and animation state. The same SVG wrapper stack
+transforms the local marker exactly once. Unrepresented, animated, and
+author-shadow transform paths preserve the existing authority warning.
 
 `src/render/element-tree-to-svg.ts` admits a summary to the generic marker route
 only when that record exists. `src/render/list-marker-geometry.ts` transcribes
@@ -78,7 +89,10 @@ separate generated-content concern.
 the generated SVG at DPR 1 and 2. Its rows cover open/closed, nested and
 exclusive details, marker font/color, inside/outside, LTR/RTL, horizontal,
 vertical-rl, vertical-lr, sideways-rl/lr, mixed line heights, fractional
-origins, zoom, and suppression/replacement controls. Physical ink edges may
+origins, zoom, and suppression/replacement controls. The frozen lanes compare
+translations, scale, rotation, nested open and closed details, and the
+summary's own transform at both DPRs. A controlled Chromium snapshot refusal
+checks the original source and cleanup during a failed neutral measurement. Physical ink edges may
 differ by at most one device pixel; the small-triangle area check permits eight
 device pixels or 8%, whichever is larger, to account for a single quantized
 antialias boundary row.

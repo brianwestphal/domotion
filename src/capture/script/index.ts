@@ -214,11 +214,12 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     effectiveZoomFor: (el) => _effectiveZoomFor(el),
     physicalComputedGradientImage,
   });
-  const { wrapWithFrozenTransform, threadFrozenTransform, liveTextInverseFor } = createTransformsHandler(
-    vp,
-    readOnlyLiveTextScope(document.documentElement),
-    args.authorShadowContexts?.liveAffineBoxes,
-  );
+  const { wrapWithFrozenTransform, threadFrozenTransform, liveTextInverseFor, frozenTransformOwnersFor } =
+    createTransformsHandler(
+      vp,
+      readOnlyLiveTextScope(document.documentElement),
+      args.authorShadowContexts?.liveAffineBoxes,
+    );
   const _collapsedBorderFragmentByTable = buildCollapsedBorderFragmentLookup(args);
   const { captureBordersBackgrounds, isTableCellHiddenByEmptyCells } = createBordersBackgroundsHandler({
     normColor,
@@ -397,6 +398,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     warn,
     shortSelector,
     wrapWithFrozenTransform,
+    frozenTransformOwnersFor,
     textPaintFactFor,
     textPaintSourceKeyFor,
     pseudoFragmentFactsFor,
