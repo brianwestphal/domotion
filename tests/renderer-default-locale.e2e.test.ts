@@ -11,7 +11,8 @@ import { fontSelectionLanguage } from "../src/capture/font-locale.js";
 import { rendererDefaultLocaleForPage } from "../src/capture/renderer-default-locale.js";
 import { capturedFontFamilyCss } from "../src/font-family-stack.js";
 import { getFontInstance, resolveFontKey, withRenderTextMode } from "../src/render/font-resolution.js";
-import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
+import { capturedSessionGenericFamilies, elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
+import { withTextEngineDocument } from "../src/render/text-engine.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 import { linuxApplicationLocale } from "../src/test-support/linux-application-locale.js";
 
@@ -87,6 +88,19 @@ describe("renderer default font locale (DM-JRG1BD)", () => {
       const expected = process.platform === "linux" ? await linuxApplicationLocale(browser, env) : macWin;
       const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
       await page.setContent(html);
+      if (process.platform === "darwin" && expected === "en-US") {
+        // Exercise the Chromium-default font table that a browser preference
+        // push can restore on the hosted runner (doc 198, DM-B3VN3X).
+        const cdp = await page.context().newCDPSession(page);
+        try {
+          await cdp.send("Page.captureScreenshot", {
+            clip: { x: 0, y: 0, width: 100, height: H + 200, scale: 1 },
+            captureBeyondViewport: true,
+          });
+        } finally {
+          await cdp.detach();
+        }
+      }
       const authority = await rendererDefaultLocaleForPage(page);
       const source = await screenshotAfterPresentedFrame(page);
       const nativeFonts = Object.fromEntries(
@@ -94,22 +108,26 @@ describe("renderer default font locale (DM-JRG1BD)", () => {
       );
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: W, height: H });
       const elements = flat(capture.tree);
-      const routes = ids.map((id) => {
-        const styles = elements.find((el) => el.text.trim().endsWith(`刃 ${id}`))?.styles;
-        if (styles == null) return { id };
-        const language = fontSelectionLanguage(styles);
-        const key = resolveFontKey(capturedFontFamilyCss(styles.fontFamily, styles.fontFamilyStack), language);
-        return {
-          id,
-          family: styles.fontFamily,
-          stack: styles.fontFamilyStack,
-          fontLocale: styles.fontLocale,
-          defaultFontLocale: styles.defaultFontLocale,
-          language,
-          key,
-          resolvedPostScriptName: getFontInstance(key, 400, 32)?.postscriptName,
-        };
-      });
+      const routes = withTextEngineDocument(
+        { genericFamilies: capturedSessionGenericFamilies(capture.tree), generation: "continue" },
+        () =>
+          ids.map((id) => {
+            const styles = elements.find((el) => el.text.trim().endsWith(`刃 ${id}`))?.styles;
+            if (styles == null) return { id };
+            const language = fontSelectionLanguage(styles);
+            const key = resolveFontKey(capturedFontFamilyCss(styles.fontFamily, styles.fontFamilyStack), language);
+            return {
+              id,
+              family: styles.fontFamily,
+              stack: styles.fontFamilyStack,
+              fontLocale: styles.fontLocale,
+              defaultFontLocale: styles.defaultFontLocale,
+              language,
+              key,
+              resolvedPostScriptName: getFontInstance(key, 400, 32)?.postscriptName,
+            };
+          }),
+      ).value;
       const observedFamilies = await page
         .locator("p")
         .evaluateAll((paragraphs) => Object.fromEntries(paragraphs.map((p) => [p.id, getComputedStyle(p).fontFamily])));
@@ -124,6 +142,7 @@ describe("renderer default font locale (DM-JRG1BD)", () => {
         authority,
         observedFamilies,
         nativeFonts,
+        capturedGenericFamilies: capture.tree[0]?.sessionGenericFamilies,
         routes,
         warnings: capture.warnings,
       };
