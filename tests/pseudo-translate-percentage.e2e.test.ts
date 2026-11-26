@@ -19,8 +19,8 @@ import { forEachElement } from "../src/tree-ops/for-each-element.js";
 const W = 120;
 const H = 80;
 const viewport = { x: 0, y: 0, width: W, height: H };
-const html = (box: string) =>
-  `<style>body{margin:0;background:white}#h{position:relative;left:40px;top:10px;width:60px;height:40px}#h::before{content:"";display:block;background:rgb(200,0,0);${box}}</style><div id=h></div>`;
+const html = (box: string, host = "") =>
+  `<style>body{margin:0;background:white}#h{position:relative;left:40px;top:10px;width:60px;height:40px;${host}}#h::before{content:"";display:block;background:rgb(200,0,0);${box}}</style><div id=h></div>`;
 
 let browser: Browser;
 let page: Page;
@@ -47,6 +47,13 @@ const diff = (a: Buffer, b: Buffer) => {
 const render = async (tree: CapturedElement[]) => {
   await generated.setContent(`<style>html,body{margin:0;background:white}</style>${elementTreeToSvg(tree, W, H)}`);
   return rgbaPixels(await generated.screenshot());
+};
+const captureCompatibilityTree = async () => {
+  const args = { selector: "body", viewport } satisfies Partial<CaptureScriptArgs>;
+  const { tree } = (await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(args)})`)) as {
+    tree: CapturedElement[];
+  };
+  return tree;
 };
 const pseudoBoxes = (tree: CapturedElement[]) => {
   const boxes: NonNullable<CapturedElement["pseudoBoxes"]> = [];
@@ -79,10 +86,7 @@ describe("generated pseudo translate percentages (DM-6PRMHN)", () => {
     async (_name, box, tx) => {
       await page.setContent(html(box));
       const expected = await rgbaPixels(await page.screenshot());
-      const args = { selector: "body", viewport } satisfies Partial<CaptureScriptArgs>;
-      const { tree } = (await page.evaluate(`(${CAPTURE_SCRIPT})(${JSON.stringify(args)})`)) as {
-        tree: CapturedElement[];
-      };
+      const tree = await captureCompatibilityTree();
       const boxes = pseudoBoxes(tree);
       expect(boxes).toHaveLength(1);
       const ty = box.includes("translate:0 50%") ? 10 : 0;
@@ -90,10 +94,6 @@ describe("generated pseudo translate percentages (DM-6PRMHN)", () => {
       expect([a, b, c, d]).toEqual([1, 0, 0, 1]);
       expect(e).toBeCloseTo(tx, 6);
       expect(f).toBeCloseTo(ty, 6);
-      // The compatibility walk double-counts padding on a border-box pseudo
-      // (a sizing defect independent of the transform, tracked as
-      // DM-5HZWNS), so that case pins the resolved translation only.
-      if (box.startsWith("box-sizing:border-box")) return;
       expect(diff(expected, await render(tree))).toBe(0);
       // Negative control: the reference-box-free answer (every percentage
       // against zero) leaves the box at its untransformed position.
@@ -116,4 +116,39 @@ describe("generated pseudo translate percentages (DM-6PRMHN)", () => {
     },
     60_000,
   );
+});
+
+describe("compatibility pseudo box sizing (DM-5HZWNS)", () => {
+  it.each([
+    {
+      name: "a static padded block",
+      box: "box-sizing:border-box;width:40px;height:40px;padding:6px",
+      rect: { x: 40, y: 10, width: 40, height: 40 },
+    },
+    {
+      name: "a right and bottom anchored RTL box with padding and border",
+      host: "direction:rtl",
+      box: "box-sizing:border-box;position:absolute;right:4px;bottom:2px;width:40px;height:30px;padding:5px 6px;border:2px solid blue",
+      rect: { x: 56, y: 18, width: 40, height: 30 },
+    },
+    {
+      name: "a bottom-aligned padded inline-block",
+      host: "font-size:0;line-height:20px",
+      box: "box-sizing:border-box;display:inline-block;vertical-align:bottom;width:24px;height:14px;padding:2px;border:1px solid blue",
+      rect: { x: 40, y: 16, width: 24, height: 14 },
+    },
+    {
+      name: "padding and borders larger than the specified size",
+      box: "box-sizing:border-box;width:4px;height:3px;padding:6px;border:3px solid blue",
+      rect: { x: 40, y: 10, width: 18, height: 18 },
+    },
+  ])("captures $name at the native border box", async ({ box, host, rect }) => {
+    await page.setContent(`<!doctype html>${html(box, host)}`);
+    const expected = await rgbaPixels(await page.screenshot());
+    const tree = await captureCompatibilityTree();
+    const boxes = pseudoBoxes(tree);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]).toMatchObject(rect);
+    expect((await render(tree)).equals(expected)).toBe(true);
+  });
 });

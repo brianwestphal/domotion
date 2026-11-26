@@ -347,16 +347,17 @@ export const captureEmptyPseudoBox = (
     const pPadR = rawPadding.right * zoom;
     const pPadT = rawPadding.top * zoom;
     const pPadB = rawPadding.bottom * zoom;
-    // Pseudo width / height come from computed style. `width: 350px`
-    // resolves directly; `auto` falls back to host content width
-    // (minus host padding).
+    // Blink's UsedBoxSize gives laid-out border-box pseudos their full border
+    // dimensions. The compatibility fallback for unresolved sizes starts at
+    // the content box, so it still needs the padding and borders.
     const hostContentW = rect.width - hostBorL - hostBorR - hostPadL - physicalNumber(el, cs.paddingRight);
     const pcsW = parseFloat(pcs.width);
     const pcsH = parseFloat(pcs.height);
-    const contentW = !isNaN(pcsW) ? pcsW * zoom : hostContentW - pMarL - physicalNumber(el, pcs.marginRight);
-    const contentH = !isNaN(pcsH) ? pcsH * zoom : 0;
-    const borderBoxW = contentW + pPadL + pPadR + bwL + bwR;
-    const borderBoxH = contentH + pPadT + pPadB + bwT + bwB;
+    const width = !isNaN(pcsW) ? pcsW * zoom : hostContentW - pMarL - physicalNumber(el, pcs.marginRight);
+    const height = !isNaN(pcsH) ? pcsH * zoom : 0;
+    const isBorderBox = pcs.boxSizing === "border-box";
+    const borderBoxW = width + (isBorderBox && !isNaN(pcsW) ? 0 : pPadL + pPadR + bwL + bwR);
+    const borderBoxH = height + (isBorderBox && !isNaN(pcsH) ? 0 : pPadT + pPadB + bwT + bwB);
 
     // Position: absolute pseudos use pcs.left / pcs.top relative to
     // the host's padding box (DM-594: speech-bubble tails). Static
@@ -622,7 +623,8 @@ const buildPseudoContentHandler = ({
   // font metrics + vertical-align semantics ourselves.
   const probePseudoStaticBoxRect = (el: Element, pseudo: string, pcs: CSSStyleDeclaration) => {
     const probe = document.createElement("span");
-    probe.style.cssText = "pointer-events:none;visibility:hidden;box-sizing:content-box";
+    probe.style.cssText = "pointer-events:none;visibility:hidden";
+    probe.style.boxSizing = pcs.boxSizing;
     probe.style.display = pcs.display;
     probe.style.width = pcs.width;
     probe.style.height = pcs.height;
@@ -662,7 +664,8 @@ const buildPseudoContentHandler = ({
   // pseudo paints to. Read its `getBoundingClientRect` directly.
   const probePseudoAbsoluteBoxRect = (el: Element, pseudo: string, pcs: CSSStyleDeclaration) => {
     const probe = document.createElement("div");
-    probe.style.cssText = "pointer-events:none;visibility:hidden;box-sizing:content-box;margin:0";
+    probe.style.cssText = "pointer-events:none;visibility:hidden;margin:0";
+    probe.style.boxSizing = pcs.boxSizing;
     probe.style.position = pcs.position;
     probe.style.top = pcs.top;
     probe.style.right = pcs.right;
