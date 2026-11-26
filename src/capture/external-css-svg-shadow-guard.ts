@@ -40,6 +40,87 @@ export function authorTopology(root: TreeNode, ownerBackend: number | undefined)
   return { owners, roots };
 }
 
+/** Collect actual CSS owners in main-document author scopes which a document
+ * selector cannot reach. Resolve only this document's backend roots in their
+ * own page world. Embedded documents retain the existing raster boundary. */
+export async function discoverExternalCssShadowTargets(page: Page, identity: { key: string; token: string }) {
+  let session: CDPSession | undefined;
+  let closed = false;
+  const discover = async () => {
+    const active = await page.context().newCDPSession(page);
+    if (closed) {
+      await active.detach();
+      return;
+    }
+    session = active;
+    const { root } = await active.send("DOM.getDocument", { depth: -1, pierce: true });
+    const roots: number[] = [];
+    visitPiercedNodes(root, ({ node, document, shadow }) => {
+      if (document !== root || node !== shadow || node.shadowRootType === "user-agent") return;
+      if (node.shadowRootType !== "open" && node.shadowRootType !== "closed")
+        throw new Error("external CSS shadow discovery has an unsupported tree scope");
+      roots.push(node.backendNodeId);
+    });
+    if (!roots.length) return;
+    const resolve = async (backendNodeId: number) => {
+      const { object } = await active.send("DOM.resolveNode", { backendNodeId });
+      if (object.objectId == null) throw new Error("external CSS shadow discovery identity unavailable");
+      return object.objectId;
+    };
+    const documentId = await resolve(root.backendNodeId);
+    const collect = function (this: Document, { key, token }: { key: string; token: string }, ...roots: ShadowRoot[]) {
+      const state = (globalThis as Record<string, unknown>)[key] as ExternalCssSvgJournal | undefined;
+      if (this !== document || state?.token !== token || new Set(roots).size !== roots.length)
+        throw new Error("external CSS shadow candidate document identity changed");
+      for (const root of roots) {
+        if (
+          !(root instanceof ShadowRoot) ||
+          root.ownerDocument !== this ||
+          root.host.getRootNode({ composed: true }) !== this
+        )
+          throw new Error("external CSS shadow candidate root identity changed");
+        for (const element of root.querySelectorAll("*")) {
+          if (!(element instanceof HTMLElement || element instanceof SVGElement)) continue;
+          const style = getComputedStyle(element);
+          for (const property of ["clip-path", "mask-image"] as const) {
+            const computed = style.getPropertyValue(property);
+            if (!/url\(/i.test(computed)) continue;
+            const shadowPath: Node[] = [];
+            for (
+              let node: Node | null = element;
+              node != null;
+              node = node instanceof ShadowRoot ? node.host : node.parentNode
+            )
+              shadowPath.push(node);
+            state.targets.push({ element, property, computed, references: [], shadowPath });
+          }
+        }
+      }
+      return true;
+    };
+    // Discovery also runs on pages without resource paint. Batch remote handles
+    // so a document with many idle custom elements can take its ordinary path.
+    for (let i = 0; i < roots.length; i += AUTHOR_ROOT_BUDGET) {
+      const ids = await Promise.all(roots.slice(i, i + AUTHOR_ROOT_BUDGET).map(resolve));
+      const result = await active.send("Runtime.callFunctionOn", {
+        objectId: documentId,
+        functionDeclaration: collect.toString(),
+        arguments: [{ value: identity }, ...ids.map((objectId) => ({ objectId }))],
+        returnByValue: true,
+        silent: true,
+      });
+      if (result.exceptionDetails || result.result.value !== true)
+        throw new Error("external CSS shadow candidate discovery failed");
+    }
+  };
+  try {
+    await bounded(discover(), 5000);
+  } finally {
+    closed = true;
+    if (session) await bounded(session.detach());
+  }
+}
+
 /** Registers the actual author roots in the private journal. `this` is the bound owner;
  * every argument after the identity is a ShadowRoot resolved from a backend node. */
 const registerAuthorRoots = `function(key, token, ownerToken, ...roots) {
@@ -190,6 +271,7 @@ export async function openCssSvgShadowGuard(
     session.on("DOM.shadowRootPopped", topologyChanged);
     session.on("DOM.childNodeInserted", topologyChanged);
     session.on("DOM.childNodeRemoved", topologyChanged);
+    session.on("DOM.distributedNodesUpdated", topologyChanged);
     await query(session.send("Runtime.enable"));
     await query(session.send("DOM.enable"));
     for (const candidate of defaults) {

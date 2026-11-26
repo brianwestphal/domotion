@@ -7,6 +7,7 @@ import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { primeExternalCssSvgReferences, type ExternalCssSvgJournal } from "../src/capture/external-css-svg.js";
 import { captureElementTreeWithWarnings } from "../src/capture/index.js";
+import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
 import type { CapturedElement } from "../src/capture/types.js";
 import { capturedTree } from "../src/test-support/captured-fixtures.js";
 import { freezeRealWorldDom } from "./real-world-dom-freeze.js";
@@ -26,11 +27,14 @@ beforeAll(async () => {
       response.end(sprite);
       return;
     }
-    const kind = new URL(request.url ?? "/", "http://fixture").searchParams.get("kind") === "mask" ? "mask" : "clip";
+    const params = new URL(request.url ?? "/", "http://fixture").searchParams;
+    const kind = params.get("kind") === "mask" ? "mask" : "clip";
+    const hostTag = params.has("custom") ? "x-css-host" : "div";
+    const ownerTag = params.has("custom") ? "x-css-owner" : "div";
     response.setHeader("content-type", "text/html");
-    response.setHeader("content-security-policy", "connect-src 'none'");
+    if (!params.has("readable")) response.setHeader("content-security-policy", "connect-src 'none'");
     response.end(
-      `<!doctype html><body style="margin:0;background:white"><div id="host" style="position:absolute;left:20px;top:20px;width:32px;height:32px"><div id="owner" style="width:32px;height:32px;background:red;${kind === "clip" ? "clip-path" : "mask-image"}:url(/sprite.svg#${kind})"></div></div><div id="foreign" style="position:absolute;left:68px;top:20px;width:16px;height:16px"></div>`,
+      `<!doctype html><body style="margin:0;background:white"><${hostTag} id="host" style="position:absolute;left:20px;top:20px;width:32px;height:32px"><${ownerTag} id="owner" style="${params.has("custom") ? "display:block;" : ""}width:32px;height:32px;background:red;${kind === "clip" ? "clip-path" : "mask-image"}:url(/sprite.svg#${kind})"></${ownerTag}></${hostTag}><div id="foreign" style="position:absolute;left:68px;top:20px;width:16px;height:16px"></div>`,
     );
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -71,9 +75,9 @@ async function pixels(page: Page) {
     .raw()
     .toBuffer();
 }
-async function pageFor(kind = "clip") {
+async function pageFor(kind = "clip", custom = false) {
   const page = await browser.newPage({ viewport: { width: 128, height: 96 } });
-  await page.goto(`${origin}/?kind=${kind}`);
+  await page.goto(`${origin}/?kind=${kind}${custom ? "&custom" : ""}`);
   return page;
 }
 async function prepared(page: Page) {
@@ -249,10 +253,11 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
       },
     },
     {
-      name: "an owner hosting an author root",
-      message: "owner hosts an author shadow tree",
+      name: "a hosted author descendant requiring backdrop compositing",
+      message: "requires backdrop compositing",
       setup: (mode) => {
-        document.getElementById("owner")!.attachShadow({ mode });
+        document.getElementById("owner")!.attachShadow({ mode }).innerHTML =
+          '<b style="display:block;width:16px;height:16px;background:blue;mix-blend-mode:multiply"></b>';
       },
     },
     {
@@ -290,13 +295,27 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
         }
       });
   /** The production capture's native raster for the owner, decoded. */
-  async function capturedRaster(page: Page) {
+  async function capturedRaster(page: Page, expectedPage?: Buffer, selector = "body") {
     await freezeRealWorldDom(page);
-    const result = await captureElementTreeWithWarnings(page, "body", viewport, {});
+    const result = await captureElementTreeWithWarnings(page, selector, viewport, {});
+    if (expectedPage) {
+      const rendered = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height } });
+      try {
+        await rendered.setContent(
+          `<body style="margin:0">${elementTreeToSvg(result.tree, viewport.width, viewport.height, {})}`,
+        );
+        expect((await pixels(rendered)).equals(expectedPage)).toBe(true);
+      } finally {
+        await rendered.close();
+      }
+    }
     const rasters: NonNullable<CapturedElement["externalCssSvgRaster"]>[] = [];
     const visit = (nodes: CapturedElement[]) => {
       for (const node of nodes) {
-        if (node.externalCssSvgRaster != null) rasters.push(node.externalCssSvgRaster);
+        if (node.externalCssSvgRaster != null) {
+          expect(node.replacedSnapshot).toBeUndefined();
+          rasters.push(node.externalCssSvgRaster);
+        }
         visit(node.children ?? []);
       }
     };
@@ -304,6 +323,188 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
     expect(rasters).toHaveLength(1);
     return rasterOf(capturedTree([{ tag: "div", externalCssSvgRaster: rasters[0] }]));
   }
+  for (const kind of ["clip", "mask"] as const)
+    for (const mode of ["open", "closed"] as const)
+      for (const placement of ["inside", "hosting"] as const)
+        it(`retains the exact ${kind} owner ${placement} ${mode === "open" ? "an open" : "a closed"} shadow tree through production capture`, async () => {
+          // Open custom hosts otherwise use the generic replaced-element surface.
+          // The CSS owner's surface must remain the only terminal raster.
+          const source = await pageFor(kind, kind === "clip");
+          const flat = await pageFor(kind, kind === "clip");
+          try {
+            for (const [page, shadow] of [
+              [source, true],
+              [flat, false],
+            ] as const) {
+              await page.evaluate(
+                ({ mode, placement, shadow }) => {
+                  const host = document.getElementById("host")!;
+                  const owner = document.getElementById("owner")!;
+                  const blue = document.createElement("b");
+                  blue.style.cssText = "position:absolute;left:3px;top:3px;width:5px;height:5px;background:blue";
+                  owner.append(blue);
+                  if (placement === "inside") {
+                    const branch = shadow ? host.attachShadow({ mode }) : host;
+                    branch.append(owner);
+                    const foreign = document.createElement("i");
+                    foreign.style.cssText = "position:absolute;left:48px;top:0;width:12px;height:12px;background:lime";
+                    branch.append(foreign);
+                  } else if (shadow) {
+                    const root = owner.attachShadow({ mode });
+                    blue.slot = "paint";
+                    root.innerHTML = '<slot name="paint"></slot>';
+                    const outsideFlatTree = document.createElement("i");
+                    outsideFlatTree.style.cssText =
+                      "position:absolute;left:48px;top:0;width:12px;height:12px;background:lime";
+                    owner.append(outsideFlatTree);
+                  }
+                },
+                { mode, placement, shadow },
+              );
+            }
+            const before = await pixels(source);
+            expect(before).toEqual(await pixels(flat));
+            const pixel = (x: number, y: number) => [...before.subarray((128 * y + x) * 3, (128 * y + x) * 3 + 3)];
+            expect(pixel(24, 24)).toEqual([0, 0, 255]);
+            expect(pixel(30, 24)).toEqual([255, 0, 0]);
+            expect(pixel(44, 24)).toEqual([255, 255, 255]);
+            if (placement === "inside") expect(pixel(70, 24)).toEqual([0, 255, 0]);
+            const expected = await capturedRaster(flat);
+            const actual = await capturedRaster(source, before);
+            expect(actual.rect).toEqual(expected.rect);
+            expect(actual.size).toEqual(expected.size);
+            expect(actual.data).toEqual(expected.data);
+            expect(await pixels(source)).toEqual(before);
+            evidence.push({
+              case: `production-${mode}-${placement}-${kind}`,
+              rasterSha256: actual.sha256,
+              flatRasterSha256: expected.sha256,
+              sourceUnchanged: true,
+            });
+          } finally {
+            await source.close();
+            await flat.close();
+          }
+        });
+  it.each(["open", "closed"] as const)(
+    "resolves native owner local definitions in the actual %s tree scope",
+    async (mode) => {
+      const flat = await pageFor();
+      const nested = await pageFor();
+      try {
+        for (const [page, shadow] of [
+          [flat, false],
+          [nested, true],
+        ] as const) {
+          await page.evaluate(
+            ({ mode, shadow }) => {
+              const owner = document.querySelector("#owner")!;
+              const host = document.querySelector("#host")!;
+              const scope = shadow ? host.attachShadow({ mode }) : host;
+              scope.append(owner);
+              const defs = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+              defs.style.cssText = "width:0;height:0;position:absolute";
+              defs.innerHTML =
+                '<defs><linearGradient id="local"><stop stop-color="blue"/><stop offset="1" stop-color="blue"/></linearGradient></defs>';
+              scope.append(defs);
+              owner.innerHTML = '<svg width="32" height="32"><rect width="8" height="32" fill="url(#local)"/></svg>';
+              if (shadow) {
+                const decoy = document.createElement("div");
+                decoy.id = "local";
+                document.body.append(decoy);
+              }
+            },
+            { mode, shadow },
+          );
+        }
+        const before = await pixels(nested);
+        expect(before).toEqual(await pixels(flat));
+        expect([...before.subarray((128 * 24 + 24) * 3, (128 * 24 + 24) * 3 + 3)]).toEqual([0, 0, 255]);
+        const expected = await capturedRaster(flat);
+        const actual = await capturedRaster(nested, before, "#host");
+        expect(actual.rect).toEqual(expected.rect);
+        expect(actual.data).toEqual(expected.data);
+        expect(await pixels(nested)).toEqual(before);
+        evidence.push({
+          case: `production-${mode}-tree-scoped-local-resource`,
+          rasterSha256: actual.sha256,
+          flatRasterSha256: expected.sha256,
+          sourceUnchanged: true,
+        });
+      } finally {
+        await flat.close();
+        await nested.close();
+      }
+    },
+  );
+
+  it("retains a readable document-scoped definition for an owner hosting a closed root", async () => {
+    const page = await pageFor();
+    try {
+      await page.goto(origin + "/?readable");
+      await page.evaluate(() =>
+        document.querySelector("#owner")!.attachShadow({ mode: "closed" }).append(document.createElement("b")),
+      );
+      const before = await pixels(page);
+      const prime = await primeExternalCssSvgReferences(page);
+      try {
+        const state = await page.evaluate((key) => {
+          const journal = (globalThis as Record<string, unknown>)[key] as ExternalCssSvgJournal;
+          return { clones: journal.clones.length, native: journal.rasterOwners.size };
+        }, prime.registryKey);
+        expect(state).toEqual({ clones: 1, native: 0 });
+        expect(await pixels(page)).toEqual(before);
+      } finally {
+        await prime.dispose();
+      }
+      expect(await pixels(page)).toEqual(before);
+    } finally {
+      await page.close();
+    }
+  });
+  it("allows more than the native isolation root budget on an ordinary page without resource owners", async () => {
+    const page = await pageFor();
+    try {
+      await page.setContent(
+        '<body style="margin:0"><b style="display:block;width:16px;height:16px;background:blue"></b>',
+      );
+      await page.evaluate(() => {
+        for (let i = 0; i < 257; i++)
+          document.body.appendChild(document.createElement("div")).attachShadow({ mode: "closed" });
+      });
+      const prime = await primeExternalCssSvgReferences(page);
+      try {
+        expect(await page.evaluate((key) => Object.hasOwn(globalThis, key), prime.registryKey)).toBe(false);
+      } finally {
+        await prime.dispose();
+      }
+    } finally {
+      await page.close();
+    }
+  });
+  it("refuses projected direct text whose physical source differs outside the captured owner", async () => {
+    const page = await pageFor();
+    try {
+      await page.evaluate(() => {
+        const host = document.querySelector("#host")!,
+          owner = document.querySelector("#owner")!;
+        const root = host.attachShadow({ mode: "closed" });
+        root.append(owner, "foreign text");
+      });
+      const before = await pixels(page);
+      const { prime, tree } = await prepared(page);
+      try {
+        await expect(prime.rasterize(tree, viewport)).rejects.toThrow("projected branch has unsupported direct text");
+        expect(tree[0].externalCssSvgRaster?.dataUri).toBeUndefined();
+      } finally {
+        await prime.dispose();
+      }
+      expect(await pixels(page)).toEqual(before);
+    } finally {
+      await page.close();
+    }
+  });
+
   for (const placement of ["slotted-painted", "foreign"] as const)
     it(`adopts the same native raster through production capture with a closed ${placement} root`, async () => {
       const flat = await pageFor();
@@ -375,6 +576,44 @@ describe("native CSS owner author-shadow guard (DM-CKS6JY)", () => {
         }
       });
     }
+  it("refuses a closed host's transient slot reassignment during readback", async () => {
+    const page = await pageFor();
+    try {
+      await page.evaluate(() => {
+        const owner = document.querySelector("#owner")!;
+        owner.attachShadow({ mode: "closed" }).innerHTML = '<slot name="paint"></slot>';
+        const paint = document.createElement("b");
+        paint.slot = "paint";
+        paint.id = "assigned-paint";
+        paint.style.cssText = "display:block;width:8px;height:8px;background:blue";
+        owner.append(paint);
+      });
+      const before = await pixels(page);
+      const { prime, tree } = await prepared(page);
+      const original = page.screenshot.bind(page);
+      const shot = vi.spyOn(page, "screenshot").mockImplementation(async (options) => {
+        await page.locator("#assigned-paint").evaluate(async (element) => {
+          element.slot = "other";
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          element.slot = "paint";
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        });
+        return original(options);
+      });
+      try {
+        await expect(prime.rasterize(tree, viewport)).rejects.toThrow(/shadow ownership changed|subtree changed/);
+        expect(tree[0].externalCssSvgRaster?.dataUri).toBeUndefined();
+      } finally {
+        shot.mockRestore();
+        await prime.dispose();
+      }
+      expect(await pixels(page)).toEqual(before);
+      evidence.push({ case: "transient-closed-slot-reassignment", refused: true, sourceUnchanged: true });
+    } finally {
+      await page.close();
+    }
+  });
+
   it("refuses unavailable public CDP coverage and restores the owned isolation", async () => {
     const page = await pageFor();
     try {

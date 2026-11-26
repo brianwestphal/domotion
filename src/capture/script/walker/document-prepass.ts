@@ -9,6 +9,7 @@
 // Every function owns only the state it returns; nothing is held at module
 // scope, so each capture call stays independent.
 
+import { externalCssSvgJournal } from "./external-css-svg-traversal.js";
 import { isPaintedColor } from "../../../utils/transparent-background.js";
 import { parseBoxShadow } from "../../../render/box-shadow.js";
 import { selectProjectiveRasterOwnerIndexes } from "../../projective-owner.js";
@@ -605,6 +606,7 @@ export const captureRootElements = (
   insetRootShadowContextKey?: string,
   pseudoFragmentFactsFor?: (el: Element) => CapturedElement["pseudoFragments"] | undefined,
   outlineContext?: AuthorShadowContextCapability,
+  externalCssSvgKey?: string,
 ) => {
   const result: CapturedElement[] = [];
   const rootCs = window.getComputedStyle(root);
@@ -613,7 +615,10 @@ export const captureRootElements = (
   // own content even when their CSS box has no background, border or text.
   // Admission must reach those existing producers; capture's visibility and
   // geometry gates still decide whether the selected owner is retained.
+  const cssOwners = externalCssSvgJournal(externalCssSvgKey);
   const rootHasContentPaint =
+    cssOwners?.rasterOwners.has(root) === true ||
+    cssOwners?.projectedChildren?.has(root) === true ||
     /^(?:img|svg|canvas|video|iframe|object|embed|input|textarea|select|button|progress|meter)$/.test(rootTag) ||
     (rootTag.indexOf("-") > 0 && root.shadowRoot != null);
   const rootHasBorder =

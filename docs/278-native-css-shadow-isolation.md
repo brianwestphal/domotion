@@ -5,7 +5,7 @@ kind: "investigation"
 status: "current"
 owners: ["images-media", "paint-effects"]
 platforms: ["macos", "linux", "windows"]
-tickets: ["DM-302BYE", "DM-M6VWFD", "DM-CKS6JY", "DM-JDJ0DP"]
+tickets: ["DM-302BYE", "DM-M6VWFD", "DM-CKS6JY", "DM-JDJ0DP", "DM-ST8D8V"]
 code:
   [
     "src/capture/external-css-svg.ts",
@@ -69,9 +69,8 @@ shadow event semantics; installed browser147 revision6b5a1b80 supplies the nativ
 controls. These are separately stated authorities, not an assertion that the
 two Chromium revisions are identical. The regression files retain ordinary
 CSP clip/mask positives and19 static/late-topology/identity/cleanup controls.
-The native frozen-resource CI profile reached 110 assertions after the
-per-scope author-shadow controls. The current floor is 115 after the
-DM-0A8SGG full-page verification controls.
+The six-file frozen-resource profile requires all 166 selected native assertions
+on Linux and Windows, including 47 author-shadow controls.
 
 ## Per-scope author-shadow isolation
 
@@ -99,9 +98,19 @@ still adopted and every page-visible open root to be registered. Restore removes
 each owned sheet by identity, reports a changed author list or mutated owned
 rules, and always drops the registered roots.
 
-Still refused: author roots in embedded documents, an owner whose light subtree
-hosts an author root, an owner outside the flat tree, and any author cascade that
-leaves foreign or ancestor paint visible. An inner-scope `!important` wins over
+DM-ST8D8V also collects resource owners inside each main-document author root.
+The actual element remains the raster owner. The capture walk follows host and
+slot children leading to it and retains sibling paint in order. A document-local
+readable definition still serves a light-tree host. An inner owner uses its
+existing native resource paint without cloning a definition across tree scopes.
+When the owner itself hosts a shadow tree, isolation marks its composed
+descendants and fingerprints their styles and child order. Local SVG references
+resolve from the consumer's own tree scope. Each registered root observes
+slot reassignment during readback, including a change reverted before adoption.
+
+The guard refuses author roots in embedded documents, owners outside the flat
+tree, projected direct text with a different physical source, and cascades that
+leave foreign or ancestor paint visible. An inner-scope `!important` wins over
 the outer hide because important declarations reverse tree order
 (`cascade_priority.h:29-38`); it refuses through the computed-visibility check.
 
@@ -115,11 +124,20 @@ mechanism is in the loop. A CSP-blocked mask whose slotting root adopts an autho
 sheet within the same task as slotting stops painting in the source page itself;
 the mask positives therefore keep the author-sheet witness on non-slotting roots.
 
+Fourteen owner-side controls cover both external properties, both modes, and
+owners inside or hosting a root. They compare the placed RGBA surface to the
+equivalent flat owner, compare the full SVG to Chromium and check source
+restoration. The additional controls distinguish a shadow-local gradient from a
+document ID collision, retain the existing readable document route, and verify
+the idle-root, projected-text and transient-slot boundaries.
+
 ## Remaining capability boundaries
 
 - DM-N933MV owns unsupported ancestor/compositing, transition, scrollbar and
   direct-text boundaries. Refusal does not establish their rendering parity.
 - DM-F19PYG owns local SVG dependencies outside the selected owner's subtree.
+- DM-96KECE covers direct text whose source parent differs from its projected
+  host or slot beside a native owner.
 - DM-HSABGR investigates readable auxiliary-body identity; a differing response
   at the same URL is not, by itself, a measured full-output defect.
 

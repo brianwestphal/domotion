@@ -21,8 +21,10 @@ export interface CssSvgIsolation {
   sheet: HTMLStyleElement;
   text: string;
   rules: string;
-  ownerFacts: Array<{ element: Element; styles: string[] }>;
+  ownerFacts: Array<{ element: Element; styles: string[]; children: Node[] }>;
   ancestors: Element[];
+  slotAssignmentsChanged: boolean;
+  slotListeners: AbortController;
   /** Outside never-painted local definitions kept at their native style. */
   dependencies: Array<{ element: Element; styles: string }>;
   /** The ancestor path paints direct text or markers, hidden via text channels. */
@@ -93,6 +95,11 @@ export async function restoreExternalCssSvgIsolation(page: Page, identity: Ident
         const isolation = state.isolation;
         if (isolation == null) return 0;
         let failures = 0;
+        try {
+          isolation.slotListeners.abort();
+        } catch {
+          failures++;
+        }
         // Always release an owned adopted sheet by identity; a changed author list
         // or mutated owned rules is reported, never repaired.
         for (const saved of isolation.shadowSheets) {
@@ -283,10 +290,9 @@ export async function rasterizeExternalCssSvgSurfaces(
             for (const element of everyElement())
               if (element.shadowRoot != null && hosts.get(element) !== element.shadowRoot)
                 throw new Error("external CSS native isolation author-shadow scope changed");
-            if (owner.getRootNode() !== document)
-              throw new Error("external CSS native owner inside an author shadow tree is unsupported");
-            if ([owner, ...owner.querySelectorAll("*")].some((element) => hosts.has(element)))
-              throw new Error("external CSS native owner hosts an author shadow tree");
+            const ownerScope = owner.getRootNode();
+            if (ownerScope !== document && !(ownerScope instanceof ShadowRoot && roots.includes(ownerScope)))
+              throw new Error("external CSS native owner tree scope is unavailable");
             // Flat-tree parent. A closed root's slot is hidden from `assignedSlot`,
             // so assignment is read from each registered root's own slots.
             const assigned = new Map<Node, HTMLSlotElement>();
@@ -297,6 +303,7 @@ export async function rasterizeExternalCssSvgSurfaces(
               const parent = node.parentNode;
               if (parent instanceof Element && hosts.has(parent)) return assigned.get(node) ?? null;
               if (parent instanceof ShadowRoot) return parent.host;
+              if (parent instanceof HTMLSlotElement && parent.assignedNodes().length > 0) return null;
               return node.parentElement;
             };
             const flatChildren = (element: Element): Node[] => {
@@ -309,9 +316,49 @@ export async function rasterizeExternalCssSvgSurfaces(
               return [...element.childNodes];
             };
             if (
+              facts.shadowPath?.some(
+                (node, i, path) => (node instanceof ShadowRoot ? node.host : node.parentNode) !== (path[i + 1] ?? null),
+              )
+            )
+              throw new Error("external CSS native owner source ancestry changed");
+            const owned = new Set<Element>();
+            const pendingOwner = [owner as Element];
+            while (pendingOwner.length > 0) {
+              const element = pendingOwner.pop()!;
+              if (owned.has(element)) throw new Error("external CSS native owner flat subtree is ambiguous");
+              owned.add(element);
+              for (const child of flatChildren(element).reverse())
+                if (child instanceof Element) pendingOwner.push(child);
+            }
+            const directText = (nodes: Iterable<Node>) =>
+              [...nodes].filter((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
+            for (const [branch, expected] of state.projectedChildren) {
+              const nodes = flatChildren(branch);
+              const current = nodes.filter((node): node is Element => node instanceof Element);
+              if (current.length !== expected.length || current.some((node, i) => node !== expected[i]))
+                throw new Error("external CSS native owner projected branch changed");
+              if (owned.has(branch)) continue;
+              // The element walker serializes direct text from the physical
+              // parent. A projected host/slot cannot claim different text.
+              const text = directText(nodes);
+              const physical = directText(branch.childNodes);
+              if (text.length !== physical.length || text.some((node, i) => node !== physical[i]))
+                throw new Error("external CSS native projected branch has unsupported direct text");
+            }
+            if (
               owner.getAnimations({ subtree: true }).length > 0 ||
               // Each tree scope reports only its own animations.
-              scopes.some((scope) => scope.getAnimations().some((animation) => animation instanceof CSSTransition))
+              scopes.some((scope) =>
+                scope
+                  .getAnimations()
+                  .some(
+                    (animation) =>
+                      animation instanceof CSSTransition ||
+                      (animation.effect instanceof KeyframeEffect &&
+                        animation.effect.target instanceof Element &&
+                        owned.has(animation.effect.target)),
+                  ),
+              )
             )
               throw new Error("external CSS native owner has unsupported active animation or transitions");
             if (
@@ -438,17 +485,20 @@ export async function rasterizeExternalCssSvgSurfaces(
             // CSSUrlData::IsLocal (css_url_data.cc:231-234) and
             // SVGURLReferenceResolver (svg_uri_reference.cc:89-111): local when
             // the specified URL starts with '#' or equals the document URL.
-            const localTarget = (raw: string): Element | null => {
+            const localTarget = (raw: string, element: Element): Element | null => {
               let url: URL;
               try {
-                url = new URL(raw, document.baseURI);
+                url = new URL(raw, element.baseURI);
               } catch {
                 return null;
               }
               const fragment = url.hash.slice(1);
               url.hash = "";
               if ((!raw.startsWith("#") && url.href !== here.href) || fragment === "") return null;
-              return document.getElementById(decode(fragment));
+              const scope = element.getRootNode();
+              if (!(scope instanceof Document || scope instanceof ShadowRoot))
+                throw new Error("external CSS native local-definition tree scope is unavailable");
+              return scope.getElementById(decode(fragment));
             };
             const urls = (value: string): string[] =>
               [...value.matchAll(/url\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|([^)\s]*))\s*\)/gi)].map((match) =>
@@ -491,8 +541,7 @@ export async function rasterizeExternalCssSvgSurfaces(
             const dependencies = new Set<Element>();
             const pending: Element[] = [];
             const requireDependency = (target: Element | null): void => {
-              if (target == null || owner.contains(target) || dependencies.has(target) || pending.includes(target))
-                return;
+              if (target == null || owned.has(target) || dependencies.has(target) || pending.includes(target)) return;
               if (ancestors.has(target) || target.contains(owner))
                 throw new Error("external CSS native owner has an outside local-definition dependency containing it");
               let hidden = false;
@@ -508,15 +557,15 @@ export async function rasterizeExternalCssSvgSurfaces(
               for (const pseudo of pseudos) {
                 const computed = getComputedStyle(element, pseudo || null);
                 for (const name of referenceProperties)
-                  for (const raw of urls(computed.getPropertyValue(name))) requireDependency(localTarget(raw));
+                  for (const raw of urls(computed.getPropertyValue(name))) requireDependency(localTarget(raw, element));
               }
               if (element instanceof SVGElement && hrefOwners.has(element.localName.toLowerCase())) {
                 const href =
                   element.getAttribute("href") ?? element.getAttributeNS("http://www.w3.org/1999/xlink", "href");
-                if (href != null) requireDependency(localTarget(href));
+                if (href != null) requireDependency(localTarget(href, element));
               }
             };
-            for (const element of [owner, ...owner.querySelectorAll("*")]) {
+            for (const element of owned) {
               const style = getComputedStyle(element);
               if (style.backdropFilter !== "none" || style.mixBlendMode !== "normal")
                 throw new Error("external CSS native owner requires backdrop compositing");
@@ -562,17 +611,33 @@ export async function rasterizeExternalCssSvgSurfaces(
               sheet,
               text: "",
               rules: "",
-              ownerFacts: [owner, ...owner.querySelectorAll("*")].map((element) => ({
+              ownerFacts: [...owned].map((element) => ({
                 element,
+                children: flatChildren(element),
                 styles: ["", "::before", "::after"].map((pseudo) => fingerprint(element, pseudo)),
               })),
               ancestors: [...ancestors],
+              slotAssignmentsChanged: false,
+              slotListeners: new AbortController(),
               ancestorText: false,
               dependencies: [...dependencies].map((element) => ({ element, styles: fingerprint(element, "") })),
               shadowSheets: [],
             };
             // Publish ownership before any mutation, including a throwing setter.
             state.isolation = isolation;
+            // A slot assignment can change and return to the same nodes between
+            // screenshots. Listen in the actual root, including closed scopes.
+            for (const root of roots)
+              root.addEventListener(
+                "slotchange",
+                () => {
+                  isolation.slotAssignmentsChanged = true;
+                },
+                {
+                  capture: true,
+                  signal: isolation.slotListeners.signal,
+                },
+              );
             const rules = [
               `*:not([${attribute}])${hide},*:not([${attribute}])${hide}::before,*:not([${attribute}])${hide}::after{visibility:hidden!important}`,
             ];
@@ -599,10 +664,7 @@ export async function rasterizeExternalCssSvgSurfaces(
             // the stamp comes back fully transparent; an inherited-only change
             // or a plain re-attach keeps it). Clip paths survive; masks under
             // ancestor text refuse.
-            if (
-              ancestorText &&
-              [owner, ...owner.querySelectorAll("*")].some((element) => getComputedStyle(element).maskImage !== "none")
-            )
+            if (ancestorText && [...owned].some((element) => getComputedStyle(element).maskImage !== "none"))
               throw new Error("external CSS native owner has unsupported ancestor text over a mask");
             const textHide = ancestorText
               ? ";color:transparent!important;-webkit-text-fill-color:transparent!important;-webkit-text-stroke-color:transparent!important;text-shadow:none!important;text-emphasis-color:transparent!important"
@@ -645,7 +707,7 @@ export async function rasterizeExternalCssSvgSurfaces(
                 return `${name}:${pin}!important`;
               })
               .join(";");
-            for (const element of [owner, ...owner.querySelectorAll("*")]) {
+            for (const element of owned) {
               const index = String(isolation.marked.length);
               if (element === owner && ancestorText) rules.push(`[${attribute}="${index}"]${show}{${pinned}}`);
               isolation.marked.push({ element, before: element.getAttribute(attribute), owned: index });
@@ -723,7 +785,7 @@ export async function rasterizeExternalCssSvgSurfaces(
             };
             const paint: AncestorPaint[] = [];
             for (const element of everyElement()) {
-              if (owner.contains(element) || dependencies.has(element)) continue;
+              if (owned.has(element) || dependencies.has(element)) continue;
               if (ancestors.has(element)) {
                 const style = getComputedStyle(element);
                 paint.push({
@@ -775,6 +837,8 @@ export async function rasterizeExternalCssSvgSurfaces(
               throw new Error("external CSS paint owner changed during screenshot");
             // The scopes isolated before the screenshot, each still holding its owned sheet.
             const isolation = state.isolation;
+            if (isolation.slotAssignmentsChanged)
+              throw new Error("external CSS shadow ownership changed during slot assignment");
             const roots = isolation.shadowSheets.map((saved) => saved.root);
             if (
               roots.length !== (state.authorShadowRoots ?? []).length ||
@@ -800,7 +864,18 @@ export async function rasterizeExternalCssSvgSurfaces(
               const parent = node.parentNode;
               if (parent instanceof Element && hosts.has(parent)) return assigned.get(node) ?? null;
               if (parent instanceof ShadowRoot) return parent.host;
+              if (parent instanceof HTMLSlotElement && parent.assignedNodes().length > 0) return null;
               return node.parentElement;
+            };
+            const owned = new Set(state.isolation.ownerFacts.map((fact) => fact.element));
+            const flatChildren = (element: Element): Node[] => {
+              const root = hosts.get(element);
+              if (root != null) return [...root.childNodes];
+              if (element instanceof HTMLSlotElement && roots.includes(element.getRootNode() as ShadowRoot)) {
+                const nodes = element.assignedNodes();
+                if (nodes.length > 0) return nodes;
+              }
+              return [...element.childNodes];
             };
             const ancestors: Element[] = [];
             for (let ancestor = flatParent(selected[0]); ancestor != null; ancestor = flatParent(ancestor))
@@ -843,7 +918,7 @@ export async function rasterizeExternalCssSvgSurfaces(
             };
             const paint: AncestorPaint[] = [];
             for (const element of everyElement()) {
-              if (selected[0].contains(element) || dependencies.has(element)) continue;
+              if (owned.has(element) || dependencies.has(element)) continue;
               const ancestor = ancestors.includes(element);
               const style = getComputedStyle(element);
               if (ancestor)
@@ -870,10 +945,12 @@ export async function rasterizeExternalCssSvgSurfaces(
               if (getComputedStyle(selected[0]).getPropertyValue(fact.property) !== fact.computed)
                 throw new Error("external CSS paint selection changed during screenshot");
             for (const fact of state.isolation.ownerFacts) {
+              const children = flatChildren(fact.element);
               if (
                 !fact.element.isConnected ||
                 fact.element.ownerDocument !== document ||
-                !selected[0].contains(fact.element)
+                children.length !== fact.children.length ||
+                children.some((node, index) => node !== fact.children[index])
               )
                 throw new Error("external CSS native subtree changed during screenshot");
               for (const [index, pseudo] of ["", "::before", "::after"].entries()) {

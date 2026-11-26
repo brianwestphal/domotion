@@ -32,10 +32,17 @@
 // per-element calls within one captureScript invocation but resets on the
 // next.
 
+import { externalCssSvgJournal } from "./external-css-svg-traversal.js";
 import { hasCssValue, sideWidths } from "../utils.js";
 import type { CapturedElement } from "../../types.js";
 
-export const createReplacedElementsHandler = ({ vp }: { vp: { x: number; y: number } }) => {
+export const createReplacedElementsHandler = ({
+  vp,
+  externalCssSvgKey,
+}: {
+  vp: { x: number; y: number };
+  externalCssSvgKey?: string;
+}) => {
   let _replacedIdx = 0;
 
   const handleReplacedElement = (
@@ -51,7 +58,10 @@ export const createReplacedElementsHandler = ({ vp }: { vp: { x: number; y: numb
     // Path 1: built-in replaced tags + custom elements with open shadow DOM.
     const isCustomEl = tag.indexOf("-") > 0;
     const hasOpenShadow = isCustomEl && el.shadowRoot != null;
-    const customElNeedsSnapshot = isCustomEl && hasOpenShadow;
+    const customElNeedsSnapshot =
+      hasOpenShadow &&
+      captured.externalCssSvgRaster == null &&
+      !externalCssSvgJournal(externalCssSvgKey)?.projectedChildren.has(el);
 
     // DM-1441: a same-origin <iframe> whose document was recursed into native
     // SVG (captured.children spliced in upstream) must NOT also be rastered —

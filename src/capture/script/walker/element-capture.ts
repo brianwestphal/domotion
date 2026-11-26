@@ -9,6 +9,7 @@
 // time exactly as the former closure read them. Bundled into the page script
 // by esbuild, so nothing here may reach Node modules at runtime.
 
+import { externalCssSvgJournal } from "./external-css-svg-traversal.js";
 import { computeFieldsetLegendBox } from "./fieldset-legend.js";
 import { captureLegacyClipRect } from "./legacy-clip.js";
 import { captureBorderPaintSnap, captureImagePaintBasis, frozenPaintShift } from "./border-paint-snap.js";
@@ -30,7 +31,6 @@ import {
 import { resolveElementCursor, isOutsideCaptureViewport } from "../utils.js";
 import type { CaptureScriptArgs, CapturedElement } from "../../types.js";
 import type { ProjectivePaintNodeFact } from "../../projective-owner.js";
-import type { ExternalCssSvgJournal } from "../../external-css-svg.js";
 import type { createNativeControlsHandler } from "./native-controls.js";
 import type { createFidelityWarnings } from "./fidelity-warnings.js";
 import type { createMasksClipsHandler } from "./masks-clips.js";
@@ -48,16 +48,9 @@ type TextPhase = ReturnType<ReturnType<typeof createTextPhaseHandler>["captureTe
 type FontMetrics = ReturnType<typeof createFontMetrics>;
 type TextPaintFact = { geometry?: CapturedElement["textPaintGeometry"] } | undefined;
 const externalCssSvgOwner = (args: CaptureScriptArgs, element: Element) =>
-  args.externalCssSvgKey == null
-    ? undefined
-    : (
-        (globalThis as Record<string, unknown>)[args.externalCssSvgKey] as ExternalCssSvgJournal | undefined
-      )?.rasterOwners.get(element);
+  externalCssSvgJournal(args.externalCssSvgKey)?.rasterOwners.get(element);
 const insideExternalCssSvgOwner = (args: CaptureScriptArgs, element: Element) => {
-  const state =
-    args.externalCssSvgKey == null
-      ? undefined
-      : ((globalThis as Record<string, unknown>)[args.externalCssSvgKey] as ExternalCssSvgJournal | undefined);
+  const state = externalCssSvgJournal(args.externalCssSvgKey);
   if (state == null || state.rasterOwners.size === 0) return false;
   for (let current: Element | null = element; current != null; current = current.parentElement)
     if (state.rasterOwners.has(current)) return true;
@@ -446,7 +439,9 @@ export const createElementCapture = () => {
     // capture the element as a transparent container (no own paint, but walk
     // children) so the in-viewport descendants are reached. fixedAncestors
     // is precomputed by the document prepass.
+    const projectedChildren = externalCssSvgJournal(d.args.externalCssSvgKey)?.projectedChildren?.get(el);
     const geometryStyle = captureGeometryStylePhase({
+      projectedChildren,
       el: el as HTMLElement,
       cs,
       rect,
@@ -515,7 +510,7 @@ export const createElementCapture = () => {
       svgReferenceScope = d.svgReferenceScope(el);
     }
 
-    const children = captureTraversalPhase({ el, tag, contentVisibilityHidden, capture });
+    const children = captureTraversalPhase({ el, tag, contentVisibilityHidden, capture, projectedChildren });
 
     // <fieldset>+<legend> box adjustment (DM-1436: extracted to walker/fieldset-legend.ts).
     const fieldsetBox = computeFieldsetLegendBox(el as HTMLElement, tag, rect, vp);

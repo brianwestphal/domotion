@@ -19,6 +19,7 @@ export type NativeDecorationRef = {
 };
 type NativeDecorationPart = { kind: string; index: number; x: number; y: number; width: number; height: number };
 export function captureGeometryStylePhase({
+  projectedChildren,
   el,
   cs,
   rect,
@@ -28,6 +29,7 @@ export function captureGeometryStylePhase({
   animInfluenced,
   isOutsideCaptureViewport,
 }: {
+  projectedChildren?: Element[];
   el: HTMLElement;
   cs: CSSStyleDeclaration;
   rect: DOMRect;
@@ -120,7 +122,7 @@ export function captureGeometryStylePhase({
     (outlineAlpha == null || parseFloat(outlineAlpha[1]) > 0);
   if (
     zeroSized &&
-    el.children.length === 0 &&
+    (projectedChildren ?? el.children).length === 0 &&
     !hasAnimation &&
     !inkTextZeroWidth &&
     !keepImageFallbackState &&
@@ -239,18 +241,20 @@ export function normalizePseudoShadowPhase({
 
 export function captureTraversalPhase({
   el,
+  projectedChildren,
   tag,
   contentVisibilityHidden,
   capture,
 }: {
   el: Element;
+  projectedChildren?: Element[];
   tag: string;
   contentVisibilityHidden: boolean;
   capture: (el: Element) => WorkingCapturedElement | null;
 }): CapturedElement[] {
   const children: CapturedElement[] = [];
   if (contentVisibilityHidden) return children;
-  for (const child of el.children) {
+  for (const child of projectedChildren ?? el.children) {
     if (tag === "details" && !(el as HTMLDetailsElement).open && child.tagName.toLowerCase() !== "summary") continue;
     if (tag === "select" && (child.tagName.toLowerCase() === "option" || child.tagName.toLowerCase() === "optgroup"))
       continue;

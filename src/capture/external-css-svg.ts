@@ -6,6 +6,7 @@ import { evaluateInFrame } from "./evaluate-in-frame.js";
 import { openExternalSvgTransport } from "./external-svg-transport.js";
 import { EXTERNAL_SVG_FETCH_TIMEOUT_MS } from "./external-svg-use.js";
 import { createPageRegistry } from "./page-registry.js";
+import { discoverExternalCssShadowTargets } from "./external-css-svg-shadow-guard.js";
 import { privateCaptureKey } from "./private-key.js";
 import {
   rasterizeExternalCssSvgSurfaces,
@@ -27,6 +28,7 @@ const definitionPrefixes = new WeakMap<Page, string>();
 type Property = "clip-path" | "mask-image";
 type Reference = ExternalCssSvgUrlReference;
 interface Target {
+  shadowPath?: Node[];
   element: HTMLElement | SVGElement;
   property: Property;
   computed: string;
@@ -57,6 +59,8 @@ export interface ExternalCssSvgJournal {
   token: string;
   prefix: string;
   targets: Target[];
+  /** Composed branches needed to reach actual native CSS owners in author scopes. */
+  projectedChildren: Map<Element, Element[]>;
   styles: SavedStyle[];
   /** Private attribute selecting overridden elements; minted per prepass. */
   overrideAttribute: string;
@@ -70,7 +74,12 @@ export interface ExternalCssSvgJournal {
   hostMarkup: string | null;
   rasterOwners: Map<
     Element,
-    { token: string; properties: Array<{ property: Property; computed: string }>; fullPageMismatch?: boolean }
+    {
+      token: string;
+      properties: Array<{ property: Property; computed: string }>;
+      fullPageMismatch?: boolean;
+      shadowPath?: Node[];
+    }
   >;
   isolation?: CssSvgIsolation;
   /** The main document's open and closed author roots, registered by the
@@ -358,6 +367,7 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
           token,
           prefix,
           targets,
+          projectedChildren: new Map(),
           styles: [],
           overrideAttribute,
           overrideSheet: null,
@@ -372,6 +382,7 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
       },
       { token, prefix, overrideAttribute: privateCaptureKey("CssSvgOverride") },
     );
+    await discoverExternalCssShadowTargets(page, { key: registry.key, token });
     const snapshot = await evaluateInFrame(
       page,
       ({ key, token }) => {
@@ -380,7 +391,11 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
         return {
           baseUrl: document.baseURI,
           documentUrl: document.URL,
-          targets: state.targets.map((target) => ({ property: target.property, computed: target.computed })),
+          targets: state.targets.map((target) => ({
+            property: target.property,
+            computed: target.computed,
+            shadowNative: target.shadowPath != null,
+          })),
         };
       },
       { key: registry.key, token },
@@ -388,29 +403,48 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
     const references = snapshot.targets.map((target) =>
       externalCssSvgReferences(target.property, target.computed, snapshot.baseUrl, snapshot.documentUrl),
     );
-    const hrefs = [...new Set(references.flat().map((reference) => reference.href))];
-    if (hrefs.length === 0) {
+    const hrefs = [
+      ...new Set(
+        references.flatMap((refs, index) => (snapshot.targets[index].shadowNative ? [] : refs.map((ref) => ref.href))),
+      ),
+    ];
+    if (references.every((refs) => refs.length === 0)) {
       await registry.dispose();
       disposed = true;
       return { registryKey: registry.key, dispose, rasterize };
     }
     const documents: Array<{ href: string; text: string }> = [];
     const unreadable: string[] = [];
-    if (hrefs.length > 0) {
-      transport = await openExternalSvgTransport(page.mainFrame(), EXTERNAL_SVG_FETCH_TIMEOUT_MS);
-      // Bind the earlier CSS snapshot to the document authenticated by the
-      // transport. A navigation before setup must not fetch stale source URLs.
-      await evaluateInFrame(
-        page,
-        ({ key, token, references }) => {
-          const state = (globalThis as typeof globalThis & Record<string, Journal>)[key];
-          if (state?.token !== token || state.targets.length !== references.length)
-            throw new Error("external CSS SVG source ownership changed before fetching");
-          state.targets.forEach((target, index) => (target.references = references[index]));
-          state.targets = state.targets.filter((target) => target.references.length > 0);
-        },
-        { key: registry.key, token, references },
-      );
+    if (hrefs.length > 0) transport = await openExternalSvgTransport(page.mainFrame(), EXTERNAL_SVG_FETCH_TIMEOUT_MS);
+    await evaluateInFrame(
+      page,
+      ({ key, token, references }) => {
+        const state = (globalThis as typeof globalThis & Record<string, Journal>)[key];
+        if (state?.token !== token || state.targets.length !== references.length)
+          throw new Error("external CSS SVG source ownership changed before fetching");
+        state.targets.forEach((target, index) => (target.references = references[index]));
+        state.targets = state.targets.filter((target) => target.references.length > 0);
+        for (const target of state.targets) {
+          if (target.shadowPath == null) continue;
+          let scope = target.element.getRootNode();
+          while (scope instanceof ShadowRoot) {
+            const host = scope.host;
+            if (state.projectedChildren.has(host)) break;
+            state.projectedChildren.set(host, [...scope.children]);
+            for (const slot of scope.querySelectorAll("slot")) {
+              const assigned = slot.assignedNodes();
+              state.projectedChildren.set(
+                slot,
+                assigned.length ? assigned.filter((n): n is Element => n instanceof Element) : [...slot.children],
+              );
+            }
+            scope = host.getRootNode();
+          }
+        }
+      },
+      { key: registry.key, token, references },
+    );
+    if (transport) {
       for (const href of hrefs) {
         const result = await transport.fetch(href);
         if ("failure" in result) {
@@ -437,7 +471,8 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
           const width = innerWidth;
           const height = innerHeight;
           return state.targets.some(
-            ({ element, references }) =>
+            ({ element, references, shadowPath }) =>
+              shadowPath == null &&
               element.isConnected &&
               references.every(({ href }) => hrefs.has(href)) &&
               element.getAnimations({ subtree: true }).length === 0 &&
@@ -504,20 +539,41 @@ export async function primeExternalCssSvgReferences(page: Page): Promise<Externa
         }
         const definitions = new Map<string, string>();
         const styles = new Map<HTMLElement | SVGElement, SavedStyle>();
-        const nativeOwners = new Set(
+        const nativeOwners = new Set<Element>(
           state.targets
-            .filter((target) => target.references.some((reference) => unreadable.includes(reference.href)))
+            .filter(
+              (target) =>
+                target.shadowPath != null || target.references.some((reference) => unreadable.includes(reference.href)),
+            )
             .map((target) => target.element),
         );
+        const projectedParents = new Map<Element, Element>();
+        for (const [parent, children] of state.projectedChildren)
+          for (const child of children) projectedParents.set(child, parent);
+        const parentOf = (element: Element) => projectedParents.get(element) ?? element.parentElement;
         for (const target of state.targets) {
-          if (!target.element.isConnected) continue;
+          if (!target.element.isConnected) {
+            if (target.shadowPath) throw new Error("external CSS shadow owner disconnected during preparation");
+            continue;
+          }
           if (getComputedStyle(target.element).getPropertyValue(target.property) !== target.computed)
             throw new Error("external CSS SVG source changed while reading its resource");
-          if ([...nativeOwners].some((owner) => owner !== target.element && owner.contains(target.element))) continue;
+          let retainedByAncestor = false;
+          for (let parent = parentOf(target.element); parent != null; parent = parentOf(parent)) {
+            if (nativeOwners.has(parent)) {
+              retainedByAncestor = true;
+              break;
+            }
+          }
+          if (retainedByAncestor) continue;
           if (nativeOwners.has(target.element)) {
             let owner = state.rasterOwners.get(target.element);
             if (owner == null) {
-              owner = { token: `${state.prefix}_raster_${state.rasterOwners.size}`, properties: [] };
+              owner = {
+                token: `${state.prefix}_raster_${state.rasterOwners.size}`,
+                properties: [],
+                shadowPath: target.shadowPath,
+              };
               state.rasterOwners.set(target.element, owner);
             }
             owner.properties.push({ property: target.property, computed: target.computed });

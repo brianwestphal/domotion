@@ -166,7 +166,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     isCustomCounterStyle,
     measureFontMetrics: _measureFontMetrics,
   });
-  const { handleReplacedElement } = createReplacedElementsHandler({ vp });
+  const { handleReplacedElement } = createReplacedElementsHandler({ vp, externalCssSvgKey: args.externalCssSvgKey });
   const {
     discoverFragmentReferences,
     computeMaskIntrinsic,
@@ -407,6 +407,7 @@ const captureDocumentTree = (args: CaptureScriptArgs, cleanups: Array<() => void
     args.insetRootShadowContextKey,
     pseudoFragmentFactsFor,
     args.authorShadowContexts?.selectedRoot,
+    args.externalCssSvgKey,
   );
   try {
     stampDocumentCanvasBackground(

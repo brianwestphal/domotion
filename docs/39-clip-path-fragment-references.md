@@ -18,6 +18,7 @@ tickets:
     "DM-M6VWFD",
     "DM-CKS6JY",
     "DM-JDJ0DP",
+    "DM-ST8D8V",
     "DM-N933MV",
     "DM-F19PYG",
     "DM-HSABGR",
@@ -214,8 +215,17 @@ including roots inserted and removed before the final query. The same
 owner/document/root set is verified again before PNG adoption. Restore removes
 each owned adopted sheet by identity and reports a changed author list.
 
-Still refused: author roots inside embedded documents, an owner whose subtree
-hosts an author root, an owner outside the flat tree, and any author cascade
+DM-ST8D8V discovers HTML resource owners inside open and closed main-document
+author roots. A shadow-scoped owner keeps Chromium's native resource paint,
+since a document-scoped cloned definition cannot resolve in that root. The
+walker follows the host and slot children leading to the actual owner. For a
+native owner hosting an author root, isolation retains its composed children,
+including assigned slot nodes. Local SVG dependencies resolve in each
+consumer's own tree scope. The composed children, source identity and observed
+slot assignments must stay stable until PNG adoption.
+
+The guard refuses author roots inside embedded documents, an owner outside the
+flat tree, projected direct text with a different physical source, and any author cascade
 (for example an inner-scope `!important`, which wins over the outer hide per
 `cascade_priority.h:29-38`, Chromium 7d859f27) that leaves foreign paint visible.
 Browser-owned UA shadow trees are excluded. Pinned `InspectorDOMAgent::getDocument`
