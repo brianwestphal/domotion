@@ -43,6 +43,19 @@ const transformRelatedWillChangeProperties: ReadonlySet<string> = new Set([
   "offset-position",
 ]);
 
+/** Blink's ComputedStyle::HasNonInitialBackdropFilter includes the hint. */
+function hasBackdropFilterBoundary(el: CapturedElement): boolean {
+  const { display, backdropFilter, willChange } = el.styles;
+  if (display === "contents" || display === "none") return false;
+  if (backdropFilter != null && backdropFilter !== "" && backdropFilter !== "none") return true;
+  return (
+    willChange != null &&
+    willChange !== "" &&
+    willChange !== "auto" &&
+    willChange.split(/[\s,]+/).some((token) => token.toLowerCase() === "backdrop-filter")
+  );
+}
+
 /**
  * DM-525: parent's `display` decides whether this element is a flex/grid
  * item, which extends the z-index → stacking-context rule even when the
@@ -65,7 +78,7 @@ export function isFlexOrGridContainerDisplay(display: string | undefined | null)
  *   - `opacity` < 1
  *   - `transform` ≠ `none`
  *   - `perspective` ≠ `none`
- *   - `filter` ≠ `none`
+ *   - `filter` or `backdrop-filter` ≠ `none`
  *   - `mix-blend-mode` ≠ `normal`
  *   - `mask-image` ≠ `none` / `clip-path` ≠ `none` (we already wrap these in
  *     a `<g mask=...>` / `<g clip-path=...>`, which isolates paint)
@@ -126,6 +139,7 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
   // serialized into a descendant's computed transform matrix.
   if (transformRelated && s.perspective != null && s.perspective !== "" && s.perspective !== "none") return true;
   if (s.filter != null && s.filter !== "" && s.filter !== "none") return true;
+  if (hasBackdropFilterBoundary(el)) return true;
   if (s.mixBlendMode != null && s.mixBlendMode !== "" && s.mixBlendMode !== "normal") return true;
   if (s.maskImage != null && s.maskImage !== "" && s.maskImage !== "none") return true;
   if (s.clipPath != null && s.clipPath !== "" && s.clipPath !== "none") return true;
@@ -150,7 +164,6 @@ export function establishesStackingContext(el: CapturedElement, parentDisplay?: 
       "offset-position",
       "opacity",
       "filter",
-      "backdrop-filter",
       "mask",
       "mask-image",
       "clip-path",
@@ -518,6 +531,7 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
   const op = parseFloat(s.opacity);
   if (Number.isFinite(op) && op < 1) return false;
   if (s.filter != null && s.filter !== "" && s.filter !== "none") return false;
+  if (hasBackdropFilterBoundary(el)) return false;
   if (s.mixBlendMode != null && s.mixBlendMode !== "" && s.mixBlendMode !== "normal") return false;
   if (s.maskImage != null && s.maskImage !== "" && s.maskImage !== "none") return false;
   if (s.clipPath != null && s.clipPath !== "" && s.clipPath !== "none") return false;
@@ -535,7 +549,6 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
       "offset-position",
       "opacity",
       "filter",
-      "backdrop-filter",
       "mask",
       "mask-image",
       "clip-path",
@@ -572,6 +585,8 @@ export function isOverflowOnlySC(el: CapturedElement): boolean {
  * preserve-3d) OR when the computed transform-style is preserve-3d. The
  * explicit computed-style arm is load-bearing when an overflow/grouping
  * property flattens preserve-3d's used value.
+ * An active or hinted backdrop-filter also creates a fixed container, except
+ * on the document element (DM-0NBBCZ).
  */
 /**
  * Whether a viewport-fixed descendant stays inside `el`'s subtree rather than
@@ -598,6 +613,7 @@ export function isFixedContainingBlock(el: CapturedElement): boolean {
   if (transformRelated && s.perspective != null && s.perspective !== "" && s.perspective !== "none") return true;
   if (transformRelated && s.transformStyle === "preserve-3d") return true;
   if (s.filter != null && s.filter !== "" && s.filter !== "none") return true;
+  if (el.tag !== "html" && hasBackdropFilterBoundary(el)) return true;
   if (s.willChange != null && s.willChange !== "" && s.willChange !== "auto") {
     const tokens = s.willChange.split(/[\s,]+/);
     for (const t of tokens) {

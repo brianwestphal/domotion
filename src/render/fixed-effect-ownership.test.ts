@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { capturedElement, capturedStyles } from "../test-support/captured-fixtures.js";
 import { elementTreeToSvg } from "./element-tree-to-svg.js";
-import { trapsFixedDescendants } from "./stacking.js";
+import {
+  establishesStackingContext,
+  isFixedContainingBlock,
+  isOverflowOnlySC,
+  trapsFixedDescendants,
+} from "./stacking.js";
 
 // DM-RN0T12: a viewport-fixed box hoists to the document root only past
 // ancestors that neither contain it nor form a genuine stacking context.
@@ -28,6 +33,18 @@ describe("viewport-fixed hoisting boundaries (DM-RN0T12)", () => {
       true,
     );
   });
+
+  it.each([{ backdropFilter: "blur(0px)" }, { willChange: "opacity, backdrop-filter" }])(
+    "keeps backdrop filter owners atomic and their fixed descendants contained (DM-0NBBCZ)",
+    (effect) => {
+      const owner = element({ ...effect, overflowX: "hidden", overflowY: "hidden" });
+      expect(establishesStackingContext(element(effect))).toBe(true);
+      expect(isOverflowOnlySC(owner)).toBe(false);
+      expect(isFixedContainingBlock(owner)).toBe(true);
+      expect(isFixedContainingBlock(capturedElement({ tag: "html", styles: capturedStyles(effect) }))).toBe(false);
+      expect(isFixedContainingBlock(element({ ...effect, display: "contents" }))).toBe(false);
+    },
+  );
 });
 
 // DM-X4W03B: a fixed box escapes an ancestor's overflow clip even when a

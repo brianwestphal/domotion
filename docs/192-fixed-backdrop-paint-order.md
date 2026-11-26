@@ -80,6 +80,14 @@ Mask and `clip-path` contexts are different. Their `MaskClip` and
 fixed-position clip (`:2182-2183`, `:2687-2688`), so a fixed descendant keeps
 the ancestor's overflow clip natively, and the renderer keeps it as well.
 
+An active `backdrop-filter`, including `blur(0px)`, and
+`will-change: backdrop-filter` create a stacking context and a fixed
+containing block on a non-root layout object (DM-0NBBCZ). The fixed child's
+captured box already has the containing block's origin. The renderer keeps
+it under the containing block's ancestor clips. Blink's
+`LayoutObject::ComputeIsFixedContainer` exempts the document element, and
+`display: contents` has no layout object.
+
 One residual remains. Chromium composites a fixed box in its own layer, and
 when a blend surface is the only thing under an `opacity` context,
 `PropertyTreeManager::UpdateConditionalRenderSurfaceReasons` omits that

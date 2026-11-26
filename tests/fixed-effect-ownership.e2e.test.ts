@@ -2,7 +2,9 @@ import type { Browser } from "@playwright/test";
 import sharp from "sharp";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { captureElementTree, launchChromium } from "../src/capture/index.js";
+import type { CapturedElement } from "../src/capture/types.js";
 import { elementTreeToSvg } from "../src/render/element-tree-to-svg.js";
+import { isFixedContainingBlock } from "../src/render/stacking.js";
 import { closeBrowserSafely } from "../src/test-support/close-browser-safely.js";
 
 // DM-RN0T12: a viewport-fixed box paints inside its nearest genuine stacking
@@ -100,6 +102,10 @@ const cases = [
     name: "keeps the clip outside a nested mask context",
     body: `<div style="${BOX};opacity:.5;overflow:hidden"><div style="mask-image:linear-gradient(black,black);mask-size:200px 200px;mask-repeat:no-repeat"><div style="${FIXED}"></div></div></div>`,
   },
+  {
+    name: "clips a fixed descendant of a zero-height backdrop-filter owner (DM-0NBBCZ)",
+    body: `<div style="${BOX};opacity:.5;overflow:hidden"><div style="backdrop-filter:blur(0px)"><div style="${FIXED}"></div></div></div>`,
+  },
 ];
 
 // DM-X4W03B: on Linux, adding the fixed child composites the opacity context,
@@ -154,3 +160,81 @@ it.each(cases)("matches native paint: $name", async ({ body, textRect }: { body:
     await output.close();
   }
 });
+
+it.each([
+  { css: "backdrop-filter:blur(0px)", filter: "blur(0px)", hint: "auto", contained: true },
+  {
+    css: "backdrop-filter:none;will-change:opacity, backdrop-filter",
+    filter: "none",
+    hint: "opacity, backdrop-filter",
+    contained: true,
+  },
+  { css: "backdrop-filter:none", filter: "none", hint: "auto", contained: false },
+  { css: "will-change:opacity", filter: "none", hint: "opacity", contained: false },
+  { css: "display:contents;backdrop-filter:blur(0px)", filter: "blur(0px)", hint: "auto", contained: false },
+])("matches fixed geometry and clipping under $css", async ({ css, filter, hint, contained }) => {
+  const page = await browser.newPage({ viewport });
+  const output = await browser.newPage({ viewport });
+  const bodyStyle = "<style>body{margin:0;background:white}</style>";
+  const pixels = (png: Buffer) => sharp(png).ensureAlpha().raw().toBuffer();
+  const findOwner = (nodes: CapturedElement[]): CapturedElement | undefined => {
+    for (const node of nodes) {
+      if (node.tag === "section") return node;
+      const nested = findOwner(node.children);
+      if (nested != null) return nested;
+    }
+    return undefined;
+  };
+  try {
+    await page.setContent(`${bodyStyle}<div style="width:100px;height:80px;background:#c8c8c8">
+      <div style="${BOX};opacity:.5;overflow:hidden">
+        <section style="height:40px;${css}">
+          <div id="fixed" style="${FIXED};left:25px"></div>
+        </section>
+      </div>
+    </div>`);
+    const nativeRect = await page.locator("#fixed").evaluate((el) => {
+      const { x, y, width, height } = el.getBoundingClientRect();
+      return { x, y, width, height };
+    });
+    expect(nativeRect).toEqual({ x: contained ? 35 : 25, y: contained ? 30 : 20, width: 30, height: 30 });
+    const native = await pixels(await page.screenshot());
+    const pixelAt = (data: Buffer, x: number, y: number) => [
+      ...data.subarray(4 * (y * viewport.width + x), 4 * (y * viewport.width + x) + 3),
+    ];
+    const innerBlue = pixelAt(native, 40, 35);
+    expect(innerBlue.slice(0, 2)).toEqual([100, 100]);
+    expect(innerBlue[2]).toBeGreaterThan(220);
+    expect(pixelAt(native, 52, 35)).toEqual(contained ? [200, 200, 200] : innerBlue);
+
+    const tree = await captureElementTree(page, "body", viewport);
+    const owner = findOwner(tree);
+    expect(owner?.styles).toMatchObject({ backdropFilter: filter, willChange: hint });
+    expect(owner?.children.find((node) => node.styles.position === "fixed")).toMatchObject(nativeRect);
+    await output.setContent(bodyStyle + elementTreeToSvg(tree, viewport.width, viewport.height));
+    const actual = await pixels(await output.screenshot());
+    expect(actual.reduce((worst, value, i) => Math.max(worst, Math.abs(value - native[i])), 0)).toBeLessThanOrEqual(2);
+    expect(isFixedContainingBlock(owner!)).toBe(contained);
+  } finally {
+    await page.close();
+    await output.close();
+  }
+});
+
+it.each(["backdrop-filter:blur(0px)", "will-change:backdrop-filter"])(
+  "keeps the fixed viewport origin with %s on the document element",
+  async (css) => {
+    const page = await browser.newPage({ viewport });
+    try {
+      await page.setContent(
+        `<style>html{margin:10px;${css}}body{margin:0}</style><div id="fixed" style="${FIXED}"></div>`,
+      );
+      const origins = await page
+        .locator("#fixed")
+        .evaluate((el) => [document.documentElement.getBoundingClientRect().left, el.getBoundingClientRect().left]);
+      expect(origins).toEqual([10, 50]);
+    } finally {
+      await page.close();
+    }
+  },
+);
