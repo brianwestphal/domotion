@@ -156,9 +156,15 @@ A separate case changes and restores a character during readback. Two mask
 cases verify source preservation when the document declares a used or unused
 font face. The clip cases compare the default embedded-font SVG with Chromium.
 The system-face mask cases compare the full system-font SVG with Chromium and
-the default embedded-font SVG with the corresponding flat capture. The 20px
-Courier New mask case also requires the complete default embedded-font SVG to
-match native pixels. The 18px Arial case retains fractional glyph advances.
+the default embedded-font SVG with the corresponding flat capture. The open
+root also requires the complete default embedded-font SVG to match the native
+source. It uses four distinct green glyphs, `KILT`, in 20px Courier New beside a
+red 16 × 32 mask. A second comparison combines Chromium’s text-only body with
+the independent mask-only raster and checks the entire result against the
+original screenshot. The restored source must match that screenshot as well.
+The closed root uses 18px Arial to retain fractional glyph advances. DM-0S5YWW
+tracks the installed and embedded Liberation Mono ink difference for `Hint` in
+ordinary Linux text.
 
 ## Remaining capability boundaries
 

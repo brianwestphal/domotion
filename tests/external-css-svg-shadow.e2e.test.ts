@@ -95,6 +95,16 @@ async function pixels(page: Page) {
     .raw()
     .toBuffer();
 }
+function projectedTextPixels(rgb: Buffer, placement: "slot" | "direct") {
+  let red = 0;
+  let glyphPixels = 0;
+  const ink = placement === "slot" ? 1 : 2;
+  for (let i = 0; i < rgb.length; i += 3) {
+    if (rgb[i] === 255 && rgb[i + 1] === 0 && rgb[i + 2] === 0) red++;
+    if (rgb[i + ink] > rgb[i] && rgb[i + ink] > rgb[i + 3 - ink]) glyphPixels++;
+  }
+  return { red, glyphPixels };
+}
 async function pageFor(kind = "clip", custom = false) {
   const page = await browser.newPage({ viewport: { width: 128, height: 96 } });
   await page.goto(`${origin}/?kind=${kind}${custom ? "&custom" : ""}`);
@@ -515,6 +525,9 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
         ? "courier"
         : "system",
   ) {
+    // These four distinct glyphs have matching installed and embedded ink in
+    // the open mask's native system face, including Linux Liberation Mono.
+    const value = face === "courier" && placement === "slot" ? "KILT" : "Hint";
     const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height } });
     await page.goto(`${origin}/?text&kind=${kind}&face=${face}`);
     if (face === "fixture")
@@ -522,12 +535,12 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
         await document.fonts.load(`18px "${family}"`);
       }, FIXTURE_MONO_FAMILY);
     const geometry = await page.evaluate(
-      ({ mode, placement, shadow }) => {
+      ({ mode, placement, shadow, value }) => {
         const host = document.querySelector("#host")!;
         const owner = document.querySelector<HTMLTemplateElement>("#source-owner")!.content.firstElementChild!;
         const root = shadow ? host.attachShadow({ mode }) : host;
         root.append(owner);
-        const text = new Text("Hint");
+        const text = new Text(value);
         let flatParent: Element | ShadowRoot = root;
         let sibling: Node = text;
         if (placement === "slot") {
@@ -554,10 +567,10 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
         const ownerRect = owner.getBoundingClientRect();
         return { range: { x, y, width, height }, owner: { x: ownerRect.x, y: ownerRect.y } };
       },
-      { mode, placement, shadow },
+      { mode, placement, shadow, value },
     );
     await page.waitForLoadState("networkidle");
-    return { page, ...geometry };
+    return { page, value, ...geometry };
   }
   for (const kind of ["clip", "mask"] as const)
     for (const mode of ["open", "closed"] as const)
@@ -571,13 +584,7 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
             expect(before).toEqual(await pixels(flat.page));
             expect(source.range).toEqual(flat.range);
             const { x, y, width, height } = source.range;
-            let glyphPixels = 0,
-              red = 0;
-            for (let i = 0; i < before.length; i += 3) {
-              if (before[i] === 255 && before[i + 1] === 0 && before[i + 2] === 0) red++;
-              const ink = placement === "slot" ? 1 : 2;
-              if (before[i + ink] > before[i] && before[i + ink] > before[i + 3 - ink]) glyphPixels++;
-            }
+            const { red, glyphPixels } = projectedTextPixels(before, placement);
             expect(red).toBe(16 * 32);
             expect(glyphPixels).toBeGreaterThan(0);
             const refuses = placement === "direct" && kind === "mask";
@@ -586,13 +593,39 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
               await expect(capturedRaster(page)).rejects.toThrow("unsupported ancestor text over a mask");
             } else {
               const actual = await capturedRaster(page, kind === "clip" ? before : undefined);
+              const ownerOnly = await flatRaster(kind);
               if (kind === "mask") {
+                expect(await page.evaluate(() => document.fonts.size)).toBe(0);
                 expect((await svgPixels(actual.tree, "system-font")).equals(before)).toBe(true);
                 const flatCapture = await capturedRaster(flat.page);
                 const projected = await svgPixels(actual.tree, "embedded-font");
                 const reference = await svgPixels(flatCapture.tree, "embedded-font");
                 expect(projected.equals(reference)).toBe(true);
-                if (mode === "open") expect(projected.equals(before)).toBe(true);
+                if (mode === "open") {
+                  expect(projected.equals(before)).toBe(true);
+                  // Retain the source text's layout while removing the mask
+                  // from the separate flat reference body.
+                  await flat.page.locator("#owner").evaluate((owner) => {
+                    owner.style.visibility = "hidden";
+                  });
+                  const textOnly = await pixels(flat.page);
+                  expect(projectedTextPixels(textOnly, placement)).toEqual({ red: 0, glyphPixels });
+                  const independent = await sharp(textOnly, {
+                    raw: { width: viewport.width, height: viewport.height, channels: 3 },
+                  })
+                    .composite([
+                      {
+                        input: ownerOnly.data,
+                        raw: { width: ownerOnly.size[0], height: ownerOnly.size[1], channels: 4 },
+                        left: source.owner.x,
+                        top: source.owner.y,
+                      },
+                    ])
+                    .removeAlpha()
+                    .raw()
+                    .toBuffer();
+                  expect(independent.equals(before)).toBe(true);
+                }
                 embeddedDiffPixels = 0;
                 for (let i = 0; i < before.length; i += 3)
                   if (
@@ -602,11 +635,13 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
                   )
                     embeddedDiffPixels++;
               }
-              const ownerOnly = await flatRaster(kind);
               expect(actual.rect).toEqual([source.owner.x, source.owner.y, ...ownerOnly.rect.slice(2)]);
               expect(actual.data).toEqual(ownerOnly.data);
               const findText = (nodes: CapturedElement[]): CapturedElement[] =>
-                nodes.flatMap((node) => [...(node.text === "Hint" ? [node] : []), ...findText(node.children ?? [])]);
+                nodes.flatMap((node) => [
+                  ...(node.text === source.value ? [node] : []),
+                  ...findText(node.children ?? []),
+                ]);
               const texts = findText(actual.tree);
               expect(texts).toHaveLength(1);
               expect(texts[0]).toMatchObject({
@@ -644,7 +679,7 @@ describe("native CSS owner isolation in author-shadow documents (DM-JDJ0DP)", ()
               };
             });
             expect(restored).toEqual({
-              value: "Hint",
+              value: source.value,
               connected: true,
               parent: true,
               assignment: true,
