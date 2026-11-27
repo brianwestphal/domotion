@@ -20,7 +20,19 @@ function flatten(nodes: CapturedElement[]): CapturedElement[] {
 }
 
 describe("opaque initial-named font declarations", () => {
-  it("distinguishes native concrete faces from UA standard without admitting reset/substitution ambiguity", async () => {
+  const controls = [
+    {
+      name: "distinguishes native concrete faces from UA standard without admitting reset/substitution ambiguity",
+      resetSettings: false,
+    },
+  ];
+  if (process.platform === "darwin") {
+    controls.push({
+      name: "retains native standard provenance when fresh settings and cached styles disagree",
+      resetSettings: true,
+    });
+  }
+  it.each(controls)("$name", async ({ resetSettings }) => {
     const page = await browser.newPage({ viewport: { width: 720, height: 900 }, deviceScaleFactor: 1 });
     const output = resolve(
       process.env["DOMOTION_OUTPUT_DIR"] ?? (process.platform === "linux" ? "tests/output-linux" : "tests/output"),
@@ -45,6 +57,14 @@ describe("opaque initial-named font declarations", () => {
     };
     let failed = false;
     try {
+      if (resetSettings) {
+        const session = await page.context().newCDPSession(page);
+        try {
+          await session.send("Page.setFontFamilies", { fontFamilies: { standard: "Times" } });
+        } finally {
+          await session.detach();
+        }
+      }
       await page.setContent("<!doctype html><p>initial</p>");
       const initial = await page.locator("p").evaluate((el) => getComputedStyle(el).fontFamily);
       await page.route("https://provenance.test/", (route) =>
@@ -142,6 +162,35 @@ describe("opaque initial-named font declarations", () => {
           probe.propertyKey,
         ),
       ).toBe(false);
+      if (resetSettings) {
+        const readFamilies = () =>
+          page.evaluate(() => {
+            const child = document.getElementById("child-reset")!;
+            const existing = getComputedStyle(child).fontFamily;
+            const probe = document.createElement("span");
+            probe.style.setProperty("all", "initial", "important");
+            probe.style.setProperty("display", "none", "important");
+            document.documentElement.appendChild(probe);
+            try {
+              return { existing, currentInitial: getComputedStyle(probe).fontFamily };
+            } finally {
+              probe.remove();
+            }
+          });
+        const before = await readFamilies();
+        const session = await page.context().newCDPSession(page);
+        try {
+          // Change the Common Settings name without resizing the viewport or
+          // flushing every cached style. The source's Japanese face stays live.
+          await session.send("Page.setFontFamilies", { fontFamilies: { standard: "Times New Roman" } });
+        } finally {
+          await session.detach();
+        }
+        const after = await readFamilies();
+        evidence.controlledSettings = { before, after };
+        expect(before).toEqual({ existing: "Times", currentInitial: "Times" });
+        expect(after).toEqual({ existing: "Times", currentInitial: '"Times New Roman"' });
+      }
       const capture = await captureElementTreeWithWarnings(page, "body", { x: 0, y: 0, width: 720, height: 900 });
       evidence.captureWarnings = capture.warnings;
       const tree = flatten(capture.tree);
@@ -252,7 +301,7 @@ describe("opaque initial-named font declarations", () => {
         await native.detach();
       }
       evidence.phase = "native-evidence-collected";
-      for (const id of ["literal", "inherited", "shorthand", "override-literal", "known"])
+      for (const id of ["literal", "inherited", "shorthand", "override-literal", "variable-literal", "known"])
         expect(family(id), id).toBe("none");
       for (const id of [
         "ua",
@@ -294,7 +343,10 @@ describe("opaque initial-named font declarations", () => {
     } finally {
       try {
         mkdirSync(output, { recursive: true });
-        writeFileSync(join(output, "native-context.json"), JSON.stringify(evidence, null, 2));
+        writeFileSync(
+          join(output, resetSettings ? "native-context-settings-reset.json" : "native-context.json"),
+          JSON.stringify(evidence, null, 2),
+        );
       } catch (error) {
         // Preserve the strict assertion if evidence storage independently fails.
         if (!failed) throw error;

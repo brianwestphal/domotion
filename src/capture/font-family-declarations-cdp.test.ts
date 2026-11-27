@@ -2,7 +2,10 @@ import type { Page } from "@playwright/test";
 import { describe, expect, it, vi } from "vitest";
 import { captureFontFamilyDeclarationFacts, standardFamilyLocaleRoutable } from "./font-family-declarations-cdp.js";
 
-function harness(failure?: string, options: { value?: string; fontLocale?: string; language?: string } = {}) {
+function harness(
+  failure?: string,
+  options: { value?: string; fontLocale?: string; language?: string; cachedCandidates?: boolean } = {},
+) {
   const send = vi.fn(async (method: string, params?: Record<string, unknown>): Promise<unknown> => {
     if (
       method === failure ||
@@ -31,8 +34,20 @@ function harness(failure?: string, options: { value?: string; fontLocale?: strin
           return { result: {}, exceptionDetails: { text: "synthetic failure" } };
         return { result: { objectId: "candidates" } };
       case "Runtime.getProperties":
-        return { result: [{ name: "0", value: { objectId: "candidate" } }] };
+        if (params?.objectId === "cached") return { result: [{ name: "0", value: { objectId: "cached-child" } }] };
+        return {
+          result: [
+            { name: "0", value: { objectId: "candidate" } },
+            ...(options.cachedCandidates
+              ? [
+                  { name: "cachedCandidates", value: { objectId: "cached" } },
+                  { name: "documentElement", value: { objectId: "measured-root" } },
+                ]
+              : []),
+          ],
+        };
       case "DOM.requestNode":
+        if (failure === "root-lost" && params?.objectId === "measured-root") throw new Error("root disappeared");
         return { nodeId: 2 };
       case "CSS.getMatchedStylesForNode":
         return {
@@ -144,6 +159,27 @@ describe("extended native family provenance lifecycle", () => {
     await probe.dispose();
     expect(h.detach).toHaveBeenCalledOnce();
   });
+  it.each([
+    { value: "initial", failure: undefined, admits: true },
+    { value: "Times", failure: undefined, admits: false },
+    { value: "initial", failure: "root-lost", admits: false },
+  ])(
+    "qualifies cached candidates against the native root cascade ($value, $failure)",
+    async ({ value, failure, admits }) => {
+      const h = harness(failure, { value, cachedCandidates: true, fontLocale: '"ja"' });
+      const probe = await captureFontFamilyDeclarationFacts(h.page, { earlyRootFamily: "times" });
+      expect(h.send).toHaveBeenCalledWith("DOM.requestNode", { objectId: "candidate" });
+      expect(h.send).toHaveBeenCalledWith("DOM.requestNode", { objectId: "measured-root" });
+      const processedCachedChild = h.send.mock.calls.some(
+        ([method, params]) => method === "DOM.requestNode" && params?.objectId === "cached-child",
+      );
+      expect(processedCachedChild).toBe(admits);
+      expect(probe.warnings).toHaveLength(failure == null ? 0 : 1);
+      await probe.dispose();
+      expect(h.detach).toHaveBeenCalledOnce();
+    },
+  );
+
   it("does not erase valid literal provenance when an extension query fails", async () => {
     const h = harness("new-native");
     const probe = await captureFontFamilyDeclarationFacts(h.page);

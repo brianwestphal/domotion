@@ -190,6 +190,14 @@ that classifier. Readable and opaque initial-name candidates receive optional
 native cascade facts. Computed `Times` alone is never evidence of concrete
 versus standard family type.
 
+Chromium can retain an older Settings family name in computed root styles
+after a fresh initial probe starts reporting the new name (DM-7KS85J).
+Capture also considers candidates that match the cached or early root name
+when the native cascade proves the root uses the standard family. Each
+candidate still needs its own native declaration and locale evidence. This
+preserves the distinction between an authored literal and an inherited or
+explicit initial family when their computed names coincide.
+
 Pinned Chromium `7d859f271cbda744098ac69f44978d4edfa62be3` owns the distinction:
 [`FontFamily::ApplyInitial`/`ApplyInherit`](https://github.com/chromium/chromium/blob/7d859f271cbda744098ac69f44978d4edfa62be3/third_party/blink/renderer/core/css/properties/longhands/longhands_custom.cc#L4480)
 create the initial description or copy the parent's complete description.

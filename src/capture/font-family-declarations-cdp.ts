@@ -25,7 +25,7 @@ interface CdpNode extends FamilyDomNode {
 // This function runs against a Document or ShadowRoot, including a closed root
 // obtained through DOM.resolveNode. Its only DOM change is the removed initial
 // value probe, matching the capture walk's existing browser-settings probe.
-const collectCandidates = String.raw`function(literalOnly) {
+const collectCandidates = String.raw`function(literalOnly, earlyRootFamily) {
   var root = this;
   var doc = root.nodeType === 9 ? root : root.ownerDocument;
   var view = doc.defaultView;
@@ -47,6 +47,7 @@ const collectCandidates = String.raw`function(literalOnly) {
   var hasOpaque = false;
   for (var i = 0; i < sheets.length; i++) if (opaque(sheets[i])) hasOpaque = true;
   if (!hasOpaque && literalOnly) return [];
+  var cachedRootFamily = literalOnly ? '' : view.getComputedStyle(doc.documentElement).fontFamily.toLowerCase();
   var probe = doc.createElement('span');
   probe.style.setProperty('all', 'initial', 'important');
   probe.style.setProperty('display', 'none', 'important');
@@ -56,20 +57,32 @@ const collectCandidates = String.raw`function(literalOnly) {
     initial = view.getComputedStyle(probe).fontFamily.toLowerCase();
   } finally { probe.remove(); }
   var candidates = [];
+  var cachedNames = new Set(literalOnly ? [] : [cachedRootFamily, view === view.top ? earlyRootFamily : '']);
+  cachedNames.delete(initial);
+  cachedNames.delete('');
+  var cachedCandidates = [];
   var elements = root.querySelectorAll('*');
   for (var i = 0; i < elements.length; i++) {
     var el = elements[i];
     var hostStyle = view.getComputedStyle(el);
-    var candidate = hostStyle.fontFamily.toLowerCase() === initial;
+    var name = hostStyle.fontFamily.toLowerCase();
+    var candidate = name === initial;
+    var cached = cachedNames.has(name);
     if (!literalOnly && !candidate) {
-      candidate = ['before', 'after', 'first-letter', 'first-line', 'placeholder', 'file-selector-button'].some(function(pseudo) {
-        return view.getComputedStyle(el, '::' + pseudo).fontFamily.toLowerCase() === initial;
-      });
-      if (!candidate && hostStyle.display.includes('list-item')) {
-        candidate = view.getComputedStyle(el, '::marker').fontFamily.toLowerCase() === initial;
+      var pseudos = ['before', 'after', 'first-letter', 'first-line', 'placeholder', 'file-selector-button'];
+      if (hostStyle.display.includes('list-item')) pseudos.push('marker');
+      for (var j = 0; j < pseudos.length && !candidate; j++) {
+        name = view.getComputedStyle(el, '::' + pseudos[j]).fontFamily.toLowerCase();
+        candidate = name === initial;
+        cached = cached || cachedNames.has(name);
       }
     }
     if (candidate) candidates.push(el);
+    else if (cached) cachedCandidates.push(el);
+  }
+  if (cachedCandidates.length > 0) {
+    candidates.cachedCandidates = cachedCandidates;
+    candidates.documentElement = doc.documentElement;
   }
   return candidates;
 }`;
@@ -95,13 +108,40 @@ export function standardFamilyLocaleRoutable(
   );
 }
 
-/** Supplement known CSSOM author facts only for opaque-sheet initial-name candidates.
+/** Read the root's live family before later probes can refresh its computed style. */
+export async function observeCaptureRootFontFamily(page: Page): Promise<string | undefined> {
+  try {
+    return await withTimeout(
+      page.evaluate(() => getComputedStyle(document.documentElement).fontFamily.toLowerCase()),
+      500,
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+async function readMatchedFamilyEvidence(session: CDPSession, nodeId: number): Promise<MatchedFamilyDeclarations> {
+  const matched = await session.send("CSS.getMatchedStylesForNode", { nodeId });
+  const animated = await session.send("CSS.getAnimatedStylesForNode", { nodeId });
+  return {
+    ...matched,
+    animationStyles: animated.animationStyles,
+    transitionsStyle: animated.transitionsStyle,
+    inherited: matched.inherited?.map((scope, index) => ({
+      ...scope,
+      animationStyles: animated.inherited?.[index]?.animationStyles,
+      transitionsStyle: animated.inherited?.[index]?.transitionsStyle,
+    })),
+  };
+}
+
+/** Supplement known CSSOM author facts for initial-name candidates.
  * `defaultFontLocale` is the authenticated renderer default font locale
  * (`renderer-default-locale.ts`); capture must annotate the tree with the same
  * value whenever it is passed here. */
 export async function captureFontFamilyDeclarationFacts(
   page: Page,
-  options: { literalOnly?: boolean; defaultFontLocale?: string } = {},
+  options: { literalOnly?: boolean; defaultFontLocale?: string; earlyRootFamily?: string } = {},
 ): Promise<{
   propertyKey: string;
   warnings: CaptureWarning[];
@@ -163,13 +203,14 @@ export async function captureFontFamilyDeclarationFacts(
       };
       visit(root);
       const candidates: string[] = [];
+      const rootTypes = new Map<number, boolean>();
       for (const nodeId of roots) {
         const resolved = await session.send("DOM.resolveNode", { nodeId, objectGroup: group });
         if (resolved.object.objectId == null) throw new Error("Chromium did not expose the stylesheet root object");
         const result = await session.send("Runtime.callFunctionOn", {
           objectId: resolved.object.objectId,
           functionDeclaration: collectCandidates,
-          arguments: [{ value: options.literalOnly === true }],
+          arguments: [{ value: options.literalOnly === true }, { value: options.earlyRootFamily ?? "" }],
           objectGroup: group,
         });
         if (result.exceptionDetails != null) throw new Error(result.exceptionDetails.text);
@@ -178,8 +219,42 @@ export async function captureFontFamilyDeclarationFacts(
           objectId: result.result.objectId,
           ownProperties: true,
         });
-        for (const property of properties.result) {
-          if (/^\d+$/.test(property.name) && property.value?.objectId != null) candidates.push(property.value.objectId);
+        const addCandidates = (items: typeof properties.result) => {
+          for (const property of items) {
+            if (/^\d+$/.test(property.name) && property.value?.objectId != null)
+              candidates.push(property.value.objectId);
+          }
+        };
+        addCandidates(properties.result);
+        const cached = properties.result.find((property) => property.name === "cachedCandidates")?.value?.objectId;
+        const rootObject = properties.result.find((property) => property.name === "documentElement")?.value?.objectId;
+        if (cached == null || rootObject == null) continue;
+        // The root's cached and fresh Settings names can diverge. Qualify the
+        // candidate expansion only if the real root cascade is standard. Each
+        // extra candidate still needs its own native cascade proof below.
+        try {
+          const { nodeId: rootNodeId } = await session.send("DOM.requestNode", { objectId: rootObject });
+          let standard = rootTypes.get(rootNodeId);
+          if (standard == null) {
+            const witness = await withTimeout(
+              readMatchedFamilyEvidence(session, rootNodeId).then((evidence) =>
+                nativeFontFamilyType(session, rootNodeId, evidence, records),
+              ),
+              1500,
+            );
+            standard = witness != null && "type" in witness.resolution && witness.resolution.type === "standard";
+            rootTypes.set(rootNodeId, standard);
+          }
+          if (standard) {
+            const cachedProperties = await session.send("Runtime.getProperties", {
+              objectId: cached,
+              ownProperties: true,
+            });
+            addCandidates(cachedProperties.result);
+          }
+        } catch (error) {
+          // A lost optional root witness does not discard the ordinary candidates.
+          report(error);
         }
       }
       let next = 0;
@@ -189,18 +264,7 @@ export async function captureFontFamilyDeclarationFacts(
             const objectId = candidates[next++];
             try {
               const { nodeId } = await session.send("DOM.requestNode", { objectId });
-              const matched = await session.send("CSS.getMatchedStylesForNode", { nodeId });
-              const animated = await session.send("CSS.getAnimatedStylesForNode", { nodeId });
-              const evidence: MatchedFamilyDeclarations = {
-                ...matched,
-                animationStyles: animated.animationStyles,
-                transitionsStyle: animated.transitionsStyle,
-                inherited: matched.inherited?.map((scope, index) => ({
-                  ...scope,
-                  animationStyles: animated.inherited?.[index]?.animationStyles,
-                  transitionsStyle: animated.inherited?.[index]?.transitionsStyle,
-                })),
-              };
+              const evidence = await readMatchedFamilyEvidence(session, nodeId);
               const authored = matchedFamilyIsUnambiguouslyAuthored(evidence);
               let authoredPseudos = (evidence.pseudoElements ?? [])
                 .filter((pseudo) => matchedFamilyIsUnambiguouslyAuthored({ matchedCSSRules: pseudo.matches }))
@@ -287,7 +351,7 @@ export async function captureFontFamilyDeclarationFacts(
                             : "native family type is unavailable",
                       ),
                     );
-                  const firstLine = matched.pseudoElements?.find((pseudo) => pseudo.pseudoType === "first-line");
+                  const firstLine = evidence.pseudoElements?.find((pseudo) => pseudo.pseudoType === "first-line");
                   if (firstLine != null) {
                     const type = matchedFirstLineFamilyType({ matchedCSSRules: firstLine.matches }, provenance.type);
                     if (type != null)

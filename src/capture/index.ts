@@ -55,7 +55,7 @@ import { rasterizeNativeControlDecorations } from "./native-control-decoration-r
 import { refineLineClampEllipsisFragments } from "./line-clamp.js";
 import { captureResolvedControlPseudoStyles } from "./pseudo-style-cdp.js";
 import { captureEffectiveAppearanceFacts } from "./effective-appearance-cdp.js";
-import { captureFontFamilyDeclarationFacts } from "./font-family-declarations-cdp.js";
+import { captureFontFamilyDeclarationFacts, observeCaptureRootFontFamily } from "./font-family-declarations-cdp.js";
 import { finalizeScrollbarResizerOverlap, prepareCapturedScrollbarSets } from "./scrollbar-capture.js";
 import { prepareFrameScrollCapture } from "./frame-scroll-state.js";
 import { freezeWebGlOutputForCapture, type WebGlOutputFreeze } from "./webgl-output-freeze.js";
@@ -2421,6 +2421,7 @@ async function captureElementTreeWithWarningsInternal(
   let primaryFailed = false;
   let primaryFailure: unknown;
   try {
+    const earlyRootFamily = await observeCaptureRootFontFamily(page);
     // A live screenshot presents the current WebGL frame before the replaced
     // media transaction and many CDP probes. Muting only WebGL paint calls
     // avoids software readback on later commits. The outer finally restores
@@ -2529,6 +2530,7 @@ async function captureElementTreeWithWarningsInternal(
       // authenticated default locale annotateDefaultFontLocale records below.
       fontFamilyDeclarations = await captureFontFamilyDeclarationFacts(page, {
         defaultFontLocale: "locale" in rendererLocale ? rendererLocale.locale : undefined,
+        earlyRootFamily,
       });
       await reverifyAnimationFrame();
       scrollbarCapture = await prepareCapturedScrollbarSets(page, selector, viewport, pseudoStyles, {
